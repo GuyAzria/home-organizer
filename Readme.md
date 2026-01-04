@@ -1,4 +1,4 @@
-![Logo](https://github.com/GuyAzria/home-organizer/logo.png)
+![Logo](https://github.com/GuyAzria/home-organizer/Logo.png)
 <div align="center"\>  
 
 # **Home Organizer**
