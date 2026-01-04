@@ -1,6 +1,6 @@
 
 <div align="center"\>  
- <head> Home Organizer </head>
+<header style="background-color: mediumpurple"> Home Organizer </header>
 
 </div>  
 <div align="center"\>  
