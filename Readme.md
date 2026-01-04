@@ -2,7 +2,7 @@
 
 **The complete, fully integrated home inventory system for Home Assistant.**
 
-**Written by Guy Azaria with AI help.**
+**Written by Guy Azria with AI help.**
 
 This integration adds a dedicated **Full-Screen App** to your Home Assistant sidebar (Custom Panel). It allows you to organize your home items in unlimited nested folders, manage stock levels, take photos, generate smart shopping lists, and utilize Google AI for automatic item recognition.
 
