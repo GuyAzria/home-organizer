@@ -1,4 +1,4 @@
-# <img src="logo.svg" alt="Logo" width="200" height="200">  **Home Organizer**
+# <img src="logo.svg" alt="Logo" width="50" height="50">  **Home Organizer**
 
  
 
