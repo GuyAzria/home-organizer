@@ -1,4 +1,4 @@
-# **🏠 Home Organizer Ultimate**
+# **<img src="logo.svg" alt="Logo" width="200" height="200"> Home Organizer Ultimate**
 
 **The complete, fully integrated home inventory system for Home Assistant.**
 
