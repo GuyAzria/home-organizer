@@ -1,0 +1,10 @@
+{
+  "domain": "home_organizer",
+  "name": "Home Organizer Ultimate",
+  "codeowners": ["@GuyAzaria"],
+  "config_flow": true,
+  "documentation": "https://github.com/GuyAzaria/home-organizer-ultimate",
+  "iot_class": "local_push",
+  "requirements": ["google-generativeai", "pillow"],
+  "version": "2.0.0"
+}
