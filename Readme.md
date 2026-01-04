@@ -1,7 +1,7 @@
 # **Home Organizer**
 
  
-<img src="logo.svg" alt="Home Organizer Logo" width="150" height="150"\>  
+<img src="logo.svg" alt="Logo" width="200" height="200"> 
  
 
 **The complete, fully integrated home inventory system for Home Assistant.**
