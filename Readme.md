@@ -1,6 +1,6 @@
 
 <div align="center"\>  
- <header> Home Organizer </header>
+ <head> Home Organizer </head>
 
 </div>  
 <div align="center"\>  
