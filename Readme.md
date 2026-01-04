@@ -1,13 +1,13 @@
 
 <div align="center"\>  
-<header style="background-color: mediumpurple"> Home Organizer </header>
 
-</div>  
+# **Home Organizer**
+
 <div align="center"\>  
 <img src="logo.svg" alt="Home Organizer Logo" width="150" height="150"\>  
 
 </div>  
-
+</div>  
  
 
 **The complete, fully integrated home inventory system for Home Assistant.**
