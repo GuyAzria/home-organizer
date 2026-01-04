@@ -2,7 +2,8 @@
 <div align="center"\>  
  # **Home Organizer**
 
-
+</div\>  
+<div align="center"\>  
 <img src="logo.svg" alt="Home Organizer Logo" width="150" height="150"\>  
 
 </div\>  
