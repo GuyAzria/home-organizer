@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 2.0.3
+# Home Organizer Ultimate - ver 2.0.4
 
 import logging
 import sqlite3
@@ -92,7 +92,6 @@ def update_view(hass, entry=None):
     date_filter = state["date_filter"]
     is_shopping = state["shopping_mode"]
     
-    # Get Config for AI status
     use_ai = True
     if entry:
         use_ai = entry.options.get(CONF_USE_AI, entry.data.get(CONF_USE_AI, True))
@@ -129,26 +128,32 @@ def update_view(hass, entry=None):
                     items.append({"name": r_dict['name'], "type": r_dict['type'], "qty": r_dict['quantity'], "date": r_dict['item_date'], "img": img, "location": " > ".join(fp)})
 
         else:
+            # Browse Mode
             depth = len(path_parts)
             sql_where = ""; params = []
             for i, p in enumerate(path_parts): sql_where += f" AND level_{i+1} = ?"; params.append(p)
 
+            # 1. Get Folders (Distinct values at the NEXT level)
             if depth < MAX_LEVELS:
                 col = f"level_{depth+1}"
                 c.execute(f"SELECT DISTINCT {col} FROM items WHERE {col} IS NOT NULL AND {col} != '' {sql_where} ORDER BY {col} ASC", tuple(params))
                 for r in c.fetchall(): folders.append({"name": r[0]})
 
+            # 2. Get Items (Rows where the NEXT level is NULL)
             sql = f"SELECT * FROM items WHERE 1=1 {sql_where}"
             if depth < MAX_LEVELS: sql += f" AND (level_{depth+1} IS NULL OR level_{depth+1} = '')"
+            
+            # Filter to show only real items, not folder markers
+            sql += " AND type = 'item'" 
+            
             sql += " ORDER BY CASE WHEN quantity > 0 THEN 0 ELSE 1 END, name ASC"
 
             c.execute(sql, tuple(params))
             col_names = [description[0] for description in c.description]
             for r in c.fetchall():
                 r_dict = dict(zip(col_names, r))
-                if r_dict['type'] == 'item':
-                    img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
-                    items.append({"name": r_dict['name'], "type": r_dict['type'], "qty": r_dict['quantity'], "date": r_dict['item_date'], "img": img, "location": ""})
+                img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
+                items.append({"name": r_dict['name'], "type": r_dict['type'], "qty": r_dict['quantity'], "date": r_dict['item_date'], "img": img, "location": ""})
     finally: conn.close()
 
     display = "Shopping List" if is_shopping else ("Search Results" if (query or date_filter != "All") else (" > ".join(path_parts) if path_parts else "Main"))
@@ -188,14 +193,42 @@ async def register_services(hass, entry):
             except: pass
 
         parts = hass.data[DOMAIN]["current_path"]
-        cols = ["name", "type", "item_date", "image_path"]; vals = [name, itype, date, fname]; qs = ["?", "?", "?", "?"]
-        for i, p in enumerate(parts): cols.append(f"level_{i+1}"); vals.append(p); qs.append("?")
+        
+        # --- FIXED FOLDER CREATION LOGIC ---
+        if itype == 'folder':
+            # When creating a folder, we must insert a row that defines this level.
+            # We insert a 'folder_marker' item where level_{depth+1} = new_folder_name.
+            depth = len(parts)
+            if depth >= MAX_LEVELS: return # Cannot go deeper
+            
+            cols = ["name", "type", "quantity", "item_date", "image_path"]
+            vals = [f"[Folder] {name}", "folder_marker", 0, date, fname]
+            qs = ["?", "?", "?", "?", "?"]
+            
+            # Fill current path columns
+            for i, p in enumerate(parts):
+                cols.append(f"level_{i+1}"); vals.append(p); qs.append("?")
+            
+            # Define the NEW folder level
+            cols.append(f"level_{depth+1}"); vals.append(name); qs.append("?")
+            
+            def db_ins():
+                conn = get_db_connection(hass); c = conn.cursor()
+                c.execute(f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})", tuple(vals))
+                conn.commit(); conn.close()
+            await hass.async_add_executor_job(db_ins)
+            
+        else:
+            # Normal Item Creation (Same as before)
+            cols = ["name", "type", "item_date", "image_path"]; vals = [name, itype, date, fname]; qs = ["?", "?", "?", "?"]
+            for i, p in enumerate(parts): cols.append(f"level_{i+1}"); vals.append(p); qs.append("?")
 
-        def db_ins():
-            conn = get_db_connection(hass); c = conn.cursor()
-            c.execute(f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})", tuple(vals))
-            conn.commit(); conn.close()
-        await hass.async_add_executor_job(db_ins)
+            def db_ins():
+                conn = get_db_connection(hass); c = conn.cursor()
+                c.execute(f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})", tuple(vals))
+                conn.commit(); conn.close()
+            await hass.async_add_executor_job(db_ins)
+
         hass.data[DOMAIN]["ai_suggestion"] = ""
         await update_wrapper(hass)
 
@@ -242,7 +275,25 @@ async def register_services(hass, entry):
     async def handle_delete(call):
         name = call.data.get("item_name"); pp = hass.data[DOMAIN]["current_path"]; sql_p = ""; prm = []
         for i, p in enumerate(pp): sql_p += f" AND level_{i+1} = ?"; prm.append(p)
-        def db_del(): conn = get_db_connection(hass); conn.cursor().execute(f"DELETE FROM items WHERE name = ? {sql_p}", (name, *prm)); conn.commit(); conn.close()
+        
+        # Check if we are deleting a folder (by checking if this name exists as a next level)
+        # However, for simplicity, we delete any item matching name in current path.
+        # If it was a folder marker, the folder disappears.
+        
+        def db_del(): 
+            conn = get_db_connection(hass); 
+            # If deleting a folder (a row where level_{depth+1} == name), we need slightly different logic?
+            # Actually, standard delete works on the marker item.
+            # BUT, we also want to delete all items INSIDE that folder?
+            # For safety, let's just delete the specific item/marker selected.
+            conn.cursor().execute(f"DELETE FROM items WHERE name = ? {sql_p}", (name, *prm))
+            
+            # Note: This deletes ITEMS. To delete FOLDERS, the UI needs to pass the folder name.
+            # Currently the UI 'delete' button is only on ITEMS (expanded rows).
+            # We need to support deleting folders too if requested, but let's stick to basic functionality.
+            
+            conn.commit(); conn.close()
+            
         await hass.async_add_executor_job(db_del); await update_wrapper(hass)
 
     async def handle_paste(call):
@@ -265,21 +316,15 @@ async def register_services(hass, entry):
         await update_wrapper(hass)
 
     async def handle_ai_action(call):
-        # CHECK IF AI IS ENABLED
         use_ai = entry.options.get(CONF_USE_AI, entry.data.get(CONF_USE_AI, True))
-        if not use_ai:
-            _LOGGER.info("AI Action skipped because AI is disabled in config.")
-            return
+        if not use_ai: return
 
         mode = call.data.get("mode")
         img_b64 = call.data.get("image_data")
-        if not img_b64 or not api_key: 
-            return
+        if not img_b64 or not api_key: return
 
         if "," in img_b64: img_b64 = img_b64.split(",")[1]
 
-        # Use Home Assistant's built-in client to talk to Gemini API directly
-        # This completely bypasses the need for the google-generativeai library
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
         
         prompt_text = "Identify this household item. Return ONLY the name in English or Hebrew. 2-3 words max."
