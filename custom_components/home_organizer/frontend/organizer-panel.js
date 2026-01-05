@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - ver 2.0.8
+// Home Organizer Ultimate - ver 2.0.9
 // Written by Guy Azaria with AI help
 // License: MIT
 
@@ -65,11 +65,8 @@ class HomeOrganizerPanel extends HTMLElement {
         .sub-title { font-size: 11px; color: #aaa; direction: ltr;}
         .content { flex: 1; padding: 15px; overflow-y: auto; }
         
-        /* Item Row Styling */
         .item-row { background: #2c2c2e; margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid transparent; }
         .item-row.expanded { background: #3a3a3c; flex-direction: column; align-items: stretch; }
-        
-        /* Out of Stock Styling */
         .out-of-stock-frame { border: 2px solid var(--danger); }
 
         .item-main { display: flex; align-items: center; justify-content: space-between; width: 100%; cursor: pointer;}
@@ -108,12 +105,15 @@ class HomeOrganizerPanel extends HTMLElement {
 
         .item-list { display: flex; flex-direction: column; gap: 5px; }
         
-        /* Separator for Groups */
+        /* Group Separator */
         .group-separator { 
-            color: #aaa; font-size: 12px; margin: 15px 0 5px 0; border-bottom: 1px solid #444; padding-bottom: 2px; text-transform: uppercase; font-weight: bold;
-            display: flex; justify-content: space-between;
+            color: #aaa; font-size: 14px; margin: 20px 0 10px 0; border-bottom: 1px solid #444; padding-bottom: 4px; text-transform: uppercase; font-weight: bold;
+            display: flex; justify-content: space-between; align-items: center;
         }
         .oos-separator { color: var(--danger); border-color: var(--danger); }
+        
+        .edit-subloc-btn { background: none; border: none; color: #aaa; cursor: pointer; padding: 4px; }
+        .edit-subloc-btn:hover { color: var(--primary); }
 
         .item-details { font-size: 14px; }
         .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 4px; border-radius: 20px; }
@@ -223,7 +223,7 @@ class HomeOrganizerPanel extends HTMLElement {
     if(aiSearchBtn) aiSearchBtn.style.display = useAI ? 'block' : 'none';
 
     root.getElementById('display-title').innerText = attrs.path_display;
-    root.getElementById('display-path').innerText = attrs.app_version || '2.0.8';
+    root.getElementById('display-path').innerText = attrs.app_version || '2.0.9';
 
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
@@ -237,12 +237,10 @@ class HomeOrganizerPanel extends HTMLElement {
 
     // --- RENDER LOGIC ---
 
-    // 1. SHOPPING MODE (Group by Main Location)
     if (attrs.shopping_list && attrs.shopping_list.length > 0) {
         const listContainer = document.createElement('div');
         listContainer.className = 'item-list';
 
-        // Group by 'main_location'
         const grouped = {};
         attrs.shopping_list.forEach(item => {
             const loc = item.main_location || "Other";
@@ -264,7 +262,6 @@ class HomeOrganizerPanel extends HTMLElement {
         return;
     }
 
-    // 2. SEARCH MODE
     if ((this.isSearch || attrs.path_display === 'Search Results') && attrs.items) {
         const list = document.createElement('div');
         list.className = 'item-list';
@@ -273,11 +270,7 @@ class HomeOrganizerPanel extends HTMLElement {
         return;
     }
 
-    // 3. BROWSE MODE (Based on Depth)
-    
-    // Depth < 2: Show Grid (Folders) and Loose Items
     if (attrs.depth < 2) {
-        // Grid
         if (attrs.folders && attrs.folders.length > 0) {
             const grid = document.createElement('div');
             grid.className = 'folder-grid';
@@ -290,7 +283,6 @@ class HomeOrganizerPanel extends HTMLElement {
             });
             content.appendChild(grid);
         }
-        // Loose Items
         if (attrs.items && attrs.items.length > 0) {
             const list = document.createElement('div');
             list.className = 'item-list';
@@ -299,14 +291,13 @@ class HomeOrganizerPanel extends HTMLElement {
         }
     } 
     else {
-        // Depth >= 2: Main Location View (Sublocations & Out of Stock)
+        // MAIN LOCATION VIEW (Sublocations List)
         const listContainer = document.createElement('div');
         listContainer.className = 'item-list';
 
         const inStock = [];
         const outOfStock = [];
 
-        // Split items
         if (attrs.items) {
             attrs.items.forEach(item => {
                 if (item.qty === 0) outOfStock.push(item);
@@ -314,18 +305,35 @@ class HomeOrganizerPanel extends HTMLElement {
             });
         }
 
-        // Render In Stock (Grouped by Sublocation)
         const grouped = {};
+        // Initialize groups with folders (from attrs.folders which now contains all sublocations)
+        if (attrs.folders) {
+            attrs.folders.forEach(f => grouped[f.name] = []);
+        }
+        // Also ensure "General" exists if needed
+        grouped["General"] = grouped["General"] || [];
+
+        // Distribute items
         inStock.forEach(item => {
             const sub = item.sub_location || "General";
-            if(!grouped[sub]) grouped[sub] = [];
+            if(!grouped[sub]) grouped[sub] = []; // Should already exist from folders, but safety check
             grouped[sub].push(item);
         });
 
         Object.keys(grouped).sort().forEach(subName => {
+            // Only show General if it has items. Show other sublocations always (to allow adding to them or renaming)
+            if (subName === "General" && grouped[subName].length === 0) return;
+
             const header = document.createElement('div');
             header.className = 'group-separator';
-            header.innerText = subName;
+            
+            // Add Edit Button for Sublocation Headers
+            if (this.isEditMode && subName !== "General") {
+                header.innerHTML = `<span>${subName}</span> <button class="edit-subloc-btn" onclick="this.getRootNode().host.renameSubloc('${subName}')">${ICONS.edit}</button>`;
+            } else {
+                header.innerText = subName;
+            }
+            
             listContainer.appendChild(header);
 
             grouped[subName].forEach(item => {
@@ -333,7 +341,6 @@ class HomeOrganizerPanel extends HTMLElement {
             });
         });
 
-        // Render Out of Stock (At the bottom)
         if (outOfStock.length > 0) {
             const oosHeader = document.createElement('div');
             oosHeader.className = 'group-separator oos-separator';
@@ -351,21 +358,17 @@ class HomeOrganizerPanel extends HTMLElement {
 
   createItemRow(item, isShopMode) {
      const div = document.createElement('div');
-     // Red frame if OOS
      const oosClass = (item.qty === 0) ? 'out-of-stock-frame' : '';
      div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''} ${oosClass}`;
      
-     // Controls
      let controls = '';
      if (isShopMode) {
-         // Shop Mode: +/- and Update Button
          controls = `
             <button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${ICONS.minus}</button>
             <button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${ICONS.plus}</button>
             <button class="qty-btn" style="background:var(--primary)" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.name}')">${ICONS.save}</button>
          `;
      } else {
-         // Normal Mode
          controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${ICONS.plus}</button>
                      <span class="qty-val">${item.qty}</span>
                      <button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${ICONS.minus}</button>`;
@@ -388,7 +391,6 @@ class HomeOrganizerPanel extends HTMLElement {
         </div>
      `;
      
-     // Expanded Details (Same as before)
      if (this.expandedIdx === item.name) {
          const details = document.createElement('div');
          details.className = 'expanded-details';
@@ -424,15 +426,6 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   submitShopStock(name) {
-      // In Shop mode, we just want to "Update" stock. Usually implies restocking.
-      // But user said buttons + - and Update on same line.
-      // Current + - buttons call updateQty immediately.
-      // The Update button (Save icon) can be used to set a specific value or just commit "1".
-      // Let's assume Update button sets qty to 1 (Bought) for now, or confirms current state.
-      // Given the prompt, + - change amount. Update button... does what?
-      // "button to Update on the same line" implies a specific action.
-      // Let's make Update button prompt for exact stock or set to 1.
-      // For simplicity: + - work live. Update button sets Qty to 1 (Restock).
       this.callHA('update_stock', { item_name: name, quantity: 1 });
   }
 
@@ -447,6 +440,15 @@ class HomeOrganizerPanel extends HTMLElement {
     this.callHA('add_item', { item_name: name, item_type: type, item_date: date, image_data: this.tempAddImage });
     this.shadowRoot.getElementById('add-name').value = ''; this.tempAddImage = null;
     this.shadowRoot.getElementById('add-cam-icon').innerHTML = ICONS.camera;
+  }
+  
+  renameSubloc(oldName) {
+      const newName = prompt("Rename Sublocation:", oldName);
+      if (newName && newName !== oldName) {
+          // We treat sublocation renaming as updating a "folder marker" item details
+          // The backend logic is smart enough to handle this as a bulk update for the level
+          this.callHA('update_item_details', { original_name: oldName, new_name: newName, new_date: "" });
+      }
   }
 
   handleFile(e) {
