@@ -1,9 +1,8 @@
-// Home Organizer Ultimate - ver 2.0.0
+// Home Organizer Ultimate - ver 2.0.2
 // Written by Guy Azaria with AI help
 // License: MIT
 
 const ICONS = {
-  // ... (העתק את רשימת האייקונים SVG המלאה מהסימולטור האחרון) ...
   arrow_up: `<svg viewBox="0 0 24 24"><path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/></svg>`,
   home: `<svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>`,
   cart: `<svg viewBox="0 0 24 24"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>`,
@@ -20,7 +19,8 @@ const ICONS = {
   minus: `<svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>`,
   place: `<svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`,
   folder_add: `<svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z"/></svg>`,
-  item_add: `<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>`
+  item_add: `<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>`,
+  sparkles: `<svg viewBox="0 0 24 24"><path d="M9 9l1.5-4 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5zM19 19l-2.5-1 2.5-1 1-2.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5z"/></svg>`
 };
 
 class HomeOrganizerPanel extends HTMLElement {
@@ -51,8 +51,6 @@ class HomeOrganizerPanel extends HTMLElement {
     this.content = true;
     this.innerHTML = `
       <style>
-        /* (CSS זהה לסימולטור - העתק אותו מכאן כדי לחסוך מקום, או תשתמש בסימולטור האחרון) */
-        /* ... CSS CODE HERE ... */
         :host { --app-bg: #1c1c1e; --primary: #03a9f4; --accent: #4caf50; --danger: #f44336; --text: #fff; --border: #333; --warning: #ffeb3b; }
         * { box-sizing: border-box; }
         .app-container { background: var(--app-bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; font-family: sans-serif; direction: rtl; }
@@ -65,27 +63,58 @@ class HomeOrganizerPanel extends HTMLElement {
         .main-title { font-weight: bold; font-size: 16px; }
         .sub-title { font-size: 11px; color: #aaa; direction: ltr;}
         .content { flex: 1; padding: 15px; overflow-y: auto; }
-        /* ... שאר ה-CSS ... */
+        
+        /* Items */
+        .item-row { background: #2c2c2e; margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; }
+        .item-row.expanded { background: #3a3a3c; flex-direction: column; align-items: stretch; }
+        .item-main { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+        .item-left { display: flex; align-items: center; gap: 10px; }
+        .item-icon { color: var(--primary); }
+        .item-details { font-size: 14px; }
+        .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 4px; border-radius: 20px; }
+        .qty-btn { background: #444; border: none; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .qty-val { min-width: 20px; text-align: center; font-weight: bold; }
+        
         .bottom-bar { background: #242426; padding: 15px; border-top: 1px solid var(--border); display: none; }
         .edit-mode .bottom-bar { display: block; }
-        /* ודא שה-CSS מכיל את כל ההגדרות מהסימולטור */
+        
+        .expanded-details { margin-top: 10px; padding-top: 10px; border-top: 1px solid #555; display: flex; flex-direction: column; gap: 10px; }
+        .detail-row { display: flex; gap: 10px; align-items: center; }
+        .action-btn { flex: 1; padding: 8px; border-radius: 6px; border: none; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; }
+        .img-preview { width: 50px; height: 50px; border-radius: 4px; object-fit: cover; background: #333; }
+        
+        .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
+        
+        /* AI Button Style */
+        .ai-btn { color: #FFD700 !important; }
       </style>
       
-      <!-- (אותו מבנה HTML כמו בסימולטור) -->
       <div class="app-container" id="app">
-        <!-- ... Top Bar, Search, Paste, Content, Add ... -->
          <div class="top-bar">
             <div style="display:flex;gap:5px"><button class="nav-btn" id="btn-up">${ICONS.arrow_up}</button><button class="nav-btn" id="btn-home">${ICONS.home}</button></div>
             <div class="title-box"><div class="main-title" id="display-title">הבית שלי</div><div class="sub-title" id="display-path">ראשי</div></div>
             <div style="display:flex;gap:5px"><button class="nav-btn" id="btn-shop">${ICONS.cart}</button><button class="nav-btn" id="btn-search">${ICONS.search}</button><button class="nav-btn" id="btn-edit">${ICONS.edit}</button></div>
         </div>
-        <div class="search-box" id="search-box" style="display:none;padding:10px;background:#2a2a2a"><input type="text" id="search-input" style="width:100%;padding:8px;border-radius:8px;background:#111;color:white;border:1px solid #333"><button class="nav-btn" id="search-close">${ICONS.close}</button></div>
+        
+        <div class="search-box" id="search-box" style="display:none;">
+            <div style="position:relative; flex:1;">
+                <input type="text" id="search-input" style="width:100%;padding:8px;padding-left:35px;border-radius:8px;background:#111;color:white;border:1px solid #333">
+                <button id="btn-ai-search" class="nav-btn ai-btn" style="position:absolute;left:0;top:0;height:100%;border:none;background:none;display:none;">${ICONS.camera}</button>
+            </div>
+            <button class="nav-btn" id="search-close">${ICONS.close}</button>
+        </div>
+        
         <div class="paste-bar" id="paste-bar" style="display:none;padding:10px;background:rgba(255,235,59,0.2);color:#ffeb3b;align-items:center;justify-content:space-between"><div>${ICONS.cut} גזור: <b id="clipboard-name"></b></div><button id="btn-paste" style="background:#4caf50;color:white;border:none;padding:5px 15px;border-radius:15px">הדבק</button></div>
+        
         <div class="content" id="content"></div>
+        
         <div class="bottom-bar" id="add-area">
              <div style="display:flex;gap:10px;margin-bottom:10px">
                 <div class="cam-btn" id="add-cam-btn" style="width:45px;background:#333;border-radius:8px;display:flex;align-items:center;justify-content:center;position:relative"><input type="file" id="add-file" style="position:absolute;width:100%;height:100%;opacity:0"><span id="add-cam-icon">${ICONS.camera}</span></div>
-                <input type="text" id="add-name" placeholder="שם..." style="flex:1;padding:10px;border-radius:8px;background:#111;color:white;border:1px solid #333">
+                <div style="flex:1; display:flex; position:relative;">
+                    <input type="text" id="add-name" placeholder="שם..." style="width:100%;padding:10px;border-radius:8px;background:#111;color:white;border:1px solid #333">
+                    <button id="btn-ai-magic" class="nav-btn ai-btn" style="position:absolute;left:0;top:0;height:100%;border:none;background:none;display:none;">${ICONS.sparkles}</button>
+                </div>
                 <input type="date" id="add-date" style="width:110px;padding:10px;border-radius:8px;background:#111;color:white;border:1px solid #333">
              </div>
              <div style="display:flex;gap:10px"><button id="btn-create-folder" style="flex:1;padding:12px;background:#03a9f4;color:white;border:none;border-radius:8px">מיקום</button><button id="btn-create-item" style="flex:1;padding:12px;background:#4caf50;color:white;border:none;border-radius:8px">פריט</button></div>
@@ -111,6 +140,31 @@ class HomeOrganizerPanel extends HTMLElement {
     root.getElementById('btn-create-item').onclick = () => this.addItem('item');
     root.getElementById('btn-paste').onclick = () => this.pasteItem();
     root.getElementById('add-date').value = new Date().toISOString().split('T')[0];
+    
+    // AI Events
+    const magicBtn = root.getElementById('btn-ai-magic');
+    const searchAiBtn = root.getElementById('btn-ai-search');
+    
+    if(magicBtn) magicBtn.onclick = () => {
+         if (!this.tempAddImage) return alert("Take a picture first!");
+         this.callHA('ai_action', { mode: 'identify', image_data: this.tempAddImage });
+    };
+    
+    if(searchAiBtn) {
+        // We need a hidden file input for visual search or reuse existing logic
+        // For simplicity, reusing the logic: user clicks camera icon, it triggers a hidden file input
+        const searchInput = document.createElement('input');
+        searchInput.type = 'file';
+        searchInput.accept = 'image/*';
+        searchInput.style.display = 'none';
+        searchInput.onchange = (e) => {
+             const file = e.target.files[0]; if (!file) return;
+             const reader = new FileReader();
+             reader.onload = (evt) => this.callHA('ai_action', { mode: 'search', image_data: evt.target.result });
+             reader.readAsDataURL(file);
+        };
+        searchInput.click(); // Trigger dialog
+    }
   }
 
   updateUI() {
@@ -119,34 +173,113 @@ class HomeOrganizerPanel extends HTMLElement {
     const attrs = state.attributes;
     const root = this.shadowRoot;
     
-    // ... (כל הלוגיקה של updateUI כמו בסימולטור, רק עם הפנייה ל-root) ...
-    // חשוב: להעתיק את לוגיקת הרינדור מהסימולטור המלא האחרון
+    // Toggle AI Buttons Visibility based on Config
+    const useAI = attrs.use_ai; 
+    const aiMagicBtn = root.getElementById('btn-ai-magic');
+    const aiSearchBtn = root.getElementById('btn-ai-search');
     
-    // דוגמה קצרה לשינוי המהותי:
-    // בפריט רגיל:
-    // button onclick="window.comp.callHA('update_qty'...)
-    // הופך ל:
-    // button onclick="this.getRootNode().host.callHA('update_qty'...)
+    if(aiMagicBtn) aiMagicBtn.style.display = useAI ? 'block' : 'none';
+    if(aiSearchBtn) aiSearchBtn.style.display = useAI ? 'block' : 'none';
+
+    // Update Titles
+    root.getElementById('display-title').innerText = attrs.path_display;
+    root.getElementById('display-path').innerText = attrs.app_version;
+
+    // Show/Hide Areas
+    root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
+    root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
+    if(attrs.clipboard) root.getElementById('clipboard-name').innerText = attrs.clipboard;
+    
+    const app = root.getElementById('app');
+    if(this.isEditMode) app.classList.add('edit-mode'); else app.classList.remove('edit-mode');
+
+    // Render List
+    const content = root.getElementById('content');
+    content.innerHTML = '';
+    
+    let list = [];
+    if (attrs.shopping_list && attrs.shopping_list.length > 0) list = attrs.shopping_list;
+    else if ((this.isSearch || attrs.path_display === 'Search Results') && attrs.items) list = attrs.items;
+    else {
+        // Browse Mode
+        if (attrs.folders) attrs.folders.forEach(f => list.push({...f, type:'folder'}));
+        if (attrs.items) attrs.items.forEach(i => list.push({...i, type:'item'}));
+    }
+
+    list.forEach(item => {
+        const div = document.createElement('div');
+        div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''}`;
+        
+        if (item.type === 'folder') {
+             div.innerHTML = `
+                <div class="item-main" onclick="this.getRootNode().host.navigate('down', '${item.name}')">
+                    <div class="item-left"><span class="item-icon">${ICONS.folder}</span><span>${item.name}</span></div>
+                    <span>${ICONS.arrow_up}</span>
+                </div>`;
+        } else {
+             // Item Row
+             const isShop = (attrs.path_display === 'Shopping List');
+             let controls = '';
+             
+             if (isShop) {
+                 controls = `<button class="qty-btn" style="background:var(--accent)" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.name}')">${ICONS.plus}</button>
+                             <input id="shop-qty-${item.name}" type="number" value="1" style="width:30px;background:#222;color:white;border:none;text-align:center" onclick="event.stopPropagation()">`;
+             } else {
+                 controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${ICONS.plus}</button>
+                             <span class="qty-val">${item.qty}</span>
+                             <button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${ICONS.minus}</button>`;
+             }
+             
+             div.innerHTML = `
+                <div class="item-main" onclick="this.getRootNode().host.toggleRow('${item.name}')">
+                    <div class="item-left">
+                        <span class="item-icon">${ICONS.item}</span>
+                        <div>
+                            <div>${item.name}</div>
+                            <div class="sub-title">${item.date || ''} ${item.location ? '| ' + item.location : ''}</div>
+                        </div>
+                    </div>
+                    <div class="item-qty-ctrl">${controls}</div>
+                </div>
+             `;
+             
+             // Expanded Details
+             if (this.expandedIdx === item.name) {
+                 const details = document.createElement('div');
+                 details.className = 'expanded-details';
+                 details.innerHTML = `
+                    <div class="detail-row">
+                        <input type="text" id="name-${item.name}" value="${item.name}" style="flex:1;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px">
+                        <input type="date" id="date-${item.name}" value="${item.date}" style="width:110px;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px">
+                        <button class="action-btn" style="background:var(--primary)" onclick="this.getRootNode().host.saveDetails('${item.name}', '${item.name}')">שמור</button>
+                    </div>
+                    <div class="detail-row" style="justify-content:space-between">
+                         <div style="position:relative;width:50px;height:50px">
+                            ${item.img ? `<img src="${item.img}" class="img-preview" onclick="this.getRootNode().host.showImg('${item.img}')">` : '<div class="img-preview"></div>'}
+                            <input type="file" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
+                         </div>
+                         <div style="display:flex;gap:5px">
+                            <button class="action-btn" style="background:#555" onclick="this.getRootNode().host.cut('${item.name}')">${ICONS.cut}</button>
+                            <button class="action-btn" style="background:var(--danger)" onclick="this.getRootNode().host.del('${item.name}')">${ICONS.delete}</button>
+                         </div>
+                    </div>
+                 `;
+                 div.appendChild(details);
+             }
+        }
+        content.appendChild(div);
+    });
   }
 
   render() { this.updateUI(); }
   
-  // פונקציות עזר (אותן פונקציות, רק עם קריאה ל-HA)
   navigate(dir, name) { this.callHA('navigate', {direction: dir, name: name}); }
   toggleRow(name) { this.expandedIdx = (this.expandedIdx === name) ? null : name; this.render(); }
   
-  // עדכון כמות ישיר (רגיל)
   updateQty(name, d) {
        this.callHA('update_qty', { item_name: name, change: d });
   }
 
-  // עדכון כמות מקומי (קניות)
-  localShopQty(name, d) {
-      const el = this.shadowRoot.getElementById(`shop-qty-${name}`);
-      if(el) { let val = parseInt(el.value)||0; val+=d; if(val<1) val=1; el.value=val; }
-  }
-  
-  // אישור קנייה
   submitShopStock(name) {
       const el = this.shadowRoot.getElementById(`shop-qty-${name}`);
       if(el) {
@@ -164,6 +297,7 @@ class HomeOrganizerPanel extends HTMLElement {
     if (!name) return alert("שם חובה");
     this.callHA('add_item', { item_name: name, item_type: type, item_date: date, image_data: this.tempAddImage });
     this.shadowRoot.getElementById('add-name').value = ''; this.tempAddImage = null;
+    this.shadowRoot.getElementById('add-cam-icon').innerHTML = ICONS.camera;
   }
 
   handleFile(e) {
@@ -171,7 +305,7 @@ class HomeOrganizerPanel extends HTMLElement {
     const reader = new FileReader();
     reader.onload = (evt) => {
         this.tempAddImage = evt.target.result;
-        this.shadowRoot.getElementById('add-cam-icon').innerHTML = `<img src="${this.tempAddImage}" style="width:100%;height:100%;object-fit:cover">`;
+        this.shadowRoot.getElementById('add-cam-icon').innerHTML = `<img src="${this.tempAddImage}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`;
     }; reader.readAsDataURL(file);
   }
 
