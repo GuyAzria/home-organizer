@@ -3,9 +3,10 @@
     "step": {
       "user": {
         "title": "Home Organizer Setup",
-        "description": "Enter your Google Gemini API Key (Optional).",
+        "description": "Configure the Home Organizer.",
         "data": {
-          "api_key": "Google API Key"
+          "api_key": "Google API Key (Optional)",
+          "use_ai": "Enable AI Features (Gemini)"
         }
       }
     },
@@ -24,6 +25,7 @@
         "title": "Settings",
         "data": {
           "api_key": "Google API Key",
+          "use_ai": "Enable AI Features (Gemini)",
           "debug_mode": "Enable Debug Logging"
         }
       }
