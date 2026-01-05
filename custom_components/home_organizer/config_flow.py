@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.core import callback, HomeAssistant
+from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 
 from .const import DOMAIN, CONF_API_KEY, CONF_DEBUG
@@ -26,10 +27,8 @@ class HomeOrganizerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Handle the initial step."""
         if user_input is not None:
-            # If the user submitted the form, create the entry
             return self.async_create_entry(title="Home Organizer", data=user_input)
         
-        # Show the setup form
         return self.async_show_form(
             step_id="user", 
             data_schema=vol.Schema({
@@ -42,23 +41,21 @@ class HomeOrganizerOptionsFlowHandler(config_entries.OptionsFlow):
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""
-        self.config_entry = config_entry
+        # שינוי שם המשתנה ל-_config_entry כדי למנוע התנגשות עם property מוגן
+        self._config_entry = config_entry
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Manage the options."""
         if user_input is not None:
-            # Update the entry with the new options
             return self.async_create_entry(title="", data=user_input)
         
-        # Get current values to pre-fill the form
-        # Try to get from options first, then fall back to initial config data, then empty string
-        curr_key = self.config_entry.options.get(
+        # שימוש במשתנה הפרטי _config_entry
+        curr_key = self._config_entry.options.get(
             CONF_API_KEY, 
-            self.config_entry.data.get(CONF_API_KEY, "")
+            self._config_entry.data.get(CONF_API_KEY, "")
         )
-        curr_debug = self.config_entry.options.get(CONF_DEBUG, False)
+        curr_debug = self._config_entry.options.get(CONF_DEBUG, False)
 
-        # Show the options form
         return self.async_show_form(
             step_id="init", 
             data_schema=vol.Schema({
