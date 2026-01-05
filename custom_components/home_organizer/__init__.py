@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 2.0.2
+# Home Organizer Ultimate - ver 2.0.3
 
 import logging
 import sqlite3
@@ -96,10 +96,7 @@ def update_view(hass, entry=None):
     use_ai = True
     if entry:
         use_ai = entry.options.get(CONF_USE_AI, entry.data.get(CONF_USE_AI, True))
-    else:
-        # Fallback if entry not passed (less accurate but fallback)
-        use_ai = True 
-
+    
     conn = get_db_connection(hass); c = conn.cursor()
     folders = []; items = []; shopping_list = []
 
@@ -281,6 +278,8 @@ async def register_services(hass, entry):
 
         if "," in img_b64: img_b64 = img_b64.split(",")[1]
 
+        # Use Home Assistant's built-in client to talk to Gemini API directly
+        # This completely bypasses the need for the google-generativeai library
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
         
         prompt_text = "Identify this household item. Return ONLY the name in English or Hebrew. 2-3 words max."
