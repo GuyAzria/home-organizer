@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - ver 2.0.2
+// Home Organizer Ultimate - ver 2.0.3
 // Written by Guy Azaria with AI help
 // License: MIT
 
@@ -11,7 +11,7 @@ const ICONS = {
   close: `<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>`,
   camera: `<svg viewBox="0 0 24 24"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm6 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>`,
   folder: `<svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>`,
-  item: `<svg viewBox="0 0 24 24"><path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/></svg>`,
+  item: `<svg viewBox="0 0 24 24"><path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/></svg>`,
   delete: `<svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>`,
   cut: `<svg viewBox="0 0 24 24"><circle cx="6" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="6" cy="6" r="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9.64 7.64c.23-.5.36-1.05.36-1.64 0-2.21-1.79-4-4-4S2 3.79 2 6s1.79 4 4 4c.59 0 1.14-.13 1.64-.36L10 12l-2.36 2.36C7.14 14.13 6.59 14 6 14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.59-.13-1.14-.36-1.64L12 14l7 7h3v-1L9.64 7.64z"/></svg>`,
   paste: `<svg viewBox="0 0 24 24"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>`,
@@ -49,7 +49,8 @@ class HomeOrganizerPanel extends HTMLElement {
 
   initUI() {
     this.content = true;
-    this.innerHTML = `
+    this.attachShadow({mode: 'open'});
+    this.shadowRoot.innerHTML = `
       <style>
         :host { --app-bg: #1c1c1e; --primary: #03a9f4; --accent: #4caf50; --danger: #f44336; --text: #fff; --border: #333; --warning: #ffeb3b; }
         * { box-sizing: border-box; }
@@ -64,10 +65,9 @@ class HomeOrganizerPanel extends HTMLElement {
         .sub-title { font-size: 11px; color: #aaa; direction: ltr;}
         .content { flex: 1; padding: 15px; overflow-y: auto; }
         
-        /* Items */
         .item-row { background: #2c2c2e; margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; }
         .item-row.expanded { background: #3a3a3c; flex-direction: column; align-items: stretch; }
-        .item-main { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+        .item-main { display: flex; align-items: center; justify-content: space-between; width: 100%; cursor: pointer;}
         .item-left { display: flex; align-items: center; gap: 10px; }
         .item-icon { color: var(--primary); }
         .item-details { font-size: 14px; }
@@ -85,7 +85,6 @@ class HomeOrganizerPanel extends HTMLElement {
         
         .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
         
-        /* AI Button Style */
         .ai-btn { color: #FFD700 !important; }
       </style>
       
@@ -151,8 +150,6 @@ class HomeOrganizerPanel extends HTMLElement {
     };
     
     if(searchAiBtn) {
-        // We need a hidden file input for visual search or reuse existing logic
-        // For simplicity, reusing the logic: user clicks camera icon, it triggers a hidden file input
         const searchInput = document.createElement('input');
         searchInput.type = 'file';
         searchInput.accept = 'image/*';
@@ -163,7 +160,7 @@ class HomeOrganizerPanel extends HTMLElement {
              reader.onload = (evt) => this.callHA('ai_action', { mode: 'search', image_data: evt.target.result });
              reader.readAsDataURL(file);
         };
-        searchInput.click(); // Trigger dialog
+        searchAiBtn.onclick = () => searchInput.click();
     }
   }
 
@@ -183,7 +180,7 @@ class HomeOrganizerPanel extends HTMLElement {
 
     // Update Titles
     root.getElementById('display-title').innerText = attrs.path_display;
-    root.getElementById('display-path').innerText = attrs.app_version;
+    root.getElementById('display-path').innerText = attrs.app_version || '2.0.3';
 
     // Show/Hide Areas
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
