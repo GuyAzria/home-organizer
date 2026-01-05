@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - ver 2.0.6
+// Home Organizer Ultimate - ver 2.0.7
 // Written by Guy Azaria with AI help
 // License: MIT
 
@@ -71,16 +71,52 @@ class HomeOrganizerPanel extends HTMLElement {
         
         .item-icon { color: var(--primary); }
 
+        /* GRID SYSTEM FOR FOLDERS */
+        .folder-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); /* Responsive columns */
+            gap: 15px;
+            padding: 5px;
+            margin-bottom: 20px;
+        }
+
+        .folder-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            text-align: center;
+        }
+
         /* Android-style Folder Icon */
         .android-folder-icon {
-            width: 44px; height: 44px;
+            width: 56px; height: 56px;
             background: #3c4043; /* Dark gray adaptive icon bg */
-            border-radius: 12px; /* Squircle shape */
+            border-radius: 16px; /* Squircle shape */
             display: flex; align-items: center; justify-content: center;
             color: #8ab4f8; /* Google Blue folder tint */
-            flex-shrink: 0;
+            margin-bottom: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
-        .android-folder-icon svg { width: 24px; height: 24px; }
+        .android-folder-icon svg { width: 28px; height: 28px; }
+
+        .folder-label {
+            font-size: 12px;
+            color: #e0e0e0;
+            line-height: 1.2;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2; /* Max 2 lines of text */
+            -webkit-box-orient: vertical;
+        }
+
+        .item-list {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
 
         .item-details { font-size: 14px; }
         .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 4px; border-radius: 20px; }
@@ -190,7 +226,7 @@ class HomeOrganizerPanel extends HTMLElement {
     if(aiSearchBtn) aiSearchBtn.style.display = useAI ? 'block' : 'none';
 
     root.getElementById('display-title').innerText = attrs.path_display;
-    root.getElementById('display-path').innerText = attrs.app_version || '2.0.6';
+    root.getElementById('display-path').innerText = attrs.app_version || '2.0.7';
 
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
@@ -201,29 +237,54 @@ class HomeOrganizerPanel extends HTMLElement {
 
     const content = root.getElementById('content');
     content.innerHTML = '';
-    
-    let list = [];
-    if (attrs.shopping_list && attrs.shopping_list.length > 0) list = attrs.shopping_list;
-    else if ((this.isSearch || attrs.path_display === 'Search Results') && attrs.items) list = attrs.items;
+
+    // Prepare separate lists
+    let folders = [];
+    let items = [];
+
+    // Populate lists based on mode
+    if (attrs.shopping_list && attrs.shopping_list.length > 0) {
+        // Shopping mode usually just lists items, but logic might vary. We treat them as items.
+        items = attrs.shopping_list;
+    } 
+    else if ((this.isSearch || attrs.path_display === 'Search Results') && attrs.items) {
+        items = attrs.items;
+    }
     else {
-        if (attrs.folders) attrs.folders.forEach(f => list.push({...f, type:'folder'}));
-        if (attrs.items) attrs.items.forEach(i => list.push({...i, type:'item'}));
+        // Browse Mode
+        if (attrs.folders) folders = attrs.folders;
+        if (attrs.items) items = attrs.items;
     }
 
-    list.forEach(item => {
-        const div = document.createElement('div');
-        div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''}`;
+    // --- RENDER FOLDERS (GRID) ---
+    if (folders.length > 0) {
+        const grid = document.createElement('div');
+        grid.className = 'folder-grid';
         
-        if (item.type === 'folder') {
-             div.innerHTML = `
-                <div class="item-main" onclick="this.getRootNode().host.navigate('down', '${item.name}')">
-                    <div class="item-left">
-                        <div class="android-folder-icon">${ICONS.folder}</div>
-                        <span style="font-weight:500; font-size:16px;">${item.name}</span>
-                    </div>
-                    <!-- Arrow Removed -->
-                </div>`;
-        } else {
+        folders.forEach(folder => {
+            const el = document.createElement('div');
+            el.className = 'folder-item';
+            el.onclick = () => this.navigate('down', folder.name);
+            
+            el.innerHTML = `
+                <div class="android-folder-icon">${ICONS.folder}</div>
+                <div class="folder-label">${folder.name}</div>
+            `;
+            grid.appendChild(el);
+        });
+        content.appendChild(grid);
+    }
+
+    // --- RENDER ITEMS (LIST) ---
+    if (items.length > 0) {
+        const itemList = document.createElement('div');
+        itemList.className = 'item-list';
+        
+        items.forEach(item => {
+             const div = document.createElement('div');
+             div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''}`;
+             
+             // Items are rendered using existing list logic
              const isShop = (attrs.path_display === 'Shopping List');
              let controls = '';
              
@@ -271,9 +332,10 @@ class HomeOrganizerPanel extends HTMLElement {
                  `;
                  div.appendChild(details);
              }
-        }
-        content.appendChild(div);
-    });
+             itemList.appendChild(div);
+        });
+        content.appendChild(itemList);
+    }
   }
 
   render() { this.updateUI(); }
