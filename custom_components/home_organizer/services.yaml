@@ -1,26 +1,115 @@
-navigate:
-  fields: { direction: {}, name: {} }
 add_item:
-  fields: { item_name: {}, item_type: {}, item_date: {}, image_data: {} }
-update_image:
-  fields: { item_name: {}, image_data: {} }
-update_stock:
-  name: Stock Update (Shopping List)
-  fields: { item_name: {}, quantity: {} }
-update_item_details:
-  fields: { original_name: {}, new_name: {}, new_date: {} }
-update_qty:
-  name: Quick Qty Update
-  fields: { item_name: {}, change: {} }
-delete_item:
-  fields: { item_name: {} }
-paste_item:
-  fields: { target_path: {} }
-clipboard_action:
-  fields: { action: {}, item_name: {} }
-set_view_context:
-  fields: { path: {}, search_query: {}, date_filter: {}, shopping_mode: {} }
-ai_action:
-  fields: { mode: {}, image_data: {} }
-trigger_search:
-  fields: {}
+      name: Add Item
+      description: Adds a new item or folder.
+      fields:
+        item_name:
+          required: true
+          selector: { text: {} }
+        item_type:
+          required: true
+          selector:
+            select:
+              options: ["folder", "item"]
+        item_date:
+          selector: { text: {} }
+        image_data:
+          selector: { text: {} }
+
+    delete_item:
+      name: Delete Item
+      fields:
+        item_name:
+          required: true
+          selector: { text: {} }
+
+    update_qty:
+      name: Update Quantity
+      fields:
+        item_name:
+          required: true
+          selector: { text: {} }
+        change:
+          required: true
+          selector: { number: {} }
+
+    update_stock:
+      name: Update Stock
+      fields:
+        item_name:
+          required: true
+          selector: { text: {} }
+        quantity:
+          required: true
+          selector: { number: {} }
+
+    update_image:
+      name: Update Image
+      fields:
+        item_name:
+          required: true
+          selector: { text: {} }
+        image_data:
+          required: true
+          selector: { text: {} }
+
+    update_item_details:
+      name: Update Details
+      fields:
+        original_name:
+          required: true
+          selector: { text: {} }
+        new_name:
+          required: true
+          selector: { text: {} }
+        new_date:
+          selector: { text: {} }
+
+    clipboard_action:
+      name: Clipboard Action
+      fields:
+        action:
+          required: true
+          selector:
+            select:
+              options: ["cut"]
+        item_name:
+          required: true
+          selector: { text: {} }
+
+    paste_item:
+      name: Paste Item
+      fields:
+        target_path:
+          required: true
+          selector: { object: {} }
+
+    navigate:
+      name: Navigate
+      fields:
+        direction:
+          required: true
+          selector: { text: {} }
+        name:
+          selector: { text: {} }
+
+    set_view_context:
+      name: Set View Context
+      fields:
+        path:
+          selector: { object: {} }
+        search_query:
+          selector: { text: {} }
+        shopping_mode:
+          selector: { boolean: {} }
+        date_filter:
+          selector: { text: {} }
+
+    ai_action:
+      name: AI Action
+      fields:
+        mode:
+          required: true
+          selector: { text: {} }
+        image_data:
+          required: true
+          selector: { text: {} }
