@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - ver 2.0.9
+// Home Organizer Ultimate - ver 2.1.0
 // Written by Guy Azaria with AI help
 // License: MIT
 
@@ -67,6 +67,9 @@ class HomeOrganizerPanel extends HTMLElement {
         
         .item-row { background: #2c2c2e; margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid transparent; }
         .item-row.expanded { background: #3a3a3c; flex-direction: column; align-items: stretch; }
+        /* Add draggable cursor for items in edit mode */
+        .app-container.edit-mode .item-row { cursor: grab; }
+        
         .out-of-stock-frame { border: 2px solid var(--danger); }
 
         .item-main { display: flex; align-items: center; justify-content: space-between; width: 100%; cursor: pointer;}
@@ -110,6 +113,9 @@ class HomeOrganizerPanel extends HTMLElement {
             color: #aaa; font-size: 14px; margin: 20px 0 10px 0; border-bottom: 1px solid #444; padding-bottom: 4px; text-transform: uppercase; font-weight: bold;
             display: flex; justify-content: space-between; align-items: center;
         }
+        /* Highlight separator when dragging over */
+        .group-separator.drag-over { border-bottom: 2px solid var(--primary); color: var(--primary); }
+        
         .oos-separator { color: var(--danger); border-color: var(--danger); }
         
         .edit-subloc-btn { background: none; border: none; color: #aaa; cursor: pointer; padding: 4px; }
@@ -223,7 +229,7 @@ class HomeOrganizerPanel extends HTMLElement {
     if(aiSearchBtn) aiSearchBtn.style.display = useAI ? 'block' : 'none';
 
     root.getElementById('display-title').innerText = attrs.path_display;
-    root.getElementById('display-path').innerText = attrs.app_version || '2.0.9';
+    root.getElementById('display-path').innerText = attrs.app_version || '2.1.0';
 
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
@@ -306,30 +312,42 @@ class HomeOrganizerPanel extends HTMLElement {
         }
 
         const grouped = {};
-        // Initialize groups with folders (from attrs.folders which now contains all sublocations)
+        // Initialize groups with folders
         if (attrs.folders) {
             attrs.folders.forEach(f => grouped[f.name] = []);
         }
-        // Also ensure "General" exists if needed
-        grouped["General"] = grouped["General"] || [];
+        
+        // Use "General" if sublocation not set, but ensure we render "General" if edit mode is on
+        if (!grouped["General"]) grouped["General"] = [];
 
         // Distribute items
         inStock.forEach(item => {
             const sub = item.sub_location || "General";
-            if(!grouped[sub]) grouped[sub] = []; // Should already exist from folders, but safety check
+            if(!grouped[sub]) grouped[sub] = []; 
             grouped[sub].push(item);
         });
 
         Object.keys(grouped).sort().forEach(subName => {
-            // Only show General if it has items. Show other sublocations always (to allow adding to them or renaming)
-            if (subName === "General" && grouped[subName].length === 0) return;
+            // Only hide General if empty AND not in edit mode
+            if (subName === "General" && grouped[subName].length === 0 && !this.isEditMode) return;
 
             const header = document.createElement('div');
             header.className = 'group-separator';
             
-            // Add Edit Button for Sublocation Headers
+            // Drag & Drop Handlers for Sublocation Header
+            if (this.isEditMode) {
+                header.ondragover = (e) => { e.preventDefault(); header.classList.add('drag-over'); };
+                header.ondragleave = () => header.classList.remove('drag-over');
+                header.ondrop = (e) => { e.preventDefault(); header.classList.remove('drag-over'); this.handleDrop(e, subName); };
+            }
+
             if (this.isEditMode && subName !== "General") {
-                header.innerHTML = `<span>${subName}</span> <button class="edit-subloc-btn" onclick="this.getRootNode().host.renameSubloc('${subName}')">${ICONS.edit}</button>`;
+                header.innerHTML = `
+                    <span>${subName}</span> 
+                    <div style="display:flex;gap:5px">
+                        <button class="edit-subloc-btn" onclick="this.getRootNode().host.renameSubloc('${subName}')">${ICONS.edit}</button>
+                        <button class="edit-subloc-btn" style="color:var(--danger)" onclick="this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button>
+                    </div>`;
             } else {
                 header.innerText = subName;
             }
@@ -361,6 +379,15 @@ class HomeOrganizerPanel extends HTMLElement {
      const oosClass = (item.qty === 0) ? 'out-of-stock-frame' : '';
      div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''} ${oosClass}`;
      
+     // Draggable Item in Edit Mode
+     if (this.isEditMode) {
+         div.draggable = true;
+         div.ondragstart = (e) => {
+             e.dataTransfer.setData("text/plain", item.name);
+             e.dataTransfer.effectAllowed = "move";
+         };
+     }
+
      let controls = '';
      if (isShopMode) {
          controls = `
@@ -416,6 +443,32 @@ class HomeOrganizerPanel extends HTMLElement {
      return div;
   }
 
+  handleDrop(e, targetSubloc) {
+      e.preventDefault();
+      const itemName = e.dataTransfer.getData("text/plain");
+      if (!itemName) return;
+      
+      let targetPath = [...this.currentPath];
+      // If dropping on "General", we stay in currentPath (removing subloc)
+      // If dropping on specific subloc, we append it
+      if (targetSubloc !== "General") {
+          targetPath.push(targetSubloc);
+      }
+      
+      // Perform Move: Cut -> Paste
+      this.callHA('clipboard_action', {action: 'cut', item_name: itemName});
+      setTimeout(() => {
+          this.callHA('paste_item', {target_path: targetPath});
+      }, 100);
+  }
+
+  deleteSubloc(name) {
+      if(confirm(`Delete sublocation '${name}'? Items will move to 'General'.`)) {
+          // Rename to empty string -> Moves items to General (Global)
+          this.callHA('update_item_details', { original_name: name, new_name: "", new_date: "" });
+      }
+  }
+
   render() { this.updateUI(); }
   
   navigate(dir, name) { this.callHA('navigate', {direction: dir, name: name}); }
@@ -445,8 +498,6 @@ class HomeOrganizerPanel extends HTMLElement {
   renameSubloc(oldName) {
       const newName = prompt("Rename Sublocation:", oldName);
       if (newName && newName !== oldName) {
-          // We treat sublocation renaming as updating a "folder marker" item details
-          // The backend logic is smart enough to handle this as a bulk update for the level
           this.callHA('update_item_details', { original_name: oldName, new_name: newName, new_date: "" });
       }
   }
