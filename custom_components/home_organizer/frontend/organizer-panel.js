@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - ver 2.0.3
+// Home Organizer Ultimate - ver 2.0.6
 // Written by Guy Azaria with AI help
 // License: MIT
 
@@ -35,7 +35,6 @@ class HomeOrganizerPanel extends HTMLElement {
       this.initUI();
     }
     
-    // AI Listeners
     const state = this._hass.states['sensor.organizer_view'];
     if (state && state.attributes && state.attributes.ai_suggestion && state.attributes.ai_suggestion !== this.lastAI) {
         const input = this.shadowRoot.getElementById('add-name');
@@ -69,7 +68,20 @@ class HomeOrganizerPanel extends HTMLElement {
         .item-row.expanded { background: #3a3a3c; flex-direction: column; align-items: stretch; }
         .item-main { display: flex; align-items: center; justify-content: space-between; width: 100%; cursor: pointer;}
         .item-left { display: flex; align-items: center; gap: 10px; }
+        
         .item-icon { color: var(--primary); }
+
+        /* Android-style Folder Icon */
+        .android-folder-icon {
+            width: 44px; height: 44px;
+            background: #3c4043; /* Dark gray adaptive icon bg */
+            border-radius: 12px; /* Squircle shape */
+            display: flex; align-items: center; justify-content: center;
+            color: #8ab4f8; /* Google Blue folder tint */
+            flex-shrink: 0;
+        }
+        .android-folder-icon svg { width: 24px; height: 24px; }
+
         .item-details { font-size: 14px; }
         .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 4px; border-radius: 20px; }
         .qty-btn { background: #444; border: none; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
@@ -170,7 +182,6 @@ class HomeOrganizerPanel extends HTMLElement {
     const attrs = state.attributes;
     const root = this.shadowRoot;
     
-    // Toggle AI Buttons Visibility based on Config
     const useAI = attrs.use_ai; 
     const aiMagicBtn = root.getElementById('btn-ai-magic');
     const aiSearchBtn = root.getElementById('btn-ai-search');
@@ -178,11 +189,9 @@ class HomeOrganizerPanel extends HTMLElement {
     if(aiMagicBtn) aiMagicBtn.style.display = useAI ? 'block' : 'none';
     if(aiSearchBtn) aiSearchBtn.style.display = useAI ? 'block' : 'none';
 
-    // Update Titles
     root.getElementById('display-title').innerText = attrs.path_display;
-    root.getElementById('display-path').innerText = attrs.app_version || '2.0.3';
+    root.getElementById('display-path').innerText = attrs.app_version || '2.0.6';
 
-    // Show/Hide Areas
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
     if(attrs.clipboard) root.getElementById('clipboard-name').innerText = attrs.clipboard;
@@ -190,7 +199,6 @@ class HomeOrganizerPanel extends HTMLElement {
     const app = root.getElementById('app');
     if(this.isEditMode) app.classList.add('edit-mode'); else app.classList.remove('edit-mode');
 
-    // Render List
     const content = root.getElementById('content');
     content.innerHTML = '';
     
@@ -198,7 +206,6 @@ class HomeOrganizerPanel extends HTMLElement {
     if (attrs.shopping_list && attrs.shopping_list.length > 0) list = attrs.shopping_list;
     else if ((this.isSearch || attrs.path_display === 'Search Results') && attrs.items) list = attrs.items;
     else {
-        // Browse Mode
         if (attrs.folders) attrs.folders.forEach(f => list.push({...f, type:'folder'}));
         if (attrs.items) attrs.items.forEach(i => list.push({...i, type:'item'}));
     }
@@ -210,11 +217,13 @@ class HomeOrganizerPanel extends HTMLElement {
         if (item.type === 'folder') {
              div.innerHTML = `
                 <div class="item-main" onclick="this.getRootNode().host.navigate('down', '${item.name}')">
-                    <div class="item-left"><span class="item-icon">${ICONS.folder}</span><span>${item.name}</span></div>
-                    <span>${ICONS.arrow_up}</span>
+                    <div class="item-left">
+                        <div class="android-folder-icon">${ICONS.folder}</div>
+                        <span style="font-weight:500; font-size:16px;">${item.name}</span>
+                    </div>
+                    <!-- Arrow Removed -->
                 </div>`;
         } else {
-             // Item Row
              const isShop = (attrs.path_display === 'Shopping List');
              let controls = '';
              
@@ -240,7 +249,6 @@ class HomeOrganizerPanel extends HTMLElement {
                 </div>
              `;
              
-             // Expanded Details
              if (this.expandedIdx === item.name) {
                  const details = document.createElement('div');
                  details.className = 'expanded-details';
