@@ -1,12 +1,14 @@
 {
-      "domain": "home_organizer",
-      "name": "Home Organizer Ultimate",
-      "codeowners": ["@GuyAzria"],
-      "config_flow": true,
-      "dependencies": [],
-      "documentation": "https://github.com/GuyAzria/home-organizer",
-      "iot_class": "local_push",
-      "issue_tracker": "https://github.com/GuyAzria/home-organizer/issues",
-      "requirements": ["google-generativeai>=0.3.0", "Pillow"],
-      "version": "2.0.0"
-    }
+  "domain": "home_organizer",
+  "name": "Home Organizer Ultimate",
+  "codeowners": [
+    "@GuyAzria"
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/GuyAzria/home-organizer",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/GuyAzria/home-organizer/issues",
+  "requirements": [],
+  "version": "2.0.3"
+}
