@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 2.0.8
+# Home Organizer Ultimate - ver 2.0.9
 
 import logging
 import sqlite3
@@ -101,14 +101,12 @@ def update_view(hass, entry=None):
 
     try:
         if is_shopping:
-            # Shopping List: Group by Main Location (Level 2)
             c.execute("SELECT * FROM items WHERE quantity = 0 AND type='item' ORDER BY level_2 ASC, level_3 ASC")
             col_names = [description[0] for description in c.description]
             for r in c.fetchall():
                 r_dict = dict(zip(col_names, r))
                 fp = []; [fp.append(r_dict[f"level_{i}"]) for i in range(1, MAX_LEVELS+1) if r_dict.get(f"level_{i}")]
                 img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
-                # Store Main Location (Level 2) and Sublocation (Level 3) explicitly
                 shopping_list.append({
                     "name": r_dict['name'], 
                     "qty": 0, 
@@ -138,23 +136,15 @@ def update_view(hass, entry=None):
                     items.append({"name": r_dict['name'], "type": r_dict['type'], "qty": r_dict['quantity'], "date": r_dict['item_date'], "img": img, "location": " > ".join(fp)})
 
         else:
-            # Browse Mode
             depth = len(path_parts)
             sql_where = ""; params = []
             for i, p in enumerate(path_parts): sql_where += f" AND level_{i+1} = ?"; params.append(p)
 
-            # RULE: 
-            # Depth 0 (Root) -> Show Rooms (Grid)
-            # Depth 1 (Room) -> Show Main Locations (Grid)
-            # Depth >= 2 (Main Location) -> Show Items with Headers (List)
-            
             if depth < 2:
-                # SHOW FOLDERS (Grid View)
                 col = f"level_{depth+1}"
                 c.execute(f"SELECT DISTINCT {col} FROM items WHERE {col} IS NOT NULL AND {col} != '' {sql_where} ORDER BY {col} ASC", tuple(params))
                 for r in c.fetchall(): folders.append({"name": r[0]})
                 
-                # Also show any loose items at this level
                 sql = f"SELECT * FROM items WHERE type='item' AND (level_{depth+1} IS NULL OR level_{depth+1} = '') {sql_where} ORDER BY name ASC"
                 c.execute(sql, tuple(params))
                 col_names = [description[0] for description in c.description]
@@ -163,33 +153,39 @@ def update_view(hass, entry=None):
                      img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
                      items.append({"name": r_dict['name'], "type": 'item', "qty": r_dict['quantity'], "img": img})
             else:
-                # SHOW ITEMS & SUBLOCATIONS (List View)
-                # Fetch ALL items that match current path (Level 1 & 2), grouped by Level 3 (Sublocation)
-                # We do NOT show folders here. We treat Level 3 as a Header.
-                
-                # We need to fetch items that are "here" (no sublocation) OR in a sublocation (level 3 exists)
-                # We limit depth to +1 level of headers to keep it manageable.
-                
-                # Actually, simply fetch ALL items matching path.
+                # LIST MODE (Inside Main Location)
+                # Fetch distinct Sublocations (Level 3) for headers
+                # We need a list of sublocations to display empty ones too if we just created them
+                sublocations = []
+                col = f"level_{depth+1}"
+                c.execute(f"SELECT DISTINCT {col} FROM items WHERE {col} IS NOT NULL AND {col} != '' {sql_where} ORDER BY {col} ASC", tuple(params))
+                for r in c.fetchall(): sublocations.append(r[0])
+
                 sql = f"SELECT * FROM items WHERE type='item' {sql_where} ORDER BY level_{depth+1} ASC, name ASC"
-                
                 c.execute(sql, tuple(params))
                 col_names = [description[0] for description in c.description]
+                
+                # We map items to sublocations
+                # We also need to return the list of sublocations so the frontend can render empty sections
+                
+                fetched_items = []
                 for r in c.fetchall():
                     r_dict = dict(zip(col_names, r))
                     img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
-                    
-                    # Determine sublocation header (next level)
                     subloc = r_dict.get(f"level_{depth+1}", "")
-                    
-                    items.append({
+                    fetched_items.append({
                         "name": r_dict['name'], 
                         "type": 'item', 
                         "qty": r_dict['quantity'], 
                         "date": r_dict['item_date'], 
                         "img": img, 
-                        "sub_location": subloc # This will be used for grouping
+                        "sub_location": subloc
                     })
+                
+                # Add sublocations list to the response so we know they exist even if empty
+                # We reuse 'folders' array for this purpose
+                for s in sublocations: folders.append({"name": s})
+                items = fetched_items
 
     finally: conn.close()
 
@@ -249,41 +245,79 @@ async def register_services(hass, entry):
             except: pass
 
         parts = hass.data[DOMAIN]["current_path"]
-        
-        # Determine cols based on depth
-        # If we are at Main Location (depth 2), adding a "folder" actually adds a Sublocation Header (level 3)
-        # But our DB logic for folders inserts a marker.
-        
         depth = len(parts)
         cols = ["name", "type", "quantity", "item_date", "image_path"]
         
-        # If adding folder
+        # FIX: Allow adding folder (Sublocation) even at depth 2
         if itype == 'folder':
             if depth >= MAX_LEVELS: return
             vals = [f"[Folder] {name}", "folder_marker", 0, date, fname]
-            # Fill existing levels
             qs = ["?", "?", "?", "?", "?"]
             for i, p in enumerate(parts): cols.append(f"level_{i+1}"); vals.append(p); qs.append("?")
-            # Add new level
             cols.append(f"level_{depth+1}"); vals.append(name); qs.append("?")
+            
+            def db_ins():
+                conn = get_db_connection(hass); c = conn.cursor()
+                c.execute(f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})", tuple(vals))
+                conn.commit(); conn.close()
+            await hass.async_add_executor_job(db_ins)
+            
         else:
-            # Item
-            # If user selected a "Sublocation" in UI, we should respect it.
-            # Currently UI add simply adds to current path.
-            # To support "Choose Sublocation", UI needs to send updated path or extra param.
-            # For now, standard add.
-            vals = [name, itype, 1, date, fname] # Default qty 1
+            # FIX: If we are adding an item, and the user provided a "Sublocation" via the UI (not implemented yet in UI but prepared here)
+            # For now, default add to current path.
+            # However, if we are in Main Location (Depth 2), items are usually added to "General" unless assigned.
+            
+            vals = [name, itype, 1, date, fname]
             qs = ["?", "?", "?", "?", "?"]
             for i, p in enumerate(parts): cols.append(f"level_{i+1}"); vals.append(p); qs.append("?")
 
-        def db_ins():
-            conn = get_db_connection(hass); c = conn.cursor()
-            c.execute(f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})", tuple(vals))
-            conn.commit(); conn.close()
-        await hass.async_add_executor_job(db_ins)
+            def db_ins():
+                conn = get_db_connection(hass); c = conn.cursor()
+                c.execute(f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})", tuple(vals))
+                conn.commit(); conn.close()
+            await hass.async_add_executor_job(db_ins)
 
         hass.data[DOMAIN]["ai_suggestion"] = ""
         await update_wrapper(hass)
+
+    async def handle_update_item_details(call):
+        orig, nn, nd = call.data.get("original_name"), call.data.get("new_name"), call.data.get("new_date")
+        
+        # Check if we are renaming a Sublocation (Header)
+        # We detect this if 'original_name' matches a sublocation name in the current context
+        # Ideally we'd have a separate service 'rename_folder', but let's overload this one intelligently.
+        
+        parts = hass.data[DOMAIN]["current_path"]
+        depth = len(parts)
+        
+        def db_u():
+            conn = get_db_connection(hass); c = conn.cursor()
+            
+            # Construct Where Clause for current path
+            sql_where = ""; params = []
+            for i, p in enumerate(parts): sql_where += f" AND level_{i+1} = ?"; params.append(p)
+            
+            # 1. Try renaming a FOLDER/SUBLOCATION at this level
+            # We check if there are items where level_{depth+1} == original_name
+            check_sql = f"SELECT count(*) FROM items WHERE level_{depth+1} = ? {sql_where}"
+            c.execute(check_sql, (orig, *params))
+            count = c.fetchone()[0]
+            
+            if count > 0:
+                # It is a folder/sublocation! Update the LEVEL column for all items.
+                update_sql = f"UPDATE items SET level_{depth+1} = ? WHERE level_{depth+1} = ? {sql_where}"
+                c.execute(update_sql, (nn, orig, *params))
+                
+                # Also update the marker item name if it exists
+                c.execute(f"UPDATE items SET name = ? WHERE name = ? AND type='folder_marker' {sql_where}", (f"[Folder] {nn}", f"[Folder] {orig}", *params))
+                
+            else:
+                # It is a regular item
+                c.execute(f"UPDATE items SET name = ?, item_date = ? WHERE name = ? {sql_where} AND (level_{depth+1} IS NULL OR level_{depth+1} = '')", (nn, nd, orig, *params))
+            
+            conn.commit(); conn.close()
+            
+        await hass.async_add_executor_job(db_u); await update_wrapper(hass)
 
     async def handle_update_image(call):
         name = call.data.get("item_name"); img_b64 = call.data.get("image_data")
@@ -296,13 +330,6 @@ async def register_services(hass, entry):
             conn = get_db_connection(hass); c = conn.cursor()
             c.execute(f"UPDATE items SET image_path = ? WHERE name = ? {sql_p}", (fname, name, *prm)); conn.commit(); conn.close()
         await hass.async_add_executor_job(save); await update_wrapper(hass)
-
-    async def handle_update_item_details(call):
-        orig, nn, nd = call.data.get("original_name"), call.data.get("new_name"), call.data.get("new_date")
-        pp = hass.data[DOMAIN]["current_path"]; sql_p = ""; prm = []
-        for i, p in enumerate(pp): sql_p += f" AND level_{i+1} = ?"; prm.append(p)
-        def db_u(): conn = get_db_connection(hass); conn.cursor().execute(f"UPDATE items SET name = ?, item_date = ? WHERE name = ? {sql_p}", (nn, nd, orig, *prm)); conn.commit(); conn.close()
-        await hass.async_add_executor_job(db_u); await update_wrapper(hass)
 
     async def handle_update_qty(call):
         name = call.data.get("item_name"); change = int(call.data.get("change"))
@@ -321,10 +348,6 @@ async def register_services(hass, entry):
         today = datetime.now().strftime("%Y-%m-%d")
         def db_upd():
             conn = get_db_connection(hass); c = conn.cursor()
-            # This is global update (for shopping list), so we check name only? 
-            # Ideally should check ID, but name + path is better. 
-            # For shopping list we don't pass path, so assume name is unique enough or we need ID.
-            # Using name for now as per previous logic.
             c.execute(f"UPDATE items SET quantity = ?, item_date = ? WHERE name = ?", (qty, today, name))
             conn.commit(); conn.close()
         await hass.async_add_executor_job(db_upd); await update_wrapper(hass)
