@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 2.0.5
+# Home Organizer Ultimate - ver 2.0.8
 
 import logging
 import sqlite3
@@ -101,13 +101,23 @@ def update_view(hass, entry=None):
 
     try:
         if is_shopping:
-            c.execute("SELECT * FROM items WHERE quantity = 0 AND type='item'")
+            # Shopping List: Group by Main Location (Level 2)
+            c.execute("SELECT * FROM items WHERE quantity = 0 AND type='item' ORDER BY level_2 ASC, level_3 ASC")
             col_names = [description[0] for description in c.description]
             for r in c.fetchall():
                 r_dict = dict(zip(col_names, r))
                 fp = []; [fp.append(r_dict[f"level_{i}"]) for i in range(1, MAX_LEVELS+1) if r_dict.get(f"level_{i}")]
                 img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
-                shopping_list.append({"name": r_dict['name'], "qty": 0, "date": r_dict['item_date'], "img": img, "location": " > ".join(fp)})
+                # Store Main Location (Level 2) and Sublocation (Level 3) explicitly
+                shopping_list.append({
+                    "name": r_dict['name'], 
+                    "qty": 0, 
+                    "date": r_dict['item_date'], 
+                    "img": img, 
+                    "location": " > ".join(fp),
+                    "main_location": r_dict.get("level_2", "General"),
+                    "sub_location": r_dict.get("level_3", "")
+                })
 
         elif query or date_filter != "All":
             sql = "SELECT * FROM items WHERE 1=1"; params = []
@@ -133,27 +143,54 @@ def update_view(hass, entry=None):
             sql_where = ""; params = []
             for i, p in enumerate(path_parts): sql_where += f" AND level_{i+1} = ?"; params.append(p)
 
-            # 1. Get Folders (Distinct values at the NEXT level)
-            if depth < MAX_LEVELS:
+            # RULE: 
+            # Depth 0 (Root) -> Show Rooms (Grid)
+            # Depth 1 (Room) -> Show Main Locations (Grid)
+            # Depth >= 2 (Main Location) -> Show Items with Headers (List)
+            
+            if depth < 2:
+                # SHOW FOLDERS (Grid View)
                 col = f"level_{depth+1}"
                 c.execute(f"SELECT DISTINCT {col} FROM items WHERE {col} IS NOT NULL AND {col} != '' {sql_where} ORDER BY {col} ASC", tuple(params))
                 for r in c.fetchall(): folders.append({"name": r[0]})
+                
+                # Also show any loose items at this level
+                sql = f"SELECT * FROM items WHERE type='item' AND (level_{depth+1} IS NULL OR level_{depth+1} = '') {sql_where} ORDER BY name ASC"
+                c.execute(sql, tuple(params))
+                col_names = [description[0] for description in c.description]
+                for r in c.fetchall():
+                     r_dict = dict(zip(col_names, r))
+                     img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
+                     items.append({"name": r_dict['name'], "type": 'item', "qty": r_dict['quantity'], "img": img})
+            else:
+                # SHOW ITEMS & SUBLOCATIONS (List View)
+                # Fetch ALL items that match current path (Level 1 & 2), grouped by Level 3 (Sublocation)
+                # We do NOT show folders here. We treat Level 3 as a Header.
+                
+                # We need to fetch items that are "here" (no sublocation) OR in a sublocation (level 3 exists)
+                # We limit depth to +1 level of headers to keep it manageable.
+                
+                # Actually, simply fetch ALL items matching path.
+                sql = f"SELECT * FROM items WHERE type='item' {sql_where} ORDER BY level_{depth+1} ASC, name ASC"
+                
+                c.execute(sql, tuple(params))
+                col_names = [description[0] for description in c.description]
+                for r in c.fetchall():
+                    r_dict = dict(zip(col_names, r))
+                    img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
+                    
+                    # Determine sublocation header (next level)
+                    subloc = r_dict.get(f"level_{depth+1}", "")
+                    
+                    items.append({
+                        "name": r_dict['name'], 
+                        "type": 'item', 
+                        "qty": r_dict['quantity'], 
+                        "date": r_dict['item_date'], 
+                        "img": img, 
+                        "sub_location": subloc # This will be used for grouping
+                    })
 
-            # 2. Get Items (Rows where the NEXT level is NULL)
-            sql = f"SELECT * FROM items WHERE 1=1 {sql_where}"
-            if depth < MAX_LEVELS: sql += f" AND (level_{depth+1} IS NULL OR level_{depth+1} = '')"
-            
-            # Filter to show only real items, not folder markers
-            sql += " AND type = 'item'" 
-            
-            sql += " ORDER BY CASE WHEN quantity > 0 THEN 0 ELSE 1 END, name ASC"
-
-            c.execute(sql, tuple(params))
-            col_names = [description[0] for description in c.description]
-            for r in c.fetchall():
-                r_dict = dict(zip(col_names, r))
-                img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
-                items.append({"name": r_dict['name'], "type": r_dict['type'], "qty": r_dict['quantity'], "date": r_dict['item_date'], "img": img, "location": ""})
     finally: conn.close()
 
     display = "Shopping List" if is_shopping else ("Search Results" if (query or date_filter != "All") else (" > ".join(path_parts) if path_parts else "Main"))
@@ -162,7 +199,8 @@ def update_view(hass, entry=None):
         "path_display": display, "folders": folders, "items": items, "shopping_list": shopping_list,
         "clipboard": state["clipboard"], "ai_suggestion": state.get("ai_suggestion", ""), 
         "app_version": VERSION,
-        "use_ai": use_ai
+        "use_ai": use_ai,
+        "depth": len(path_parts)
     })
 
 async def register_services(hass, entry):
@@ -182,7 +220,6 @@ async def register_services(hass, entry):
         await update_wrapper(hass)
 
     async def handle_navigate(call):
-        """Handle navigation commands from frontend."""
         direction = call.data.get("direction")
         name = call.data.get("name")
         current_path = hass.data[DOMAIN]["current_path"]
@@ -196,10 +233,8 @@ async def register_services(hass, entry):
             if name:
                 current_path.append(name)
         
-        # Clear search when navigating
         hass.data[DOMAIN]["search_query"] = ""
         hass.data[DOMAIN]["shopping_mode"] = False
-        
         await update_wrapper(hass)
 
     async def handle_add(call):
@@ -215,34 +250,37 @@ async def register_services(hass, entry):
 
         parts = hass.data[DOMAIN]["current_path"]
         
+        # Determine cols based on depth
+        # If we are at Main Location (depth 2), adding a "folder" actually adds a Sublocation Header (level 3)
+        # But our DB logic for folders inserts a marker.
+        
+        depth = len(parts)
+        cols = ["name", "type", "quantity", "item_date", "image_path"]
+        
+        # If adding folder
         if itype == 'folder':
-            depth = len(parts)
-            if depth >= MAX_LEVELS: return 
-            
-            cols = ["name", "type", "quantity", "item_date", "image_path"]
+            if depth >= MAX_LEVELS: return
             vals = [f"[Folder] {name}", "folder_marker", 0, date, fname]
+            # Fill existing levels
             qs = ["?", "?", "?", "?", "?"]
-            
-            for i, p in enumerate(parts):
-                cols.append(f"level_{i+1}"); vals.append(p); qs.append("?")
-            
+            for i, p in enumerate(parts): cols.append(f"level_{i+1}"); vals.append(p); qs.append("?")
+            # Add new level
             cols.append(f"level_{depth+1}"); vals.append(name); qs.append("?")
-            
-            def db_ins():
-                conn = get_db_connection(hass); c = conn.cursor()
-                c.execute(f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})", tuple(vals))
-                conn.commit(); conn.close()
-            await hass.async_add_executor_job(db_ins)
-            
         else:
-            cols = ["name", "type", "item_date", "image_path"]; vals = [name, itype, date, fname]; qs = ["?", "?", "?", "?"]
+            # Item
+            # If user selected a "Sublocation" in UI, we should respect it.
+            # Currently UI add simply adds to current path.
+            # To support "Choose Sublocation", UI needs to send updated path or extra param.
+            # For now, standard add.
+            vals = [name, itype, 1, date, fname] # Default qty 1
+            qs = ["?", "?", "?", "?", "?"]
             for i, p in enumerate(parts): cols.append(f"level_{i+1}"); vals.append(p); qs.append("?")
 
-            def db_ins():
-                conn = get_db_connection(hass); c = conn.cursor()
-                c.execute(f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})", tuple(vals))
-                conn.commit(); conn.close()
-            await hass.async_add_executor_job(db_ins)
+        def db_ins():
+            conn = get_db_connection(hass); c = conn.cursor()
+            c.execute(f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})", tuple(vals))
+            conn.commit(); conn.close()
+        await hass.async_add_executor_job(db_ins)
 
         hass.data[DOMAIN]["ai_suggestion"] = ""
         await update_wrapper(hass)
@@ -283,6 +321,10 @@ async def register_services(hass, entry):
         today = datetime.now().strftime("%Y-%m-%d")
         def db_upd():
             conn = get_db_connection(hass); c = conn.cursor()
+            # This is global update (for shopping list), so we check name only? 
+            # Ideally should check ID, but name + path is better. 
+            # For shopping list we don't pass path, so assume name is unique enough or we need ID.
+            # Using name for now as per previous logic.
             c.execute(f"UPDATE items SET quantity = ?, item_date = ? WHERE name = ?", (qty, today, name))
             conn.commit(); conn.close()
         await hass.async_add_executor_job(db_upd); await update_wrapper(hass)
@@ -364,7 +406,7 @@ async def register_services(hass, entry):
              _LOGGER.error(f"AI Connection Error: {e}")
 
     services = [
-        ("navigate", handle_navigate), # Added missing service
+        ("navigate", handle_navigate),
         ("set_view_context", handle_set_context), ("add_item", handle_add), ("update_image", handle_update_image),
         ("update_stock", handle_update_stock), ("update_qty", handle_update_qty), ("delete_item", handle_delete),
         ("clipboard_action", handle_clipboard), ("paste_item", handle_paste), ("ai_action", handle_ai_action),
