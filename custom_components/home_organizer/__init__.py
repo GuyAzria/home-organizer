@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 2.0.4
+# Home Organizer Ultimate - ver 2.0.5
 
 import logging
 import sqlite3
@@ -181,6 +181,27 @@ async def register_services(hass, entry):
         hass.data[DOMAIN]["ai_suggestion"] = ""
         await update_wrapper(hass)
 
+    async def handle_navigate(call):
+        """Handle navigation commands from frontend."""
+        direction = call.data.get("direction")
+        name = call.data.get("name")
+        current_path = hass.data[DOMAIN]["current_path"]
+        
+        if direction == "root":
+            hass.data[DOMAIN]["current_path"] = []
+        elif direction == "up":
+            if current_path:
+                current_path.pop()
+        elif direction == "down":
+            if name:
+                current_path.append(name)
+        
+        # Clear search when navigating
+        hass.data[DOMAIN]["search_query"] = ""
+        hass.data[DOMAIN]["shopping_mode"] = False
+        
+        await update_wrapper(hass)
+
     async def handle_add(call):
         name = call.data.get("item_name"); itype = call.data.get("item_type", "item")
         date = call.data.get("item_date"); img_b64 = call.data.get("image_data")
@@ -194,22 +215,17 @@ async def register_services(hass, entry):
 
         parts = hass.data[DOMAIN]["current_path"]
         
-        # --- FIXED FOLDER CREATION LOGIC ---
         if itype == 'folder':
-            # When creating a folder, we must insert a row that defines this level.
-            # We insert a 'folder_marker' item where level_{depth+1} = new_folder_name.
             depth = len(parts)
-            if depth >= MAX_LEVELS: return # Cannot go deeper
+            if depth >= MAX_LEVELS: return 
             
             cols = ["name", "type", "quantity", "item_date", "image_path"]
             vals = [f"[Folder] {name}", "folder_marker", 0, date, fname]
             qs = ["?", "?", "?", "?", "?"]
             
-            # Fill current path columns
             for i, p in enumerate(parts):
                 cols.append(f"level_{i+1}"); vals.append(p); qs.append("?")
             
-            # Define the NEW folder level
             cols.append(f"level_{depth+1}"); vals.append(name); qs.append("?")
             
             def db_ins():
@@ -219,7 +235,6 @@ async def register_services(hass, entry):
             await hass.async_add_executor_job(db_ins)
             
         else:
-            # Normal Item Creation (Same as before)
             cols = ["name", "type", "item_date", "image_path"]; vals = [name, itype, date, fname]; qs = ["?", "?", "?", "?"]
             for i, p in enumerate(parts): cols.append(f"level_{i+1}"); vals.append(p); qs.append("?")
 
@@ -275,25 +290,10 @@ async def register_services(hass, entry):
     async def handle_delete(call):
         name = call.data.get("item_name"); pp = hass.data[DOMAIN]["current_path"]; sql_p = ""; prm = []
         for i, p in enumerate(pp): sql_p += f" AND level_{i+1} = ?"; prm.append(p)
-        
-        # Check if we are deleting a folder (by checking if this name exists as a next level)
-        # However, for simplicity, we delete any item matching name in current path.
-        # If it was a folder marker, the folder disappears.
-        
         def db_del(): 
             conn = get_db_connection(hass); 
-            # If deleting a folder (a row where level_{depth+1} == name), we need slightly different logic?
-            # Actually, standard delete works on the marker item.
-            # BUT, we also want to delete all items INSIDE that folder?
-            # For safety, let's just delete the specific item/marker selected.
             conn.cursor().execute(f"DELETE FROM items WHERE name = ? {sql_p}", (name, *prm))
-            
-            # Note: This deletes ITEMS. To delete FOLDERS, the UI needs to pass the folder name.
-            # Currently the UI 'delete' button is only on ITEMS (expanded rows).
-            # We need to support deleting folders too if requested, but let's stick to basic functionality.
-            
             conn.commit(); conn.close()
-            
         await hass.async_add_executor_job(db_del); await update_wrapper(hass)
 
     async def handle_paste(call):
@@ -364,6 +364,7 @@ async def register_services(hass, entry):
              _LOGGER.error(f"AI Connection Error: {e}")
 
     services = [
+        ("navigate", handle_navigate), # Added missing service
         ("set_view_context", handle_set_context), ("add_item", handle_add), ("update_image", handle_update_image),
         ("update_stock", handle_update_stock), ("update_qty", handle_update_qty), ("delete_item", handle_delete),
         ("clipboard_action", handle_clipboard), ("paste_item", handle_paste), ("ai_action", handle_ai_action),
