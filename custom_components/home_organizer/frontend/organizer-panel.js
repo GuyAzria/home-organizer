@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - ver 2.0.7
+// Home Organizer Ultimate - ver 2.0.8
 // Written by Guy Azaria with AI help
 // License: MIT
 
@@ -17,10 +17,11 @@ const ICONS = {
   paste: `<svg viewBox="0 0 24 24"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>`,
   plus: `<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>`,
   minus: `<svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>`,
-  place: `<svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`,
+  save: `<svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>`,
   folder_add: `<svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z"/></svg>`,
   item_add: `<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>`,
-  sparkles: `<svg viewBox="0 0 24 24"><path d="M9 9l1.5-4 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5zM19 19l-2.5-1 2.5-1 1-2.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5z"/></svg>`
+  sparkles: `<svg viewBox="0 0 24 24"><path d="M9 9l1.5-4 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5zM19 19l-2.5-1 2.5-1 1-2.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5z"/></svg>`,
+  camera: `<svg viewBox="0 0 24 24"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm6 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>`
 };
 
 class HomeOrganizerPanel extends HTMLElement {
@@ -64,17 +65,21 @@ class HomeOrganizerPanel extends HTMLElement {
         .sub-title { font-size: 11px; color: #aaa; direction: ltr;}
         .content { flex: 1; padding: 15px; overflow-y: auto; }
         
-        .item-row { background: #2c2c2e; margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; }
+        /* Item Row Styling */
+        .item-row { background: #2c2c2e; margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid transparent; }
         .item-row.expanded { background: #3a3a3c; flex-direction: column; align-items: stretch; }
+        
+        /* Out of Stock Styling */
+        .out-of-stock-frame { border: 2px solid var(--danger); }
+
         .item-main { display: flex; align-items: center; justify-content: space-between; width: 100%; cursor: pointer;}
         .item-left { display: flex; align-items: center; gap: 10px; }
         
         .item-icon { color: var(--primary); }
 
-        /* GRID SYSTEM FOR FOLDERS */
         .folder-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); /* Responsive columns */
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
             gap: 15px;
             padding: 5px;
             margin-bottom: 20px;
@@ -88,35 +93,27 @@ class HomeOrganizerPanel extends HTMLElement {
             text-align: center;
         }
 
-        /* Android-style Folder Icon */
         .android-folder-icon {
             width: 56px; height: 56px;
-            background: #3c4043; /* Dark gray adaptive icon bg */
-            border-radius: 16px; /* Squircle shape */
+            background: #3c4043; 
+            border-radius: 16px; 
             display: flex; align-items: center; justify-content: center;
-            color: #8ab4f8; /* Google Blue folder tint */
+            color: #8ab4f8; 
             margin-bottom: 6px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
         .android-folder-icon svg { width: 28px; height: 28px; }
 
-        .folder-label {
-            font-size: 12px;
-            color: #e0e0e0;
-            line-height: 1.2;
-            max-width: 100%;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            display: -webkit-box;
-            -webkit-line-clamp: 2; /* Max 2 lines of text */
-            -webkit-box-orient: vertical;
-        }
+        .folder-label { font-size: 12px; color: #e0e0e0; line-height: 1.2; max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
-        .item-list {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
+        .item-list { display: flex; flex-direction: column; gap: 5px; }
+        
+        /* Separator for Groups */
+        .group-separator { 
+            color: #aaa; font-size: 12px; margin: 15px 0 5px 0; border-bottom: 1px solid #444; padding-bottom: 2px; text-transform: uppercase; font-weight: bold;
+            display: flex; justify-content: space-between;
         }
+        .oos-separator { color: var(--danger); border-color: var(--danger); }
 
         .item-details { font-size: 14px; }
         .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 4px; border-radius: 20px; }
@@ -226,7 +223,7 @@ class HomeOrganizerPanel extends HTMLElement {
     if(aiSearchBtn) aiSearchBtn.style.display = useAI ? 'block' : 'none';
 
     root.getElementById('display-title').innerText = attrs.path_display;
-    root.getElementById('display-path').innerText = attrs.app_version || '2.0.7';
+    root.getElementById('display-path').innerText = attrs.app_version || '2.0.8';
 
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
@@ -238,104 +235,183 @@ class HomeOrganizerPanel extends HTMLElement {
     const content = root.getElementById('content');
     content.innerHTML = '';
 
-    // Prepare separate lists
-    let folders = [];
-    let items = [];
+    // --- RENDER LOGIC ---
 
-    // Populate lists based on mode
+    // 1. SHOPPING MODE (Group by Main Location)
     if (attrs.shopping_list && attrs.shopping_list.length > 0) {
-        // Shopping mode usually just lists items, but logic might vary. We treat them as items.
-        items = attrs.shopping_list;
+        const listContainer = document.createElement('div');
+        listContainer.className = 'item-list';
+
+        // Group by 'main_location'
+        const grouped = {};
+        attrs.shopping_list.forEach(item => {
+            const loc = item.main_location || "Other";
+            if(!grouped[loc]) grouped[loc] = [];
+            grouped[loc].push(item);
+        });
+
+        Object.keys(grouped).sort().forEach(locName => {
+            const header = document.createElement('div');
+            header.className = 'group-separator';
+            header.innerText = locName;
+            listContainer.appendChild(header);
+
+            grouped[locName].forEach(item => {
+                listContainer.appendChild(this.createItemRow(item, true));
+            });
+        });
+        content.appendChild(listContainer);
+        return;
+    }
+
+    // 2. SEARCH MODE
+    if ((this.isSearch || attrs.path_display === 'Search Results') && attrs.items) {
+        const list = document.createElement('div');
+        list.className = 'item-list';
+        attrs.items.forEach(item => list.appendChild(this.createItemRow(item, false)));
+        content.appendChild(list);
+        return;
+    }
+
+    // 3. BROWSE MODE (Based on Depth)
+    
+    // Depth < 2: Show Grid (Folders) and Loose Items
+    if (attrs.depth < 2) {
+        // Grid
+        if (attrs.folders && attrs.folders.length > 0) {
+            const grid = document.createElement('div');
+            grid.className = 'folder-grid';
+            attrs.folders.forEach(folder => {
+                const el = document.createElement('div');
+                el.className = 'folder-item';
+                el.onclick = () => this.navigate('down', folder.name);
+                el.innerHTML = `<div class="android-folder-icon">${ICONS.folder}</div><div class="folder-label">${folder.name}</div>`;
+                grid.appendChild(el);
+            });
+            content.appendChild(grid);
+        }
+        // Loose Items
+        if (attrs.items && attrs.items.length > 0) {
+            const list = document.createElement('div');
+            list.className = 'item-list';
+            attrs.items.forEach(item => list.appendChild(this.createItemRow(item, false)));
+            content.appendChild(list);
+        }
     } 
-    else if ((this.isSearch || attrs.path_display === 'Search Results') && attrs.items) {
-        items = attrs.items;
-    }
     else {
-        // Browse Mode
-        if (attrs.folders) folders = attrs.folders;
-        if (attrs.items) items = attrs.items;
-    }
+        // Depth >= 2: Main Location View (Sublocations & Out of Stock)
+        const listContainer = document.createElement('div');
+        listContainer.className = 'item-list';
 
-    // --- RENDER FOLDERS (GRID) ---
-    if (folders.length > 0) {
-        const grid = document.createElement('div');
-        grid.className = 'folder-grid';
-        
-        folders.forEach(folder => {
-            const el = document.createElement('div');
-            el.className = 'folder-item';
-            el.onclick = () => this.navigate('down', folder.name);
-            
-            el.innerHTML = `
-                <div class="android-folder-icon">${ICONS.folder}</div>
-                <div class="folder-label">${folder.name}</div>
-            `;
-            grid.appendChild(el);
+        const inStock = [];
+        const outOfStock = [];
+
+        // Split items
+        if (attrs.items) {
+            attrs.items.forEach(item => {
+                if (item.qty === 0) outOfStock.push(item);
+                else inStock.push(item);
+            });
+        }
+
+        // Render In Stock (Grouped by Sublocation)
+        const grouped = {};
+        inStock.forEach(item => {
+            const sub = item.sub_location || "General";
+            if(!grouped[sub]) grouped[sub] = [];
+            grouped[sub].push(item);
         });
-        content.appendChild(grid);
-    }
 
-    // --- RENDER ITEMS (LIST) ---
-    if (items.length > 0) {
-        const itemList = document.createElement('div');
-        itemList.className = 'item-list';
+        Object.keys(grouped).sort().forEach(subName => {
+            const header = document.createElement('div');
+            header.className = 'group-separator';
+            header.innerText = subName;
+            listContainer.appendChild(header);
+
+            grouped[subName].forEach(item => {
+                listContainer.appendChild(this.createItemRow(item, false));
+            });
+        });
+
+        // Render Out of Stock (At the bottom)
+        if (outOfStock.length > 0) {
+            const oosHeader = document.createElement('div');
+            oosHeader.className = 'group-separator oos-separator';
+            oosHeader.innerText = "Out of Stock";
+            listContainer.appendChild(oosHeader);
+
+            outOfStock.forEach(item => {
+                listContainer.appendChild(this.createItemRow(item, false));
+            });
+        }
         
-        items.forEach(item => {
-             const div = document.createElement('div');
-             div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''}`;
-             
-             // Items are rendered using existing list logic
-             const isShop = (attrs.path_display === 'Shopping List');
-             let controls = '';
-             
-             if (isShop) {
-                 controls = `<button class="qty-btn" style="background:var(--accent)" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.name}')">${ICONS.plus}</button>
-                             <input id="shop-qty-${item.name}" type="number" value="1" style="width:30px;background:#222;color:white;border:none;text-align:center" onclick="event.stopPropagation()">`;
-             } else {
-                 controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${ICONS.plus}</button>
-                             <span class="qty-val">${item.qty}</span>
-                             <button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${ICONS.minus}</button>`;
-             }
-             
-             div.innerHTML = `
-                <div class="item-main" onclick="this.getRootNode().host.toggleRow('${item.name}')">
-                    <div class="item-left">
-                        <span class="item-icon">${ICONS.item}</span>
-                        <div>
-                            <div>${item.name}</div>
-                            <div class="sub-title">${item.date || ''} ${item.location ? '| ' + item.location : ''}</div>
-                        </div>
-                    </div>
-                    <div class="item-qty-ctrl">${controls}</div>
+        content.appendChild(listContainer);
+    }
+  }
+
+  createItemRow(item, isShopMode) {
+     const div = document.createElement('div');
+     // Red frame if OOS
+     const oosClass = (item.qty === 0) ? 'out-of-stock-frame' : '';
+     div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''} ${oosClass}`;
+     
+     // Controls
+     let controls = '';
+     if (isShopMode) {
+         // Shop Mode: +/- and Update Button
+         controls = `
+            <button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${ICONS.minus}</button>
+            <button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${ICONS.plus}</button>
+            <button class="qty-btn" style="background:var(--primary)" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.name}')">${ICONS.save}</button>
+         `;
+     } else {
+         // Normal Mode
+         controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${ICONS.plus}</button>
+                     <span class="qty-val">${item.qty}</span>
+                     <button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${ICONS.minus}</button>`;
+     }
+
+     const subText = isShopMode ? 
+        `${item.main_location} > ${item.sub_location || ''}` : 
+        `${item.date || ''}`;
+
+     div.innerHTML = `
+        <div class="item-main" onclick="this.getRootNode().host.toggleRow('${item.name}')">
+            <div class="item-left">
+                <span class="item-icon">${ICONS.item}</span>
+                <div>
+                    <div>${item.name}</div>
+                    <div class="sub-title">${subText}</div>
                 </div>
-             `;
-             
-             if (this.expandedIdx === item.name) {
-                 const details = document.createElement('div');
-                 details.className = 'expanded-details';
-                 details.innerHTML = `
-                    <div class="detail-row">
-                        <input type="text" id="name-${item.name}" value="${item.name}" style="flex:1;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px">
-                        <input type="date" id="date-${item.name}" value="${item.date}" style="width:110px;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px">
-                        <button class="action-btn" style="background:var(--primary)" onclick="this.getRootNode().host.saveDetails('${item.name}', '${item.name}')">שמור</button>
-                    </div>
-                    <div class="detail-row" style="justify-content:space-between">
-                         <div style="position:relative;width:50px;height:50px">
-                            ${item.img ? `<img src="${item.img}" class="img-preview" onclick="this.getRootNode().host.showImg('${item.img}')">` : '<div class="img-preview"></div>'}
-                            <input type="file" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
-                         </div>
-                         <div style="display:flex;gap:5px">
-                            <button class="action-btn" style="background:#555" onclick="this.getRootNode().host.cut('${item.name}')">${ICONS.cut}</button>
-                            <button class="action-btn" style="background:var(--danger)" onclick="this.getRootNode().host.del('${item.name}')">${ICONS.delete}</button>
-                         </div>
-                    </div>
-                 `;
-                 div.appendChild(details);
-             }
-             itemList.appendChild(div);
-        });
-        content.appendChild(itemList);
-    }
+            </div>
+            <div class="item-qty-ctrl">${controls}</div>
+        </div>
+     `;
+     
+     // Expanded Details (Same as before)
+     if (this.expandedIdx === item.name) {
+         const details = document.createElement('div');
+         details.className = 'expanded-details';
+         details.innerHTML = `
+            <div class="detail-row">
+                <input type="text" id="name-${item.name}" value="${item.name}" style="flex:1;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px">
+                <input type="date" id="date-${item.name}" value="${item.date}" style="width:110px;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px">
+                <button class="action-btn" style="background:var(--primary)" onclick="this.getRootNode().host.saveDetails('${item.name}', '${item.name}')">שמור</button>
+            </div>
+            <div class="detail-row" style="justify-content:space-between">
+                 <div style="position:relative;width:50px;height:50px">
+                    ${item.img ? `<img src="${item.img}" class="img-preview" onclick="this.getRootNode().host.showImg('${item.img}')">` : '<div class="img-preview"></div>'}
+                    <input type="file" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
+                 </div>
+                 <div style="display:flex;gap:5px">
+                    <button class="action-btn" style="background:#555" onclick="this.getRootNode().host.cut('${item.name}')">${ICONS.cut}</button>
+                    <button class="action-btn" style="background:var(--danger)" onclick="this.getRootNode().host.del('${item.name}')">${ICONS.delete}</button>
+                 </div>
+            </div>
+         `;
+         div.appendChild(details);
+     }
+     return div;
   }
 
   render() { this.updateUI(); }
@@ -348,10 +424,16 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   submitShopStock(name) {
-      const el = this.shadowRoot.getElementById(`shop-qty-${name}`);
-      if(el) {
-          this.callHA('update_stock', { item_name: name, quantity: parseInt(el.value) });
-      }
+      // In Shop mode, we just want to "Update" stock. Usually implies restocking.
+      // But user said buttons + - and Update on same line.
+      // Current + - buttons call updateQty immediately.
+      // The Update button (Save icon) can be used to set a specific value or just commit "1".
+      // Let's assume Update button sets qty to 1 (Bought) for now, or confirms current state.
+      // Given the prompt, + - change amount. Update button... does what?
+      // "button to Update on the same line" implies a specific action.
+      // Let's make Update button prompt for exact stock or set to 1.
+      // For simplicity: + - work live. Update button sets Qty to 1 (Restock).
+      this.callHA('update_stock', { item_name: name, quantity: 1 });
   }
 
   notifyContext(query = "") {
