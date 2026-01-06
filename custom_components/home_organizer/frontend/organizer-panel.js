@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 2.6.2 (Direct Camera Buttons)
+// Home Organizer Ultimate - Ver 2.6.3 (Camera Label Fix)
 // License: MIT
 
 const ICONS = {
@@ -30,11 +30,18 @@ class HomeOrganizerPanel extends HTMLElement {
       this.isSearch = false;
       this.isShopMode = false;
       this.expandedIdx = null;
+      this.lastAI = "";
       this.localData = null; 
       this.initUI();
       
       if (this._hass && this._hass.connection) {
           this._hass.connection.subscribeEvents((e) => this.fetchData(), 'home_organizer_db_update');
+          this._hass.connection.subscribeEvents((e) => {
+              if (e.data.mode === 'identify') {
+                  const input = this.shadowRoot.getElementById('add-name');
+                  if(input) input.value = e.data.result;
+              }
+          }, 'home_organizer_ai_result');
           this.fetchData(); 
       }
     }
@@ -54,6 +61,13 @@ class HomeOrganizerPanel extends HTMLElement {
           this.updateUI();
       } catch (e) {
           console.error("Fetch error", e);
+          const content = this.shadowRoot.getElementById('content');
+          if(content) {
+              content.innerHTML = `<div style="padding:20px;text-align:center;color:#f44336">
+                <strong>Connection Error</strong><br>
+                Please restart Home Assistant.
+              </div>`;
+          }
       }
   }
 
@@ -68,6 +82,7 @@ class HomeOrganizerPanel extends HTMLElement {
         svg { width: 24px; height: 24px; fill: currentColor; }
         .top-bar { background: #242426; padding: 10px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-shrink: 0; height: 60px; }
         .nav-btn { background: none; border: none; color: var(--primary); cursor: pointer; padding: 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+        .nav-btn:hover { background: rgba(255,255,255,0.1); }
         .nav-btn.active { color: var(--warning); }
         .nav-btn.shop-active { color: var(--accent); }
         .title-box { flex: 1; text-align: center; }
@@ -80,10 +95,26 @@ class HomeOrganizerPanel extends HTMLElement {
         .android-folder-icon { width: 56px; height: 56px; background: #3c4043; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #8ab4f8; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); position: relative; }
         .android-folder-icon svg { width: 28px; height: 28px; }
         .folder-label { font-size: 12px; color: #e0e0e0; line-height: 1.2; max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-        .folder-delete-btn { position: absolute; top: -5px; right: -5px; background: var(--danger); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
+        
+        /* Delete Button on Folder (X) */
+        .folder-delete-btn {
+            position: absolute; top: -5px; right: -5px;
+            background: var(--danger); color: white;
+            width: 20px; height: 20px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: bold;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
 
         .item-list { display: flex; flex-direction: column; gap: 5px; }
-        .group-separator { color: #aaa; font-size: 14px; margin: 20px 0 10px 0; border-bottom: 1px solid #444; padding-bottom: 4px; text-transform: uppercase; font-weight: bold; display: flex; justify-content: space-between; align-items: center; min-height: 35px; }
+        .group-separator { 
+            color: #aaa; font-size: 14px; margin: 20px 0 10px 0; 
+            border-bottom: 1px solid #444; padding-bottom: 4px; 
+            text-transform: uppercase; font-weight: bold; 
+            display: flex; justify-content: space-between; align-items: center;
+            min-height: 35px;
+        }
         .group-separator.drag-over { border-bottom: 2px solid var(--primary); color: var(--primary); background: rgba(3, 169, 244, 0.1); }
         .oos-separator { color: var(--danger); border-color: var(--danger); }
         .edit-subloc-btn { background: none; border: none; color: #aaa; cursor: pointer; padding: 4px; }
@@ -112,8 +143,13 @@ class HomeOrganizerPanel extends HTMLElement {
         .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
         .ai-btn { color: #FFD700 !important; }
         
-        /* Direct Camera Input Styling */
-        .camera-input-label { cursor: pointer; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+        /* Direct Input Styling: Ensure label covers full area */
+        .direct-input-label { 
+            width: 45px; height: 45px; 
+            background: #333; border-radius: 8px; 
+            display: flex; align-items: center; justify-content: center; 
+            position: relative; cursor: pointer; 
+        }
       </style>
       
       <div class="app-container" id="app">
@@ -136,9 +172,10 @@ class HomeOrganizerPanel extends HTMLElement {
         <div class="search-box" id="search-box">
             <div style="position:relative; flex:1;">
                 <input type="text" id="search-input" style="width:100%;padding:8px;padding-left:35px;border-radius:8px;background:#111;color:white;border:1px solid #333">
+                
+                <!-- Search AI Camera -->
                 <label class="nav-btn ai-btn" style="position:absolute;left:0;top:0;height:100%;display:flex;align-items:center;padding:0 8px;cursor:pointer">
                    ${ICONS.camera}
-                   <!-- Direct Camera Search -->
                    <input type="file" accept="image/*" capture="environment" style="display:none" onchange="this.getRootNode().host.handleAISearch(this)">
                 </label>
             </div>
@@ -147,17 +184,21 @@ class HomeOrganizerPanel extends HTMLElement {
         
         <div class="paste-bar" id="paste-bar" style="display:none;padding:10px;background:rgba(255,235,59,0.2);color:#ffeb3b;align-items:center;justify-content:space-between"><div>${ICONS.cut} Cut: <b id="clipboard-name"></b></div><button id="btn-paste" style="background:#4caf50;color:white;border:none;padding:5px 15px;border-radius:15px">Paste</button></div>
         
-        <div class="content" id="content"></div>
+        <div class="content" id="content">
+            <div style="text-align:center;padding:20px;color:#888;">Loading...</div>
+        </div>
         
         <div class="bottom-bar" id="add-area">
              <div style="display:flex;gap:10px;margin-bottom:10px">
-                <!-- Direct Camera Button -->
-                <label class="cam-btn" style="width:45px;background:#333;border-radius:8px;display:flex;align-items:center;justify-content:center;position:relative;cursor:pointer">
+                
+                <!-- Main: Direct Camera Button (Label Method) -->
+                <label class="direct-input-label">
                    <span id="add-cam-icon">${ICONS.camera}</span>
                    <input type="file" accept="image/*" capture="environment" style="display:none" onchange="this.getRootNode().host.handleFile(this)">
                 </label>
-                <!-- Direct Gallery Button -->
-                <label class="cam-btn" style="width:45px;background:#333;border-radius:8px;display:flex;align-items:center;justify-content:center;position:relative;cursor:pointer">
+
+                <!-- Main: Direct Gallery Button (Label Method) -->
+                <label class="direct-input-label">
                    <span>${ICONS.image}</span>
                    <input type="file" accept="image/*" style="display:none" onchange="this.getRootNode().host.handleFile(this)">
                 </label>
@@ -209,6 +250,7 @@ class HomeOrganizerPanel extends HTMLElement {
     const root = this.shadowRoot;
     
     root.getElementById('display-title').innerText = attrs.path_display;
+    root.getElementById('display-path').innerText = attrs.app_version || '2.6.3';
     
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
@@ -452,12 +494,12 @@ class HomeOrganizerPanel extends HTMLElement {
                     ${item.img ? `<img src="${item.img}" class="img-preview" onclick="this.getRootNode().host.showImg('${item.img}')">` : '<div class="img-preview"></div>'}
                     
                     <div style="position:absolute;bottom:-25px;left:0;display:flex;gap:5px;z-index:3;">
-                       <!-- DIRECT CAMERA BUTTON (EDIT) -->
+                       <!-- DIRECT CAMERA LABEL FOR EDIT -->
                        <label class="action-btn" style="background:#444;padding:4px;cursor:pointer">
                           ${ICONS.camera}
                           <input type="file" accept="image/*" capture="environment" style="display:none" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
                        </label>
-                       <!-- DIRECT GALLERY BUTTON (EDIT) -->
+                       <!-- DIRECT GALLERY LABEL FOR EDIT -->
                        <label class="action-btn" style="background:#444;padding:4px;cursor:pointer">
                           ${ICONS.image}
                           <input type="file" accept="image/*" style="display:none" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
@@ -533,7 +575,6 @@ class HomeOrganizerPanel extends HTMLElement {
         this.tempAddImage = evt.target.result;
         this.shadowRoot.getElementById('add-cam-icon').innerHTML = `<img src="${this.tempAddImage}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`;
     }; reader.readAsDataURL(file);
-    // Reset to ensure change event fires if same file selected again
     input.value = '';
   }
 
