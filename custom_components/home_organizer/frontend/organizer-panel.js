@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 2.5.0 (Camera Capture Feature)
+// Home Organizer Ultimate - Ver 2.6.0 (Image Source Selection)
 // License: MIT
 
 const ICONS = {
@@ -20,8 +20,7 @@ const ICONS = {
   folder_add: '<svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z"/></svg>',
   item_add: '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>',
   sparkles: '<svg viewBox="0 0 24 24"><path d="M9 9l1.5-4 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5zM19 19l-2.5-1 2.5-1 1-2.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5z"/></svg>',
-  camera: '<svg viewBox="0 0 24 24"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm6 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>',
-  shutter: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>' 
+  image: '<svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>'
 };
 
 class HomeOrganizerPanel extends HTMLElement {
@@ -35,6 +34,7 @@ class HomeOrganizerPanel extends HTMLElement {
       this.expandedIdx = null;
       this.lastAI = "";
       this.localData = null; 
+      this.pendingItem = null; // Track which item is being updated (null = new item)
       this.initUI();
       
       if (this._hass && this._hass.connection) {
@@ -145,6 +145,13 @@ class HomeOrganizerPanel extends HTMLElement {
         
         .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
         .ai-btn { color: #FFD700 !important; }
+
+        /* MODAL STYLES */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; display: none; align-items: center; justify-content: center; }
+        .modal-content { background: #2c2c2e; padding: 20px; border-radius: 12px; text-align: center; width: 80%; max-width: 300px; border: 1px solid #444; }
+        .modal-btn { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 15px; background: #3a3a3c; border: 1px solid #555; border-radius: 8px; color: white; cursor: pointer; flex: 1; }
+        .modal-btn:active { background: var(--primary); }
+        .modal-close { margin-top: 15px; background: none; border: none; color: #aaa; text-decoration: underline; cursor: pointer; font-size: 14px; }
       </style>
       
       <div class="app-container" id="app">
@@ -180,7 +187,9 @@ class HomeOrganizerPanel extends HTMLElement {
         
         <div class="bottom-bar" id="add-area">
              <div style="display:flex;gap:10px;margin-bottom:10px">
-                <div class="cam-btn" id="add-cam-btn" style="width:45px;background:#333;border-radius:8px;display:flex;align-items:center;justify-content:center;position:relative"><input type="file" id="add-file" style="position:absolute;width:100%;height:100%;opacity:0"><span id="add-cam-icon">${ICONS.camera}</span></div>
+                <div class="cam-btn" id="add-cam-btn" style="width:45px;background:#333;border-radius:8px;display:flex;align-items:center;justify-content:center;position:relative; cursor:pointer">
+                    <span id="add-cam-icon">${ICONS.camera}</span>
+                </div>
                 <div style="flex:1; display:flex; position:relative;">
                     <input type="text" id="add-name" placeholder="Name..." style="width:100%;padding:10px;border-radius:8px;background:#111;color:white;border:1px solid #333">
                     <button id="btn-ai-magic" class="nav-btn ai-btn" style="position:absolute;left:0;top:0;height:100%;border:none;background:none;display:none;">${ICONS.sparkles}</button>
@@ -190,6 +199,29 @@ class HomeOrganizerPanel extends HTMLElement {
              <div style="display:flex;gap:10px"><button id="btn-create-folder" style="flex:1;padding:12px;background:#03a9f4;color:white;border:none;border-radius:8px">Location</button><button id="btn-create-item" style="flex:1;padding:12px;background:#4caf50;color:white;border:none;border-radius:8px">Item</button></div>
         </div>
       </div>
+
+      <!-- IMAGE CHOICE MODAL -->
+      <div id="img-choice-modal" class="modal">
+        <div class="modal-content">
+            <h3>Choose Image Source</h3>
+            <div style="display:flex;gap:10px;justify-content:center;margin-top:20px;">
+                <button class="modal-btn" id="btn-choice-camera">
+                    ${ICONS.camera}
+                    <span>Camera</span>
+                </button>
+                <button class="modal-btn" id="btn-choice-gallery">
+                    ${ICONS.image}
+                    <span>Gallery</span>
+                </button>
+            </div>
+            <button class="modal-close" id="btn-choice-close">Cancel</button>
+        </div>
+      </div>
+      
+      <!-- HIDDEN GLOBAL INPUTS -->
+      <input type="file" id="global-cam" accept="image/*" capture="environment" style="display:none">
+      <input type="file" id="global-gal" accept="image/*" style="display:none">
+
       <div class="overlay" id="img-overlay" onclick="this.style.display='none'" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:200;justify-content:center;align-items:center"><img id="overlay-img" style="max-width:90%;border-radius:8px"></div>
     `;
 
@@ -202,28 +234,15 @@ class HomeOrganizerPanel extends HTMLElement {
     const click = (id, fn) => bind(id, 'onclick', fn);
 
     click('btn-up', () => this.navigate('up'));
-    
-    // FIX: Home button clears all modes
-    click('btn-home', () => { 
-        this.isShopMode = false;
-        this.isSearch = false;
-        this.navigate('root');
-    });
-    
-    click('btn-shop', () => { 
-        this.isShopMode = !this.isShopMode; 
-        if(this.isShopMode) { this.isSearch=false; this.isEditMode=false; } 
-        this.fetchData(); 
-    });
-    
+    click('btn-home', () => { this.isShopMode = false; this.isSearch = false; this.navigate('root'); });
+    click('btn-shop', () => { this.isShopMode = !this.isShopMode; if(this.isShopMode) { this.isSearch=false; this.isEditMode=false; } this.fetchData(); });
     click('btn-search', () => { this.isSearch = true; this.isShopMode = false; this.render(); });
     click('search-close', () => { this.isSearch = false; this.fetchData(); });
-    
     bind('search-input', 'oninput', (e) => this.fetchData());
-    
     click('btn-edit', () => { this.isEditMode = !this.isEditMode; this.isShopMode = false; this.render(); });
     
-    bind('add-file', 'onchange', (e) => this.handleFile(e));
+    // NEW: Open modal instead of direct input for new item
+    click('add-cam-btn', () => this.openModal(null)); 
     
     click('btn-create-folder', () => this.addItem('folder'));
     click('btn-create-item', () => this.addItem('item'));
@@ -240,9 +259,7 @@ class HomeOrganizerPanel extends HTMLElement {
     const searchAiBtn = root.getElementById('btn-ai-search');
     if(searchAiBtn) {
         const searchInput = document.createElement('input');
-        searchInput.type = 'file';
-        searchInput.accept = 'image/*';
-        searchInput.style.display = 'none';
+        searchInput.type = 'file'; searchInput.accept = 'image/*'; searchInput.style.display = 'none';
         searchInput.onchange = (e) => {
              const file = e.target.files[0]; if (!file) return;
              const reader = new FileReader();
@@ -251,6 +268,56 @@ class HomeOrganizerPanel extends HTMLElement {
         };
         searchAiBtn.onclick = () => searchInput.click();
     }
+
+    // Modal Events
+    click('btn-choice-close', () => this.closeModal());
+    click('btn-choice-camera', () => this.triggerInput('camera'));
+    click('btn-choice-gallery', () => this.triggerInput('gallery'));
+    
+    // Global Input Events
+    bind('global-cam', 'onchange', (e) => this.processGlobalFile(e));
+    bind('global-gal', 'onchange', (e) => this.processGlobalFile(e));
+  }
+
+  // MODAL LOGIC
+  openModal(itemName) {
+      this.pendingItem = itemName; // If null, it's for New Item. If string, it's for Update Item.
+      const m = this.shadowRoot.getElementById('img-choice-modal');
+      if(m) m.style.display = 'flex';
+  }
+
+  closeModal() {
+      const m = this.shadowRoot.getElementById('img-choice-modal');
+      if(m) m.style.display = 'none';
+  }
+
+  triggerInput(type) {
+      this.closeModal();
+      const id = (type === 'camera') ? 'global-cam' : 'global-gal';
+      const el = this.shadowRoot.getElementById(id);
+      if(el) el.click();
+  }
+
+  processGlobalFile(e) {
+      const file = e.target.files[0];
+      if(!file) return;
+      
+      e.target.value = ''; // Reset to allow re-selection
+      
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+          const res = evt.target.result;
+          if (this.pendingItem) {
+              // Update Existing Item
+              this.callHA('update_image', { item_name: this.pendingItem, image_data: res });
+          } else {
+              // New Item (Update temp var & icon)
+              this.tempAddImage = res;
+              const ic = this.shadowRoot.getElementById('add-cam-icon');
+              if(ic) ic.innerHTML = `<img src="${res}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`;
+          }
+      };
+      reader.readAsDataURL(file);
   }
 
   updateUI() {
@@ -259,9 +326,8 @@ class HomeOrganizerPanel extends HTMLElement {
     const root = this.shadowRoot;
     
     root.getElementById('display-title').innerText = attrs.path_display;
-    root.getElementById('display-path').innerText = attrs.app_version || '2.5.0';
+    root.getElementById('display-path').innerText = attrs.app_version || '2.6.0';
     
-    // Controls Visibility
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
     if(attrs.clipboard) root.getElementById('clipboard-name').innerText = attrs.clipboard;
@@ -503,15 +569,11 @@ class HomeOrganizerPanel extends HTMLElement {
                  <div style="position:relative;width:50px;height:50px">
                     ${item.img ? `<img src="${item.img}" class="img-preview" onclick="this.getRootNode().host.showImg('${item.img}')">` : '<div class="img-preview"></div>'}
                     
-                    <!-- Existing Upload Input (File) -->
-                    <input type="file" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;z-index:2" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
-                    
-                    <!-- NEW: Camera Capture Button Overlay -->
+                    <!-- NEW: Camera Capture Button Overlay calling Modal -->
                     <div style="position:absolute;bottom:-25px;left:0;display:flex;gap:5px;z-index:3;">
-                       <label class="action-btn" style="background:#444;padding:4px;cursor:pointer">
+                       <button class="action-btn" style="background:#444;padding:4px;cursor:pointer" onclick="this.getRootNode().host.openModal('${item.name}')">
                           ${ICONS.camera}
-                          <input type="file" accept="image/*" capture="environment" style="display:none" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
-                       </label>
+                       </button>
                     </div>
                  </div>
                  <div style="display:flex;gap:5px">
@@ -519,7 +581,7 @@ class HomeOrganizerPanel extends HTMLElement {
                     <button class="action-btn" style="background:var(--danger)" onclick="this.getRootNode().host.del('${item.name}')">${ICONS.delete}</button>
                  </div>
             </div>
-            <div style="display:flex;flex-wrap:wrap;gap:5px;border-top:1px solid #444;padding-top:5px;margin-top:25px"> <!-- Added top margin for camera buttons -->
+            <div style="display:flex;flex-wrap:wrap;gap:5px;border-top:1px solid #444;padding-top:5px;margin-top:25px">
                 ${moveOptions}
             </div>
          `;
@@ -576,21 +638,9 @@ class HomeOrganizerPanel extends HTMLElement {
       }
   }
 
-  handleFile(e) {
-    const file = e.target.files[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-        this.tempAddImage = evt.target.result;
-        this.shadowRoot.getElementById('add-cam-icon').innerHTML = `<img src="${this.tempAddImage}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`;
-    }; reader.readAsDataURL(file);
-  }
-
-  handleUpdateImage(input, name) {
-    const file = input.files[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => this.callHA('update_image', { item_name: name, image_data: evt.target.result });
-    reader.readAsDataURL(file);
-  }
+  // Not used directly anymore, replaced by processGlobalFile
+  handleFile(e) { }
+  handleUpdateImage(input, name) { }
 
   pasteItem() { this.callHA('paste_item', { target_path: this.currentPath }); }
   
