@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 2.7.0 (Camera & Compression Fix)
+// Home Organizer Ultimate - Ver 2.7.1 (Android Intent Fix)
 // License: MIT
 
 const ICONS = {
@@ -61,13 +61,6 @@ class HomeOrganizerPanel extends HTMLElement {
           this.updateUI();
       } catch (e) {
           console.error("Fetch error", e);
-          const content = this.shadowRoot.getElementById('content');
-          if(content) {
-              content.innerHTML = `<div style="padding:20px;text-align:center;color:#f44336">
-                <strong>Connection Error</strong><br>
-                Please restart Home Assistant.
-              </div>`;
-          }
       }
   }
 
@@ -96,7 +89,6 @@ class HomeOrganizerPanel extends HTMLElement {
         .android-folder-icon svg { width: 28px; height: 28px; }
         .folder-label { font-size: 12px; color: #e0e0e0; line-height: 1.2; max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
         
-        /* Delete Button on Folder (X) */
         .folder-delete-btn {
             position: absolute; top: -5px; right: -5px;
             background: var(--danger); color: white;
@@ -143,7 +135,7 @@ class HomeOrganizerPanel extends HTMLElement {
         .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
         .ai-btn { color: #FFD700 !important; }
         
-        /* Direct Input Styling: Hidden input with Opacity 0 to ensure it catches clicks */
+        /* Direct Input Styling */
         .direct-input-label { 
             width: 45px; height: 45px; 
             background: #333; border-radius: 8px; 
@@ -153,12 +145,6 @@ class HomeOrganizerPanel extends HTMLElement {
         .hidden-input {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
             opacity: 0; cursor: pointer; z-index: 10;
-        }
-        
-        /* Progress Bar for Compression */
-        .progress-overlay {
-            position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5);
-            display: flex; align-items: center; justify-content: center; z-index: 20; color: white; border-radius: 8px; font-size: 10px;
         }
       </style>
       
@@ -182,11 +168,9 @@ class HomeOrganizerPanel extends HTMLElement {
         <div class="search-box" id="search-box">
             <div style="position:relative; flex:1;">
                 <input type="text" id="search-input" style="width:100%;padding:8px;padding-left:35px;border-radius:8px;background:#111;color:white;border:1px solid #333">
-                
-                <!-- Search AI Camera -->
                 <label class="nav-btn ai-btn" style="position:absolute;left:0;top:0;height:100%;display:flex;align-items:center;padding:0 8px;cursor:pointer">
                    ${ICONS.camera}
-                   <input type="file" accept="image/*" capture="environment" class="hidden-input" onchange="this.getRootNode().host.handleAISearch(this)">
+                   <input type="file" accept="image/jpeg" capture="environment" class="hidden-input" onchange="this.getRootNode().host.handleAISearch(this)">
                 </label>
             </div>
             <button class="nav-btn" id="search-close">${ICONS.close}</button>
@@ -200,14 +184,13 @@ class HomeOrganizerPanel extends HTMLElement {
         
         <div class="bottom-bar" id="add-area">
              <div style="display:flex;gap:10px;margin-bottom:10px">
-                
-                <!-- Main: Direct Camera Button (Label Method) -->
+                <!-- CAMERA: JPEG Only + Environment -->
                 <label class="direct-input-label">
                    <span id="add-cam-icon">${ICONS.camera}</span>
-                   <input type="file" accept="image/*" capture="environment" class="hidden-input" onchange="this.getRootNode().host.handleFile(this)">
+                   <input type="file" accept="image/jpeg" capture="environment" class="hidden-input" onchange="this.getRootNode().host.handleFile(this)">
                 </label>
 
-                <!-- Main: Direct Gallery Button (Label Method) -->
+                <!-- GALLERY: General Image -->
                 <label class="direct-input-label">
                    <span>${ICONS.image}</span>
                    <input type="file" accept="image/*" class="hidden-input" onchange="this.getRootNode().host.handleFile(this)">
@@ -224,11 +207,6 @@ class HomeOrganizerPanel extends HTMLElement {
       </div>
       <div class="overlay" id="img-overlay" onclick="this.style.display='none'" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:200;justify-content:center;align-items:center"><img id="overlay-img" style="max-width:90%;border-radius:8px"></div>
     `;
-
-    // Check for Secure Context Warning
-    if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-         console.warn("Camera access on mobile usually requires HTTPS.");
-    }
 
     this.bindEvents();
   }
@@ -260,19 +238,6 @@ class HomeOrganizerPanel extends HTMLElement {
          if (!this.tempAddImage) return alert("Take a picture first!");
          this.callHA('ai_action', { mode: 'identify', image_data: this.tempAddImage });
     });
-    
-    const searchAiBtn = root.getElementById('btn-ai-search');
-    if(searchAiBtn) {
-        const searchInput = document.createElement('input');
-        searchInput.type = 'file'; searchInput.accept = 'image/*'; searchInput.style.display = 'none';
-        searchInput.onchange = (e) => {
-             const file = e.target.files[0]; if (!file) return;
-             const reader = new FileReader();
-             reader.onload = (evt) => this.callHA('ai_action', { mode: 'search', image_data: evt.target.result });
-             reader.readAsDataURL(file);
-        };
-        searchAiBtn.onclick = () => searchInput.click();
-    }
   }
 
   updateUI() {
@@ -281,7 +246,6 @@ class HomeOrganizerPanel extends HTMLElement {
     const root = this.shadowRoot;
     
     root.getElementById('display-title').innerText = attrs.path_display;
-    root.getElementById('display-path').innerText = attrs.app_version || '2.7.0';
     
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
@@ -525,12 +489,12 @@ class HomeOrganizerPanel extends HTMLElement {
                     ${item.img ? `<img src="${item.img}" class="img-preview" onclick="this.getRootNode().host.showImg('${item.img}')">` : '<div class="img-preview"></div>'}
                     
                     <div style="position:absolute;bottom:-25px;left:0;display:flex;gap:5px;z-index:3;">
-                       <!-- DIRECT CAMERA LABEL FOR EDIT -->
+                       <!-- CAMERA: JPEG Only + Environment -->
                        <label class="direct-input-label" style="background:#444;padding:4px;cursor:pointer;width:35px;height:35px;">
                           ${ICONS.camera}
-                          <input type="file" accept="image/*" capture="environment" class="hidden-input" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
+                          <input type="file" accept="image/jpeg" capture="environment" class="hidden-input" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
                        </label>
-                       <!-- DIRECT GALLERY LABEL FOR EDIT -->
+                       <!-- GALLERY: General Image -->
                        <label class="direct-input-label" style="background:#444;padding:4px;cursor:pointer;width:35px;height:35px;">
                           ${ICONS.image}
                           <input type="file" accept="image/*" class="hidden-input" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
@@ -608,7 +572,6 @@ class HomeOrganizerPanel extends HTMLElement {
               const canvas = document.createElement('canvas');
               const ctx = canvas.getContext('2d');
               
-              // Max dimensions
               const MAX_WIDTH = 1024;
               const MAX_HEIGHT = 1024;
               let width = img.width;
@@ -630,7 +593,6 @@ class HomeOrganizerPanel extends HTMLElement {
               canvas.height = height;
               ctx.drawImage(img, 0, 0, width, height);
               
-              // Compress to 30% quality (70% reduction)
               const dataUrl = canvas.toDataURL('image/jpeg', 0.3);
               callback(dataUrl);
           };
@@ -642,7 +604,6 @@ class HomeOrganizerPanel extends HTMLElement {
   handleFile(input) {
     const file = input.files[0]; if (!file) return;
     
-    // Add visual feedback
     const ic = this.shadowRoot.getElementById('add-cam-icon');
     if(ic) ic.innerHTML = `<div style="font-size:10px;">Compressing...</div>`;
     
