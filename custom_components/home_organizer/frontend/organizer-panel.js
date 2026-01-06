@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 2.2.4 (Annotated)
+// Home Organizer Ultimate - Ver 2.2.5 (Fix Navigation State)
 // License: MIT
 
 const ICONS = {
@@ -68,23 +68,19 @@ class HomeOrganizerPanel extends HTMLElement {
         .sub-title { font-size: 11px; color: #aaa; direction: ltr; }
         .content { flex: 1; padding: 15px; overflow-y: auto; }
         
-        /* Grid Layout for Main Locations */
         .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 20px; }
         .folder-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; }
         .android-folder-icon { width: 56px; height: 56px; background: #3c4043; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #8ab4f8; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
         .android-folder-icon svg { width: 28px; height: 28px; }
         .folder-label { font-size: 12px; color: #e0e0e0; line-height: 1.2; max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
-        /* List Layout for Sublocations */
         .item-list { display: flex; flex-direction: column; gap: 5px; }
         .group-separator { color: #aaa; font-size: 14px; margin: 20px 0 10px 0; border-bottom: 1px solid #444; padding-bottom: 4px; text-transform: uppercase; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
-        /* Highlight header when dragging over */
         .group-separator.drag-over { border-bottom: 2px solid var(--primary); color: var(--primary); }
         .oos-separator { color: var(--danger); border-color: var(--danger); }
         .edit-subloc-btn { background: none; border: none; color: #aaa; cursor: pointer; padding: 4px; }
         .edit-subloc-btn:hover { color: var(--primary); }
 
-        /* Item Row Styling - Always draggable look */
         .item-row { background: #2c2c2e; margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid transparent; cursor: grab; }
         .item-row:active { cursor: grabbing; }
         .item-row.expanded { background: #3a3a3c; flex-direction: column; align-items: stretch; cursor: default; }
@@ -226,7 +222,7 @@ class HomeOrganizerPanel extends HTMLElement {
     if(aiSearchBtn) aiSearchBtn.style.display = useAI ? 'block' : 'none';
 
     root.getElementById('display-title').innerText = attrs.path_display;
-    root.getElementById('display-path').innerText = attrs.app_version || '2.2.4';
+    root.getElementById('display-path').innerText = attrs.app_version || '2.2.5';
 
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
@@ -357,7 +353,6 @@ class HomeOrganizerPanel extends HTMLElement {
      div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''} ${oosClass}`;
      
      // Always Draggable (for sublocation moves)
-     // This enables global drag even in normal mode
      div.draggable = true;
      div.ondragstart = (e) => {
          e.dataTransfer.setData("text/plain", item.name);
@@ -440,7 +435,16 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   render() { this.updateUI(); }
-  navigate(dir, name) { this.callHA('navigate', {direction: dir, name: name}); }
+  
+  navigate(dir, name) { 
+      // Update local path state BEFORE calling backend to prevent desync
+      if (dir === 'root') this.currentPath = [];
+      else if (dir === 'up') this.currentPath.pop();
+      else if (dir === 'down' && name) this.currentPath.push(name);
+      
+      this.callHA('navigate', {direction: dir, name: name}); 
+  }
+  
   toggleRow(name) { this.expandedIdx = (this.expandedIdx === name) ? null : name; this.render(); }
   updateQty(name, d) { this.callHA('update_qty', { item_name: name, change: d }); }
   submitShopStock(name) { this.callHA('update_stock', { item_name: name, quantity: 1 }); }
