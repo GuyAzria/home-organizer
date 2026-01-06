@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 2.4.0 (Home Fix & Delete Library)
+// Home Organizer Ultimate - Ver 2.5.0 (Camera Capture Feature)
 // License: MIT
 
 const ICONS = {
@@ -20,7 +20,8 @@ const ICONS = {
   folder_add: '<svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z"/></svg>',
   item_add: '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>',
   sparkles: '<svg viewBox="0 0 24 24"><path d="M9 9l1.5-4 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5zM19 19l-2.5-1 2.5-1 1-2.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5z"/></svg>',
-  camera: '<svg viewBox="0 0 24 24"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm6 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>'
+  camera: '<svg viewBox="0 0 24 24"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm6 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>',
+  shutter: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>' 
 };
 
 class HomeOrganizerPanel extends HTMLElement {
@@ -258,8 +259,9 @@ class HomeOrganizerPanel extends HTMLElement {
     const root = this.shadowRoot;
     
     root.getElementById('display-title').innerText = attrs.path_display;
-    root.getElementById('display-path').innerText = attrs.app_version || '2.4.0';
+    root.getElementById('display-path').innerText = attrs.app_version || '2.5.0';
     
+    // Controls Visibility
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
     if(attrs.clipboard) root.getElementById('clipboard-name').innerText = attrs.clipboard;
@@ -305,10 +307,8 @@ class HomeOrganizerPanel extends HTMLElement {
                 const el = document.createElement('div');
                 el.className = 'folder-item';
                 
-                // Normal click navigation
                 el.onclick = () => this.navigate('down', folder.name);
                 
-                // FEATURE: Delete Button (X) in Edit Mode
                 const deleteBtnHtml = this.isEditMode 
                     ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` 
                     : '';
@@ -375,7 +375,6 @@ class HomeOrganizerPanel extends HTMLElement {
     }
   }
 
-  // --- MOBILE DRAG & DROP LOGIC ---
   setupDragSource(el, itemName) {
       el.draggable = true;
       el.ondragstart = (e) => { e.dataTransfer.setData("text/plain", itemName); e.dataTransfer.effectAllowed = "move"; el.classList.add('dragging'); };
@@ -503,14 +502,24 @@ class HomeOrganizerPanel extends HTMLElement {
             <div class="detail-row" style="justify-content:space-between">
                  <div style="position:relative;width:50px;height:50px">
                     ${item.img ? `<img src="${item.img}" class="img-preview" onclick="this.getRootNode().host.showImg('${item.img}')">` : '<div class="img-preview"></div>'}
-                    <input type="file" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
+                    
+                    <!-- Existing Upload Input (File) -->
+                    <input type="file" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;z-index:2" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
+                    
+                    <!-- NEW: Camera Capture Button Overlay -->
+                    <div style="position:absolute;bottom:-25px;left:0;display:flex;gap:5px;z-index:3;">
+                       <label class="action-btn" style="background:#444;padding:4px;cursor:pointer">
+                          ${ICONS.camera}
+                          <input type="file" accept="image/*" capture="environment" style="display:none" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
+                       </label>
+                    </div>
                  </div>
                  <div style="display:flex;gap:5px">
                     <button class="action-btn" style="background:#555" onclick="this.getRootNode().host.cut('${item.name}')">${ICONS.cut}</button>
                     <button class="action-btn" style="background:var(--danger)" onclick="this.getRootNode().host.del('${item.name}')">${ICONS.delete}</button>
                  </div>
             </div>
-            <div style="display:flex;flex-wrap:wrap;gap:5px;border-top:1px solid #444;padding-top:5px;margin-top:5px">
+            <div style="display:flex;flex-wrap:wrap;gap:5px;border-top:1px solid #444;padding-top:5px;margin-top:25px"> <!-- Added top margin for camera buttons -->
                 ${moveOptions}
             </div>
          `;
@@ -519,7 +528,6 @@ class HomeOrganizerPanel extends HTMLElement {
      return div;
   }
 
-  // FEATURE: Delete Folder Logic
   deleteFolder(name) {
       if(confirm(`Delete folder '${name}' and ALL items inside it?`)) {
           this._hass.callService('home_organizer', 'delete_item', {
@@ -597,7 +605,6 @@ class HomeOrganizerPanel extends HTMLElement {
   
   cut(name) { this.callHA('clipboard_action', {action: 'cut', item_name: name}); }
   del(name) { 
-      // Deleting a generic item from list
       this._hass.callService('home_organizer', 'delete_item', {
           item_name: name, 
           current_path: this.currentPath,
