@@ -1,66 +1,48 @@
-// Home Organizer Ultimate - Ver 2.2.2 (Syntax Verified)
+// Home Organizer Ultimate - Ver 2.2.1
+// Safe Rewrite based on 2.0.8 architecture
 // License: MIT
 
-class HomeOrganizerPanel extends HTMLElement {
-  
-  constructor() {
-    super();
-    this.currentPath = [];
-    this.isEditMode = false;
-    this.isSearch = false;
-    this.isShopMode = false;
-    this.expandedIdx = null;
-    this.lastAI = "";
-    this._hass = null;
-  }
+const ICONS = {
+  arrow_up: '<svg viewBox="0 0 24 24"><path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/></svg>',
+  home: '<svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>',
+  cart: '<svg viewBox="0 0 24 24"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>',
+  search: '<svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>',
+  edit: '<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>',
+  close: '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>',
+  camera: '<svg viewBox="0 0 24 24"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm6 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>',
+  folder: '<svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>',
+  item: '<svg viewBox="0 0 24 24"><path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/></svg>',
+  delete: '<svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>',
+  cut: '<svg viewBox="0 0 24 24"><circle cx="6" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="6" cy="6" r="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9.64 7.64c.23-.5.36-1.05.36-1.64 0-2.21-1.79-4-4-4S2 3.79 2 6s1.79 4 4 4c.59 0 1.14-.13 1.64-.36L10 12l-2.36 2.36C7.14 14.13 6.59 14 6 14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.59-.13-1.14-.36-1.64L12 14l7 7h3v-1L9.64 7.64z"/></svg>',
+  paste: '<svg viewBox="0 0 24 24"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>',
+  plus: '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>',
+  minus: '<svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>',
+  save: '<svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>',
+  sparkles: '<svg viewBox="0 0 24 24"><path d="M9 9l1.5-4 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5zM19 19l-2.5-1 2.5-1 1-2.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5z"/></svg>'
+};
 
+class HomeOrganizerPanel extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
-    if (!this.shadowRoot) {
+    if (!this.content) {
+      this.currentPath = [];
+      this.isEditMode = false;
+      this.isSearch = false;
+      this.isShopMode = false;
+      this.expandedIdx = null;
+      this.lastAI = "";
       this.initUI();
     }
     
     const state = this._hass.states['sensor.organizer_view'];
     if (state && state.attributes) {
-        const aiSugg = state.attributes.ai_suggestion;
-        if (aiSugg && aiSugg !== this.lastAI) {
-            const input = this.shadowRoot.getElementById('add-name');
-            if(input && input !== this.shadowRoot.activeElement) {
-                input.value = aiSugg;
-                this.lastAI = aiSugg;
-            }
-        }
         this.updateUI();
     }
   }
 
-  getIcons() {
-      return {
-          arrow_up: '<svg viewBox="0 0 24 24"><path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/></svg>',
-          home: '<svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>',
-          cart: '<svg viewBox="0 0 24 24"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>',
-          search: '<svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>',
-          edit: '<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>',
-          close: '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>',
-          camera: '<svg viewBox="0 0 24 24"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm6 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>',
-          folder: '<svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>',
-          item: '<svg viewBox="0 0 24 24"><path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/></svg>',
-          delete: '<svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>',
-          cut: '<svg viewBox="0 0 24 24"><circle cx="6" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="6" cy="6" r="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9.64 7.64c.23-.5.36-1.05.36-1.64 0-2.21-1.79-4-4-4S2 3.79 2 6s1.79 4 4 4c.59 0 1.14-.13 1.64-.36L10 12l-2.36 2.36C7.14 14.13 6.59 14 6 14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.59-.13-1.14-.36-1.64L12 14l7 7h3v-1L9.64 7.64z"/></svg>',
-          paste: '<svg viewBox="0 0 24 24"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>',
-          plus: '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>',
-          minus: '<svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>',
-          save: '<svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>',
-          folder_add: '<svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z"/></svg>',
-          item_add: '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>',
-          sparkles: '<svg viewBox="0 0 24 24"><path d="M9 9l1.5-4 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5zM19 19l-2.5-1 2.5-1 1-2.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5z"/></svg>',
-          camera: '<svg viewBox="0 0 24 24"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm6 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>'
-      };
-  }
-
   initUI() {
+    this.content = true;
     this.attachShadow({mode: 'open'});
-    const icons = this.getIcons();
     this.shadowRoot.innerHTML = `
       <style>
         :host { --app-bg: #1c1c1e; --primary: #03a9f4; --accent: #4caf50; --danger: #f44336; --text: #fff; --border: #333; --warning: #ffeb3b; }
@@ -96,42 +78,31 @@ class HomeOrganizerPanel extends HTMLElement {
         .img-preview { width: 50px; height: 50px; border-radius: 4px; object-fit: cover; background: #333; }
         .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
         .ai-btn { color: #FFD700 !important; }
-        .edit-subloc-btn { background: none; border: none; color: #aaa; cursor: pointer; padding: 4px; }
       </style>
       
       <div class="app-container" id="app">
          <div class="top-bar">
-            <div style="display:flex;gap:5px">
-                <button class="nav-btn" id="btn-up">${icons.arrow_up}</button>
-                <button class="nav-btn" id="btn-home">${icons.home}</button>
-            </div>
-            <div class="title-box">
-                <div class="main-title" id="display-title">Organizer</div>
-                <div class="sub-title" id="display-path">Main</div>
-            </div>
-            <div style="display:flex;gap:5px">
-                <button class="nav-btn" id="btn-shop">${icons.cart}</button>
-                <button class="nav-btn" id="btn-search">${icons.search}</button>
-                <button class="nav-btn" id="btn-edit">${icons.edit}</button>
-            </div>
+            <div style="display:flex;gap:5px"><button class="nav-btn" id="btn-up">${ICONS.arrow_up}</button><button class="nav-btn" id="btn-home">${ICONS.home}</button></div>
+            <div class="title-box"><div class="main-title" id="display-title">Organizer</div><div class="sub-title" id="display-path">Main</div></div>
+            <div style="display:flex;gap:5px"><button class="nav-btn" id="btn-shop">${ICONS.cart}</button><button class="nav-btn" id="btn-search">${ICONS.search}</button><button class="nav-btn" id="btn-edit">${ICONS.edit}</button></div>
         </div>
         
         <div class="search-box" id="search-box">
             <div style="position:relative; flex:1;">
                 <input type="text" id="search-input" style="width:100%;padding:8px;padding-left:35px;border-radius:8px;background:#111;color:white;border:1px solid #333">
-                <button id="btn-ai-search" class="nav-btn ai-btn" style="position:absolute;left:0;top:0;height:100%;border:none;background:none;display:none;">${icons.camera}</button>
+                <button id="btn-ai-search" class="nav-btn ai-btn" style="position:absolute;left:0;top:0;height:100%;border:none;background:none;display:none;">${ICONS.camera}</button>
             </div>
-            <button class="nav-btn" id="search-close">${icons.close}</button>
+            <button class="nav-btn" id="search-close">${ICONS.close}</button>
         </div>
         
         <div class="content" id="content"></div>
         
         <div class="bottom-bar" id="add-area">
              <div style="display:flex;gap:10px;margin-bottom:10px">
-                <div class="cam-btn" id="add-cam-btn" style="width:45px;background:#333;border-radius:8px;display:flex;align-items:center;justify-content:center;position:relative"><input type="file" id="add-file" style="position:absolute;width:100%;height:100%;opacity:0"><span id="add-cam-icon">${icons.camera}</span></div>
+                <div class="cam-btn" id="add-cam-btn" style="width:45px;background:#333;border-radius:8px;display:flex;align-items:center;justify-content:center;position:relative"><input type="file" id="add-file" style="position:absolute;width:100%;height:100%;opacity:0"><span id="add-cam-icon">${ICONS.camera}</span></div>
                 <div style="flex:1; display:flex; position:relative;">
                     <input type="text" id="add-name" placeholder="Name..." style="width:100%;padding:10px;border-radius:8px;background:#111;color:white;border:1px solid #333">
-                    <button id="btn-ai-magic" class="nav-btn ai-btn" style="position:absolute;left:0;top:0;height:100%;border:none;background:none;display:none;">${icons.sparkles}</button>
+                    <button id="btn-ai-magic" class="nav-btn ai-btn" style="position:absolute;left:0;top:0;height:100%;border:none;background:none;display:none;">${ICONS.sparkles}</button>
                 </div>
                 <input type="date" id="add-date" style="width:110px;padding:10px;border-radius:8px;background:#111;color:white;border:1px solid #333">
              </div>
@@ -175,8 +146,6 @@ class HomeOrganizerPanel extends HTMLElement {
     const dateIn = root.getElementById('add-date');
     if(dateIn) dateIn.value = new Date().toISOString().split('T')[0];
     
-    const icons = this.getIcons();
-    
     // AI
     click('btn-ai-magic', () => {
          if (!this.tempAddImage) return alert("Take a picture first!");
@@ -204,19 +173,12 @@ class HomeOrganizerPanel extends HTMLElement {
     if (!state || !state.attributes) return;
     const attrs = state.attributes;
     const root = this.shadowRoot;
-    const icons = this.getIcons();
     
-    const useAI = attrs.use_ai; 
-    const aiMagicBtn = root.getElementById('btn-ai-magic');
-    const aiSearchBtn = root.getElementById('btn-ai-search');
-    
-    if(aiMagicBtn) aiMagicBtn.style.display = useAI ? 'block' : 'none';
-    if(aiSearchBtn) aiSearchBtn.style.display = useAI ? 'block' : 'none';
-
     root.getElementById('display-title').innerText = attrs.path_display;
-    root.getElementById('display-path').innerText = attrs.app_version || '2.2.2';
+    root.getElementById('display-path').innerText = attrs.app_version || '2.1.8';
 
-    root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
+    const sb = root.getElementById('search-box');
+    if(sb) sb.style.display = this.isSearch ? 'flex' : 'none';
     
     const app = root.getElementById('app');
     if(this.isEditMode) app.classList.add('edit-mode'); else app.classList.remove('edit-mode');
@@ -224,7 +186,7 @@ class HomeOrganizerPanel extends HTMLElement {
     const content = root.getElementById('content');
     content.innerHTML = '';
 
-    // 1. SHOPPING LIST MODE
+    // 1. SHOPPING
     if (attrs.shopping_list && attrs.shopping_list.length > 0) {
         const listContainer = document.createElement('div');
         listContainer.className = 'item-list';
@@ -245,7 +207,7 @@ class HomeOrganizerPanel extends HTMLElement {
         return;
     }
 
-    // 2. SEARCH MODE
+    // 2. SEARCH
     if ((this.isSearch || (attrs.path_display && attrs.path_display.startsWith('Search'))) && attrs.items) {
         const list = document.createElement('div');
         list.className = 'item-list';
@@ -254,7 +216,7 @@ class HomeOrganizerPanel extends HTMLElement {
         return;
     }
 
-    // 3. BROWSE MODE
+    // 3. BROWSE
     if (attrs.depth < 2) {
         // Grid View
         if (attrs.folders && attrs.folders.length > 0) {
@@ -264,7 +226,7 @@ class HomeOrganizerPanel extends HTMLElement {
                 const el = document.createElement('div');
                 el.className = 'folder-item';
                 el.onclick = () => this.navigate('down', folder.name);
-                el.innerHTML = `<div class="android-folder-icon">${icons.folder}</div><div class="folder-label">${folder.name}</div>`;
+                el.innerHTML = `<div class="android-folder-icon">${ICONS.folder}</div><div class="folder-label">${folder.name}</div>`;
                 grid.appendChild(el);
             });
             content.appendChild(grid);
@@ -277,7 +239,7 @@ class HomeOrganizerPanel extends HTMLElement {
         }
     } 
     else {
-        // List View (Inside Main Location)
+        // List View
         const listContainer = document.createElement('div');
         listContainer.className = 'item-list';
 
@@ -306,23 +268,24 @@ class HomeOrganizerPanel extends HTMLElement {
 
             const header = document.createElement('div');
             header.className = 'group-separator';
+            header.innerText = subName;
             
-            if (this.isEditMode) {
-                header.ondragover = (e) => { e.preventDefault(); header.classList.add('drag-over'); };
-                header.ondragleave = () => header.classList.remove('drag-over');
-                header.ondrop = (e) => { e.preventDefault(); header.classList.remove('drag-over'); this.handleDrop(e, subName); };
-            }
-
+            // Add rename if Edit Mode
             if (this.isEditMode && subName !== "General") {
-                header.innerHTML = `
-                    <span>${subName}</span> 
-                    <div style="display:flex;gap:5px">
-                        <button class="edit-subloc-btn" onclick="this.getRootNode().host.renameSubloc('${subName}')">${icons.edit}</button>
-                        <button class="edit-subloc-btn" style="color:var(--danger)" onclick="this.getRootNode().host.deleteSubloc('${subName}')">${icons.delete}</button>
-                    </div>`;
-            } else {
-                header.innerText = subName;
+                const btn = document.createElement('button');
+                btn.className = 'edit-subloc-btn';
+                btn.innerHTML = ICONS.edit;
+                btn.onclick = () => this.renameSubloc(subName);
+                header.appendChild(btn);
+                
+                const btnDel = document.createElement('button');
+                btnDel.className = 'edit-subloc-btn';
+                btnDel.style.color = 'var(--danger)';
+                btnDel.innerHTML = ICONS.delete;
+                btnDel.onclick = () => this.deleteSubloc(subName);
+                header.appendChild(btnDel);
             }
+            
             listContainer.appendChild(header);
             grouped[subName].forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
         });
@@ -342,27 +305,18 @@ class HomeOrganizerPanel extends HTMLElement {
      const div = document.createElement('div');
      const oosClass = (item.qty === 0) ? 'out-of-stock-frame' : '';
      div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''} ${oosClass}`;
-     const icons = this.getIcons();
      
-     if (this.isEditMode) {
-         div.draggable = true;
-         div.ondragstart = (e) => {
-             e.dataTransfer.setData("text/plain", item.name);
-             e.dataTransfer.effectAllowed = "move";
-         };
-     }
-
      let controls = '';
      if (isShopMode) {
          controls = `
-            <button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${icons.minus}</button>
-            <button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${icons.plus}</button>
-            <button class="qty-btn" style="background:var(--primary)" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.name}')">${icons.save}</button>
+            <button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${ICONS.minus}</button>
+            <button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${ICONS.plus}</button>
+            <button class="qty-btn" style="background:var(--primary)" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.name}')">${ICONS.save}</button>
          `;
      } else {
-         controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${icons.plus}</button>
+         controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${ICONS.plus}</button>
                      <span class="qty-val">${item.qty}</span>
-                     <button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${icons.minus}</button>`;
+                     <button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${ICONS.minus}</button>`;
      }
 
      const subText = isShopMode ? `${item.main_location} > ${item.sub_location || ''}` : `${item.date || ''}`;
@@ -370,7 +324,7 @@ class HomeOrganizerPanel extends HTMLElement {
      div.innerHTML = `
         <div class="item-main" onclick="this.getRootNode().host.toggleRow('${item.name}')">
             <div class="item-left">
-                <span class="item-icon">${icons.item}</span>
+                <span class="item-icon">${ICONS.item}</span>
                 <div>
                     <div>${item.name}</div>
                     <div class="sub-title">${subText}</div>
@@ -395,35 +349,14 @@ class HomeOrganizerPanel extends HTMLElement {
                     <input type="file" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
                  </div>
                  <div style="display:flex;gap:5px">
-                    <button class="action-btn" style="background:#555" onclick="this.getRootNode().host.cut('${item.name}')">${icons.cut}</button>
-                    <button class="action-btn" style="background:var(--danger)" onclick="this.getRootNode().host.del('${item.name}')">${icons.delete}</button>
+                    <button class="action-btn" style="background:#555" onclick="this.getRootNode().host.cut('${item.name}')">${ICONS.cut}</button>
+                    <button class="action-btn" style="background:var(--danger)" onclick="this.getRootNode().host.del('${item.name}')">${ICONS.delete}</button>
                  </div>
             </div>
          `;
          div.appendChild(details);
      }
      return div;
-  }
-
-  handleDrop(e, targetSubloc) {
-      e.preventDefault();
-      const itemName = e.dataTransfer.getData("text/plain");
-      if (!itemName) return;
-      let targetPath = [...this.currentPath];
-      if (targetSubloc !== "General") targetPath.push(targetSubloc);
-      
-      this.callHA('clipboard_action', {action: 'cut', item_name: itemName});
-      setTimeout(() => {
-          this.callHA('paste_item', {target_path: targetPath});
-          setTimeout(() => this.notifyContext(), 300);
-      }, 100);
-  }
-
-  deleteSubloc(name) {
-      if(confirm(`Delete '${name}'?`)) {
-          this.callHA('update_item_details', { original_name: name, new_name: "", new_date: "" });
-          setTimeout(() => this.notifyContext(), 300);
-      }
   }
 
   render() { this.updateUI(); }
@@ -434,20 +367,26 @@ class HomeOrganizerPanel extends HTMLElement {
   notifyContext(query = "") { this.callHA('set_view_context', { path: this.currentPath, search_query: query, date_filter: 'All', shopping_mode: this.isShopMode }); }
 
   addItem(type) {
-    const icons = this.getIcons();
     const nEl = this.shadowRoot.getElementById('add-name');
     const dEl = this.shadowRoot.getElementById('add-date');
     if (!nEl || !nEl.value) return alert("Name required");
     this.callHA('add_item', { item_name: nEl.value, item_type: type, item_date: dEl.value, image_data: this.tempAddImage });
     nEl.value = ''; this.tempAddImage = null;
     const ic = this.shadowRoot.getElementById('add-cam-icon');
-    if(ic) ic.innerHTML = icons.camera;
+    if(ic) ic.innerHTML = ICONS.camera;
   }
   
   renameSubloc(oldName) {
       const newName = prompt("Rename:", oldName);
       if (newName && newName !== oldName) {
           this.callHA('update_item_details', { original_name: oldName, new_name: newName, new_date: "" });
+          setTimeout(() => this.notifyContext(), 300);
+      }
+  }
+  
+  deleteSubloc(name) {
+      if(confirm(`Delete '${name}'?`)) {
+          this.callHA('update_item_details', { original_name: name, new_name: "", new_date: "" });
           setTimeout(() => this.notifyContext(), 300);
       }
   }
