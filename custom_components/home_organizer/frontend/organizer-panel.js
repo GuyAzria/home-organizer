@@ -1,4 +1,5 @@
-// Home Organizer Ultimate - Ver 2.2.3 (Stable Repair)
+// Home Organizer Ultimate - Ver 2.2.1
+// Safe Rewrite based on 2.0.8 architecture
 // License: MIT
 
 const ICONS = {
@@ -17,10 +18,7 @@ const ICONS = {
   plus: '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>',
   minus: '<svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>',
   save: '<svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>',
-  folder_add: '<svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z"/></svg>',
-  item_add: '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>',
-  sparkles: '<svg viewBox="0 0 24 24"><path d="M9 9l1.5-4 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5zM19 19l-2.5-1 2.5-1 1-2.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5z"/></svg>',
-  camera: '<svg viewBox="0 0 24 24"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm6 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>'
+  sparkles: '<svg viewBox="0 0 24 24"><path d="M9 9l1.5-4 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5zM19 19l-2.5-1 2.5-1 1-2.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5z"/></svg>'
 };
 
 class HomeOrganizerPanel extends HTMLElement {
@@ -36,16 +34,8 @@ class HomeOrganizerPanel extends HTMLElement {
       this.initUI();
     }
     
-    // Safety check for state
     const state = this._hass.states['sensor.organizer_view'];
     if (state && state.attributes) {
-        if (state.attributes.ai_suggestion && state.attributes.ai_suggestion !== this.lastAI) {
-            const input = this.shadowRoot.getElementById('add-name');
-            if(input && input !== this.shadowRoot.activeElement) {
-                input.value = state.attributes.ai_suggestion;
-                this.lastAI = state.attributes.ai_suggestion;
-            }
-        }
         this.updateUI();
     }
   }
@@ -61,66 +51,40 @@ class HomeOrganizerPanel extends HTMLElement {
         svg { width: 24px; height: 24px; fill: currentColor; }
         .top-bar { background: #242426; padding: 10px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-shrink: 0; height: 60px; }
         .nav-btn { background: none; border: none; color: var(--primary); cursor: pointer; padding: 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-        .nav-btn:hover { background: rgba(255,255,255,0.1); }
-        .nav-btn.active { color: var(--warning); }
-        .nav-btn.shop-active { color: var(--accent); }
         .title-box { flex: 1; text-align: center; }
         .main-title { font-weight: bold; font-size: 16px; }
         .sub-title { font-size: 11px; color: #aaa; direction: ltr; }
         .content { flex: 1; padding: 15px; overflow-y: auto; }
-        
         .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 20px; }
         .folder-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; }
         .android-folder-icon { width: 56px; height: 56px; background: #3c4043; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #8ab4f8; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-        .android-folder-icon svg { width: 28px; height: 28px; }
         .folder-label { font-size: 12px; color: #e0e0e0; line-height: 1.2; max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-
         .item-list { display: flex; flex-direction: column; gap: 5px; }
         .group-separator { color: #aaa; font-size: 14px; margin: 20px 0 10px 0; border-bottom: 1px solid #444; padding-bottom: 4px; text-transform: uppercase; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
-        .group-separator.drag-over { border-bottom: 2px solid var(--primary); color: var(--primary); }
-        .oos-separator { color: var(--danger); border-color: var(--danger); }
-        .edit-subloc-btn { background: none; border: none; color: #aaa; cursor: pointer; padding: 4px; }
-        .edit-subloc-btn:hover { color: var(--primary); }
-
         .item-row { background: #2c2c2e; margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid transparent; }
         .item-row.expanded { background: #3a3a3c; flex-direction: column; align-items: stretch; }
         .out-of-stock-frame { border: 2px solid var(--danger); }
-        .app-container.edit-mode .item-row { cursor: grab; border: 1px dashed #555; }
-
         .item-main { display: flex; align-items: center; justify-content: space-between; width: 100%; cursor: pointer; }
         .item-left { display: flex; align-items: center; gap: 10px; }
         .item-icon { color: var(--primary); }
         .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 4px; border-radius: 20px; }
         .qty-btn { background: #444; border: none; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         .qty-val { min-width: 20px; text-align: center; font-weight: bold; }
-
         .bottom-bar { background: #242426; padding: 15px; border-top: 1px solid var(--border); display: none; }
         .edit-mode .bottom-bar { display: block; }
-        
         .expanded-details { margin-top: 10px; padding-top: 10px; border-top: 1px solid #555; display: flex; flex-direction: column; gap: 10px; }
         .detail-row { display: flex; gap: 10px; align-items: center; }
         .action-btn { flex: 1; padding: 8px; border-radius: 6px; border: none; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; }
         .img-preview { width: 50px; height: 50px; border-radius: 4px; object-fit: cover; background: #333; }
-        
         .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
         .ai-btn { color: #FFD700 !important; }
       </style>
       
       <div class="app-container" id="app">
          <div class="top-bar">
-            <div style="display:flex;gap:5px">
-                <button class="nav-btn" id="btn-up">${ICONS.arrow_up}</button>
-                <button class="nav-btn" id="btn-home">${ICONS.home}</button>
-            </div>
-            <div class="title-box">
-                <div class="main-title" id="display-title">Organizer</div>
-                <div class="sub-title" id="display-path">Main</div>
-            </div>
-            <div style="display:flex;gap:5px">
-                <button class="nav-btn" id="btn-shop">${ICONS.cart}</button>
-                <button class="nav-btn" id="btn-search">${ICONS.search}</button>
-                <button class="nav-btn" id="btn-edit">${ICONS.edit}</button>
-            </div>
+            <div style="display:flex;gap:5px"><button class="nav-btn" id="btn-up">${ICONS.arrow_up}</button><button class="nav-btn" id="btn-home">${ICONS.home}</button></div>
+            <div class="title-box"><div class="main-title" id="display-title">Organizer</div><div class="sub-title" id="display-path">Main</div></div>
+            <div style="display:flex;gap:5px"><button class="nav-btn" id="btn-shop">${ICONS.cart}</button><button class="nav-btn" id="btn-search">${ICONS.search}</button><button class="nav-btn" id="btn-edit">${ICONS.edit}</button></div>
         </div>
         
         <div class="search-box" id="search-box">
@@ -130,8 +94,6 @@ class HomeOrganizerPanel extends HTMLElement {
             </div>
             <button class="nav-btn" id="search-close">${ICONS.close}</button>
         </div>
-        
-        <div class="paste-bar" id="paste-bar" style="display:none;padding:10px;background:rgba(255,235,59,0.2);color:#ffeb3b;align-items:center;justify-content:space-between"><div>${ICONS.cut} Cut: <b id="clipboard-name"></b></div><button id="btn-paste" style="background:#4caf50;color:white;border:none;padding:5px 15px;border-radius:15px">Paste</button></div>
         
         <div class="content" id="content"></div>
         
@@ -180,7 +142,6 @@ class HomeOrganizerPanel extends HTMLElement {
     
     click('btn-create-folder', () => this.addItem('folder'));
     click('btn-create-item', () => this.addItem('item'));
-    click('btn-paste', () => this.pasteItem());
     
     const dateIn = root.getElementById('add-date');
     if(dateIn) dateIn.value = new Date().toISOString().split('T')[0];
@@ -213,19 +174,11 @@ class HomeOrganizerPanel extends HTMLElement {
     const attrs = state.attributes;
     const root = this.shadowRoot;
     
-    const useAI = attrs.use_ai; 
-    const aiMagicBtn = root.getElementById('btn-ai-magic');
-    const aiSearchBtn = root.getElementById('btn-ai-search');
-    
-    if(aiMagicBtn) aiMagicBtn.style.display = useAI ? 'block' : 'none';
-    if(aiSearchBtn) aiSearchBtn.style.display = useAI ? 'block' : 'none';
-
     root.getElementById('display-title').innerText = attrs.path_display;
-    root.getElementById('display-path').innerText = attrs.app_version || '2.2.3';
+    root.getElementById('display-path').innerText = attrs.app_version || '2.1.8';
 
-    root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
-    root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
-    if(attrs.clipboard) root.getElementById('clipboard-name').innerText = attrs.clipboard;
+    const sb = root.getElementById('search-box');
+    if(sb) sb.style.display = this.isSearch ? 'flex' : 'none';
     
     const app = root.getElementById('app');
     if(this.isEditMode) app.classList.add('edit-mode'); else app.classList.remove('edit-mode');
@@ -233,7 +186,7 @@ class HomeOrganizerPanel extends HTMLElement {
     const content = root.getElementById('content');
     content.innerHTML = '';
 
-    // 1. SHOPPING LIST MODE
+    // 1. SHOPPING
     if (attrs.shopping_list && attrs.shopping_list.length > 0) {
         const listContainer = document.createElement('div');
         listContainer.className = 'item-list';
@@ -254,7 +207,7 @@ class HomeOrganizerPanel extends HTMLElement {
         return;
     }
 
-    // 2. SEARCH MODE
+    // 2. SEARCH
     if ((this.isSearch || (attrs.path_display && attrs.path_display.startsWith('Search'))) && attrs.items) {
         const list = document.createElement('div');
         list.className = 'item-list';
@@ -263,7 +216,7 @@ class HomeOrganizerPanel extends HTMLElement {
         return;
     }
 
-    // 3. BROWSE MODE
+    // 3. BROWSE
     if (attrs.depth < 2) {
         // Grid View
         if (attrs.folders && attrs.folders.length > 0) {
@@ -286,7 +239,7 @@ class HomeOrganizerPanel extends HTMLElement {
         }
     } 
     else {
-        // List View (Inside Main Location)
+        // List View
         const listContainer = document.createElement('div');
         listContainer.className = 'item-list';
 
@@ -315,23 +268,24 @@ class HomeOrganizerPanel extends HTMLElement {
 
             const header = document.createElement('div');
             header.className = 'group-separator';
+            header.innerText = subName;
             
-            if (this.isEditMode) {
-                header.ondragover = (e) => { e.preventDefault(); header.classList.add('drag-over'); };
-                header.ondragleave = () => header.classList.remove('drag-over');
-                header.ondrop = (e) => { e.preventDefault(); header.classList.remove('drag-over'); this.handleDrop(e, subName); };
-            }
-
+            // Add rename if Edit Mode
             if (this.isEditMode && subName !== "General") {
-                header.innerHTML = `
-                    <span>${subName}</span> 
-                    <div style="display:flex;gap:5px">
-                        <button class="edit-subloc-btn" onclick="this.getRootNode().host.renameSubloc('${subName}')">${ICONS.edit}</button>
-                        <button class="edit-subloc-btn" style="color:var(--danger)" onclick="this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button>
-                    </div>`;
-            } else {
-                header.innerText = subName;
+                const btn = document.createElement('button');
+                btn.className = 'edit-subloc-btn';
+                btn.innerHTML = ICONS.edit;
+                btn.onclick = () => this.renameSubloc(subName);
+                header.appendChild(btn);
+                
+                const btnDel = document.createElement('button');
+                btnDel.className = 'edit-subloc-btn';
+                btnDel.style.color = 'var(--danger)';
+                btnDel.innerHTML = ICONS.delete;
+                btnDel.onclick = () => this.deleteSubloc(subName);
+                header.appendChild(btnDel);
             }
+            
             listContainer.appendChild(header);
             grouped[subName].forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
         });
@@ -352,14 +306,6 @@ class HomeOrganizerPanel extends HTMLElement {
      const oosClass = (item.qty === 0) ? 'out-of-stock-frame' : '';
      div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''} ${oosClass}`;
      
-     if (this.isEditMode) {
-         div.draggable = true;
-         div.ondragstart = (e) => {
-             e.dataTransfer.setData("text/plain", item.name);
-             e.dataTransfer.effectAllowed = "move";
-         };
-     }
-
      let controls = '';
      if (isShopMode) {
          controls = `
@@ -413,27 +359,6 @@ class HomeOrganizerPanel extends HTMLElement {
      return div;
   }
 
-  handleDrop(e, targetSubloc) {
-      e.preventDefault();
-      const itemName = e.dataTransfer.getData("text/plain");
-      if (!itemName) return;
-      let targetPath = [...this.currentPath];
-      if (targetSubloc !== "General") targetPath.push(targetSubloc);
-      
-      this.callHA('clipboard_action', {action: 'cut', item_name: itemName});
-      setTimeout(() => {
-          this.callHA('paste_item', {target_path: targetPath});
-          setTimeout(() => this.notifyContext(), 300);
-      }, 100);
-  }
-
-  deleteSubloc(name) {
-      if(confirm(`Delete '${name}'?`)) {
-          this.callHA('update_item_details', { original_name: name, new_name: "", new_date: "" });
-          setTimeout(() => this.notifyContext(), 300);
-      }
-  }
-
   render() { this.updateUI(); }
   navigate(dir, name) { this.callHA('navigate', {direction: dir, name: name}); }
   toggleRow(name) { this.expandedIdx = (this.expandedIdx === name) ? null : name; this.render(); }
@@ -455,6 +380,13 @@ class HomeOrganizerPanel extends HTMLElement {
       const newName = prompt("Rename:", oldName);
       if (newName && newName !== oldName) {
           this.callHA('update_item_details', { original_name: oldName, new_name: newName, new_date: "" });
+          setTimeout(() => this.notifyContext(), 300);
+      }
+  }
+  
+  deleteSubloc(name) {
+      if(confirm(`Delete '${name}'?`)) {
+          this.callHA('update_item_details', { original_name: name, new_name: "", new_date: "" });
           setTimeout(() => this.notifyContext(), 300);
       }
   }
