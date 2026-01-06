@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 2.3.0 (Multi-user & Websockets)
+# Home Organizer Ultimate - ver 2.3.1 (Fix Websocket Registration)
 
 import logging
 import sqlite3
@@ -42,11 +42,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.async_add_executor_job(init_db, hass)
 
-    # Global State (Only for shared settings like AI, not navigation)
     hass.data.setdefault(DOMAIN, {})
     
     # Register Websocket API for per-client data fetching
-    hass.components.websocket_api.async_register_command(
+    # FIX: Use the imported module directly instead of hass.components
+    websocket_api.async_register_command(
+        hass,
         WS_GET_DATA, 
         websocket_get_data, 
         websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend({
@@ -59,9 +60,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     await register_services(hass, entry)
-    
-    # We no longer use a sensor for the view state because it's shared.
-    # Instead, clients pull data via websocket.
     
     entry.async_on_unload(entry.add_update_listener(update_listener))
     return True
@@ -97,7 +95,7 @@ def init_db(hass):
     if 'image_path' not in existing: c.execute("ALTER TABLE items ADD COLUMN image_path TEXT")
     conn.commit(); conn.close()
 
-# --- Websocket Handler (The Core of Multi-User Support) ---
+# --- Websocket Handler ---
 @callback
 def websocket_get_data(hass, connection, msg):
     """Handle get data request."""
@@ -134,12 +132,9 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
 
         elif query or date_filter != "All":
             sql = "SELECT * FROM items WHERE 1=1"; params = []
-            # For search, we might want global search or scoped search.
-            # If scoped to current path:
             for i, p in enumerate(path_parts): sql += f" AND level_{i+1} = ?"; params.append(p)
 
             if query: sql += " AND name LIKE ?"; params.append(f"%{query}%")
-            # Date filters logic...
             if date_filter == "Week": 
                 sql += " AND item_date >= ?"; params.append((datetime.now()-timedelta(days=7)).strftime("%Y-%m-%d"))
             elif date_filter == "Month":
@@ -155,7 +150,6 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                     items.append({"name": r_dict['name'], "type": r_dict['type'], "qty": r_dict['quantity'], "date": r_dict['item_date'], "img": img, "location": " > ".join(fp)})
 
         else:
-            # Browse Mode
             depth = len(path_parts)
             sql_where = ""; params = []
             for i, p in enumerate(path_parts): sql_where += f" AND level_{i+1} = ?"; params.append(p)
@@ -201,8 +195,6 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
 
     finally: conn.close()
 
-    # Determine AI status from config entry if possible (tricky inside static method, assume True or pass from caller)
-    # We return basic structure
     return {
         "path_display": is_shopping and "Shopping List" or (query and "Search Results" or (" > ".join(path_parts) if path_parts else "Main")),
         "folders": folders,
@@ -215,7 +207,6 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
 async def register_services(hass, entry):
     api_key = entry.options.get(CONF_API_KEY, entry.data.get(CONF_API_KEY, ""))
     
-    # Helper to broadcast update
     def broadcast_update():
         hass.bus.async_fire("home_organizer_db_update")
 
@@ -230,21 +221,7 @@ async def register_services(hass, entry):
                 await hass.async_add_executor_job(lambda: open(hass.config.path("www", IMG_DIR, fname), "wb").write(base64.b64decode(img_b64)))
             except: pass
 
-        # IMPORTANT: Current path is no longer in global state.
-        # It must be passed in service call for context-aware adds.
-        # If not passed, we default to root (which is safer than shared global state).
-        # We need to update services.yaml to accept 'path' for add_item or rely on a "last known path" per user?
-        # Actually, for simplicity in this migration: 
-        # We will assume the frontend sends the path in 'set_view_context' just before calling add? 
-        # No, better to add 'path' to the add_item service or assume 'paste' style context.
-        # LET'S USE A COMPROMISE: The frontend sends the path in the service data if possible.
-        # But 'add_item' schema didn't have it. We'll extract it from call.data if present (dynamic).
-        
-        # NOTE: For this version, to keep it compatible, we will try to read 'target_path' from data,
-        # or fallback to global if absolutely necessary (but we want to avoid global).
-        # We'll use a hidden field in the frontend.
-        
-        parts = call.data.get("current_path", []) # Updated frontend must send this!
+        parts = call.data.get("current_path", [])
         
         depth = len(parts)
         cols = ["name", "type", "quantity", "item_date", "image_path"]
@@ -277,7 +254,6 @@ async def register_services(hass, entry):
     async def handle_update_qty(call):
         name = call.data.get("item_name"); change = int(call.data.get("change"))
         today = datetime.now().strftime("%Y-%m-%d")
-        # Global update (name based)
         def db_q():
             conn = get_db_connection(hass); c = conn.cursor()
             c.execute(f"UPDATE items SET quantity = MAX(0, quantity + ?), item_date = ? WHERE name = ?", (change, today, name))
@@ -295,7 +271,6 @@ async def register_services(hass, entry):
 
     async def handle_delete(call):
         name = call.data.get("item_name")
-        # Delete by name globally for now (simplest migration)
         def db_del(): 
             conn = get_db_connection(hass); 
             conn.cursor().execute(f"DELETE FROM items WHERE name = ?", (name,))
@@ -304,13 +279,10 @@ async def register_services(hass, entry):
 
     async def handle_paste(call):
         target_path = call.data.get("target_path")
-        item_name = hass.data.get(DOMAIN, {}).get("clipboard") # Clipboard is still semi-global/session based? 
-        # Actually better to handle clipboard in frontend state and send source item name. 
-        # But for now, we use the global clipboard variable.
+        item_name = hass.data.get(DOMAIN, {}).get("clipboard") 
         if not item_name: return
         def db_mv():
             conn = get_db_connection(hass); c = conn.cursor()
-            # Clear old levels
             upd = [f"level_{i} = ?" for i in range(1, MAX_LEVELS+1)]
             vals = [target_path[i-1] if i <= len(target_path) else None for i in range(1, MAX_LEVELS+1)]
             c.execute(f"UPDATE items SET {','.join(upd)} WHERE name = ?", (*vals, item_name))
@@ -322,34 +294,19 @@ async def register_services(hass, entry):
     async def handle_clipboard(call):
         action = call.data.get("action"); item = call.data.get("item_name")
         hass.data[DOMAIN]["clipboard"] = item if action == "cut" else None
-        # No broadcast needed for clipboard, purely local/session logic usually, 
-        # but here we store it globally.
 
     async def handle_update_item_details(call):
         orig, nn, nd = call.data.get("original_name"), call.data.get("new_name"), call.data.get("new_date")
-        # For renaming sublocations, we need to know the depth/context. 
-        # We will try to find the item and deduce its level.
         def db_u():
             conn = get_db_connection(hass); c = conn.cursor()
-            # Find item to see its current levels
             c.execute("SELECT * FROM items WHERE name = ?", (orig,))
             row = c.fetchone()
             if not row: return
             
-            # Logic to rename regular item
             if nn and nn != orig:
-                # If it's a folder marker, we must update all children
-                # Check if this name appears as a level value in other items
-                # This is complex without explicit path. 
-                # Simplified: Just rename the item name. 
-                # IF the user wants to rename a sublocation, they should use a specific service or we rely on 'update_view' logic from before
-                # But we don't have 'current_path' here easily.
-                # Let's assume standard item rename for now.
                 c.execute("UPDATE items SET name = ? WHERE name = ?", (nn, orig))
-                
             if nd:
                 c.execute("UPDATE items SET item_date = ? WHERE name = ?", (nd, orig))
-            
             conn.commit(); conn.close()
         await hass.async_add_executor_job(db_u); broadcast_update()
 
@@ -383,11 +340,9 @@ async def register_services(hass, entry):
                 if resp.status == 200:
                     json_resp = await resp.json()
                     text = json_resp["candidates"][0]["content"]["parts"][0]["text"].strip()
-                    # We broadcast a special event for AI result to the frontend
                     hass.bus.async_fire("home_organizer_ai_result", {"result": text, "mode": mode})
         except Exception as e: _LOGGER.error(f"AI Error: {e}")
 
-    # Register services
     for n, h in [
         ("add_item", handle_add), ("update_image", handle_update_image),
         ("update_stock", handle_update_stock), ("update_qty", handle_update_qty), ("delete_item", handle_delete),
