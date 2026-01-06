@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 2.2.3 (Stable Repair)
+// Home Organizer Ultimate - Ver 2.2.4 (Annotated)
 // License: MIT
 
 const ICONS = {
@@ -36,7 +36,6 @@ class HomeOrganizerPanel extends HTMLElement {
       this.initUI();
     }
     
-    // Safety check for state
     const state = this._hass.states['sensor.organizer_view'];
     if (state && state.attributes) {
         if (state.attributes.ai_suggestion && state.attributes.ai_suggestion !== this.lastAI) {
@@ -69,23 +68,29 @@ class HomeOrganizerPanel extends HTMLElement {
         .sub-title { font-size: 11px; color: #aaa; direction: ltr; }
         .content { flex: 1; padding: 15px; overflow-y: auto; }
         
+        /* Grid Layout for Main Locations */
         .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 20px; }
         .folder-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; }
         .android-folder-icon { width: 56px; height: 56px; background: #3c4043; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #8ab4f8; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
         .android-folder-icon svg { width: 28px; height: 28px; }
         .folder-label { font-size: 12px; color: #e0e0e0; line-height: 1.2; max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
+        /* List Layout for Sublocations */
         .item-list { display: flex; flex-direction: column; gap: 5px; }
         .group-separator { color: #aaa; font-size: 14px; margin: 20px 0 10px 0; border-bottom: 1px solid #444; padding-bottom: 4px; text-transform: uppercase; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
+        /* Highlight header when dragging over */
         .group-separator.drag-over { border-bottom: 2px solid var(--primary); color: var(--primary); }
         .oos-separator { color: var(--danger); border-color: var(--danger); }
         .edit-subloc-btn { background: none; border: none; color: #aaa; cursor: pointer; padding: 4px; }
         .edit-subloc-btn:hover { color: var(--primary); }
 
-        .item-row { background: #2c2c2e; margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid transparent; }
-        .item-row.expanded { background: #3a3a3c; flex-direction: column; align-items: stretch; }
+        /* Item Row Styling - Always draggable look */
+        .item-row { background: #2c2c2e; margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid transparent; cursor: grab; }
+        .item-row:active { cursor: grabbing; }
+        .item-row.expanded { background: #3a3a3c; flex-direction: column; align-items: stretch; cursor: default; }
+        
         .out-of-stock-frame { border: 2px solid var(--danger); }
-        .app-container.edit-mode .item-row { cursor: grab; border: 1px dashed #555; }
+        .app-container.edit-mode .item-row { border: 1px dashed #555; }
 
         .item-main { display: flex; align-items: center; justify-content: space-between; width: 100%; cursor: pointer; }
         .item-left { display: flex; align-items: center; gap: 10px; }
@@ -221,7 +226,7 @@ class HomeOrganizerPanel extends HTMLElement {
     if(aiSearchBtn) aiSearchBtn.style.display = useAI ? 'block' : 'none';
 
     root.getElementById('display-title').innerText = attrs.path_display;
-    root.getElementById('display-path').innerText = attrs.app_version || '2.2.3';
+    root.getElementById('display-path').innerText = attrs.app_version || '2.2.4';
 
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
@@ -316,11 +321,10 @@ class HomeOrganizerPanel extends HTMLElement {
             const header = document.createElement('div');
             header.className = 'group-separator';
             
-            if (this.isEditMode) {
-                header.ondragover = (e) => { e.preventDefault(); header.classList.add('drag-over'); };
-                header.ondragleave = () => header.classList.remove('drag-over');
-                header.ondrop = (e) => { e.preventDefault(); header.classList.remove('drag-over'); this.handleDrop(e, subName); };
-            }
+            // Drag Drop Handlers (Enabled Always)
+            header.ondragover = (e) => { e.preventDefault(); header.classList.add('drag-over'); };
+            header.ondragleave = () => header.classList.remove('drag-over');
+            header.ondrop = (e) => { e.preventDefault(); header.classList.remove('drag-over'); this.handleDrop(e, subName); };
 
             if (this.isEditMode && subName !== "General") {
                 header.innerHTML = `
@@ -352,13 +356,13 @@ class HomeOrganizerPanel extends HTMLElement {
      const oosClass = (item.qty === 0) ? 'out-of-stock-frame' : '';
      div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''} ${oosClass}`;
      
-     if (this.isEditMode) {
-         div.draggable = true;
-         div.ondragstart = (e) => {
-             e.dataTransfer.setData("text/plain", item.name);
-             e.dataTransfer.effectAllowed = "move";
-         };
-     }
+     // Always Draggable (for sublocation moves)
+     // This enables global drag even in normal mode
+     div.draggable = true;
+     div.ondragstart = (e) => {
+         e.dataTransfer.setData("text/plain", item.name);
+         e.dataTransfer.effectAllowed = "move";
+     };
 
      let controls = '';
      if (isShopMode) {
@@ -417,6 +421,7 @@ class HomeOrganizerPanel extends HTMLElement {
       e.preventDefault();
       const itemName = e.dataTransfer.getData("text/plain");
       if (!itemName) return;
+      
       let targetPath = [...this.currentPath];
       if (targetSubloc !== "General") targetPath.push(targetSubloc);
       
@@ -464,8 +469,7 @@ class HomeOrganizerPanel extends HTMLElement {
     const reader = new FileReader();
     reader.onload = (evt) => {
         this.tempAddImage = evt.target.result;
-        const ic = this.shadowRoot.getElementById('add-cam-icon');
-        if(ic) ic.innerHTML = `<img src="${this.tempAddImage}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`;
+        this.shadowRoot.getElementById('add-cam-icon').innerHTML = `<img src="${this.tempAddImage}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`;
     }; reader.readAsDataURL(file);
   }
 
