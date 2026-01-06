@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 2.3.3 (Safety Patch)
+// Home Organizer Ultimate - Ver 2.3.4 (Syntax Fix)
 // License: MIT
 
 const ICONS = {
@@ -36,7 +36,7 @@ class HomeOrganizerPanel extends HTMLElement {
       this.localData = null; 
       this.initUI();
       
-      // Connect to websocket updates
+      // Connect to websocket updates safely
       if (this._hass && this._hass.connection) {
           this._hass.connection.subscribeEvents((e) => this.fetchData(), 'home_organizer_db_update');
           this._hass.connection.subscribeEvents((e) => {
@@ -116,7 +116,7 @@ class HomeOrganizerPanel extends HTMLElement {
         .edit-subloc-btn:hover { color: var(--primary); }
 
         .item-row { background: #2c2c2e; margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid transparent; touch-action: pan-y; }
-        .item-row.expanded { background: #3a3a3c; flex-direction: column; align-items: stretch; }
+        .item-row.expanded { background: #3a3a3c; flex-direction: column; align-items: stretch; cursor: default; }
         .out-of-stock-frame { border: 2px solid var(--danger); }
         
         /* Dragging visuals */
@@ -250,7 +250,7 @@ class HomeOrganizerPanel extends HTMLElement {
     const root = this.shadowRoot;
     
     root.getElementById('display-title').innerText = attrs.path_display;
-    root.getElementById('display-path').innerText = attrs.app_version || '2.3.3';
+    root.getElementById('display-path').innerText = attrs.app_version || '2.3.4';
     
     // Controls Visibility
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
