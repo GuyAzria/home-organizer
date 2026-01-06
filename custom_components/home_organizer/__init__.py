@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 2.3.1 (Fix Websocket Registration)
+# Home Organizer Ultimate - ver 2.3.2 (Stable Websocket Fix)
 
 import logging
 import sqlite3
@@ -45,7 +45,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     
     # Register Websocket API for per-client data fetching
-    # FIX: Use the imported module directly instead of hass.components
+    # FIX: Correct registration method using the imported module directly
     websocket_api.async_register_command(
         hass,
         WS_GET_DATA, 
