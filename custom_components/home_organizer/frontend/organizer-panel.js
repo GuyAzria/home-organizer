@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 2.6.5 (Camera Protocol Fix)
+// Home Organizer Ultimate - Ver 2.7.0 (Camera & Compression Fix)
 // License: MIT
 
 const ICONS = {
@@ -96,6 +96,7 @@ class HomeOrganizerPanel extends HTMLElement {
         .android-folder-icon svg { width: 28px; height: 28px; }
         .folder-label { font-size: 12px; color: #e0e0e0; line-height: 1.2; max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
         
+        /* Delete Button on Folder (X) */
         .folder-delete-btn {
             position: absolute; top: -5px; right: -5px;
             background: var(--danger); color: white;
@@ -152,6 +153,12 @@ class HomeOrganizerPanel extends HTMLElement {
         .hidden-input {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
             opacity: 0; cursor: pointer; z-index: 10;
+        }
+        
+        /* Progress Bar for Compression */
+        .progress-overlay {
+            position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5);
+            display: flex; align-items: center; justify-content: center; z-index: 20; color: white; border-radius: 8px; font-size: 10px;
         }
       </style>
       
@@ -274,7 +281,7 @@ class HomeOrganizerPanel extends HTMLElement {
     const root = this.shadowRoot;
     
     root.getElementById('display-title').innerText = attrs.path_display;
-    root.getElementById('display-path').innerText = attrs.app_version || '2.6.5';
+    root.getElementById('display-path').innerText = attrs.app_version || '2.7.0';
     
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
@@ -592,29 +599,73 @@ class HomeOrganizerPanel extends HTMLElement {
       }
   }
 
+  // COMPRESSION LOGIC
+  compressImage(file, callback) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+              
+              // Max dimensions
+              const MAX_WIDTH = 1024;
+              const MAX_HEIGHT = 1024;
+              let width = img.width;
+              let height = img.height;
+
+              if (width > height) {
+                  if (width > MAX_WIDTH) {
+                      height *= MAX_WIDTH / width;
+                      width = MAX_WIDTH;
+                  }
+              } else {
+                  if (height > MAX_HEIGHT) {
+                      width *= MAX_HEIGHT / height;
+                      height = MAX_HEIGHT;
+                  }
+              }
+
+              canvas.width = width;
+              canvas.height = height;
+              ctx.drawImage(img, 0, 0, width, height);
+              
+              // Compress to 30% quality (70% reduction)
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.3);
+              callback(dataUrl);
+          };
+          img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+  }
+
   handleFile(input) {
     const file = input.files[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-        this.tempAddImage = evt.target.result;
-        this.shadowRoot.getElementById('add-cam-icon').innerHTML = `<img src="${this.tempAddImage}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`;
-    }; reader.readAsDataURL(file);
+    
+    // Add visual feedback
+    const ic = this.shadowRoot.getElementById('add-cam-icon');
+    if(ic) ic.innerHTML = `<div style="font-size:10px;">Compressing...</div>`;
+    
+    this.compressImage(file, (dataUrl) => {
+        this.tempAddImage = dataUrl;
+        if(ic) ic.innerHTML = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`;
+    });
     input.value = '';
   }
 
   handleUpdateImage(input, name) {
     const file = input.files[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => this.callHA('update_image', { item_name: name, image_data: evt.target.result });
-    reader.readAsDataURL(file);
+    this.compressImage(file, (dataUrl) => {
+        this.callHA('update_image', { item_name: name, image_data: dataUrl });
+    });
     input.value = '';
   }
 
   handleAISearch(input) {
       const file = input.files[0]; if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (evt) => this.callHA('ai_action', { mode: 'search', image_data: evt.target.result });
-      reader.readAsDataURL(file);
+      this.compressImage(file, (dataUrl) => {
+          this.callHA('ai_action', { mode: 'search', image_data: dataUrl });
+      });
       input.value = '';
   }
 
