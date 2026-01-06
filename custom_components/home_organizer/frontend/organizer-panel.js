@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 2.6.1 (Camera Input Fix)
+// Home Organizer Ultimate - Ver 2.6.2 (Direct Camera Buttons)
 // License: MIT
 
 const ICONS = {
@@ -17,10 +17,8 @@ const ICONS = {
   plus: '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>',
   minus: '<svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>',
   save: '<svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>',
-  folder_add: '<svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z"/></svg>',
-  item_add: '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>',
-  sparkles: '<svg viewBox="0 0 24 24"><path d="M9 9l1.5-4 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5zM19 19l-2.5-1 2.5-1 1-2.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5z"/></svg>',
-  image: '<svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>'
+  image: '<svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>',
+  sparkles: '<svg viewBox="0 0 24 24"><path d="M9 9l1.5-4 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5zM19 19l-2.5-1 2.5-1 1-2.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5z"/></svg>'
 };
 
 class HomeOrganizerPanel extends HTMLElement {
@@ -32,19 +30,11 @@ class HomeOrganizerPanel extends HTMLElement {
       this.isSearch = false;
       this.isShopMode = false;
       this.expandedIdx = null;
-      this.lastAI = "";
       this.localData = null; 
-      this.pendingItem = null;
       this.initUI();
       
       if (this._hass && this._hass.connection) {
           this._hass.connection.subscribeEvents((e) => this.fetchData(), 'home_organizer_db_update');
-          this._hass.connection.subscribeEvents((e) => {
-              if (e.data.mode === 'identify') {
-                  const input = this.shadowRoot.getElementById('add-name');
-                  if(input) input.value = e.data.result;
-              }
-          }, 'home_organizer_ai_result');
           this.fetchData(); 
       }
     }
@@ -64,13 +54,6 @@ class HomeOrganizerPanel extends HTMLElement {
           this.updateUI();
       } catch (e) {
           console.error("Fetch error", e);
-          const content = this.shadowRoot.getElementById('content');
-          if(content) {
-              content.innerHTML = `<div style="padding:20px;text-align:center;color:#f44336">
-                <strong>Connection Error</strong><br>
-                Please restart Home Assistant.
-              </div>`;
-          }
       }
   }
 
@@ -85,7 +68,6 @@ class HomeOrganizerPanel extends HTMLElement {
         svg { width: 24px; height: 24px; fill: currentColor; }
         .top-bar { background: #242426; padding: 10px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-shrink: 0; height: 60px; }
         .nav-btn { background: none; border: none; color: var(--primary); cursor: pointer; padding: 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-        .nav-btn:hover { background: rgba(255,255,255,0.1); }
         .nav-btn.active { color: var(--warning); }
         .nav-btn.shop-active { color: var(--accent); }
         .title-box { flex: 1; text-align: center; }
@@ -98,26 +80,10 @@ class HomeOrganizerPanel extends HTMLElement {
         .android-folder-icon { width: 56px; height: 56px; background: #3c4043; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #8ab4f8; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); position: relative; }
         .android-folder-icon svg { width: 28px; height: 28px; }
         .folder-label { font-size: 12px; color: #e0e0e0; line-height: 1.2; max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-        
-        /* Delete Button on Folder (X) */
-        .folder-delete-btn {
-            position: absolute; top: -5px; right: -5px;
-            background: var(--danger); color: white;
-            width: 20px; height: 20px; border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 12px; font-weight: bold;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.5);
-            z-index: 10;
-        }
+        .folder-delete-btn { position: absolute; top: -5px; right: -5px; background: var(--danger); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
 
         .item-list { display: flex; flex-direction: column; gap: 5px; }
-        .group-separator { 
-            color: #aaa; font-size: 14px; margin: 20px 0 10px 0; 
-            border-bottom: 1px solid #444; padding-bottom: 4px; 
-            text-transform: uppercase; font-weight: bold; 
-            display: flex; justify-content: space-between; align-items: center;
-            min-height: 35px;
-        }
+        .group-separator { color: #aaa; font-size: 14px; margin: 20px 0 10px 0; border-bottom: 1px solid #444; padding-bottom: 4px; text-transform: uppercase; font-weight: bold; display: flex; justify-content: space-between; align-items: center; min-height: 35px; }
         .group-separator.drag-over { border-bottom: 2px solid var(--primary); color: var(--primary); background: rgba(3, 169, 244, 0.1); }
         .oos-separator { color: var(--danger); border-color: var(--danger); }
         .edit-subloc-btn { background: none; border: none; color: #aaa; cursor: pointer; padding: 4px; }
@@ -145,13 +111,9 @@ class HomeOrganizerPanel extends HTMLElement {
         
         .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
         .ai-btn { color: #FFD700 !important; }
-
-        /* MODAL STYLES */
-        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; display: none; align-items: center; justify-content: center; }
-        .modal-content { background: #2c2c2e; padding: 20px; border-radius: 12px; text-align: center; width: 80%; max-width: 300px; border: 1px solid #444; }
-        .modal-btn { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 15px; background: #3a3a3c; border: 1px solid #555; border-radius: 8px; color: white; cursor: pointer; flex: 1; }
-        .modal-btn:active { background: var(--primary); }
-        .modal-close { margin-top: 15px; background: none; border: none; color: #aaa; text-decoration: underline; cursor: pointer; font-size: 14px; }
+        
+        /* Direct Camera Input Styling */
+        .camera-input-label { cursor: pointer; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
       </style>
       
       <div class="app-container" id="app">
@@ -174,22 +136,32 @@ class HomeOrganizerPanel extends HTMLElement {
         <div class="search-box" id="search-box">
             <div style="position:relative; flex:1;">
                 <input type="text" id="search-input" style="width:100%;padding:8px;padding-left:35px;border-radius:8px;background:#111;color:white;border:1px solid #333">
-                <button id="btn-ai-search" class="nav-btn ai-btn" style="position:absolute;left:0;top:0;height:100%;border:none;background:none;display:none;">${ICONS.camera}</button>
+                <label class="nav-btn ai-btn" style="position:absolute;left:0;top:0;height:100%;display:flex;align-items:center;padding:0 8px;cursor:pointer">
+                   ${ICONS.camera}
+                   <!-- Direct Camera Search -->
+                   <input type="file" accept="image/*" capture="environment" style="display:none" onchange="this.getRootNode().host.handleAISearch(this)">
+                </label>
             </div>
             <button class="nav-btn" id="search-close">${ICONS.close}</button>
         </div>
         
         <div class="paste-bar" id="paste-bar" style="display:none;padding:10px;background:rgba(255,235,59,0.2);color:#ffeb3b;align-items:center;justify-content:space-between"><div>${ICONS.cut} Cut: <b id="clipboard-name"></b></div><button id="btn-paste" style="background:#4caf50;color:white;border:none;padding:5px 15px;border-radius:15px">Paste</button></div>
         
-        <div class="content" id="content">
-            <div style="text-align:center;padding:20px;color:#888;">Loading...</div>
-        </div>
+        <div class="content" id="content"></div>
         
         <div class="bottom-bar" id="add-area">
              <div style="display:flex;gap:10px;margin-bottom:10px">
-                <div class="cam-btn" id="add-cam-btn" style="width:45px;background:#333;border-radius:8px;display:flex;align-items:center;justify-content:center;position:relative; cursor:pointer">
-                    <span id="add-cam-icon">${ICONS.camera}</span>
-                </div>
+                <!-- Direct Camera Button -->
+                <label class="cam-btn" style="width:45px;background:#333;border-radius:8px;display:flex;align-items:center;justify-content:center;position:relative;cursor:pointer">
+                   <span id="add-cam-icon">${ICONS.camera}</span>
+                   <input type="file" accept="image/*" capture="environment" style="display:none" onchange="this.getRootNode().host.handleFile(this)">
+                </label>
+                <!-- Direct Gallery Button -->
+                <label class="cam-btn" style="width:45px;background:#333;border-radius:8px;display:flex;align-items:center;justify-content:center;position:relative;cursor:pointer">
+                   <span>${ICONS.image}</span>
+                   <input type="file" accept="image/*" style="display:none" onchange="this.getRootNode().host.handleFile(this)">
+                </label>
+                
                 <div style="flex:1; display:flex; position:relative;">
                     <input type="text" id="add-name" placeholder="Name..." style="width:100%;padding:10px;border-radius:8px;background:#111;color:white;border:1px solid #333">
                     <button id="btn-ai-magic" class="nav-btn ai-btn" style="position:absolute;left:0;top:0;height:100%;border:none;background:none;display:none;">${ICONS.sparkles}</button>
@@ -199,30 +171,6 @@ class HomeOrganizerPanel extends HTMLElement {
              <div style="display:flex;gap:10px"><button id="btn-create-folder" style="flex:1;padding:12px;background:#03a9f4;color:white;border:none;border-radius:8px">Location</button><button id="btn-create-item" style="flex:1;padding:12px;background:#4caf50;color:white;border:none;border-radius:8px">Item</button></div>
         </div>
       </div>
-
-      <!-- IMAGE CHOICE MODAL -->
-      <div id="img-choice-modal" class="modal">
-        <div class="modal-content">
-            <h3>Choose Image Source</h3>
-            <div style="display:flex;gap:10px;justify-content:center;margin-top:20px;">
-                <button class="modal-btn" id="btn-choice-camera">
-                    ${ICONS.camera}
-                    <span>Camera</span>
-                </button>
-                <button class="modal-btn" id="btn-choice-gallery">
-                    ${ICONS.image}
-                    <span>Gallery</span>
-                </button>
-            </div>
-            <button class="modal-close" id="btn-choice-close">Cancel</button>
-        </div>
-      </div>
-      
-      <!-- HIDDEN GLOBAL INPUTS -->
-      <!-- 'capture' attribute forces camera usage on mobile devices -->
-      <input type="file" id="global-cam" accept="image/*" capture="environment" style="display:none">
-      <input type="file" id="global-gal" accept="image/*" style="display:none">
-
       <div class="overlay" id="img-overlay" onclick="this.style.display='none'" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:200;justify-content:center;align-items:center"><img id="overlay-img" style="max-width:90%;border-radius:8px"></div>
     `;
 
@@ -242,9 +190,6 @@ class HomeOrganizerPanel extends HTMLElement {
     bind('search-input', 'oninput', (e) => this.fetchData());
     click('btn-edit', () => { this.isEditMode = !this.isEditMode; this.isShopMode = false; this.render(); });
     
-    // NEW: Open modal instead of direct input for new item
-    click('add-cam-btn', () => this.openModal(null)); 
-    
     click('btn-create-folder', () => this.addItem('folder'));
     click('btn-create-item', () => this.addItem('item'));
     click('btn-paste', () => this.pasteItem());
@@ -256,70 +201,6 @@ class HomeOrganizerPanel extends HTMLElement {
          if (!this.tempAddImage) return alert("Take a picture first!");
          this.callHA('ai_action', { mode: 'identify', image_data: this.tempAddImage });
     });
-    
-    const searchAiBtn = root.getElementById('btn-ai-search');
-    if(searchAiBtn) {
-        const searchInput = document.createElement('input');
-        searchInput.type = 'file'; searchInput.accept = 'image/*'; searchInput.style.display = 'none';
-        searchInput.onchange = (e) => {
-             const file = e.target.files[0]; if (!file) return;
-             const reader = new FileReader();
-             reader.onload = (evt) => this.callHA('ai_action', { mode: 'search', image_data: evt.target.result });
-             reader.readAsDataURL(file);
-        };
-        searchAiBtn.onclick = () => searchInput.click();
-    }
-
-    // Modal Events
-    click('btn-choice-close', () => this.closeModal());
-    click('btn-choice-camera', () => this.triggerInput('camera'));
-    click('btn-choice-gallery', () => this.triggerInput('gallery'));
-    
-    // Global Input Events
-    bind('global-cam', 'onchange', (e) => this.processGlobalFile(e));
-    bind('global-gal', 'onchange', (e) => this.processGlobalFile(e));
-  }
-
-  // MODAL LOGIC
-  openModal(itemName) {
-      this.pendingItem = itemName; // If null, it's for New Item. If string, it's for Update Item.
-      const m = this.shadowRoot.getElementById('img-choice-modal');
-      if(m) m.style.display = 'flex';
-  }
-
-  closeModal() {
-      const m = this.shadowRoot.getElementById('img-choice-modal');
-      if(m) m.style.display = 'none';
-  }
-
-  triggerInput(type) {
-      this.closeModal();
-      const id = (type === 'camera') ? 'global-cam' : 'global-gal';
-      const el = this.shadowRoot.getElementById(id);
-      if(el) {
-          el.value = ''; // Reset to allow re-selection of same file
-          el.click();
-      }
-  }
-
-  processGlobalFile(e) {
-      const file = e.target.files[0];
-      if(!file) return;
-      
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-          const res = evt.target.result;
-          if (this.pendingItem) {
-              // Update Existing Item
-              this.callHA('update_image', { item_name: this.pendingItem, image_data: res });
-          } else {
-              // New Item (Update temp var & icon)
-              this.tempAddImage = res;
-              const ic = this.shadowRoot.getElementById('add-cam-icon');
-              if(ic) ic.innerHTML = `<img src="${res}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`;
-          }
-      };
-      reader.readAsDataURL(file);
   }
 
   updateUI() {
@@ -328,7 +209,6 @@ class HomeOrganizerPanel extends HTMLElement {
     const root = this.shadowRoot;
     
     root.getElementById('display-title').innerText = attrs.path_display;
-    root.getElementById('display-path').innerText = attrs.app_version || '2.6.1';
     
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
@@ -571,11 +451,17 @@ class HomeOrganizerPanel extends HTMLElement {
                  <div style="position:relative;width:50px;height:50px">
                     ${item.img ? `<img src="${item.img}" class="img-preview" onclick="this.getRootNode().host.showImg('${item.img}')">` : '<div class="img-preview"></div>'}
                     
-                    <!-- NEW: Camera Capture Button calling Modal -->
                     <div style="position:absolute;bottom:-25px;left:0;display:flex;gap:5px;z-index:3;">
-                       <button class="action-btn" style="background:#444;padding:4px;cursor:pointer" onclick="this.getRootNode().host.openModal('${item.name}')">
+                       <!-- DIRECT CAMERA BUTTON (EDIT) -->
+                       <label class="action-btn" style="background:#444;padding:4px;cursor:pointer">
                           ${ICONS.camera}
-                       </button>
+                          <input type="file" accept="image/*" capture="environment" style="display:none" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
+                       </label>
+                       <!-- DIRECT GALLERY BUTTON (EDIT) -->
+                       <label class="action-btn" style="background:#444;padding:4px;cursor:pointer">
+                          ${ICONS.image}
+                          <input type="file" accept="image/*" style="display:none" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
+                       </label>
                     </div>
                  </div>
                  <div style="display:flex;gap:5px">
@@ -640,9 +526,32 @@ class HomeOrganizerPanel extends HTMLElement {
       }
   }
 
-  // Not used directly anymore, replaced by processGlobalFile
-  handleFile(e) { }
-  handleUpdateImage(input, name) { }
+  handleFile(input) {
+    const file = input.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+        this.tempAddImage = evt.target.result;
+        this.shadowRoot.getElementById('add-cam-icon').innerHTML = `<img src="${this.tempAddImage}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`;
+    }; reader.readAsDataURL(file);
+    // Reset to ensure change event fires if same file selected again
+    input.value = '';
+  }
+
+  handleUpdateImage(input, name) {
+    const file = input.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => this.callHA('update_image', { item_name: name, image_data: evt.target.result });
+    reader.readAsDataURL(file);
+    input.value = '';
+  }
+
+  handleAISearch(input) {
+      const file = input.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (evt) => this.callHA('ai_action', { mode: 'search', image_data: evt.target.result });
+      reader.readAsDataURL(file);
+      input.value = '';
+  }
 
   pasteItem() { this.callHA('paste_item', { target_path: this.currentPath }); }
   
