@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 2.2.5 (Fix Navigation State)
+// Home Organizer Ultimate - Ver 2.2.6 (Robust Drag & Drop)
 // License: MIT
 
 const ICONS = {
@@ -75,8 +75,17 @@ class HomeOrganizerPanel extends HTMLElement {
         .folder-label { font-size: 12px; color: #e0e0e0; line-height: 1.2; max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
         .item-list { display: flex; flex-direction: column; gap: 5px; }
-        .group-separator { color: #aaa; font-size: 14px; margin: 20px 0 10px 0; border-bottom: 1px solid #444; padding-bottom: 4px; text-transform: uppercase; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
-        .group-separator.drag-over { border-bottom: 2px solid var(--primary); color: var(--primary); }
+        
+        /* Headers for Sublocations */
+        .group-separator { 
+            color: #aaa; font-size: 14px; margin: 20px 0 10px 0; 
+            border-bottom: 1px solid #444; padding-bottom: 4px; 
+            text-transform: uppercase; font-weight: bold; 
+            display: flex; justify-content: space-between; align-items: center;
+            /* Increase hit area for easier drop */
+            min-height: 30px; 
+        }
+        .group-separator.drag-over { border-bottom: 2px solid var(--primary); color: var(--primary); background: rgba(3, 169, 244, 0.1); }
         .oos-separator { color: var(--danger); border-color: var(--danger); }
         .edit-subloc-btn { background: none; border: none; color: #aaa; cursor: pointer; padding: 4px; }
         .edit-subloc-btn:hover { color: var(--primary); }
@@ -222,7 +231,7 @@ class HomeOrganizerPanel extends HTMLElement {
     if(aiSearchBtn) aiSearchBtn.style.display = useAI ? 'block' : 'none';
 
     root.getElementById('display-title').innerText = attrs.path_display;
-    root.getElementById('display-path').innerText = attrs.app_version || '2.2.5';
+    root.getElementById('display-path').innerText = attrs.app_version || '2.2.6';
 
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
@@ -318,9 +327,19 @@ class HomeOrganizerPanel extends HTMLElement {
             header.className = 'group-separator';
             
             // Drag Drop Handlers (Enabled Always)
-            header.ondragover = (e) => { e.preventDefault(); header.classList.add('drag-over'); };
+            // Added dragenter for robustness and dropEffect for compatibility
+            header.ondragover = (e) => { 
+                e.preventDefault(); 
+                e.dataTransfer.dropEffect = 'move';
+                header.classList.add('drag-over'); 
+            };
+            header.ondragenter = (e) => { e.preventDefault(); header.classList.add('drag-over'); };
             header.ondragleave = () => header.classList.remove('drag-over');
-            header.ondrop = (e) => { e.preventDefault(); header.classList.remove('drag-over'); this.handleDrop(e, subName); };
+            header.ondrop = (e) => { 
+                e.preventDefault(); 
+                header.classList.remove('drag-over'); 
+                this.handleDrop(e, subName); 
+            };
 
             if (this.isEditMode && subName !== "General") {
                 header.innerHTML = `
@@ -352,7 +371,7 @@ class HomeOrganizerPanel extends HTMLElement {
      const oosClass = (item.qty === 0) ? 'out-of-stock-frame' : '';
      div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''} ${oosClass}`;
      
-     // Always Draggable (for sublocation moves)
+     // Always Draggable
      div.draggable = true;
      div.ondragstart = (e) => {
          e.dataTransfer.setData("text/plain", item.name);
@@ -412,7 +431,7 @@ class HomeOrganizerPanel extends HTMLElement {
      return div;
   }
 
-  handleDrop(e, targetSubloc) {
+  async handleDrop(e, targetSubloc) {
       e.preventDefault();
       const itemName = e.dataTransfer.getData("text/plain");
       if (!itemName) return;
@@ -420,11 +439,14 @@ class HomeOrganizerPanel extends HTMLElement {
       let targetPath = [...this.currentPath];
       if (targetSubloc !== "General") targetPath.push(targetSubloc);
       
-      this.callHA('clipboard_action', {action: 'cut', item_name: itemName});
-      setTimeout(() => {
-          this.callHA('paste_item', {target_path: targetPath});
-          setTimeout(() => this.notifyContext(), 300);
-      }, 100);
+      // Use await to ensure Cut finishes before Paste
+      try {
+          await this.callHA('clipboard_action', {action: 'cut', item_name: itemName});
+          await this.callHA('paste_item', {target_path: targetPath});
+          this.notifyContext();
+      } catch (err) {
+          console.error("Drop failed:", err);
+      }
   }
 
   deleteSubloc(name) {
@@ -437,7 +459,6 @@ class HomeOrganizerPanel extends HTMLElement {
   render() { this.updateUI(); }
   
   navigate(dir, name) { 
-      // Update local path state BEFORE calling backend to prevent desync
       if (dir === 'root') this.currentPath = [];
       else if (dir === 'up') this.currentPath.pop();
       else if (dir === 'down' && name) this.currentPath.push(name);
@@ -503,6 +524,6 @@ class HomeOrganizerPanel extends HTMLElement {
       if(ov && ovc) { ov.src = src; ovc.style.display = 'flex'; }
   }
 
-  callHA(service, data) { this._hass.callService('home_organizer', service, data); }
+  callHA(service, data) { return this._hass.callService('home_organizer', service, data); }
 }
 customElements.define('home-organizer-panel', HomeOrganizerPanel);
