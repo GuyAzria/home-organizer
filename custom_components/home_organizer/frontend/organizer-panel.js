@@ -1,8 +1,7 @@
-// Home Organizer Ultimate - Ver 2.6.4 (Camera Input Fix - Opacity Method)
+// Home Organizer Ultimate - Ver 2.6.5 (Camera Protocol Fix)
 // License: MIT
 
 const ICONS = {
-  // ... (Icons remain the same)
   arrow_up: '<svg viewBox="0 0 24 24"><path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/></svg>',
   home: '<svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>',
   cart: '<svg viewBox="0 0 24 24"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>',
@@ -62,6 +61,13 @@ class HomeOrganizerPanel extends HTMLElement {
           this.updateUI();
       } catch (e) {
           console.error("Fetch error", e);
+          const content = this.shadowRoot.getElementById('content');
+          if(content) {
+              content.innerHTML = `<div style="padding:20px;text-align:center;color:#f44336">
+                <strong>Connection Error</strong><br>
+                Please restart Home Assistant.
+              </div>`;
+          }
       }
   }
 
@@ -136,14 +142,13 @@ class HomeOrganizerPanel extends HTMLElement {
         .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
         .ai-btn { color: #FFD700 !important; }
         
-        /* Direct Input Styling: Hidden input but label acts as button */
+        /* Direct Input Styling: Hidden input with Opacity 0 to ensure it catches clicks */
         .direct-input-label { 
             width: 45px; height: 45px; 
             background: #333; border-radius: 8px; 
             display: flex; align-items: center; justify-content: center; 
             position: relative; cursor: pointer; 
         }
-        /* Make sure input takes up space but is invisible */
         .hidden-input {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
             opacity: 0; cursor: pointer; z-index: 10;
@@ -213,6 +218,11 @@ class HomeOrganizerPanel extends HTMLElement {
       <div class="overlay" id="img-overlay" onclick="this.style.display='none'" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:200;justify-content:center;align-items:center"><img id="overlay-img" style="max-width:90%;border-radius:8px"></div>
     `;
 
+    // Check for Secure Context Warning
+    if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+         console.warn("Camera access on mobile usually requires HTTPS.");
+    }
+
     this.bindEvents();
   }
 
@@ -229,6 +239,9 @@ class HomeOrganizerPanel extends HTMLElement {
     bind('search-input', 'oninput', (e) => this.fetchData());
     click('btn-edit', () => { this.isEditMode = !this.isEditMode; this.isShopMode = false; this.render(); });
     
+    // Add file handling logic
+    bind('add-file', 'onchange', (e) => this.handleFile(e.target));
+    
     click('btn-create-folder', () => this.addItem('folder'));
     click('btn-create-item', () => this.addItem('item'));
     click('btn-paste', () => this.pasteItem());
@@ -240,6 +253,19 @@ class HomeOrganizerPanel extends HTMLElement {
          if (!this.tempAddImage) return alert("Take a picture first!");
          this.callHA('ai_action', { mode: 'identify', image_data: this.tempAddImage });
     });
+    
+    const searchAiBtn = root.getElementById('btn-ai-search');
+    if(searchAiBtn) {
+        const searchInput = document.createElement('input');
+        searchInput.type = 'file'; searchInput.accept = 'image/*'; searchInput.style.display = 'none';
+        searchInput.onchange = (e) => {
+             const file = e.target.files[0]; if (!file) return;
+             const reader = new FileReader();
+             reader.onload = (evt) => this.callHA('ai_action', { mode: 'search', image_data: evt.target.result });
+             reader.readAsDataURL(file);
+        };
+        searchAiBtn.onclick = () => searchInput.click();
+    }
   }
 
   updateUI() {
@@ -248,6 +274,7 @@ class HomeOrganizerPanel extends HTMLElement {
     const root = this.shadowRoot;
     
     root.getElementById('display-title').innerText = attrs.path_display;
+    root.getElementById('display-path').innerText = attrs.app_version || '2.6.5';
     
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
@@ -492,12 +519,12 @@ class HomeOrganizerPanel extends HTMLElement {
                     
                     <div style="position:absolute;bottom:-25px;left:0;display:flex;gap:5px;z-index:3;">
                        <!-- DIRECT CAMERA LABEL FOR EDIT -->
-                       <label class="action-btn" style="background:#444;padding:4px;cursor:pointer">
+                       <label class="direct-input-label" style="background:#444;padding:4px;cursor:pointer;width:35px;height:35px;">
                           ${ICONS.camera}
                           <input type="file" accept="image/*" capture="environment" class="hidden-input" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
                        </label>
                        <!-- DIRECT GALLERY LABEL FOR EDIT -->
-                       <label class="action-btn" style="background:#444;padding:4px;cursor:pointer">
+                       <label class="direct-input-label" style="background:#444;padding:4px;cursor:pointer;width:35px;height:35px;">
                           ${ICONS.image}
                           <input type="file" accept="image/*" class="hidden-input" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
                        </label>
