@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 2.3.2 (Stable Websocket Fix)
+# Home Organizer Ultimate - ver 2.4.0 (Delete Folder Logic)
 
 import logging
 import sqlite3
@@ -19,7 +19,6 @@ from .const import DOMAIN, CONF_API_KEY, CONF_DEBUG, CONF_USE_AI, DB_FILE, IMG_D
 _LOGGER = logging.getLogger(__name__)
 MAX_LEVELS = 10
 
-# Websocket commands
 WS_GET_DATA = "home_organizer/get_data"
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -44,8 +43,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})
     
-    # Register Websocket API for per-client data fetching
-    # FIX: Correct registration method using the imported module directly
     websocket_api.async_register_command(
         hass,
         WS_GET_DATA, 
@@ -60,7 +57,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     await register_services(hass, entry)
-    
     entry.async_on_unload(entry.add_update_listener(update_listener))
     return True
 
@@ -95,10 +91,8 @@ def init_db(hass):
     if 'image_path' not in existing: c.execute("ALTER TABLE items ADD COLUMN image_path TEXT")
     conn.commit(); conn.close()
 
-# --- Websocket Handler ---
 @callback
 def websocket_get_data(hass, connection, msg):
-    """Handle get data request."""
     path = msg.get("path", [])
     query = msg.get("search_query", "")
     date_filter = msg.get("date_filter", "All")
@@ -108,7 +102,6 @@ def websocket_get_data(hass, connection, msg):
     connection.send_result(msg["id"], data)
 
 def get_view_data(hass, path_parts, query, date_filter, is_shopping):
-    """Generates the view data for a specific path."""
     conn = get_db_connection(hass); c = conn.cursor()
     folders = []; items = []; shopping_list = []
 
@@ -222,7 +215,6 @@ async def register_services(hass, entry):
             except: pass
 
         parts = call.data.get("current_path", [])
-        
         depth = len(parts)
         cols = ["name", "type", "quantity", "item_date", "image_path"]
         
@@ -269,11 +261,34 @@ async def register_services(hass, entry):
             conn.commit(); conn.close()
         await hass.async_add_executor_job(db_upd); broadcast_update()
 
+    # UPDATE: New delete handler with recursive folder deletion support
     async def handle_delete(call):
         name = call.data.get("item_name")
+        parts = call.data.get("current_path", [])
+        is_folder = call.data.get("is_folder", False)
+
         def db_del(): 
-            conn = get_db_connection(hass); 
-            conn.cursor().execute(f"DELETE FROM items WHERE name = ?", (name,))
+            conn = get_db_connection(hass); c = conn.cursor()
+            
+            if is_folder:
+                # Recursive delete logic
+                # Deletes anything that has the current path AND the next level matches 'name'
+                depth = len(parts)
+                target_col = f"level_{depth+1}"
+                
+                conditions = [f"{target_col} = ?"]
+                args = [name]
+                
+                for i, p in enumerate(parts):
+                    conditions.append(f"level_{i+1} = ?")
+                    args.append(p)
+                
+                # Delete items where path matches
+                c.execute(f"DELETE FROM items WHERE {' AND '.join(conditions)}", tuple(args))
+            else:
+                # Simple Item Delete (existing logic)
+                c.execute(f"DELETE FROM items WHERE name = ?", (name,))
+                
             conn.commit(); conn.close()
         await hass.async_add_executor_job(db_del); broadcast_update()
 
