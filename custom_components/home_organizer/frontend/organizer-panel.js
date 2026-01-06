@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 2.6.0 (Image Source Selection)
+// Home Organizer Ultimate - Ver 2.6.1 (Camera Input Fix)
 // License: MIT
 
 const ICONS = {
@@ -34,7 +34,7 @@ class HomeOrganizerPanel extends HTMLElement {
       this.expandedIdx = null;
       this.lastAI = "";
       this.localData = null; 
-      this.pendingItem = null; // Track which item is being updated (null = new item)
+      this.pendingItem = null;
       this.initUI();
       
       if (this._hass && this._hass.connection) {
@@ -219,6 +219,7 @@ class HomeOrganizerPanel extends HTMLElement {
       </div>
       
       <!-- HIDDEN GLOBAL INPUTS -->
+      <!-- 'capture' attribute forces camera usage on mobile devices -->
       <input type="file" id="global-cam" accept="image/*" capture="environment" style="display:none">
       <input type="file" id="global-gal" accept="image/*" style="display:none">
 
@@ -295,14 +296,15 @@ class HomeOrganizerPanel extends HTMLElement {
       this.closeModal();
       const id = (type === 'camera') ? 'global-cam' : 'global-gal';
       const el = this.shadowRoot.getElementById(id);
-      if(el) el.click();
+      if(el) {
+          el.value = ''; // Reset to allow re-selection of same file
+          el.click();
+      }
   }
 
   processGlobalFile(e) {
       const file = e.target.files[0];
       if(!file) return;
-      
-      e.target.value = ''; // Reset to allow re-selection
       
       const reader = new FileReader();
       reader.onload = (evt) => {
@@ -326,7 +328,7 @@ class HomeOrganizerPanel extends HTMLElement {
     const root = this.shadowRoot;
     
     root.getElementById('display-title').innerText = attrs.path_display;
-    root.getElementById('display-path').innerText = attrs.app_version || '2.6.0';
+    root.getElementById('display-path').innerText = attrs.app_version || '2.6.1';
     
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
@@ -569,7 +571,7 @@ class HomeOrganizerPanel extends HTMLElement {
                  <div style="position:relative;width:50px;height:50px">
                     ${item.img ? `<img src="${item.img}" class="img-preview" onclick="this.getRootNode().host.showImg('${item.img}')">` : '<div class="img-preview"></div>'}
                     
-                    <!-- NEW: Camera Capture Button Overlay calling Modal -->
+                    <!-- NEW: Camera Capture Button calling Modal -->
                     <div style="position:absolute;bottom:-25px;left:0;display:flex;gap:5px;z-index:3;">
                        <button class="action-btn" style="background:#444;padding:4px;cursor:pointer" onclick="this.getRootNode().host.openModal('${item.name}')">
                           ${ICONS.camera}
