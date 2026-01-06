@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 2.3.5 (Syntax Repair)
+// Home Organizer Ultimate - Ver 2.4.0 (Home Fix & Delete Library)
 // License: MIT
 
 const ICONS = {
@@ -19,7 +19,8 @@ const ICONS = {
   save: '<svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>',
   folder_add: '<svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z"/></svg>',
   item_add: '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>',
-  sparkles: '<svg viewBox="0 0 24 24"><path d="M9 9l1.5-4 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5zM19 19l-2.5-1 2.5-1 1-2.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5z"/></svg>'
+  sparkles: '<svg viewBox="0 0 24 24"><path d="M9 9l1.5-4 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5zM19 19l-2.5-1 2.5-1 1-2.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5z"/></svg>',
+  camera: '<svg viewBox="0 0 24 24"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm6 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>'
 };
 
 class HomeOrganizerPanel extends HTMLElement {
@@ -92,10 +93,21 @@ class HomeOrganizerPanel extends HTMLElement {
         .content { flex: 1; padding: 15px; overflow-y: auto; }
         
         .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 20px; }
-        .folder-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; }
-        .android-folder-icon { width: 56px; height: 56px; background: #3c4043; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #8ab4f8; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .folder-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; position: relative; }
+        .android-folder-icon { width: 56px; height: 56px; background: #3c4043; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #8ab4f8; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); position: relative; }
         .android-folder-icon svg { width: 28px; height: 28px; }
         .folder-label { font-size: 12px; color: #e0e0e0; line-height: 1.2; max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+        
+        /* Delete Button on Folder (X) */
+        .folder-delete-btn {
+            position: absolute; top: -5px; right: -5px;
+            background: var(--danger); color: white;
+            width: 20px; height: 20px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: bold;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
 
         .item-list { display: flex; flex-direction: column; gap: 5px; }
         .group-separator { 
@@ -185,13 +197,17 @@ class HomeOrganizerPanel extends HTMLElement {
 
   bindEvents() {
     const root = this.shadowRoot;
-    
-    // Bind Helper
     const bind = (id, event, fn) => { const el = root.getElementById(id); if(el) el[event] = fn; };
     const click = (id, fn) => bind(id, 'onclick', fn);
 
     click('btn-up', () => this.navigate('up'));
-    click('btn-home', () => this.navigate('root'));
+    
+    // FIX: Home button clears all modes
+    click('btn-home', () => { 
+        this.isShopMode = false;
+        this.isSearch = false;
+        this.navigate('root');
+    });
     
     click('btn-shop', () => { 
         this.isShopMode = !this.isShopMode; 
@@ -215,7 +231,6 @@ class HomeOrganizerPanel extends HTMLElement {
     const dateIn = root.getElementById('add-date');
     if(dateIn) dateIn.value = new Date().toISOString().split('T')[0];
     
-    // AI
     click('btn-ai-magic', () => {
          if (!this.tempAddImage) return alert("Take a picture first!");
          this.callHA('ai_action', { mode: 'identify', image_data: this.tempAddImage });
@@ -243,7 +258,7 @@ class HomeOrganizerPanel extends HTMLElement {
     const root = this.shadowRoot;
     
     root.getElementById('display-title').innerText = attrs.path_display;
-    root.getElementById('display-path').innerText = attrs.app_version || '2.3.5';
+    root.getElementById('display-path').innerText = attrs.app_version || '2.4.0';
     
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
@@ -254,7 +269,6 @@ class HomeOrganizerPanel extends HTMLElement {
     const content = root.getElementById('content');
     content.innerHTML = '';
 
-    // 1. SHOPPING LIST
     if (attrs.shopping_list && attrs.shopping_list.length > 0) {
         const listContainer = document.createElement('div');
         listContainer.className = 'item-list';
@@ -275,7 +289,6 @@ class HomeOrganizerPanel extends HTMLElement {
         return;
     }
 
-    // 2. SEARCH MODE
     if ((this.isSearch || (attrs.path_display && attrs.path_display.startsWith('Search'))) && attrs.items) {
         const list = document.createElement('div');
         list.className = 'item-list';
@@ -284,7 +297,6 @@ class HomeOrganizerPanel extends HTMLElement {
         return;
     }
 
-    // 3. BROWSE MODE
     if (attrs.depth < 2) {
         if (attrs.folders && attrs.folders.length > 0) {
             const grid = document.createElement('div');
@@ -292,8 +304,22 @@ class HomeOrganizerPanel extends HTMLElement {
             attrs.folders.forEach(folder => {
                 const el = document.createElement('div');
                 el.className = 'folder-item';
+                
+                // Normal click navigation
                 el.onclick = () => this.navigate('down', folder.name);
-                el.innerHTML = `<div class="android-folder-icon">${ICONS.folder}</div><div class="folder-label">${folder.name}</div>`;
+                
+                // FEATURE: Delete Button (X) in Edit Mode
+                const deleteBtnHtml = this.isEditMode 
+                    ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` 
+                    : '';
+
+                el.innerHTML = `
+                    <div class="android-folder-icon">
+                        ${ICONS.folder}
+                        ${deleteBtnHtml}
+                    </div>
+                    <div class="folder-label">${folder.name}</div>
+                `;
                 grid.appendChild(el);
             });
             content.appendChild(grid);
@@ -306,7 +332,6 @@ class HomeOrganizerPanel extends HTMLElement {
         }
     } 
     else {
-        // List View
         const listContainer = document.createElement('div');
         listContainer.className = 'item-list';
         
@@ -370,10 +395,6 @@ class HomeOrganizerPanel extends HTMLElement {
           if (this.isDragging) {
               e.preventDefault();
               const touch = e.touches[0];
-              const target = this.shadowRoot.elementFromPoint(touch.clientX, touch.clientY); // Scoped to shadowRoot? No, standard elementFromPoint logic
-              // Note: elementFromPoint works relative to viewport. ShadowDOM might complicate hit testing if deep.
-              // Standard approach: Use document.elementFromPoint and walk up composed path?
-              // Simplified: Get element, check if it's a separator inside our component.
               const realTarget = this.shadowRoot.elementFromPoint(touch.clientX, touch.clientY) || document.elementFromPoint(touch.clientX, touch.clientY);
               const header = realTarget?.closest('.group-separator');
               
@@ -498,6 +519,17 @@ class HomeOrganizerPanel extends HTMLElement {
      return div;
   }
 
+  // FEATURE: Delete Folder Logic
+  deleteFolder(name) {
+      if(confirm(`Delete folder '${name}' and ALL items inside it?`)) {
+          this._hass.callService('home_organizer', 'delete_item', {
+              item_name: name,
+              current_path: this.currentPath,
+              is_folder: true
+          });
+      }
+  }
+
   deleteSubloc(name) {
       if(confirm(`Delete '${name}'?`)) {
           this.callHA('update_item_details', { original_name: name, new_name: "", new_date: "" });
@@ -564,7 +596,15 @@ class HomeOrganizerPanel extends HTMLElement {
   }
   
   cut(name) { this.callHA('clipboard_action', {action: 'cut', item_name: name}); }
-  del(name) { this.callHA('delete_item', {item_name: name}); }
+  del(name) { 
+      // Deleting a generic item from list
+      this._hass.callService('home_organizer', 'delete_item', {
+          item_name: name, 
+          current_path: this.currentPath,
+          is_folder: false
+      }); 
+  }
+  
   showImg(src) { 
       const ov = this.shadowRoot.getElementById('overlay-img');
       const ovc = this.shadowRoot.getElementById('img-overlay');
