@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 2.2.6 (Robust Drag & Drop)
+// Home Organizer Ultimate - Ver 2.3.0 (Multi-User & Mobile Fixes)
 // License: MIT
 
 const ICONS = {
@@ -20,7 +20,8 @@ const ICONS = {
   folder_add: '<svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z"/></svg>',
   item_add: '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>',
   sparkles: '<svg viewBox="0 0 24 24"><path d="M9 9l1.5-4 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5zM19 19l-2.5-1 2.5-1 1-2.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5z"/></svg>',
-  camera: '<svg viewBox="0 0 24 24"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm6 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>'
+  camera: '<svg viewBox="0 0 24 24"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm6 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>',
+  move: '<svg viewBox="0 0 24 24"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg>'
 };
 
 class HomeOrganizerPanel extends HTMLElement {
@@ -33,20 +34,35 @@ class HomeOrganizerPanel extends HTMLElement {
       this.isShopMode = false;
       this.expandedIdx = null;
       this.lastAI = "";
+      this.localData = null; // Cache for local data
       this.initUI();
+      // Connect to websocket updates
+      this._hass.connection.subscribeEvents((e) => this.fetchData(), 'home_organizer_db_update');
+      this._hass.connection.subscribeEvents((e) => {
+          if (e.data.mode === 'identify') {
+              const input = this.shadowRoot.getElementById('add-name');
+              if(input) input.value = e.data.result;
+          }
+      }, 'home_organizer_ai_result');
+      this.fetchData(); // Initial fetch
     }
-    
-    const state = this._hass.states['sensor.organizer_view'];
-    if (state && state.attributes) {
-        if (state.attributes.ai_suggestion && state.attributes.ai_suggestion !== this.lastAI) {
-            const input = this.shadowRoot.getElementById('add-name');
-            if(input && input !== this.shadowRoot.activeElement) {
-                input.value = state.attributes.ai_suggestion;
-                this.lastAI = state.attributes.ai_suggestion;
-            }
-        }
-        this.updateUI();
-    }
+  }
+
+  async fetchData() {
+      // Use Websocket to get data specific to THIS user's path
+      try {
+          const data = await this._hass.callWS({
+              type: 'home_organizer/get_data',
+              path: this.currentPath,
+              search_query: this.shadowRoot.getElementById('search-input')?.value || "",
+              date_filter: "All",
+              shopping_mode: this.isShopMode
+          });
+          this.localData = data;
+          this.updateUI();
+      } catch (e) {
+          console.error("Fetch error", e);
+      }
   }
 
   initUI() {
@@ -75,27 +91,24 @@ class HomeOrganizerPanel extends HTMLElement {
         .folder-label { font-size: 12px; color: #e0e0e0; line-height: 1.2; max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
         .item-list { display: flex; flex-direction: column; gap: 5px; }
-        
-        /* Headers for Sublocations */
         .group-separator { 
             color: #aaa; font-size: 14px; margin: 20px 0 10px 0; 
             border-bottom: 1px solid #444; padding-bottom: 4px; 
             text-transform: uppercase; font-weight: bold; 
             display: flex; justify-content: space-between; align-items: center;
-            /* Increase hit area for easier drop */
-            min-height: 30px; 
+            min-height: 35px; /* Bigger drop target for mobile */
         }
         .group-separator.drag-over { border-bottom: 2px solid var(--primary); color: var(--primary); background: rgba(3, 169, 244, 0.1); }
         .oos-separator { color: var(--danger); border-color: var(--danger); }
         .edit-subloc-btn { background: none; border: none; color: #aaa; cursor: pointer; padding: 4px; }
         .edit-subloc-btn:hover { color: var(--primary); }
 
-        .item-row { background: #2c2c2e; margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid transparent; cursor: grab; }
-        .item-row:active { cursor: grabbing; }
-        .item-row.expanded { background: #3a3a3c; flex-direction: column; align-items: stretch; cursor: default; }
-        
+        .item-row { background: #2c2c2e; margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid transparent; touch-action: pan-y; }
+        .item-row.expanded { background: #3a3a3c; flex-direction: column; align-items: stretch; }
         .out-of-stock-frame { border: 2px solid var(--danger); }
-        .app-container.edit-mode .item-row { border: 1px dashed #555; }
+        
+        /* Dragging visuals */
+        .item-row.dragging { opacity: 0.5; border: 2px dashed var(--primary); }
 
         .item-main { display: flex; align-items: center; justify-content: space-between; width: 100%; cursor: pointer; }
         .item-left { display: flex; align-items: center; gap: 10px; }
@@ -165,27 +178,22 @@ class HomeOrganizerPanel extends HTMLElement {
 
   bindEvents() {
     const root = this.shadowRoot;
-    
-    // Bind Helper
     const bind = (id, event, fn) => { const el = root.getElementById(id); if(el) el[event] = fn; };
     const click = (id, fn) => bind(id, 'onclick', fn);
 
     click('btn-up', () => this.navigate('up'));
     click('btn-home', () => this.navigate('root'));
-    
     click('btn-shop', () => { 
         this.isShopMode = !this.isShopMode; 
         if(this.isShopMode) { this.isSearch=false; this.isEditMode=false; } 
-        this.notifyContext(); 
+        this.fetchData(); 
     });
     
     click('btn-search', () => { this.isSearch = true; this.isShopMode = false; this.render(); });
-    click('search-close', () => { this.isSearch = false; this.notifyContext(); });
-    
-    bind('search-input', 'oninput', (e) => this.notifyContext(e.target.value));
+    click('search-close', () => { this.isSearch = false; this.fetchData(); });
+    bind('search-input', 'oninput', (e) => this.fetchData()); // Real-time search
     
     click('btn-edit', () => { this.isEditMode = !this.isEditMode; this.isShopMode = false; this.render(); });
-    
     bind('add-file', 'onchange', (e) => this.handleFile(e));
     
     click('btn-create-folder', () => this.addItem('folder'));
@@ -195,7 +203,6 @@ class HomeOrganizerPanel extends HTMLElement {
     const dateIn = root.getElementById('add-date');
     if(dateIn) dateIn.value = new Date().toISOString().split('T')[0];
     
-    // AI
     click('btn-ai-magic', () => {
          if (!this.tempAddImage) return alert("Take a picture first!");
          this.callHA('ai_action', { mode: 'identify', image_data: this.tempAddImage });
@@ -218,32 +225,24 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   updateUI() {
-    const state = this._hass.states['sensor.organizer_view'];
-    if (!state || !state.attributes) return;
-    const attrs = state.attributes;
+    if(!this.localData) return;
+    const attrs = this.localData;
     const root = this.shadowRoot;
     
-    const useAI = attrs.use_ai; 
-    const aiMagicBtn = root.getElementById('btn-ai-magic');
-    const aiSearchBtn = root.getElementById('btn-ai-search');
-    
-    if(aiMagicBtn) aiMagicBtn.style.display = useAI ? 'block' : 'none';
-    if(aiSearchBtn) aiSearchBtn.style.display = useAI ? 'block' : 'none';
-
     root.getElementById('display-title').innerText = attrs.path_display;
-    root.getElementById('display-path').innerText = attrs.app_version || '2.2.6';
-
+    root.getElementById('display-path').innerText = attrs.app_version || '2.3.0';
+    
+    // Controls Visibility
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
     if(attrs.clipboard) root.getElementById('clipboard-name').innerText = attrs.clipboard;
-    
     const app = root.getElementById('app');
     if(this.isEditMode) app.classList.add('edit-mode'); else app.classList.remove('edit-mode');
 
     const content = root.getElementById('content');
     content.innerHTML = '';
 
-    // 1. SHOPPING LIST MODE
+    // 1. SHOPPING LIST
     if (attrs.shopping_list && attrs.shopping_list.length > 0) {
         const listContainer = document.createElement('div');
         listContainer.className = 'item-list';
@@ -275,7 +274,6 @@ class HomeOrganizerPanel extends HTMLElement {
 
     // 3. BROWSE MODE
     if (attrs.depth < 2) {
-        // Grid View
         if (attrs.folders && attrs.folders.length > 0) {
             const grid = document.createElement('div');
             grid.className = 'folder-grid';
@@ -299,16 +297,9 @@ class HomeOrganizerPanel extends HTMLElement {
         // List View (Inside Main Location)
         const listContainer = document.createElement('div');
         listContainer.className = 'item-list';
-
-        const inStock = [];
-        const outOfStock = [];
-
-        if (attrs.items) {
-            attrs.items.forEach(item => {
-                if (item.qty === 0) outOfStock.push(item);
-                else inStock.push(item);
-            });
-        }
+        
+        const inStock = [], outOfStock = [];
+        if (attrs.items) attrs.items.forEach(item => (item.qty === 0 ? outOfStock : inStock).push(item));
 
         const grouped = {};
         if (attrs.folders) attrs.folders.forEach(f => grouped[f.name] = []);
@@ -325,29 +316,11 @@ class HomeOrganizerPanel extends HTMLElement {
 
             const header = document.createElement('div');
             header.className = 'group-separator';
-            
-            // Drag Drop Handlers (Enabled Always)
-            // Added dragenter for robustness and dropEffect for compatibility
-            header.ondragover = (e) => { 
-                e.preventDefault(); 
-                e.dataTransfer.dropEffect = 'move';
-                header.classList.add('drag-over'); 
-            };
-            header.ondragenter = (e) => { e.preventDefault(); header.classList.add('drag-over'); };
-            header.ondragleave = () => header.classList.remove('drag-over');
-            header.ondrop = (e) => { 
-                e.preventDefault(); 
-                header.classList.remove('drag-over'); 
-                this.handleDrop(e, subName); 
-            };
+            // Setup Drag Drop Handlers for Desktop
+            this.setupDropTarget(header, subName);
 
             if (this.isEditMode && subName !== "General") {
-                header.innerHTML = `
-                    <span>${subName}</span> 
-                    <div style="display:flex;gap:5px">
-                        <button class="edit-subloc-btn" onclick="this.getRootNode().host.renameSubloc('${subName}')">${ICONS.edit}</button>
-                        <button class="edit-subloc-btn" style="color:var(--danger)" onclick="this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button>
-                    </div>`;
+                header.innerHTML = `<span>${subName}</span> <div style="display:flex;gap:5px"><button class="edit-subloc-btn" onclick="this.getRootNode().host.renameSubloc('${subName}')">${ICONS.edit}</button><button class="edit-subloc-btn" style="color:var(--danger)" onclick="this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button></div>`;
             } else {
                 header.innerText = subName;
             }
@@ -366,17 +339,95 @@ class HomeOrganizerPanel extends HTMLElement {
     }
   }
 
+  // --- MOBILE DRAG & DROP LOGIC ---
+  setupDragSource(el, itemName) {
+      // Desktop
+      el.draggable = true;
+      el.ondragstart = (e) => { e.dataTransfer.setData("text/plain", itemName); e.dataTransfer.effectAllowed = "move"; el.classList.add('dragging'); };
+      el.ondragend = () => el.classList.remove('dragging');
+
+      // Mobile (Touch)
+      let longPressTimer;
+      el.addEventListener('touchstart', (e) => {
+          longPressTimer = setTimeout(() => {
+              el.classList.add('dragging');
+              // Store dragged item data globally or on host
+              this.draggedItemName = itemName;
+              this.isDragging = true;
+              // Vibration feedback
+              if (navigator.vibrate) navigator.vibrate(50);
+          }, 500); 
+      }, {passive: false});
+
+      el.addEventListener('touchmove', (e) => {
+          if (this.isDragging) {
+              e.preventDefault(); // Stop scrolling
+              const touch = e.touches[0];
+              // Move ghost element if we implemented one, for now just highlight
+              
+              // Detect Drop Target
+              const target = document.elementFromPoint(touch.clientX, touch.clientY);
+              const header = target?.closest('.group-separator');
+              
+              // Clear previous highlights
+              this.shadowRoot.querySelectorAll('.group-separator').forEach(h => h.classList.remove('drag-over'));
+              
+              if (header) header.classList.add('drag-over');
+          } else {
+              clearTimeout(longPressTimer);
+          }
+      }, {passive: false});
+
+      el.addEventListener('touchend', (e) => {
+          clearTimeout(longPressTimer);
+          if (this.isDragging) {
+              const touch = e.changedTouches[0];
+              const target = document.elementFromPoint(touch.clientX, touch.clientY);
+              const header = target?.closest('.group-separator');
+              
+              if (header && header.dataset.subloc) {
+                  this.handleDropAction(header.dataset.subloc, this.draggedItemName);
+              }
+              
+              this.isDragging = false;
+              this.draggedItemName = null;
+              el.classList.remove('dragging');
+              this.shadowRoot.querySelectorAll('.group-separator').forEach(h => h.classList.remove('drag-over'));
+          }
+      });
+  }
+
+  setupDropTarget(el, subName) {
+      el.dataset.subloc = subName; // Store for touch
+      el.ondragover = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drag-over'); };
+      el.ondragleave = () => el.classList.remove('drag-over');
+      el.ondrop = (e) => { 
+          e.preventDefault(); 
+          el.classList.remove('drag-over'); 
+          const itemName = e.dataTransfer.getData("text/plain");
+          this.handleDropAction(subName, itemName); 
+      };
+  }
+
+  async handleDropAction(targetSubloc, itemName) {
+      if (!itemName) return;
+      let targetPath = [...this.currentPath];
+      if (targetSubloc !== "General") targetPath.push(targetSubloc);
+      
+      try {
+          await this.callHA('clipboard_action', {action: 'cut', item_name: itemName});
+          await this.callHA('paste_item', {target_path: targetPath});
+          // No need to notifyContext, backend event will trigger refresh
+      } catch (err) { console.error("Drop failed:", err); }
+  }
+
   createItemRow(item, isShopMode) {
      const div = document.createElement('div');
      const oosClass = (item.qty === 0) ? 'out-of-stock-frame' : '';
      div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''} ${oosClass}`;
      
-     // Always Draggable
-     div.draggable = true;
-     div.ondragstart = (e) => {
-         e.dataTransfer.setData("text/plain", item.name);
-         e.dataTransfer.effectAllowed = "move";
-     };
+     // Attach Drag Logic
+     this.setupDragSource(div, item.name);
 
      let controls = '';
      if (isShopMode) {
@@ -409,6 +460,18 @@ class HomeOrganizerPanel extends HTMLElement {
      if (this.expandedIdx === item.name) {
          const details = document.createElement('div');
          details.className = 'expanded-details';
+         
+         // FEATURE: Button to Move Item (Alternative to Drag)
+         // Calculate possible move targets (sublocations)
+         let moveOptions = "";
+         if(this.localData.folders) {
+             this.localData.folders.forEach(f => {
+                 moveOptions += `<button class="action-btn" style="background:#444;margin-top:5px" onclick="this.getRootNode().host.handleDropAction('${f.name}', '${item.name}')">Move to ${f.name}</button>`;
+             });
+             // Always option to move to General
+             moveOptions += `<button class="action-btn" style="background:#444;margin-top:5px" onclick="this.getRootNode().host.handleDropAction('General', '${item.name}')">Move to General</button>`;
+         }
+
          details.innerHTML = `
             <div class="detail-row">
                 <input type="text" id="name-${item.name}" value="${item.name}" style="flex:1;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px">
@@ -425,57 +488,46 @@ class HomeOrganizerPanel extends HTMLElement {
                     <button class="action-btn" style="background:var(--danger)" onclick="this.getRootNode().host.del('${item.name}')">${ICONS.delete}</button>
                  </div>
             </div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;border-top:1px solid #444;padding-top:5px;margin-top:5px">
+                ${moveOptions}
+            </div>
          `;
          div.appendChild(details);
      }
      return div;
   }
 
-  async handleDrop(e, targetSubloc) {
-      e.preventDefault();
-      const itemName = e.dataTransfer.getData("text/plain");
-      if (!itemName) return;
-      
-      let targetPath = [...this.currentPath];
-      if (targetSubloc !== "General") targetPath.push(targetSubloc);
-      
-      // Use await to ensure Cut finishes before Paste
-      try {
-          await this.callHA('clipboard_action', {action: 'cut', item_name: itemName});
-          await this.callHA('paste_item', {target_path: targetPath});
-          this.notifyContext();
-      } catch (err) {
-          console.error("Drop failed:", err);
-      }
-  }
-
   deleteSubloc(name) {
       if(confirm(`Delete '${name}'?`)) {
           this.callHA('update_item_details', { original_name: name, new_name: "", new_date: "" });
-          setTimeout(() => this.notifyContext(), 300);
       }
   }
 
   render() { this.updateUI(); }
-  
   navigate(dir, name) { 
       if (dir === 'root') this.currentPath = [];
       else if (dir === 'up') this.currentPath.pop();
       else if (dir === 'down' && name) this.currentPath.push(name);
       
-      this.callHA('navigate', {direction: dir, name: name}); 
+      // We don't call HA navigate logic anymore, we just fetch new data for our new path
+      this.fetchData();
   }
   
   toggleRow(name) { this.expandedIdx = (this.expandedIdx === name) ? null : name; this.render(); }
   updateQty(name, d) { this.callHA('update_qty', { item_name: name, change: d }); }
   submitShopStock(name) { this.callHA('update_stock', { item_name: name, quantity: 1 }); }
-  notifyContext(query = "") { this.callHA('set_view_context', { path: this.currentPath, search_query: query, date_filter: 'All', shopping_mode: this.isShopMode }); }
+  
+  // No longer needed: notifyContext (we pull, not push context)
 
   addItem(type) {
     const nEl = this.shadowRoot.getElementById('add-name');
     const dEl = this.shadowRoot.getElementById('add-date');
     if (!nEl || !nEl.value) return alert("Name required");
-    this.callHA('add_item', { item_name: nEl.value, item_type: type, item_date: dEl.value, image_data: this.tempAddImage });
+    // Pass current_path context explicitly
+    this._hass.callService('home_organizer', 'add_item', { 
+        item_name: nEl.value, item_type: type, item_date: dEl.value, image_data: this.tempAddImage, 
+        current_path: this.currentPath // Custom injection
+    });
     nEl.value = ''; this.tempAddImage = null;
     const ic = this.shadowRoot.getElementById('add-cam-icon');
     if(ic) ic.innerHTML = ICONS.camera;
@@ -485,7 +537,6 @@ class HomeOrganizerPanel extends HTMLElement {
       const newName = prompt("Rename:", oldName);
       if (newName && newName !== oldName) {
           this.callHA('update_item_details', { original_name: oldName, new_name: newName, new_date: "" });
-          setTimeout(() => this.notifyContext(), 300);
       }
   }
 
