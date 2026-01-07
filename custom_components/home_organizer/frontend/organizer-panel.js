@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 3.0.0 (Native In-App Camera)
+// Home Organizer Ultimate - Ver 3.1.0 (In-App Camera with White BG Effect)
 // License: MIT
 
 const ICONS = {
@@ -19,8 +19,8 @@ const ICONS = {
   save: '<svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>',
   image: '<svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>',
   sparkles: '<svg viewBox="0 0 24 24"><path d="M9 9l1.5-4 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5zM19 19l-2.5-1 2.5-1 1-2.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5z"/></svg>',
-  check: '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
-  refresh: '<svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>'
+  refresh: '<svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>',
+  wb_icon: '<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>' // Simple icon for WB
 };
 
 class HomeOrganizerPanel extends HTMLElement {
@@ -35,9 +35,12 @@ class HomeOrganizerPanel extends HTMLElement {
       this.lastAI = "";
       this.localData = null; 
       this.pendingItem = null;
+      
+      // Default: White BG effect OFF by default
+      this.useWhiteBG = false; 
+
       this.initUI();
       
-      // Websocket Connection
       if (this._hass && this._hass.connection) {
           this._hass.connection.subscribeEvents((e) => this.fetchData(), 'home_organizer_db_update');
           this._hass.connection.subscribeEvents((e) => {
@@ -86,7 +89,6 @@ class HomeOrganizerPanel extends HTMLElement {
         .sub-title { font-size: 11px; color: #aaa; direction: ltr; }
         .content { flex: 1; padding: 15px; overflow-y: auto; }
         
-        /* Grid & List Styles */
         .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 20px; }
         .folder-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; position: relative; }
         .android-folder-icon { width: 56px; height: 56px; background: #3c4043; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #8ab4f8; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); position: relative; }
@@ -109,10 +111,6 @@ class HomeOrganizerPanel extends HTMLElement {
         .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
         .ai-btn { color: #FFD700 !important; }
         
-        /* Direct Input Styling */
-        .direct-input-label { width: 45px; height: 45px; background: #333; border-radius: 8px; display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer; }
-        .hidden-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10; }
-
         /* CAMERA OVERLAY STYLES */
         #camera-modal {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -130,9 +128,16 @@ class HomeOrganizerPanel extends HTMLElement {
             background: white; border: 5px solid #ccc;
             cursor: pointer;
         }
+        .snap-btn.white-bg-active { background: #e3f2fd; border-color: var(--primary); }
         .close-cam-btn {
             color: white; background: none; border: none; font-size: 16px; cursor: pointer;
         }
+        /* White BG Toggle Button */
+        .wb-btn {
+            color: #aaa; background: none; border: 2px solid #555; border-radius: 50%; width: 50px; height: 50px;
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
+        }
+        .wb-btn.active { color: #333; background: white; border-color: white; }
         #camera-canvas { display: none; }
       </style>
       
@@ -172,17 +177,10 @@ class HomeOrganizerPanel extends HTMLElement {
         
         <div class="bottom-bar" id="add-area">
              <div style="display:flex;gap:10px;margin-bottom:10px">
-                
-                <!-- CUSTOM CAMERA BUTTON -->
-                <button class="direct-input-label" id="btn-open-cam">
-                   <span id="add-cam-icon">${ICONS.camera}</span>
+                <!-- IN-APP CAMERA BUTTON (Main) -->
+                <button class="action-btn" id="btn-open-cam" style="background:#333;width:45px;height:45px;padding:0;display:flex;align-items:center;justify-content:center">
+                   ${ICONS.camera}
                 </button>
-
-                <!-- GALLERY BUTTON -->
-                <label class="direct-input-label">
-                   <span>${ICONS.image}</span>
-                   <input type="file" accept="image/*" class="hidden-input" onchange="this.getRootNode().host.handleFile(this)">
-                </label>
                 
                 <div style="flex:1; display:flex; position:relative;">
                     <input type="text" id="add-name" placeholder="Name..." style="width:100%;padding:10px;border-radius:8px;background:#111;color:white;border:1px solid #333">
@@ -198,9 +196,17 @@ class HomeOrganizerPanel extends HTMLElement {
       <div id="camera-modal">
           <video id="camera-video" autoplay playsinline muted></video>
           <div class="camera-controls">
-              <button class="close-cam-btn" id="btn-cam-close">Cancel</button>
-              <button class="snap-btn" id="btn-cam-snap"></button>
+              <!-- Switch Cam -->
               <button class="close-cam-btn" id="btn-cam-switch">${ICONS.refresh}</button>
+              
+              <!-- Snap Button -->
+              <button class="snap-btn" id="btn-cam-snap"></button>
+              
+              <!-- White BG Toggle -->
+              <button class="wb-btn" id="btn-cam-wb" title="Toggle White Background Effect">WB</button>
+              
+              <!-- Close -->
+              <button class="close-cam-btn" id="btn-cam-close" style="position:absolute;top:-50px;right:20px;background:rgba(0,0,0,0.5);border-radius:50%;width:40px;height:40px">✕</button>
           </div>
           <canvas id="camera-canvas"></canvas>
       </div>
@@ -211,7 +217,6 @@ class HomeOrganizerPanel extends HTMLElement {
     // Secure Context Warning
     if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
          console.warn("Camera access requires HTTPS.");
-         // Optionally warn user in UI
     }
 
     this.bindEvents();
@@ -249,11 +254,17 @@ class HomeOrganizerPanel extends HTMLElement {
     click('btn-cam-close', () => this.stopCamera());
     click('btn-cam-snap', () => this.snapPhoto());
     click('btn-cam-switch', () => this.switchCamera());
+    click('btn-cam-wb', () => this.toggleWhiteBG());
   }
   
+  toggleWhiteBG() {
+      this.useWhiteBG = !this.useWhiteBG;
+      const btn = this.shadowRoot.getElementById('btn-cam-wb');
+      if (this.useWhiteBG) btn.classList.add('active'); else btn.classList.remove('active');
+  }
+
   // --- CUSTOM CAMERA IMPLEMENTATION ---
   async openCamera(context) {
-      // Context: null = New Item, 'search' = AI Search, 'update' = Update Item (handled via separate call)
       this.cameraContext = context;
       const modal = this.shadowRoot.getElementById('camera-modal');
       const video = this.shadowRoot.getElementById('camera-video');
@@ -283,7 +294,6 @@ class HomeOrganizerPanel extends HTMLElement {
   async switchCamera() {
       this.facingMode = (this.facingMode === "user") ? "environment" : "user";
       this.stopCamera();
-      // Small delay to allow stop
       setTimeout(() => this.openCamera(this.cameraContext), 200);
   }
 
@@ -292,25 +302,34 @@ class HomeOrganizerPanel extends HTMLElement {
       const canvas = this.shadowRoot.getElementById('camera-canvas');
       const context = canvas.getContext('2d');
       
-      // Set canvas size to video size
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
       
-      // Compress (0.5 quality)
+      // WHITE BACKGROUND PROCESSING (Simple Brightness/Threshold)
+      if (this.useWhiteBG) {
+          let imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+          let data = imageData.data;
+          // Simple heuristic: If pixel is bright, make it pure white
+          for (let i = 0; i < data.length; i += 4) {
+              let r = data[i], g = data[i+1], b = data[i+2];
+              if (r > 200 && g > 200 && b > 200) { // Threshold
+                  data[i] = 255; data[i+1] = 255; data[i+2] = 255;
+              }
+          }
+          context.putImageData(imageData, 0, 0);
+      }
+      
       const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
       
       this.stopCamera();
       
-      // Handle Result based on context
       if (this.cameraContext === 'search') {
           this.callHA('ai_action', { mode: 'search', image_data: dataUrl });
       } else if (this.pendingItem) {
-          // Updating specific item
           this.callHA('update_image', { item_name: this.pendingItem, image_data: dataUrl });
           this.pendingItem = null;
       } else {
-          // New Item
           this.tempAddImage = dataUrl;
           const ic = this.shadowRoot.getElementById('add-cam-icon');
           if(ic) ic.innerHTML = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`;
@@ -325,7 +344,7 @@ class HomeOrganizerPanel extends HTMLElement {
     const root = this.shadowRoot;
     
     root.getElementById('display-title').innerText = attrs.path_display;
-    root.getElementById('display-path').innerText = attrs.app_version || '3.0.0';
+    root.getElementById('display-path').innerText = attrs.app_version || '3.1.0';
     
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
@@ -444,7 +463,43 @@ class HomeOrganizerPanel extends HTMLElement {
       el.draggable = true;
       el.ondragstart = (e) => { e.dataTransfer.setData("text/plain", itemName); e.dataTransfer.effectAllowed = "move"; el.classList.add('dragging'); };
       el.ondragend = () => el.classList.remove('dragging');
-      // Touch drag omitted for brevity in this specific update, assuming main concern is camera
+      // Touch events for mobile drag
+      let longPressTimer;
+      el.addEventListener('touchstart', (e) => {
+          longPressTimer = setTimeout(() => {
+              el.classList.add('dragging');
+              this.draggedItemName = itemName;
+              this.isDragging = true;
+              if (navigator.vibrate) navigator.vibrate(50);
+          }, 500); 
+      }, {passive: false});
+
+      el.addEventListener('touchmove', (e) => {
+          if (this.isDragging) {
+              e.preventDefault();
+              const touch = e.touches[0];
+              const realTarget = this.shadowRoot.elementFromPoint(touch.clientX, touch.clientY) || document.elementFromPoint(touch.clientX, touch.clientY);
+              const header = realTarget?.closest('.group-separator');
+              this.shadowRoot.querySelectorAll('.group-separator').forEach(h => h.classList.remove('drag-over'));
+              if (header) header.classList.add('drag-over');
+          } else {
+              clearTimeout(longPressTimer);
+          }
+      }, {passive: false});
+
+      el.addEventListener('touchend', (e) => {
+          clearTimeout(longPressTimer);
+          if (this.isDragging) {
+              const touch = e.changedTouches[0];
+              const realTarget = this.shadowRoot.elementFromPoint(touch.clientX, touch.clientY) || document.elementFromPoint(touch.clientX, touch.clientY);
+              const header = realTarget?.closest('.group-separator');
+              if (header && header.dataset.subloc) this.handleDropAction(header.dataset.subloc, this.draggedItemName);
+              this.isDragging = false;
+              this.draggedItemName = null;
+              el.classList.remove('dragging');
+              this.shadowRoot.querySelectorAll('.group-separator').forEach(h => h.classList.remove('drag-over'));
+          }
+      });
   }
 
   setupDropTarget(el, subName) {
@@ -463,11 +518,15 @@ class HomeOrganizerPanel extends HTMLElement {
       if (!itemName) return;
       let targetPath = [...this.currentPath];
       if (targetSubloc !== "General") targetPath.push(targetSubloc);
-      
       try {
           await this.callHA('clipboard_action', {action: 'cut', item_name: itemName});
           await this.callHA('paste_item', {target_path: targetPath});
       } catch (err) { console.error("Drop failed:", err); }
+  }
+
+  triggerCameraEdit(itemName) {
+      this.pendingItem = itemName;
+      this.openCamera('update');
   }
 
   createItemRow(item, isShopMode) {
@@ -532,11 +591,6 @@ class HomeOrganizerPanel extends HTMLElement {
                        <button class="action-btn" style="background:#444;padding:4px;cursor:pointer" onclick="this.getRootNode().host.triggerCameraEdit('${item.name}')">
                           ${ICONS.camera}
                        </button>
-                       <!-- GALLERY BUTTON (EDIT) -->
-                       <label class="action-btn" style="background:#444;padding:4px;cursor:pointer">
-                          ${ICONS.image}
-                          <input type="file" accept="image/*" style="display:none" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
-                       </label>
                     </div>
                  </div>
                  <div style="display:flex;gap:5px">
@@ -551,11 +605,6 @@ class HomeOrganizerPanel extends HTMLElement {
          div.appendChild(details);
      }
      return div;
-  }
-  
-  triggerCameraEdit(itemName) {
-      this.pendingItem = itemName;
-      this.openCamera('update');
   }
 
   deleteFolder(name) {
@@ -581,7 +630,6 @@ class HomeOrganizerPanel extends HTMLElement {
       else if (dir === 'down' && name) this.currentPath.push(name);
       this.fetchData();
   }
-  
   toggleRow(name) { this.expandedIdx = (this.expandedIdx === name) ? null : name; this.render(); }
   updateQty(name, d) { this.callHA('update_qty', { item_name: name, change: d }); }
   submitShopStock(name) { this.callHA('update_stock', { item_name: name, quantity: 1 }); }
@@ -606,43 +654,9 @@ class HomeOrganizerPanel extends HTMLElement {
       }
   }
 
-  handleFile(input) {
-    const file = input.files[0]; if (!file) return;
-    this.compressImage(file, (dataUrl) => {
-        this.tempAddImage = dataUrl;
-        this.shadowRoot.getElementById('add-cam-icon').innerHTML = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`;
-    });
-    input.value = '';
-  }
-
-  handleUpdateImage(input, name) {
-    const file = input.files[0]; if (!file) return;
-    this.compressImage(file, (dataUrl) => {
-        this.callHA('update_image', { item_name: name, image_data: dataUrl });
-    });
-    input.value = '';
-  }
-
-  // Compression & Utils
-  compressImage(file, callback) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-          const img = new Image();
-          img.onload = () => {
-              const canvas = document.createElement('canvas');
-              const ctx = canvas.getContext('2d');
-              const MAX = 1024;
-              let w = img.width, h = img.height;
-              if (w > h) { if (w > MAX) { h *= MAX/w; w = MAX; } }
-              else { if (h > MAX) { w *= MAX/h; h = MAX; } }
-              canvas.width = w; canvas.height = h;
-              ctx.drawImage(img, 0, 0, w, h);
-              callback(canvas.toDataURL('image/jpeg', 0.5));
-          };
-          img.src = e.target.result;
-      };
-      reader.readAsDataURL(file);
-  }
+  // Not used directly anymore, replaced by processGlobalFile
+  handleFile(e) { }
+  handleUpdateImage(input, name) { }
 
   pasteItem() { this.callHA('paste_item', { target_path: this.currentPath }); }
   
