@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 2.4.0 (Delete Folder Logic)
+# Home Organizer Ultimate - ver 3.9.0 (Hierarchy Data for Move)
 
 import logging
 import sqlite3
@@ -104,6 +104,23 @@ def websocket_get_data(hass, connection, msg):
 def get_view_data(hass, path_parts, query, date_filter, is_shopping):
     conn = get_db_connection(hass); c = conn.cursor()
     folders = []; items = []; shopping_list = []
+    
+    # Fetch full hierarchy structure for "Move To" functionality
+    # Returns { "Kitchen": ["Fridge", "Cabinet"], "Bedroom": ["Closet"] }
+    hierarchy = {}
+    try:
+        # Get all distinct pairs of Level 1 and Level 2
+        c.execute("SELECT DISTINCT level_1, level_2 FROM items WHERE level_1 IS NOT NULL AND level_1 != ''")
+        for r in c.fetchall():
+            l1 = r[0]
+            l2 = r[1]
+            if l1 not in hierarchy: hierarchy[l1] = []
+            if l2 and l2 not in hierarchy[l1]: hierarchy[l1].append(l2)
+            
+        # Ensure lists are sorted
+        for k in hierarchy: hierarchy[k].sort()
+    except Exception as e:
+        _LOGGER.error(f"Hierarchy fetch error: {e}")
 
     try:
         if is_shopping:
@@ -194,7 +211,8 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
         "items": items,
         "shopping_list": shopping_list,
         "app_version": VERSION,
-        "depth": len(path_parts)
+        "depth": len(path_parts),
+        "hierarchy": hierarchy # New Data for Dropdowns
     }
 
 async def register_services(hass, entry):
@@ -215,6 +233,7 @@ async def register_services(hass, entry):
             except: pass
 
         parts = call.data.get("current_path", [])
+        
         depth = len(parts)
         cols = ["name", "type", "quantity", "item_date", "image_path"]
         
@@ -261,7 +280,6 @@ async def register_services(hass, entry):
             conn.commit(); conn.close()
         await hass.async_add_executor_job(db_upd); broadcast_update()
 
-    # UPDATE: New delete handler with recursive folder deletion support
     async def handle_delete(call):
         name = call.data.get("item_name")
         parts = call.data.get("current_path", [])
@@ -271,22 +289,15 @@ async def register_services(hass, entry):
             conn = get_db_connection(hass); c = conn.cursor()
             
             if is_folder:
-                # Recursive delete logic
-                # Deletes anything that has the current path AND the next level matches 'name'
                 depth = len(parts)
                 target_col = f"level_{depth+1}"
-                
                 conditions = [f"{target_col} = ?"]
                 args = [name]
-                
                 for i, p in enumerate(parts):
                     conditions.append(f"level_{i+1} = ?")
                     args.append(p)
-                
-                # Delete items where path matches
                 c.execute(f"DELETE FROM items WHERE {' AND '.join(conditions)}", tuple(args))
             else:
-                # Simple Item Delete (existing logic)
                 c.execute(f"DELETE FROM items WHERE name = ?", (name,))
                 
             conn.commit(); conn.close()
