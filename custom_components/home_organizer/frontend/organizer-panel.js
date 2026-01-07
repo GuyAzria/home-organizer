@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 3.4.0 (Image Thumbnails & Fullscreen)
+// Home Organizer Ultimate - Ver 3.5.0 (UI Polish & Move Dropdown)
 // License: MIT
 
 const ICONS = {
@@ -12,7 +12,8 @@ const ICONS = {
   folder: '<svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>',
   item: '<svg viewBox="0 0 24 24"><path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/></svg>',
   delete: '<svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>',
-  cut: '<svg viewBox="0 0 24 24"><circle cx="6" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="6" cy="6" r="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9.64 7.64c.23-.5.36-1.05.36-1.64 0-2.21-1.79-4-4-4S2 3.79 2 6s1.79 4 4 4c.59 0 1.14-.13 1.64-.36L10 12l-2.36 2.36C7.14 14.13 6.59 14 6 14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.59-.13-1.14-.36-1.64L12 14l7 7h3v-1L9.64 7.64z"/></svg>',
+  // Updated Scissors Icon (Standard Cut)
+  cut: '<svg viewBox="0 0 24 24"><path d="M9.64 7.64c.23-.5.36-1.05.36-1.64 0-2.21-1.79-4-4-4S2 3.79 2 6s1.79 4 4 4c.59 0 1.14-.13 1.64-.36L10 12l-2.36 2.36C7.14 14.13 6.59 14 6 14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.59-.13-1.14-.36-1.64L12 14l7 7h3v-1L9.64 7.64zM6 8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm0 12c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm6-7.5c-.28 0-.5-.22-.5-.5s.22-.5 .5-.5 .5 .22 .5 .5-.22 .5-.5 .5z"/></svg>',
   paste: '<svg viewBox="0 0 24 24"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>',
   plus: '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>',
   minus: '<svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>',
@@ -20,7 +21,8 @@ const ICONS = {
   image: '<svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>',
   sparkles: '<svg viewBox="0 0 24 24"><path d="M9 9l1.5-4 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5zM19 19l-2.5-1 2.5-1 1-2.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5z"/></svg>',
   refresh: '<svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>',
-  wand: '<svg viewBox="0 0 24 24"><path d="M7.5 5.6L10 7 7.5 8.4 6.1 10.9 4.7 8.4 2.2 7 4.7 5.6 6.1 3.1 7.5 5.6zm12 9.8L17 14l2.5-1.4L18.1 10.1 19.5 12.6 22 14 19.5 15.4 18.1 17.9 17 15.4zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5L22 2zm-8.8 11.2l-1.4-2.5L10.4 13.2 8 14.6 10.4 16 11.8 18.5 13.2 16 15.6 14.6 13.2 13.2z"/></svg>'
+  wand: '<svg viewBox="0 0 24 24"><path d="M7.5 5.6L10 7 7.5 8.4 6.1 10.9 4.7 8.4 2.2 7 4.7 5.6 6.1 3.1 7.5 5.6zm12 9.8L17 14l2.5-1.4L18.1 10.1 19.5 12.6 22 14 19.5 15.4 18.1 17.9 17 15.4zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5L22 2zm-8.8 11.2l-1.4-2.5L10.4 13.2 8 14.6 10.4 16 11.8 18.5 13.2 16 15.6 14.6 13.2 13.2z"/></svg>',
+  move: '<svg viewBox="0 0 24 24"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg>' 
 };
 
 class HomeOrganizerPanel extends HTMLElement {
@@ -35,9 +37,7 @@ class HomeOrganizerPanel extends HTMLElement {
       this.lastAI = "";
       this.localData = null; 
       this.pendingItem = null;
-      
       this.useAiBg = true; 
-
       this.initUI();
       
       if (this._hass && this._hass.connection) {
@@ -75,7 +75,7 @@ class HomeOrganizerPanel extends HTMLElement {
     this.attachShadow({mode: 'open'});
     this.shadowRoot.innerHTML = `
       <style>
-        :host { --app-bg: #1c1c1e; --primary: #03a9f4; --accent: #4caf50; --danger: #f44336; --text: #fff; --border: #333; --warning: #ffeb3b; }
+        :host { --app-bg: #1c1c1e; --primary: #03a9f4; --accent: #4caf50; --danger: #f44336; --text: #fff; --border: #333; --warning: #ffeb3b; --icon-btn-bg: #444; }
         * { box-sizing: border-box; }
         .app-container { background: var(--app-bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; font-family: sans-serif; direction: rtl; }
         svg { width: 24px; height: 24px; fill: currentColor; }
@@ -101,7 +101,6 @@ class HomeOrganizerPanel extends HTMLElement {
 
         .item-main { display: flex; align-items: center; justify-content: space-between; width: 100%; cursor: pointer; }
         .item-left { display: flex; align-items: center; gap: 10px; }
-        
         /* Thumbnail Styling */
         .item-icon { color: var(--primary); display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; }
         .item-thumbnail { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: #fff; display: block; border: 1px solid #444; }
@@ -112,40 +111,48 @@ class HomeOrganizerPanel extends HTMLElement {
         .edit-mode .bottom-bar { display: block; }
         .expanded-details { margin-top: 10px; padding-top: 10px; border-top: 1px solid #555; display: flex; flex-direction: column; gap: 10px; }
         .detail-row { display: flex; gap: 10px; align-items: center; }
-        .action-btn { flex: 1; padding: 8px; border-radius: 6px; border: none; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; }
+        
+        /* UNIFIED ACTION BUTTON STYLING */
+        .action-btn { 
+            width: 40px; height: 40px; 
+            border-radius: 8px; border: 1px solid #555; 
+            color: #ccc; background: var(--icon-btn-bg); 
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            padding: 8px; /* Consistent padding */
+        }
+        .action-btn:hover { background: #555; color: white; }
+        .action-btn svg { width: 24px; height: 24px; }
+        
+        /* Red style for delete */
+        .btn-danger { color: #ff8a80; border-color: #d32f2f; }
+        .btn-danger:hover { background: #d32f2f; color: white; }
+
+        /* Save Button Text/Icon */
+        .btn-text { width: auto; padding: 0 15px; font-weight: bold; color: white; background: var(--primary); border: none; }
+        
+        /* Move Dropdown Styling */
+        .move-container { display: flex; gap: 5px; align-items: center; flex: 1; }
+        .move-select { flex: 1; padding: 8px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; }
+        
+        .img-preview { width: 50px; height: 50px; border-radius: 4px; object-fit: cover; background: #333; }
         .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
         .ai-btn { color: #FFD700 !important; }
         
         /* CAMERA OVERLAY STYLES */
-        #camera-modal {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: black; z-index: 2000; display: none;
-            flex-direction: column; align-items: center; justify-content: center;
-        }
+        #camera-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: center; }
         #camera-video { width: 100%; height: 80%; object-fit: cover; }
-        .camera-controls {
-            height: 20%; width: 100%; display: flex; 
-            align-items: center; justify-content: center; gap: 30px;
-            background: rgba(0,0,0,0.5); position: absolute; bottom: 0;
-        }
-        .snap-btn {
-            width: 70px; height: 70px; border-radius: 50%;
-            background: white; border: 5px solid #ccc;
-            cursor: pointer;
-        }
+        .camera-controls { height: 20%; width: 100%; display: flex; align-items: center; justify-content: center; gap: 30px; background: rgba(0,0,0,0.5); position: absolute; bottom: 0; }
+        .snap-btn { width: 70px; height: 70px; border-radius: 50%; background: white; border: 5px solid #ccc; cursor: pointer; }
         .snap-btn.white-bg-active { background: #e3f2fd; border-color: var(--primary); }
-        .close-cam-btn {
-            color: white; background: none; border: none; font-size: 16px; cursor: pointer;
-        }
-        .wb-btn {
-            color: #aaa; background: none; border: 2px solid #555; border-radius: 50%; width: 50px; height: 50px;
-            display: flex; align-items: center; justify-content: center; cursor: pointer;
-            flex-direction: column; font-size: 10px;
-        }
+        .close-cam-btn { color: white; background: none; border: none; font-size: 16px; cursor: pointer; }
+        .wb-btn { color: #aaa; background: none; border: 2px solid #555; border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-direction: column; font-size: 10px; }
         .wb-btn.active { color: #333; background: white; border-color: white; }
         .wb-btn svg { width: 24px; height: 24px; margin-bottom: 2px; }
-        
         #camera-canvas { display: none; }
+        
+        /* Hidden Inputs */
+        .direct-input-label { width: 40px; height: 40px; background: var(--icon-btn-bg); border-radius: 8px; border: 1px solid #555; display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer; color: #ccc; }
+        .hidden-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10; }
       </style>
       
       <!-- MAIN APP UI -->
@@ -184,7 +191,6 @@ class HomeOrganizerPanel extends HTMLElement {
         
         <div class="bottom-bar" id="add-area">
              <div style="display:flex;gap:10px;margin-bottom:10px">
-                <!-- IN-APP CAMERA BUTTON (Main) -->
                 <button class="action-btn" id="btn-open-cam" style="background:#333;width:45px;height:45px;padding:0;display:flex;align-items:center;justify-content:center">
                    ${ICONS.camera}
                 </button>
@@ -211,7 +217,6 @@ class HomeOrganizerPanel extends HTMLElement {
           <canvas id="camera-canvas"></canvas>
       </div>
 
-      <!-- FULL SCREEN IMAGE OVERLAY -->
       <div class="overlay" id="img-overlay" onclick="this.style.display='none'" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:200;justify-content:center;align-items:center"><img id="overlay-img" style="max-width:90%;max-height:90%;border-radius:8px"></div>
     `;
 
@@ -373,11 +378,20 @@ class HomeOrganizerPanel extends HTMLElement {
             attrs.folders.forEach(folder => {
                 const el = document.createElement('div');
                 el.className = 'folder-item';
+                
                 el.onclick = () => this.navigate('down', folder.name);
+                
                 const deleteBtnHtml = this.isEditMode 
                     ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` 
                     : '';
-                el.innerHTML = `<div class="android-folder-icon">${ICONS.folder}${deleteBtnHtml}</div><div class="folder-label">${folder.name}</div>`;
+
+                el.innerHTML = `
+                    <div class="android-folder-icon">
+                        ${ICONS.folder}
+                        ${deleteBtnHtml}
+                    </div>
+                    <div class="folder-label">${folder.name}</div>
+                `;
                 grid.appendChild(el);
             });
             content.appendChild(grid);
@@ -408,12 +422,16 @@ class HomeOrganizerPanel extends HTMLElement {
 
         Object.keys(grouped).sort().forEach(subName => {
             if (subName === "General" && grouped[subName].length === 0 && !this.isEditMode) return;
+
             const header = document.createElement('div');
             header.className = 'group-separator';
             this.setupDropTarget(header, subName);
+
             if (this.isEditMode && subName !== "General") {
                 header.innerHTML = `<span>${subName}</span> <div style="display:flex;gap:5px"><button class="edit-subloc-btn" onclick="this.getRootNode().host.renameSubloc('${subName}')">${ICONS.edit}</button><button class="edit-subloc-btn" style="color:var(--danger)" onclick="this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button></div>`;
-            } else { header.innerText = subName; }
+            } else {
+                header.innerText = subName;
+            }
             listContainer.appendChild(header);
             grouped[subName].forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
         });
@@ -440,7 +458,12 @@ class HomeOrganizerPanel extends HTMLElement {
       el.dataset.subloc = subName;
       el.ondragover = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drag-over'); };
       el.ondragleave = () => el.classList.remove('drag-over');
-      el.ondrop = (e) => { e.preventDefault(); el.classList.remove('drag-over'); const itemName = e.dataTransfer.getData("text/plain"); this.handleDropAction(subName, itemName); };
+      el.ondrop = (e) => { 
+          e.preventDefault(); 
+          el.classList.remove('drag-over'); 
+          const itemName = e.dataTransfer.getData("text/plain");
+          this.handleDropAction(subName, itemName); 
+      };
   }
 
   async handleDropAction(targetSubloc, itemName) {
@@ -497,42 +520,48 @@ class HomeOrganizerPanel extends HTMLElement {
          const details = document.createElement('div');
          details.className = 'expanded-details';
          
-         let moveOptions = "";
+         // Generate Dropdown Options for Moving
+         let dropdownOptions = `<option value="">-- Move to... --</option>`;
+         // Always option to move to General
+         dropdownOptions += `<option value="General">General (Root)</option>`;
          if(this.localData.folders) {
              this.localData.folders.forEach(f => {
-                 moveOptions += `<button class="action-btn" style="background:#444;margin-top:5px" onclick="this.getRootNode().host.handleDropAction('${f.name}', '${item.name}')">Move to ${f.name}</button>`;
+                 dropdownOptions += `<option value="${f.name}">${f.name}</option>`;
              });
-             moveOptions += `<button class="action-btn" style="background:#444;margin-top:5px" onclick="this.getRootNode().host.handleDropAction('General', '${item.name}')">Move to General</button>`;
          }
 
          details.innerHTML = `
             <div class="detail-row">
                 <input type="text" id="name-${item.name}" value="${item.name}" style="flex:1;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px">
                 <input type="date" id="date-${item.name}" value="${item.date}" style="width:110px;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px">
-                <button class="action-btn" style="background:var(--primary)" onclick="this.getRootNode().host.saveDetails('${item.name}', '${item.name}')">Save</button>
+                <button class="action-btn btn-text" onclick="this.getRootNode().host.saveDetails('${item.name}', '${item.name}')">Save</button>
             </div>
-            <div class="detail-row" style="justify-content:space-between">
-                 <div style="position:relative;width:50px;height:50px;display:flex;align-items:center;justify-content:center;">
-                    <!-- IMAGE REMOVED FROM EDIT VIEW -->
-                    <div style="display:flex;gap:5px;">
-                       <!-- IN-APP CAMERA BUTTON (EDIT) -->
-                       <button class="action-btn" style="background:#444;padding:4px;cursor:pointer" onclick="this.getRootNode().host.triggerCameraEdit('${item.name}')">
-                          ${ICONS.camera}
-                       </button>
-                       <!-- GALLERY BUTTON (EDIT) -->
-                       <label class="action-btn" style="background:#444;padding:4px;cursor:pointer">
-                          ${ICONS.image}
-                          <input type="file" accept="image/*" style="display:none" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
-                       </label>
-                    </div>
+            <div class="detail-row" style="justify-content:space-between; margin-top:10px;">
+                 <!-- Image Controls Row (No Image displayed here) -->
+                 <div style="display:flex;gap:10px;">
+                    <button class="action-btn" title="Take Photo" onclick="this.getRootNode().host.triggerCameraEdit('${item.name}')">${ICONS.camera}</button>
+                    <label class="action-btn" title="Upload Image">
+                        ${ICONS.image}
+                        <input type="file" accept="image/*" style="display:none" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
+                    </label>
                  </div>
-                 <div style="display:flex;gap:5px">
-                    <button class="action-btn" style="background:#555" onclick="this.getRootNode().host.cut('${item.name}')">${ICONS.cut}</button>
-                    <button class="action-btn" style="background:var(--danger)" onclick="this.getRootNode().host.del('${item.name}')">${ICONS.delete}</button>
+                 
+                 <!-- Actions: Cut, Delete -->
+                 <div style="display:flex;gap:10px;">
+                    <button class="action-btn" title="Cut" onclick="this.getRootNode().host.cut('${item.name}')">${ICONS.cut}</button>
+                    <button class="action-btn btn-danger" title="Delete" onclick="this.getRootNode().host.del('${item.name}')">${ICONS.delete}</button>
                  </div>
             </div>
-            <div style="display:flex;flex-wrap:wrap;gap:5px;border-top:1px solid #444;padding-top:5px;margin-top:5px">
-                ${moveOptions}
+            
+            <!-- Move Dropdown Section -->
+            <div class="detail-row" style="margin-top:10px; border-top:1px solid #444; padding-top:10px;">
+                <div class="move-container">
+                    ${ICONS.arrow_up} <!-- Using up arrow as generic 'move' icon or we could use 'move' icon -->
+                    <select class="move-select" id="move-select-${item.name}">
+                        ${dropdownOptions}
+                    </select>
+                    <button class="action-btn" onclick="const sel = this.getRootNode().getElementById('move-select-${item.name}'); if(sel.value) this.getRootNode().host.handleDropAction(sel.value, '${item.name}')">Move</button>
+                </div>
             </div>
          `;
          div.appendChild(details);
