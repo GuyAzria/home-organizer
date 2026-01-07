@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 3.6.0 (Shopping List Fix)
+// Home Organizer Ultimate - Ver 3.7.0 (Shopping Zero, Immediate Move, UI Fixes)
 // License: MIT
 
 const ICONS = {
@@ -12,7 +12,8 @@ const ICONS = {
   folder: '<svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>',
   item: '<svg viewBox="0 0 24 24"><path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/></svg>',
   delete: '<svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>',
-  cut: '<svg viewBox="0 0 24 24"><path d="M9.64 7.64c.23-.5.36-1.05.36-1.64 0-2.21-1.79-4-4-4S2 3.79 2 6s1.79 4 4 4c.59 0 1.14-.13 1.64-.36L10 12l-2.36 2.36C7.14 14.13 6.59 14 6 14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.59-.13-1.14-.36-1.64L12 14l7 7h3v-1L9.64 7.64zM6 8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm0 12c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm6-7.5c-.28 0-.5-.22-.5-.5s.22-.5 .5-.5 .5 .22 .5 .5-.22 .5-.5 .5z"/></svg>',
+  // Better Scissors
+  cut: '<svg viewBox="0 0 24 24"><path d="M17.37 17.65c.34-.36.56-.84.56-1.37 0-1.1-.9-2-2-2 -.51 0-.96.2-1.31.53l-2.48-3.72 2.47-3.71c.35.33.81.53 1.32.53 1.1 0 2-.9 2-2s-.9-2-2-2 -2 .9-2 2c0 .54.21 1.03.56 1.4l-2.55 3.82 -2.55-3.82c.34-.37.56-.86.56-1.4 0-1.1-.9-2-2-2s-2 .9-2 2 .9 2 2 2c.5 0 .97-.2 1.32-.53l2.47 3.71 -2.48 3.72c-.35-.32-.8-.53-1.31-.53 -1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2c0-.53-.22-1.01-.56-1.37l2.8-4.2 2.8 4.2z"/></svg>',
   paste: '<svg viewBox="0 0 24 24"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>',
   plus: '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>',
   minus: '<svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>',
@@ -39,7 +40,6 @@ class HomeOrganizerPanel extends HTMLElement {
       this.pendingItem = null;
       this.useAiBg = true; 
       
-      // Store local quantities for shopping list
       this.shopQuantities = {};
       
       this.initUI();
@@ -96,12 +96,12 @@ class HomeOrganizerPanel extends HTMLElement {
         .folder-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; position: relative; }
         .android-folder-icon { width: 56px; height: 56px; background: #3c4043; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #8ab4f8; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); position: relative; }
         .folder-delete-btn { position: absolute; top: -5px; right: -5px; background: var(--danger); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
+        
         .item-list { display: flex; flex-direction: column; gap: 5px; }
         .group-separator { color: #aaa; font-size: 14px; margin: 20px 0 10px 0; border-bottom: 1px solid #444; padding-bottom: 4px; text-transform: uppercase; font-weight: bold; display: flex; justify-content: space-between; align-items: center; min-height: 35px; }
         .item-row { background: #2c2c2e; margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid transparent; touch-action: pan-y; }
         .item-row.expanded { background: #3a3a3c; flex-direction: column; align-items: stretch; cursor: default; }
         .out-of-stock-frame { border: 2px solid var(--danger); }
-        .item-row.dragging { opacity: 0.5; border: 2px dashed var(--primary); }
 
         .item-main { display: flex; align-items: center; justify-content: space-between; width: 100%; cursor: pointer; }
         .item-left { display: flex; align-items: center; gap: 10px; }
@@ -110,20 +110,34 @@ class HomeOrganizerPanel extends HTMLElement {
 
         .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 4px; border-radius: 20px; }
         .qty-btn { background: #444; border: none; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-        .qty-val { min-width: 20px; text-align: center; font-weight: bold; }
         .bottom-bar { background: #242426; padding: 15px; border-top: 1px solid var(--border); display: none; }
         .edit-mode .bottom-bar { display: block; }
         .expanded-details { margin-top: 10px; padding-top: 10px; border-top: 1px solid #555; display: flex; flex-direction: column; gap: 10px; }
         .detail-row { display: flex; gap: 10px; align-items: center; }
-        .action-btn { flex: 1; padding: 8px; border-radius: 6px; border: none; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; }
-        .img-preview { width: 50px; height: 50px; border-radius: 4px; object-fit: cover; background: #333; }
-        .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
-        .ai-btn { color: #FFD700 !important; }
+        
+        /* UNIFIED 2D BUTTONS FOR EDIT VIEW */
+        .action-btn { 
+            width: 40px; height: 40px; 
+            border-radius: 8px; border: 1px solid #555; 
+            color: #ccc; background: var(--icon-btn-bg); 
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            padding: 8px;
+        }
+        .action-btn:hover { background: #555; color: white; }
+        .action-btn svg { width: 24px; height: 24px; }
+        
+        .btn-danger { color: #ff8a80; border-color: #d32f2f; }
+        .btn-danger:hover { background: #d32f2f; color: white; }
+        
+        .btn-text { width: auto; padding: 0 15px; font-weight: bold; color: white; background: var(--primary); border: none; }
         
         /* Move Dropdown Styling */
         .move-container { display: flex; gap: 5px; align-items: center; flex: 1; }
         .move-select { flex: 1; padding: 8px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; }
 
+        .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
+        .ai-btn { color: #FFD700 !important; }
+        
         /* CAMERA OVERLAY STYLES */
         #camera-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: center; }
         #camera-video { width: 100%; height: 80%; object-fit: cover; }
@@ -176,6 +190,7 @@ class HomeOrganizerPanel extends HTMLElement {
         
         <div class="bottom-bar" id="add-area">
              <div style="display:flex;gap:10px;margin-bottom:10px">
+                <!-- IN-APP CAMERA BUTTON (Main) -->
                 <button class="action-btn" id="btn-open-cam" style="background:#333;width:45px;height:45px;padding:0;display:flex;align-items:center;justify-content:center">
                    ${ICONS.camera}
                 </button>
@@ -318,6 +333,7 @@ class HomeOrganizerPanel extends HTMLElement {
     const root = this.shadowRoot;
     
     root.getElementById('display-title').innerText = attrs.path_display;
+    root.getElementById('display-path').innerText = attrs.app_version || '3.7.0';
     
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
@@ -467,10 +483,10 @@ class HomeOrganizerPanel extends HTMLElement {
   }
   
   adjustShopQty(name, delta) {
-      if (!this.shopQuantities[name]) {
-          this.shopQuantities[name] = 1; // Default
+      if (this.shopQuantities[name] === undefined) {
+          this.shopQuantities[name] = 0; // Default to 0 as requested
       }
-      this.shopQuantities[name] = Math.max(1, this.shopQuantities[name] + delta);
+      this.shopQuantities[name] = Math.max(0, this.shopQuantities[name] + delta);
       this.render();
   }
 
@@ -482,7 +498,8 @@ class HomeOrganizerPanel extends HTMLElement {
      
      let controls = '';
      if (isShopMode) {
-         const localQty = this.shopQuantities[item.name] || 1;
+         // Default to 0 if undefined
+         const localQty = (this.shopQuantities[item.name] !== undefined) ? this.shopQuantities[item.name] : 0;
          controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', -1)">${ICONS.minus}</button><span class="qty-val" style="margin:0 8px">${localQty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', 1)">${ICONS.plus}</button><button class="qty-btn" style="background:var(--accent); margin-left:8px" title="Complete" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.name}')">${ICONS.check}</button>`;
      } else {
          controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${ICONS.plus}</button><span class="qty-val">${item.qty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${ICONS.minus}</button>`;
@@ -490,6 +507,7 @@ class HomeOrganizerPanel extends HTMLElement {
 
      const subText = isShopMode ? `${item.main_location} > ${item.sub_location || ''}` : `${item.date || ''}`;
      
+     // ITEM ICON UPDATE: Show thumbnail if image exists
      let iconHtml = `<span class="item-icon">${ICONS.item}</span>`;
      if (item.img) {
          iconHtml = `<img src="${item.img}" class="item-thumbnail" alt="${item.name}" onclick="event.stopPropagation(); this.getRootNode().host.showImg('${item.img}')">`;
@@ -542,10 +560,9 @@ class HomeOrganizerPanel extends HTMLElement {
             <div class="detail-row" style="margin-top:10px; border-top:1px solid #444; padding-top:10px;">
                 <div class="move-container">
                     ${ICONS.arrow_up} 
-                    <select class="move-select" id="move-select-${item.name}">
+                    <select class="move-select" id="move-select-${item.name}" onchange="this.getRootNode().host.handleDropAction(this.value, '${item.name}')">
                         ${dropdownOptions}
                     </select>
-                    <button class="action-btn" onclick="const sel = this.getRootNode().getElementById('move-select-${item.name}'); if(sel.value) this.getRootNode().host.handleDropAction(sel.value, '${item.name}')">Move</button>
                 </div>
             </div>
          `;
@@ -563,11 +580,16 @@ class HomeOrganizerPanel extends HTMLElement {
   updateQty(name, d) { this.callHA('update_qty', { item_name: name, change: d }); }
   
   submitShopStock(name) { 
-      const qty = this.shopQuantities[name] || 1;
-      this.callHA('update_stock', { item_name: name, quantity: qty }); 
-      // Reset local state for this item
-      delete this.shopQuantities[name];
-      // Optimistic update: remove from list immediately in UI? Backend update will follow via websocket.
+      // Default to 1 if user didn't touch +/-, otherwise use local count.
+      // Wait, user asked for default 0. So if 0, maybe don't submit?
+      // Or submit 0? Usually clicking check means "I bought this amount".
+      // If 0, it means I bought 0. But that leaves it in the list (qty 0).
+      // Logic: Update stock to whatever number is set.
+      const qty = (this.shopQuantities[name] !== undefined) ? this.shopQuantities[name] : 0;
+      if (qty > 0) {
+          this.callHA('update_stock', { item_name: name, quantity: qty }); 
+          delete this.shopQuantities[name];
+      }
   }
   
   addItem(type) {
