@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 3.5.0 (UI Polish & Move Dropdown)
+// Home Organizer Ultimate - Ver 3.6.0 (Shopping List Fix)
 // License: MIT
 
 const ICONS = {
@@ -12,12 +12,12 @@ const ICONS = {
   folder: '<svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>',
   item: '<svg viewBox="0 0 24 24"><path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/></svg>',
   delete: '<svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>',
-  // Updated Scissors Icon (Standard Cut)
   cut: '<svg viewBox="0 0 24 24"><path d="M9.64 7.64c.23-.5.36-1.05.36-1.64 0-2.21-1.79-4-4-4S2 3.79 2 6s1.79 4 4 4c.59 0 1.14-.13 1.64-.36L10 12l-2.36 2.36C7.14 14.13 6.59 14 6 14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.59-.13-1.14-.36-1.64L12 14l7 7h3v-1L9.64 7.64zM6 8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm0 12c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm6-7.5c-.28 0-.5-.22-.5-.5s.22-.5 .5-.5 .5 .22 .5 .5-.22 .5-.5 .5z"/></svg>',
   paste: '<svg viewBox="0 0 24 24"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>',
   plus: '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>',
   minus: '<svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>',
   save: '<svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>',
+  check: '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
   image: '<svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>',
   sparkles: '<svg viewBox="0 0 24 24"><path d="M9 9l1.5-4 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5zM19 19l-2.5-1 2.5-1 1-2.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5z"/></svg>',
   refresh: '<svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>',
@@ -38,6 +38,10 @@ class HomeOrganizerPanel extends HTMLElement {
       this.localData = null; 
       this.pendingItem = null;
       this.useAiBg = true; 
+      
+      // Store local quantities for shopping list
+      this.shopQuantities = {};
+      
       this.initUI();
       
       if (this._hass && this._hass.connection) {
@@ -101,43 +105,25 @@ class HomeOrganizerPanel extends HTMLElement {
 
         .item-main { display: flex; align-items: center; justify-content: space-between; width: 100%; cursor: pointer; }
         .item-left { display: flex; align-items: center; gap: 10px; }
-        /* Thumbnail Styling */
         .item-icon { color: var(--primary); display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; }
         .item-thumbnail { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: #fff; display: block; border: 1px solid #444; }
 
         .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 4px; border-radius: 20px; }
         .qty-btn { background: #444; border: none; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .qty-val { min-width: 20px; text-align: center; font-weight: bold; }
         .bottom-bar { background: #242426; padding: 15px; border-top: 1px solid var(--border); display: none; }
         .edit-mode .bottom-bar { display: block; }
         .expanded-details { margin-top: 10px; padding-top: 10px; border-top: 1px solid #555; display: flex; flex-direction: column; gap: 10px; }
         .detail-row { display: flex; gap: 10px; align-items: center; }
-        
-        /* UNIFIED ACTION BUTTON STYLING */
-        .action-btn { 
-            width: 40px; height: 40px; 
-            border-radius: 8px; border: 1px solid #555; 
-            color: #ccc; background: var(--icon-btn-bg); 
-            cursor: pointer; display: flex; align-items: center; justify-content: center;
-            padding: 8px; /* Consistent padding */
-        }
-        .action-btn:hover { background: #555; color: white; }
-        .action-btn svg { width: 24px; height: 24px; }
-        
-        /* Red style for delete */
-        .btn-danger { color: #ff8a80; border-color: #d32f2f; }
-        .btn-danger:hover { background: #d32f2f; color: white; }
-
-        /* Save Button Text/Icon */
-        .btn-text { width: auto; padding: 0 15px; font-weight: bold; color: white; background: var(--primary); border: none; }
-        
-        /* Move Dropdown Styling */
-        .move-container { display: flex; gap: 5px; align-items: center; flex: 1; }
-        .move-select { flex: 1; padding: 8px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; }
-        
+        .action-btn { flex: 1; padding: 8px; border-radius: 6px; border: none; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; }
         .img-preview { width: 50px; height: 50px; border-radius: 4px; object-fit: cover; background: #333; }
         .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
         .ai-btn { color: #FFD700 !important; }
         
+        /* Move Dropdown Styling */
+        .move-container { display: flex; gap: 5px; align-items: center; flex: 1; }
+        .move-select { flex: 1; padding: 8px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; }
+
         /* CAMERA OVERLAY STYLES */
         #camera-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: center; }
         #camera-video { width: 100%; height: 80%; object-fit: cover; }
@@ -150,7 +136,6 @@ class HomeOrganizerPanel extends HTMLElement {
         .wb-btn svg { width: 24px; height: 24px; margin-bottom: 2px; }
         #camera-canvas { display: none; }
         
-        /* Hidden Inputs */
         .direct-input-label { width: 40px; height: 40px; background: var(--icon-btn-bg); border-radius: 8px; border: 1px solid #555; display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer; color: #ccc; }
         .hidden-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10; }
       </style>
@@ -451,7 +436,7 @@ class HomeOrganizerPanel extends HTMLElement {
       el.draggable = true;
       el.ondragstart = (e) => { e.dataTransfer.setData("text/plain", itemName); e.dataTransfer.effectAllowed = "move"; el.classList.add('dragging'); };
       el.ondragend = () => el.classList.remove('dragging');
-      // Touch drag skipped for brevity but would go here
+      // Touch drag omitted for brevity in this specific update
   }
 
   setupDropTarget(el, subName) {
@@ -480,6 +465,14 @@ class HomeOrganizerPanel extends HTMLElement {
       this.pendingItem = itemName;
       this.openCamera('update');
   }
+  
+  adjustShopQty(name, delta) {
+      if (!this.shopQuantities[name]) {
+          this.shopQuantities[name] = 1; // Default
+      }
+      this.shopQuantities[name] = Math.max(1, this.shopQuantities[name] + delta);
+      this.render();
+  }
 
   createItemRow(item, isShopMode) {
      const div = document.createElement('div');
@@ -489,17 +482,16 @@ class HomeOrganizerPanel extends HTMLElement {
      
      let controls = '';
      if (isShopMode) {
-         controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${ICONS.minus}</button><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${ICONS.plus}</button><button class="qty-btn" style="background:var(--primary)" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.name}')">${ICONS.save}</button>`;
+         const localQty = this.shopQuantities[item.name] || 1;
+         controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', -1)">${ICONS.minus}</button><span class="qty-val" style="margin:0 8px">${localQty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', 1)">${ICONS.plus}</button><button class="qty-btn" style="background:var(--accent); margin-left:8px" title="Complete" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.name}')">${ICONS.check}</button>`;
      } else {
          controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${ICONS.plus}</button><span class="qty-val">${item.qty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${ICONS.minus}</button>`;
      }
 
      const subText = isShopMode ? `${item.main_location} > ${item.sub_location || ''}` : `${item.date || ''}`;
      
-     // ITEM ICON UPDATE: Show thumbnail if image exists
      let iconHtml = `<span class="item-icon">${ICONS.item}</span>`;
      if (item.img) {
-         // Click event added to thumbnail to open fullscreen
          iconHtml = `<img src="${item.img}" class="item-thumbnail" alt="${item.name}" onclick="event.stopPropagation(); this.getRootNode().host.showImg('${item.img}')">`;
      }
 
@@ -520,9 +512,7 @@ class HomeOrganizerPanel extends HTMLElement {
          const details = document.createElement('div');
          details.className = 'expanded-details';
          
-         // Generate Dropdown Options for Moving
          let dropdownOptions = `<option value="">-- Move to... --</option>`;
-         // Always option to move to General
          dropdownOptions += `<option value="General">General (Root)</option>`;
          if(this.localData.folders) {
              this.localData.folders.forEach(f => {
@@ -537,7 +527,6 @@ class HomeOrganizerPanel extends HTMLElement {
                 <button class="action-btn btn-text" onclick="this.getRootNode().host.saveDetails('${item.name}', '${item.name}')">Save</button>
             </div>
             <div class="detail-row" style="justify-content:space-between; margin-top:10px;">
-                 <!-- Image Controls Row (No Image displayed here) -->
                  <div style="display:flex;gap:10px;">
                     <button class="action-btn" title="Take Photo" onclick="this.getRootNode().host.triggerCameraEdit('${item.name}')">${ICONS.camera}</button>
                     <label class="action-btn" title="Upload Image">
@@ -545,18 +534,14 @@ class HomeOrganizerPanel extends HTMLElement {
                         <input type="file" accept="image/*" style="display:none" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
                     </label>
                  </div>
-                 
-                 <!-- Actions: Cut, Delete -->
                  <div style="display:flex;gap:10px;">
                     <button class="action-btn" title="Cut" onclick="this.getRootNode().host.cut('${item.name}')">${ICONS.cut}</button>
                     <button class="action-btn btn-danger" title="Delete" onclick="this.getRootNode().host.del('${item.name}')">${ICONS.delete}</button>
                  </div>
             </div>
-            
-            <!-- Move Dropdown Section -->
             <div class="detail-row" style="margin-top:10px; border-top:1px solid #444; padding-top:10px;">
                 <div class="move-container">
-                    ${ICONS.arrow_up} <!-- Using up arrow as generic 'move' icon or we could use 'move' icon -->
+                    ${ICONS.arrow_up} 
                     <select class="move-select" id="move-select-${item.name}">
                         ${dropdownOptions}
                     </select>
@@ -576,7 +561,14 @@ class HomeOrganizerPanel extends HTMLElement {
   navigate(dir, name) { if (dir === 'root') this.currentPath = []; else if (dir === 'up') this.currentPath.pop(); else if (dir === 'down' && name) this.currentPath.push(name); this.fetchData(); }
   toggleRow(name) { this.expandedIdx = (this.expandedIdx === name) ? null : name; this.render(); }
   updateQty(name, d) { this.callHA('update_qty', { item_name: name, change: d }); }
-  submitShopStock(name) { this.callHA('update_stock', { item_name: name, quantity: 1 }); }
+  
+  submitShopStock(name) { 
+      const qty = this.shopQuantities[name] || 1;
+      this.callHA('update_stock', { item_name: name, quantity: qty }); 
+      // Reset local state for this item
+      delete this.shopQuantities[name];
+      // Optimistic update: remove from list immediately in UI? Backend update will follow via websocket.
+  }
   
   addItem(type) {
     const nEl = this.shadowRoot.getElementById('add-name');
