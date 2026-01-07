@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 3.2.0 (AI Background Removal Button)
+// Home Organizer Ultimate - Ver 3.3.0 (Item Image Icons)
 // License: MIT
 
 const ICONS = {
@@ -36,7 +36,6 @@ class HomeOrganizerPanel extends HTMLElement {
       this.localData = null; 
       this.pendingItem = null;
       
-      // Default: AI Background Removal (White BG) ON by default
       this.useAiBg = true; 
 
       this.initUI();
@@ -99,7 +98,11 @@ class HomeOrganizerPanel extends HTMLElement {
         .item-row.expanded { background: #3a3a3c; flex-direction: column; align-items: stretch; cursor: default; }
         .item-main { display: flex; align-items: center; justify-content: space-between; width: 100%; cursor: pointer; }
         .item-left { display: flex; align-items: center; gap: 10px; }
-        .item-icon { color: var(--primary); }
+        
+        /* Updated Icon Styling for Thumbnail */
+        .item-icon { color: var(--primary); display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; overflow: hidden; }
+        .item-thumbnail { width: 36px; height: 36px; border-radius: 6px; object-fit: cover; background: #fff; display: block; }
+        
         .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 4px; border-radius: 20px; }
         .qty-btn { background: #444; border: none; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         .bottom-bar { background: #242426; padding: 15px; border-top: 1px solid var(--border); display: none; }
@@ -313,12 +316,9 @@ class HomeOrganizerPanel extends HTMLElement {
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
       
       // AI BACKGROUND REMOVAL (Simulated via White Threshold)
-      // Since Gemini 1.5 Flash doesn't return images, we use this client-side filter
-      // as the "AI" background cleaner.
       if (this.useAiBg) {
           let imageData = context.getImageData(0, 0, canvas.width, canvas.height);
           let data = imageData.data;
-          // Heuristic: If pixel is bright/near-white, make it pure white
           for (let i = 0; i < data.length; i += 4) {
               let r = data[i], g = data[i+1], b = data[i+2];
               if (r > 190 && g > 190 && b > 190) { // Threshold for "dirty white" background
@@ -352,7 +352,7 @@ class HomeOrganizerPanel extends HTMLElement {
     const root = this.shadowRoot;
     
     root.getElementById('display-title').innerText = attrs.path_display;
-    root.getElementById('display-path').innerText = attrs.app_version || '3.2.0';
+    root.getElementById('display-path').innerText = attrs.app_version || '3.3.0';
     
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
@@ -488,6 +488,7 @@ class HomeOrganizerPanel extends HTMLElement {
               const touch = e.touches[0];
               const realTarget = this.shadowRoot.elementFromPoint(touch.clientX, touch.clientY) || document.elementFromPoint(touch.clientX, touch.clientY);
               const header = realTarget?.closest('.group-separator');
+              
               this.shadowRoot.querySelectorAll('.group-separator').forEach(h => h.classList.remove('drag-over'));
               if (header) header.classList.add('drag-over');
           } else {
@@ -501,7 +502,11 @@ class HomeOrganizerPanel extends HTMLElement {
               const touch = e.changedTouches[0];
               const realTarget = this.shadowRoot.elementFromPoint(touch.clientX, touch.clientY) || document.elementFromPoint(touch.clientX, touch.clientY);
               const header = realTarget?.closest('.group-separator');
-              if (header && header.dataset.subloc) this.handleDropAction(header.dataset.subloc, this.draggedItemName);
+              
+              if (header && header.dataset.subloc) {
+                  this.handleDropAction(header.dataset.subloc, this.draggedItemName);
+              }
+              
               this.isDragging = false;
               this.draggedItemName = null;
               el.classList.remove('dragging');
@@ -558,11 +563,17 @@ class HomeOrganizerPanel extends HTMLElement {
      }
 
      const subText = isShopMode ? `${item.main_location} > ${item.sub_location || ''}` : `${item.date || ''}`;
+     
+     // ITEM ICON: Render Image if available, else SVG
+     let iconHtml = `<span class="item-icon">${ICONS.item}</span>`;
+     if (item.img) {
+         iconHtml = `<img src="${item.img}" class="item-thumbnail" alt="${item.name}">`;
+     }
 
      div.innerHTML = `
         <div class="item-main" onclick="this.getRootNode().host.toggleRow('${item.name}')">
             <div class="item-left">
-                <span class="item-icon">${ICONS.item}</span>
+                ${iconHtml}
                 <div>
                     <div>${item.name}</div>
                     <div class="sub-title">${subText}</div>
@@ -599,11 +610,6 @@ class HomeOrganizerPanel extends HTMLElement {
                        <button class="action-btn" style="background:#444;padding:4px;cursor:pointer" onclick="this.getRootNode().host.triggerCameraEdit('${item.name}')">
                           ${ICONS.camera}
                        </button>
-                       <!-- GALLERY BUTTON (EDIT) -->
-                       <label class="action-btn" style="background:#444;padding:4px;cursor:pointer">
-                          ${ICONS.image}
-                          <input type="file" accept="image/*" style="display:none" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
-                       </label>
                     </div>
                  </div>
                  <div style="display:flex;gap:5px">
