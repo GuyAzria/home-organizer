@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 2.8.0 (Camera Direct Overlay & Compression)
+// Home Organizer Ultimate - Ver 2.8.1 (Camera Fix - image/*)
 // License: MIT
 
 const ICONS = {
@@ -135,7 +135,7 @@ class HomeOrganizerPanel extends HTMLElement {
         .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
         .ai-btn { color: #FFD700 !important; }
         
-        /* Direct Input Styling: Hidden input with Opacity 0 to ensure it catches clicks */
+        /* Direct Input Styling */
         .direct-input-label { 
             width: 45px; height: 45px; 
             background: #333; border-radius: 8px; 
@@ -169,10 +169,10 @@ class HomeOrganizerPanel extends HTMLElement {
             <div style="position:relative; flex:1;">
                 <input type="text" id="search-input" style="width:100%;padding:8px;padding-left:35px;border-radius:8px;background:#111;color:white;border:1px solid #333">
                 
-                <!-- Search AI Camera -->
+                <!-- Search AI Camera: Updated to image/* -->
                 <div class="nav-btn ai-btn" style="position:absolute;left:0;top:0;height:100%;display:flex;align-items:center;padding:0 8px;cursor:pointer;position:relative">
                    ${ICONS.camera}
-                   <input type="file" accept="image/jpeg" capture="environment" class="hidden-input" onchange="this.getRootNode().host.handleAISearch(this)">
+                   <input type="file" accept="image/*" capture="environment" class="hidden-input" onchange="this.getRootNode().host.handleAISearch(this)">
                 </div>
             </div>
             <button class="nav-btn" id="search-close">${ICONS.close}</button>
@@ -187,13 +187,13 @@ class HomeOrganizerPanel extends HTMLElement {
         <div class="bottom-bar" id="add-area">
              <div style="display:flex;gap:10px;margin-bottom:10px">
                 
-                <!-- Main: Direct Camera Button (Label Method with Opacity 0) -->
+                <!-- Main: Direct Camera Button (Updated to image/*) -->
                 <div class="direct-input-label">
                    <span id="add-cam-icon">${ICONS.camera}</span>
-                   <input type="file" accept="image/jpeg" capture="environment" class="hidden-input" onchange="this.getRootNode().host.handleFile(this)">
+                   <input type="file" accept="image/*" capture="environment" class="hidden-input" onchange="this.getRootNode().host.handleFile(this)">
                 </div>
 
-                <!-- Main: Direct Gallery Button (Label Method with Opacity 0) -->
+                <!-- Main: Direct Gallery Button (image/*) -->
                 <div class="direct-input-label">
                    <span>${ICONS.image}</span>
                    <input type="file" accept="image/*" class="hidden-input" onchange="this.getRootNode().host.handleFile(this)">
@@ -211,11 +211,6 @@ class HomeOrganizerPanel extends HTMLElement {
       <div class="overlay" id="img-overlay" onclick="this.style.display='none'" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:200;justify-content:center;align-items:center"><img id="overlay-img" style="max-width:90%;border-radius:8px"></div>
     `;
 
-    // Check for Secure Context Warning
-    if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-         console.warn("Camera access on mobile usually requires HTTPS.");
-    }
-
     this.bindEvents();
   }
 
@@ -232,7 +227,10 @@ class HomeOrganizerPanel extends HTMLElement {
     bind('search-input', 'oninput', (e) => this.fetchData());
     click('btn-edit', () => { this.isEditMode = !this.isEditMode; this.isShopMode = false; this.render(); });
     
-    // Global inputs handled via onchange in HTML template now, no explicit bind needed unless element ID exists
+    // Explicitly stop propagation on file inputs to prevent drag interference
+    this.shadowRoot.querySelectorAll('input[type="file"]').forEach(inp => {
+        inp.addEventListener('click', (e) => e.stopPropagation());
+    });
     
     click('btn-create-folder', () => this.addItem('folder'));
     click('btn-create-item', () => this.addItem('item'));
@@ -245,8 +243,6 @@ class HomeOrganizerPanel extends HTMLElement {
          if (!this.tempAddImage) return alert("Take a picture first!");
          this.callHA('ai_action', { mode: 'identify', image_data: this.tempAddImage });
     });
-    
-    // Removed old searchAiBtn binding since it's now inline HTML handling
   }
 
   updateUI() {
@@ -255,6 +251,7 @@ class HomeOrganizerPanel extends HTMLElement {
     const root = this.shadowRoot;
     
     root.getElementById('display-title').innerText = attrs.path_display;
+    root.getElementById('display-path').innerText = attrs.app_version || '2.8.1';
     
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
@@ -498,12 +495,12 @@ class HomeOrganizerPanel extends HTMLElement {
                     ${item.img ? `<img src="${item.img}" class="img-preview" onclick="this.getRootNode().host.showImg('${item.img}')">` : '<div class="img-preview"></div>'}
                     
                     <div style="position:absolute;bottom:-25px;left:0;display:flex;gap:5px;z-index:3;">
-                       <!-- DIRECT CAMERA LABEL FOR EDIT -->
+                       <!-- DIRECT CAMERA LABEL FOR EDIT (Updated to image/*) -->
                        <div class="direct-input-label" style="background:#444;padding:4px;cursor:pointer;width:35px;height:35px;">
                           ${ICONS.camera}
-                          <input type="file" accept="image/jpeg" capture="environment" class="hidden-input" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
+                          <input type="file" accept="image/*" capture="environment" class="hidden-input" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
                        </div>
-                       <!-- DIRECT GALLERY LABEL FOR EDIT -->
+                       <!-- DIRECT GALLERY LABEL FOR EDIT (image/*) -->
                        <div class="direct-input-label" style="background:#444;padding:4px;cursor:pointer;width:35px;height:35px;">
                           ${ICONS.image}
                           <input type="file" accept="image/*" class="hidden-input" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
@@ -572,7 +569,7 @@ class HomeOrganizerPanel extends HTMLElement {
       }
   }
 
-  // COMPRESSION LOGIC (Resize to 70% reduction target approx)
+  // COMPRESSION LOGIC
   compressImage(file, callback) {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -581,7 +578,6 @@ class HomeOrganizerPanel extends HTMLElement {
               const canvas = document.createElement('canvas');
               const ctx = canvas.getContext('2d');
               
-              // Cap at 1024 to reduce size
               const MAX_WIDTH = 1024;
               const MAX_HEIGHT = 1024;
               let width = img.width;
@@ -603,7 +599,6 @@ class HomeOrganizerPanel extends HTMLElement {
               canvas.height = height;
               ctx.drawImage(img, 0, 0, width, height);
               
-              // Compress to 30% quality (High reduction)
               const dataUrl = canvas.toDataURL('image/jpeg', 0.3);
               callback(dataUrl);
           };
@@ -615,7 +610,6 @@ class HomeOrganizerPanel extends HTMLElement {
   handleFile(input) {
     const file = input.files[0]; if (!file) return;
     
-    // Feedback
     const ic = this.shadowRoot.getElementById('add-cam-icon');
     if(ic) ic.innerHTML = `<div style="font-size:10px;">Compressing...</div>`;
     
@@ -628,7 +622,6 @@ class HomeOrganizerPanel extends HTMLElement {
 
   handleUpdateImage(input, name) {
     const file = input.files[0]; if (!file) return;
-    // Feedback? Just direct upload
     this.compressImage(file, (dataUrl) => {
         this.callHA('update_image', { item_name: name, image_data: dataUrl });
     });
