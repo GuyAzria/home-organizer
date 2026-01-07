@@ -499,8 +499,8 @@ class HomeOrganizerPanel extends HTMLElement {
          const localQty = (this.shopQuantities[item.name] !== undefined) ? this.shopQuantities[item.name] : 0;
          // Disable style if qty is 0
          const checkStyle = (localQty === 0) 
-            ? "background:#555;color:#888;cursor:not-allowed;width:32px;height:32px;margin-left:8px;" 
-            : "background:var(--accent);width:32px;height:32px;margin-left:8px;";
+            ? "background:#555;color:#888;cursor:not-allowed;width:40px;height:40px;margin-left:8px;" 
+            : "background:var(--accent);width:40px;height:40px;margin-left:8px;";
          const checkDisabled = (localQty === 0) ? "disabled" : "";
 
          controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', -1)">${ICONS.minus}</button><span class="qty-val" style="margin:0 8px">${localQty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', 1)">${ICONS.plus}</button><button class="qty-btn" style="${checkStyle}" ${checkDisabled} title="Complete" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.name}')">${ICONS.check}</button>`;
