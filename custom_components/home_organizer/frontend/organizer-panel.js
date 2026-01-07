@@ -1,7 +1,8 @@
-// Home Organizer Ultimate - Ver 3.8.0 (Shopping Zero Disable, UI Tweaks)
+// Home Organizer Ultimate - Ver 3.9.0 (Advanced Move Dropdowns)
 // License: MIT
 
 const ICONS = {
+  // ... (Icons same as before)
   arrow_up: '<svg viewBox="0 0 24 24"><path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/></svg>',
   home: '<svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>',
   cart: '<svg viewBox="0 0 24 24"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>',
@@ -113,7 +114,6 @@ class HomeOrganizerPanel extends HTMLElement {
         .expanded-details { margin-top: 10px; padding-top: 10px; border-top: 1px solid #555; display: flex; flex-direction: column; gap: 10px; }
         .detail-row { display: flex; gap: 10px; align-items: center; }
         
-        /* UNIFIED 2D BUTTONS FOR EDIT VIEW */
         .action-btn { 
             width: 40px; height: 40px; 
             border-radius: 8px; border: 1px solid #555; 
@@ -129,7 +129,6 @@ class HomeOrganizerPanel extends HTMLElement {
         
         .btn-text { width: auto; padding: 0 15px; font-weight: bold; color: white; background: var(--primary); border: none; }
         
-        /* Move Dropdown Styling */
         .move-container { display: flex; gap: 5px; align-items: center; flex: 1; }
         .move-select { flex: 1; padding: 8px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; }
 
@@ -503,6 +502,7 @@ class HomeOrganizerPanel extends HTMLElement {
             : "background:var(--accent);width:40px;height:40px;margin-left:8px;";
          const checkDisabled = (localQty === 0) ? "disabled" : "";
 
+         // Changed button logic to update local quantity only, submit via checkmark
          controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', -1)">${ICONS.minus}</button><span class="qty-val" style="margin:0 8px">${localQty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', 1)">${ICONS.plus}</button><button class="qty-btn" style="${checkStyle}" ${checkDisabled} title="Complete" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.name}')">${ICONS.check}</button>`;
      } else {
          controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${ICONS.plus}</button><span class="qty-val">${item.qty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${ICONS.minus}</button>`;
@@ -535,6 +535,15 @@ class HomeOrganizerPanel extends HTMLElement {
          
          let dropdownOptions = `<option value="">-- Move to... --</option>`;
          dropdownOptions += `<option value="General">General (Root)</option>`;
+         // Location dropdown logic (Level 1)
+         let roomOptions = `<option value="">-- Change Room --</option>`;
+         if(this.localData.hierarchy) {
+             Object.keys(this.localData.hierarchy).forEach(room => {
+                 roomOptions += `<option value="${room}">${room}</option>`;
+             });
+         }
+         
+         // Sublocation dropdown (Current Room)
          if(this.localData.folders) {
              this.localData.folders.forEach(f => {
                  dropdownOptions += `<option value="${f.name}">${f.name}</option>`;
@@ -556,15 +565,31 @@ class HomeOrganizerPanel extends HTMLElement {
                     </label>
                  </div>
                  <div style="display:flex;gap:10px;">
-                    <button class="action-btn" title="Cut" onclick="this.getRootNode().host.cut('${item.name}')">${ICONS.cut}</button>
                     <button class="action-btn btn-danger" title="Delete" onclick="this.getRootNode().host.del('${item.name}')">${ICONS.delete}</button>
                  </div>
             </div>
-            <div class="detail-row" style="margin-top:10px; border-top:1px solid #444; padding-top:10px;">
-                <div class="move-container">
-                    ${ICONS.arrow_up} 
-                    <select class="move-select" id="move-select-${item.name}" onchange="this.getRootNode().host.handleDropAction(this.value, '${item.name}')">
+            
+            <!-- Move Controls -->
+            <div class="detail-row" style="margin-top:10px; border-top:1px solid #444; padding-top:10px; flex-direction:column; gap:8px;">
+                <!-- Move to Sublocation (Current Room) -->
+                <div class="move-container" style="width:100%">
+                    <span style="font-size:12px;color:#aaa;width:60px">Subloc:</span>
+                    <select class="move-select" onchange="this.getRootNode().host.handleDropAction(this.value, '${item.name}')">
                         ${dropdownOptions}
+                    </select>
+                </div>
+                
+                <!-- Move to Different Room -->
+                <div class="move-container" style="width:100%">
+                    <span style="font-size:12px;color:#aaa;width:60px">Room:</span>
+                    <select class="move-select" id="room-select-${item.name}" onchange="this.getRootNode().host.updateSublocDropdown('${item.name}', this.value)">
+                        ${roomOptions}
+                    </select>
+                </div>
+                <div class="move-container" style="width:100%" id="subloc-container-${item.name}" style="display:none">
+                    <span style="font-size:12px;color:#aaa;width:60px">To:</span>
+                    <select class="move-select" id="target-subloc-${item.name}" onchange="this.getRootNode().host.handleMoveToRoom('${item.name}')">
+                        <option value="">-- Select --</option>
                     </select>
                 </div>
             </div>
@@ -572,6 +597,39 @@ class HomeOrganizerPanel extends HTMLElement {
          div.appendChild(details);
      }
      return div;
+  }
+  
+  updateSublocDropdown(itemName, roomName) {
+      const targetSelect = this.shadowRoot.getElementById(`target-subloc-${itemName}`);
+      if(!roomName) {
+          targetSelect.innerHTML = '<option value="">-- Select --</option>';
+          return;
+      }
+      
+      let html = `<option value="">-- Select Location --</option>`;
+      html += `<option value="__ROOT__">Main ${roomName}</option>`; // Option to move to Room root
+      
+      if(this.localData.hierarchy && this.localData.hierarchy[roomName]) {
+          this.localData.hierarchy[roomName].forEach(sub => {
+              html += `<option value="${sub}">${sub}</option>`;
+          });
+      }
+      targetSelect.innerHTML = html;
+  }
+  
+  handleMoveToRoom(itemName) {
+      const room = this.shadowRoot.getElementById(`room-select-${itemName}`).value;
+      const sub = this.shadowRoot.getElementById(`target-subloc-${itemName}`).value;
+      
+      if(!room || !sub) return;
+      
+      let targetPath = [room];
+      if(sub !== "__ROOT__") targetPath.push(sub);
+      
+      this.callHA('clipboard_action', {action: 'cut', item_name: itemName});
+      setTimeout(() => {
+          this.callHA('paste_item', {target_path: targetPath});
+      }, 100);
   }
 
   deleteFolder(name) { if(confirm(`Delete folder '${name}' and ALL items inside it?`)) { this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); } }
@@ -583,9 +641,11 @@ class HomeOrganizerPanel extends HTMLElement {
   updateQty(name, d) { this.callHA('update_qty', { item_name: name, change: d }); }
   
   submitShopStock(name) { 
-      const qty = this.shopQuantities[name] || 1;
-      this.callHA('update_stock', { item_name: name, quantity: qty }); 
-      delete this.shopQuantities[name];
+      const qty = (this.shopQuantities[name] !== undefined) ? this.shopQuantities[name] : 0;
+      if (qty > 0) {
+          this.callHA('update_stock', { item_name: name, quantity: qty }); 
+          delete this.shopQuantities[name];
+      }
   }
   
   addItem(type) {
