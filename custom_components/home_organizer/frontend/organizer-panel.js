@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 3.7.0 (Shopping Zero, Immediate Move, UI Fixes)
+// Home Organizer Ultimate - Ver 3.8.0 (Shopping Zero Disable, UI Tweaks)
 // License: MIT
 
 const ICONS = {
@@ -12,7 +12,6 @@ const ICONS = {
   folder: '<svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>',
   item: '<svg viewBox="0 0 24 24"><path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/></svg>',
   delete: '<svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>',
-  // Better Scissors
   cut: '<svg viewBox="0 0 24 24"><path d="M17.37 17.65c.34-.36.56-.84.56-1.37 0-1.1-.9-2-2-2 -.51 0-.96.2-1.31.53l-2.48-3.72 2.47-3.71c.35.33.81.53 1.32.53 1.1 0 2-.9 2-2s-.9-2-2-2 -2 .9-2 2c0 .54.21 1.03.56 1.4l-2.55 3.82 -2.55-3.82c.34-.37.56-.86.56-1.4 0-1.1-.9-2-2-2s-2 .9-2 2 .9 2 2 2c.5 0 .97-.2 1.32-.53l2.47 3.71 -2.48 3.72c-.35-.32-.8-.53-1.31-.53 -1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2c0-.53-.22-1.01-.56-1.37l2.8-4.2 2.8 4.2z"/></svg>',
   paste: '<svg viewBox="0 0 24 24"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>',
   plus: '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>',
@@ -96,7 +95,6 @@ class HomeOrganizerPanel extends HTMLElement {
         .folder-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; position: relative; }
         .android-folder-icon { width: 56px; height: 56px; background: #3c4043; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #8ab4f8; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); position: relative; }
         .folder-delete-btn { position: absolute; top: -5px; right: -5px; background: var(--danger); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
-        
         .item-list { display: flex; flex-direction: column; gap: 5px; }
         .group-separator { color: #aaa; font-size: 14px; margin: 20px 0 10px 0; border-bottom: 1px solid #444; padding-bottom: 4px; text-transform: uppercase; font-weight: bold; display: flex; justify-content: space-between; align-items: center; min-height: 35px; }
         .item-row { background: #2c2c2e; margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid transparent; touch-action: pan-y; }
@@ -333,7 +331,6 @@ class HomeOrganizerPanel extends HTMLElement {
     const root = this.shadowRoot;
     
     root.getElementById('display-title').innerText = attrs.path_display;
-    root.getElementById('display-path').innerText = attrs.app_version || '3.7.0';
     
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
@@ -500,7 +497,13 @@ class HomeOrganizerPanel extends HTMLElement {
      if (isShopMode) {
          // Default to 0 if undefined
          const localQty = (this.shopQuantities[item.name] !== undefined) ? this.shopQuantities[item.name] : 0;
-         controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', -1)">${ICONS.minus}</button><span class="qty-val" style="margin:0 8px">${localQty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', 1)">${ICONS.plus}</button><button class="qty-btn" style="background:var(--accent); margin-left:8px" title="Complete" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.name}')">${ICONS.check}</button>`;
+         // Disable style if qty is 0
+         const checkStyle = (localQty === 0) 
+            ? "background:#555;color:#888;cursor:not-allowed;width:32px;height:32px;margin-left:8px;" 
+            : "background:var(--accent);width:32px;height:32px;margin-left:8px;";
+         const checkDisabled = (localQty === 0) ? "disabled" : "";
+
+         controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', -1)">${ICONS.minus}</button><span class="qty-val" style="margin:0 8px">${localQty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', 1)">${ICONS.plus}</button><button class="qty-btn" style="${checkStyle}" ${checkDisabled} title="Complete" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.name}')">${ICONS.check}</button>`;
      } else {
          controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${ICONS.plus}</button><span class="qty-val">${item.qty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${ICONS.minus}</button>`;
      }
@@ -580,16 +583,9 @@ class HomeOrganizerPanel extends HTMLElement {
   updateQty(name, d) { this.callHA('update_qty', { item_name: name, change: d }); }
   
   submitShopStock(name) { 
-      // Default to 1 if user didn't touch +/-, otherwise use local count.
-      // Wait, user asked for default 0. So if 0, maybe don't submit?
-      // Or submit 0? Usually clicking check means "I bought this amount".
-      // If 0, it means I bought 0. But that leaves it in the list (qty 0).
-      // Logic: Update stock to whatever number is set.
-      const qty = (this.shopQuantities[name] !== undefined) ? this.shopQuantities[name] : 0;
-      if (qty > 0) {
-          this.callHA('update_stock', { item_name: name, quantity: qty }); 
-          delete this.shopQuantities[name];
-      }
+      const qty = this.shopQuantities[name] || 1;
+      this.callHA('update_stock', { item_name: name, quantity: qty }); 
+      delete this.shopQuantities[name];
   }
   
   addItem(type) {
