@@ -2,6 +2,7 @@
 // License: MIT
 
 const ICONS = {
+  // ... (Identical Icons to previous 3.10.0 version) ...
   arrow_up: '<svg viewBox="0 0 24 24"><path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/></svg>',
   home: '<svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>',
   cart: '<svg viewBox="0 0 24 24"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>',
@@ -21,8 +22,7 @@ const ICONS = {
   sparkles: '<svg viewBox="0 0 24 24"><path d="M9 9l1.5-4 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5zM19 19l-2.5-1 2.5-1 1-2.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5z"/></svg>',
   refresh: '<svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>',
   wand: '<svg viewBox="0 0 24 24"><path d="M7.5 5.6L10 7 7.5 8.4 6.1 10.9 4.7 8.4 2.2 7 4.7 5.6 6.1 3.1 7.5 5.6zm12 9.8L17 14l2.5-1.4L18.1 10.1 19.5 12.6 22 14 19.5 15.4 18.1 17.9 17 15.4zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5L22 2zm-8.8 11.2l-1.4-2.5L10.4 13.2 8 14.6 10.4 16 11.8 18.5 13.2 16 15.6 14.6 13.2 13.2z"/></svg>',
-  move: '<svg viewBox="0 0 24 24"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg>',
-  cut: '<svg viewBox="0 0 24 24"><path d="M9.64 7.64c.23-.5.36-1.05.36-1.64 0-2.21-1.79-4-4-4S2 3.79 2 6s1.79 4 4 4c.59 0 1.14-.13 1.64-.36L10 12l-2.36 2.36C7.14 14.13 6.59 14 6 14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.59-.13-1.14-.36-1.64L12 14l7 7h3v-1L9.64 7.64zM6 8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm0 12c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm6-7.5c-.28 0-.5-.22-.5-.5s.22-.5 .5-.5 .5 .22 .5 .5-.22 .5-.5 .5z"/></svg>'
+  move: '<svg viewBox="0 0 24 24"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg>' 
 };
 
 class HomeOrganizerPanel extends HTMLElement {
@@ -558,17 +558,8 @@ class HomeOrganizerPanel extends HTMLElement {
             
             <!-- Move Controls -->
             <div class="detail-row" style="margin-top:10px; border-top:1px solid #444; padding-top:10px; flex-direction:column; gap:8px;">
-                <!-- Move to Sublocation (Current Room) -->
                 <div class="move-container" style="width:100%">
-                    <span style="font-size:12px;color:#aaa;width:60px">Subloc:</span>
-                    <select class="move-select" onchange="this.getRootNode().host.handleDropAction(this.value, '${item.name}')">
-                        ${dropdownOptions}
-                    </select>
-                </div>
-                
-                <!-- Move to Different Room -->
-                <div class="move-container" style="width:100%">
-                    <span style="font-size:12px;color:#aaa;width:60px">Room:</span>
+                    <span style="font-size:12px;color:#aaa;width:60px">Move to:</span>
                     <select class="move-select" id="room-select-${item.name}" onchange="this.getRootNode().host.updateLocationDropdown('${item.name}', this.value)">
                         ${roomOptions}
                     </select>
@@ -596,28 +587,16 @@ class HomeOrganizerPanel extends HTMLElement {
       const locContainer = this.shadowRoot.getElementById(`loc-container-${itemName}`);
       const locSelect = this.shadowRoot.getElementById(`loc-select-${itemName}`);
       const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemName}`);
-      
-      // Reset subsequent dropdowns
       subContainer.style.display = 'none';
       locSelect.innerHTML = '<option value="">-- Select --</option>';
-      
-      if(!roomName) {
-          locContainer.style.display = 'none';
-          return;
-      }
+      if(!roomName) { locContainer.style.display = 'none'; return; }
       
       let html = `<option value="">-- Select Location --</option>`;
-      
-      // Populate Level 2 (Locations) for the selected Room
       if(this.localData.hierarchy && this.localData.hierarchy[roomName]) {
-          Object.keys(this.localData.hierarchy[roomName]).forEach(loc => {
-              html += `<option value="${loc}">${loc}</option>`;
-          });
+          Object.keys(this.localData.hierarchy[roomName]).forEach(loc => { html += `<option value="${loc}">${loc}</option>`; });
       }
       locSelect.innerHTML = html;
       locContainer.style.display = 'flex';
-      
-      // Store selected room temporarily on the select element for next step
       locSelect.dataset.room = roomName;
   }
   
@@ -625,20 +604,12 @@ class HomeOrganizerPanel extends HTMLElement {
       const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemName}`);
       const subSelect = this.shadowRoot.getElementById(`target-subloc-${itemName}`);
       const roomName = this.shadowRoot.getElementById(`room-select-${itemName}`).value;
-      
-      if(!locationName) {
-          subContainer.style.display = 'none';
-          return;
-      }
+      if(!locationName) { subContainer.style.display = 'none'; return; }
       
       let html = `<option value="">-- Select Sublocation --</option>`;
-      html += `<option value="__ROOT__">Main ${locationName}</option>`; // Allow moving to the location root
-      
-      // Populate Level 3 (Sublocations)
+      html += `<option value="__ROOT__">Main ${locationName}</option>`;
       if(this.localData.hierarchy && this.localData.hierarchy[roomName] && this.localData.hierarchy[roomName][locationName]) {
-          this.localData.hierarchy[roomName][locationName].forEach(sub => {
-              html += `<option value="${sub}">${sub}</option>`;
-          });
+          this.localData.hierarchy[roomName][locationName].forEach(sub => { html += `<option value="${sub}">${sub}</option>`; });
       }
       subSelect.innerHTML = html;
       subContainer.style.display = 'flex';
@@ -648,16 +619,11 @@ class HomeOrganizerPanel extends HTMLElement {
       const room = this.shadowRoot.getElementById(`room-select-${itemName}`).value;
       const loc = this.shadowRoot.getElementById(`loc-select-${itemName}`).value;
       const sub = this.shadowRoot.getElementById(`target-subloc-${itemName}`).value;
-      
       if(!room || !loc || !sub) return;
-      
       let targetPath = [room, loc];
       if(sub !== "__ROOT__") targetPath.push(sub);
-      
       this.callHA('clipboard_action', {action: 'cut', item_name: itemName});
-      setTimeout(() => {
-          this.callHA('paste_item', {target_path: targetPath});
-      }, 100);
+      setTimeout(() => { this.callHA('paste_item', {target_path: targetPath}); }, 100);
   }
 
   deleteFolder(name) { if(confirm(`Delete folder '${name}' and ALL items inside it?`)) { this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); } }
