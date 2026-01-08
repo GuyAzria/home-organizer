@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.3.0 (Comprehensive Fixes)
+// Home Organizer Ultimate - Ver 5.2.0 (Click Event Fix)
 // License: MIT
 
 const ICONS = {
@@ -22,8 +22,7 @@ const ICONS = {
   refresh: '<svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>',
   wand: '<svg viewBox="0 0 24 24"><path d="M7.5 5.6L10 7 7.5 8.4 6.1 10.9 4.7 8.4 2.2 7 4.7 5.6 6.1 3.1 7.5 5.6zm12 9.8L17 14l2.5-1.4L18.1 10.1 19.5 12.6 22 14 19.5 15.4 18.1 17.9 17 15.4zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5L22 2zm-8.8 11.2l-1.4-2.5L10.4 13.2 8 14.6 10.4 16 11.8 18.5 13.2 16 15.6 14.6 13.2 13.2z"/></svg>',
   move: '<svg viewBox="0 0 24 24"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg>',
-  plus_thick: '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>',
-  cut: '<svg viewBox="0 0 24 24"><path d="M9.64 7.64c.23-.5.36-1.05.36-1.64 0-2.21-1.79-4-4-4S2 3.79 2 6s1.79 4 4 4c.59 0 1.14-.13 1.64-.36L10 12l-2.36 2.36C7.14 14.13 6.59 14 6 14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.59-.13-1.14-.36-1.64L12 14l7 7h3v-1L9.64 7.64zM6 8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm0 12c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm6-7.5c-.28 0-.5-.22-.5-.5s.22-.5 .5-.5 .5 .22 .5 .5-.22 .5-.5 .5z"/></svg>'
+  plus_thick: '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>' 
 };
 
 class HomeOrganizerPanel extends HTMLElement {
@@ -37,6 +36,9 @@ class HomeOrganizerPanel extends HTMLElement {
       this.expandedIdx = null;
       this.lastAI = "";
       this.localData = null; 
+      this.pendingItem = null;
+      this.useAiBg = true; 
+      
       this.shopQuantities = {};
       this.subscribed = false;
 
@@ -62,9 +64,7 @@ class HomeOrganizerPanel extends HTMLElement {
           });
           this.localData = data;
           this.updateUI();
-      } catch (e) {
-          console.error("Fetch error", e);
-      }
+      } catch (e) { console.error("Fetch error", e); }
   }
 
   initUI() {
@@ -109,6 +109,7 @@ class HomeOrganizerPanel extends HTMLElement {
         .item-thumbnail { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: #fff; display: block; border: 1px solid #444; }
         .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 4px; border-radius: 20px; }
         .qty-btn { background: #444; border: none; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        
         .bottom-bar { display: none; } 
         .expanded-details { margin-top: 10px; padding-top: 10px; border-top: 1px solid #555; display: flex; flex-direction: column; gap: 10px; }
         .detail-row { display: flex; gap: 10px; align-items: center; }
@@ -138,19 +139,9 @@ class HomeOrganizerPanel extends HTMLElement {
       
       <div class="app-container" id="app">
          <div class="top-bar">
-            <div style="display:flex;gap:5px">
-                <button class="nav-btn" id="btn-up">${ICONS.arrow_up}</button>
-                <button class="nav-btn" id="btn-home">${ICONS.home}</button>
-            </div>
-            <div class="title-box">
-                <div class="main-title" id="display-title">Organizer</div>
-                <div class="sub-title" id="display-path">Main</div>
-            </div>
-            <div style="display:flex;gap:5px">
-                <button class="nav-btn" id="btn-shop">${ICONS.cart}</button>
-                <button class="nav-btn" id="btn-search">${ICONS.search}</button>
-                <button class="nav-btn" id="btn-edit">${ICONS.edit}</button>
-            </div>
+            <div style="display:flex;gap:5px"><button class="nav-btn" id="btn-up">${ICONS.arrow_up}</button><button class="nav-btn" id="btn-home">${ICONS.home}</button></div>
+            <div class="title-box"><div class="main-title" id="display-title">Organizer</div><div class="sub-title" id="display-path">Main</div></div>
+            <div style="display:flex;gap:5px"><button class="nav-btn" id="btn-shop">${ICONS.cart}</button><button class="nav-btn" id="btn-search">${ICONS.search}</button><button class="nav-btn" id="btn-edit">${ICONS.edit}</button></div>
         </div>
         
         <div class="search-box" id="search-box" style="display:none;padding:10px;background:#2a2a2a">
@@ -158,9 +149,7 @@ class HomeOrganizerPanel extends HTMLElement {
             <button class="nav-btn" id="search-close">${ICONS.close}</button>
         </div>
         
-        <div class="content" id="content">
-            <div style="text-align:center;padding:20px;color:#888;">Loading...</div>
-        </div>
+        <div class="content" id="content"><div style="text-align:center;padding:20px;color:#888;">Loading...</div></div>
       </div>
       
       <div id="camera-modal">
@@ -202,7 +191,6 @@ class HomeOrganizerPanel extends HTMLElement {
     if(!this.localData) return;
     const attrs = this.localData;
     const root = this.shadowRoot;
-    
     root.getElementById('display-title').innerText = attrs.path_display;
     const content = root.getElementById('content');
     content.innerHTML = '';
@@ -221,31 +209,20 @@ class HomeOrganizerPanel extends HTMLElement {
         return;
     }
 
-    // Grid View (Depth < 2: Rooms or Main Locations)
+    // Grid View
     if (attrs.depth < 2) {
         const grid = document.createElement('div');
         grid.className = 'folder-grid';
         if (attrs.folders) {
             attrs.folders.forEach(folder => {
-                const el = document.createElement('div');
-                el.className = 'folder-item';
+                const el = document.createElement('div'); el.className = 'folder-item';
                 el.onclick = () => this.navigate('down', folder.name);
-                
-                const deleteBtnHtml = this.isEditMode 
-                    ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` 
-                    : '';
-
-                el.innerHTML = `
-                    <div class="android-folder-icon">
-                        ${ICONS.folder}
-                        ${deleteBtnHtml}
-                    </div>
-                    <div class="folder-label">${folder.name}</div>
-                `;
+                const deleteBtnHtml = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` : '';
+                el.innerHTML = `<div class="android-folder-icon">${ICONS.folder}${deleteBtnHtml}</div><div class="folder-label">${folder.name}</div>`;
                 grid.appendChild(el);
             });
         }
-
+        
         // Inline Add Button
         const addBtn = document.createElement('div');
         addBtn.className = 'folder-item add-folder-btn';
@@ -263,7 +240,7 @@ class HomeOrganizerPanel extends HTMLElement {
         grid.appendChild(addBtn);
         content.appendChild(grid);
     } 
-    // List View (Sublocations & Items)
+    // List View
     else {
         const listContainer = document.createElement('div');
         listContainer.className = 'item-list';
@@ -305,6 +282,7 @@ class HomeOrganizerPanel extends HTMLElement {
     }
   }
   
+  // FIX: Separate Event Listener Logic for Row Clicking
   createItemRow(item, isShopMode) {
       const div = document.createElement('div');
       div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''}`;
@@ -333,7 +311,7 @@ class HomeOrganizerPanel extends HTMLElement {
 
       div.innerHTML = `
         <div class="item-main">
-            <div class="item-left">${iconHtml}<div><div>${item.name}</div><div class="sub-title">${subText}</div></div></div>
+            <div class="item-left">${iconHtml}<div><div>${item.name}</div></div></div>
             <div class="item-qty-ctrl">${controls}</div>
         </div>
       `;
@@ -393,49 +371,24 @@ class HomeOrganizerPanel extends HTMLElement {
       return div;
   }
   
-  updateLocationDropdown(itemName, roomName) {
-      const locContainer = this.shadowRoot.getElementById(`loc-container-${itemName}`);
-      const locSelect = this.shadowRoot.getElementById(`loc-select-${itemName}`);
-      const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemName}`);
-      subContainer.style.display = 'none';
-      locSelect.innerHTML = '<option value="">-- Select --</option>';
-      if(!roomName) { locContainer.style.display = 'none'; return; }
-      
-      let html = `<option value="">-- Select Location --</option>`;
-      if(this.localData.hierarchy && this.localData.hierarchy[roomName]) {
-          Object.keys(this.localData.hierarchy[roomName]).forEach(loc => { html += `<option value="${loc}">${loc}</option>`; });
-      }
-      locSelect.innerHTML = html;
-      locContainer.style.display = 'flex';
-      locSelect.dataset.room = roomName;
-  }
+  // Placeholders for standard methods
+  navigate(dir, name) { if (dir === 'root') this.currentPath = []; else if (dir === 'up') this.currentPath.pop(); else if (dir === 'down' && name) this.currentPath.push(name); this.fetchData(); }
+  updateQty(name, d) { this.callHA('update_qty', { item_name: name, change: d }); }
+  showImg(src) { const ov = this.shadowRoot.getElementById('overlay-img'); const ovc = this.shadowRoot.getElementById('img-overlay'); if(ov && ovc) { ov.src = src; ovc.style.display = 'flex'; } }
+  callHA(service, data) { return this._hass.callService('home_organizer', service, data); }
   
-  updateSublocDropdown(itemName, locationName) {
-      const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemName}`);
-      const subSelect = this.shadowRoot.getElementById(`target-subloc-${itemName}`);
-      const roomName = this.shadowRoot.getElementById(`room-select-${itemName}`).value;
-      if(!locationName) { subContainer.style.display = 'none'; return; }
-      
-      let html = `<option value="">-- Select Sublocation --</option>`;
-      html += `<option value="__ROOT__">Main ${locationName}</option>`;
-      if(this.localData.hierarchy && this.localData.hierarchy[roomName] && this.localData.hierarchy[roomName][locationName]) {
-          this.localData.hierarchy[roomName][locationName].forEach(sub => { html += `<option value="${sub}">${sub}</option>`; });
-      }
-      subSelect.innerHTML = html;
-      subContainer.style.display = 'flex';
-  }
+  // Include other helper methods (camera, etc)
+  toggleWhiteBG() { this.useAiBg = !this.useAiBg; const btn = this.shadowRoot.getElementById('btn-cam-wb'); if (this.useAiBg) btn.classList.add('active'); else btn.classList.remove('active'); }
+  async openCamera(context) { this.cameraContext = context; const modal = this.shadowRoot.getElementById('camera-modal'); const video = this.shadowRoot.getElementById('camera-video'); modal.style.display = 'flex'; try { this.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: this.facingMode || "environment" } }); video.srcObject = this.stream; } catch (err) { alert("Camera Error: " + err.message); modal.style.display = 'none'; } }
+  stopCamera() { const modal = this.shadowRoot.getElementById('camera-modal'); const video = this.shadowRoot.getElementById('camera-video'); if (this.stream) this.stream.getTracks().forEach(track => track.stop()); video.srcObject = null; modal.style.display = 'none'; }
+  async switchCamera() { this.facingMode = (this.facingMode === "user") ? "environment" : "user"; this.stopCamera(); setTimeout(() => this.openCamera(this.cameraContext), 200); }
+  snapPhoto() { const video = this.shadowRoot.getElementById('camera-video'); const canvas = this.shadowRoot.getElementById('camera-canvas'); const context = canvas.getContext('2d'); canvas.width = video.videoWidth; canvas.height = video.videoHeight; context.drawImage(video, 0, 0, canvas.width, canvas.height); if (this.useAiBg) { let imageData = context.getImageData(0, 0, canvas.width, canvas.height); let data = imageData.data; for (let i = 0; i < data.length; i += 4) { let r = data[i], g = data[i+1], b = data[i+2]; if (r > 190 && g > 190 && b > 190) { data[i] = 255; data[i+1] = 255; data[i+2] = 255; } } context.putImageData(imageData, 0, 0); } const dataUrl = canvas.toDataURL('image/jpeg', 0.5); this.stopCamera(); if (this.cameraContext === 'search') { this.callHA('ai_action', { mode: 'search', image_data: dataUrl }); } else if (this.pendingItem) { this.callHA('update_image', { item_name: this.pendingItem, image_data: dataUrl }); this.pendingItem = null; } else { this.tempAddImage = dataUrl; const ic = this.shadowRoot.getElementById('add-cam-icon'); if(ic) ic.innerHTML = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`; } }
+  handleUpdateImage(input, name) { const file = input.files[0]; if (!file) return; this.compressImage(file, (dataUrl) => { this.callHA('update_image', { item_name: name, image_data: dataUrl }); }); input.value = ''; }
+  compressImage(file, callback) { const reader = new FileReader(); reader.onload = (e) => { const img = new Image(); img.onload = () => { const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d'); const MAX = 1024; let w = img.width, h = img.height; if (w > h) { if (w > MAX) { h *= MAX/w; w = MAX; } } else { if (h > MAX) { w *= MAX/h; h = MAX; } } canvas.width = w; canvas.height = h; ctx.drawImage(img, 0, 0, w, h); callback(canvas.toDataURL('image/jpeg', 0.5)); }; img.src = e.target.result; }; reader.readAsDataURL(file); }
+  updateLocationDropdown(itemName, roomName) { const locContainer = this.shadowRoot.getElementById(`loc-container-${itemName}`); const locSelect = this.shadowRoot.getElementById(`loc-select-${itemName}`); const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemName}`); subContainer.style.display = 'none'; locSelect.innerHTML = '<option value="">-- Select --</option>'; if(!roomName) { locContainer.style.display = 'none'; return; } let html = `<option value="">-- Select Location --</option>`; if(this.localData.hierarchy && this.localData.hierarchy[roomName]) { Object.keys(this.localData.hierarchy[roomName]).forEach(loc => { html += `<option value="${loc}">${loc}</option>`; }); } locSelect.innerHTML = html; locContainer.style.display = 'flex'; locSelect.dataset.room = roomName; }
+  updateSublocDropdown(itemName, locationName) { const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemName}`); const subSelect = this.shadowRoot.getElementById(`target-subloc-${itemName}`); const roomName = this.shadowRoot.getElementById(`room-select-${itemName}`).value; if(!locationName) { subContainer.style.display = 'none'; return; } let html = `<option value="">-- Select Sublocation --</option>`; html += `<option value="__ROOT__">Main ${locationName}</option>`; if(this.localData.hierarchy && this.localData.hierarchy[roomName] && this.localData.hierarchy[roomName][locationName]) { this.localData.hierarchy[roomName][locationName].forEach(sub => { html += `<option value="${sub}">${sub}</option>`; }); } subSelect.innerHTML = html; subContainer.style.display = 'flex'; }
+  handleMoveToPath(itemName) { const room = this.shadowRoot.getElementById(`room-select-${itemName}`).value; const loc = this.shadowRoot.getElementById(`loc-select-${itemName}`).value; const sub = this.shadowRoot.getElementById(`target-subloc-${itemName}`).value; if(!room || !loc || !sub) return; let targetPath = [room, loc]; if(sub !== "__ROOT__") targetPath.push(sub); this.callHA('clipboard_action', {action: 'cut', item_name: itemName}); setTimeout(() => { this.callHA('paste_item', {target_path: targetPath}); }, 100); }
   
-  handleMoveToPath(itemName) {
-      const room = this.shadowRoot.getElementById(`room-select-${itemName}`).value;
-      const loc = this.shadowRoot.getElementById(`loc-select-${itemName}`).value;
-      const sub = this.shadowRoot.getElementById(`target-subloc-${itemName}`).value;
-      if(!room || !loc || !sub) return;
-      let targetPath = [room, loc];
-      if(sub !== "__ROOT__") targetPath.push(sub);
-      this.callHA('clipboard_action', {action: 'cut', item_name: itemName});
-      setTimeout(() => { this.callHA('paste_item', {target_path: targetPath}); }, 100);
-  }
-
   deleteFolder(name) { if(confirm(`Delete folder '${name}' and ALL items inside it?`)) { this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); } }
   deleteSubloc(name) { if(confirm(`Delete '${name}'?`)) { this.callHA('update_item_details', { original_name: name, new_name: "", new_date: "" }); } }
   renameSubloc(oldName) { const newName = prompt("Rename:", oldName); if (newName && newName !== oldName) { this.callHA('update_item_details', { original_name: oldName, new_name: newName, new_date: "" }); } }
@@ -445,7 +398,5 @@ class HomeOrganizerPanel extends HTMLElement {
   saveDetails(idx, oldName) { const nEl = this.shadowRoot.getElementById(`name-${idx}`); const dEl = this.shadowRoot.getElementById(`date-${idx}`); if(nEl && dEl) { this.callHA('update_item_details', { original_name: oldName, new_name: nEl.value, new_date: dEl.value }); this.expandedIdx = null; } }
   cut(name) { this.callHA('clipboard_action', {action: 'cut', item_name: name}); }
   del(name) { this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: false }); }
-  showImg(src) { const ov = this.shadowRoot.getElementById('overlay-img'); const ovc = this.shadowRoot.getElementById('img-overlay'); if(ov && ovc) { ov.src = src; ovc.style.display = 'flex'; } }
-  callHA(service, data) { return this._hass.callService('home_organizer', service, data); }
 }
 customElements.define('home-organizer-panel', HomeOrganizerPanel);
