@@ -1,8 +1,7 @@
-// Home Organizer Ultimate - Ver 4.0.1 (Frontend Match)
+// Home Organizer Ultimate - Ver 4.1.0 (Delete Sublocation Fix)
 // License: MIT
 
 const ICONS = {
-  // ... (Identical Icons to previous 3.10.0 version) ...
   arrow_up: '<svg viewBox="0 0 24 24"><path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/></svg>',
   home: '<svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>',
   cart: '<svg viewBox="0 0 24 24"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>',
@@ -13,6 +12,7 @@ const ICONS = {
   folder: '<svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>',
   item: '<svg viewBox="0 0 24 24"><path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/></svg>',
   delete: '<svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>',
+  cut: '<svg viewBox="0 0 24 24"><path d="M9.64 7.64c.23-.5.36-1.05.36-1.64 0-2.21-1.79-4-4-4S2 3.79 2 6s1.79 4 4 4c.59 0 1.14-.13 1.64-.36L10 12l-2.36 2.36C7.14 14.13 6.59 14 6 14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.59-.13-1.14-.36-1.64L12 14l7 7h3v-1L9.64 7.64zM6 8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm0 12c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm6-7.5c-.28 0-.5-.22-.5-.5s.22-.5 .5-.5 .5 .22 .5 .5-.22 .5-.5 .5z"/></svg>',
   paste: '<svg viewBox="0 0 24 24"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>',
   plus: '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>',
   minus: '<svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>',
@@ -564,12 +564,14 @@ class HomeOrganizerPanel extends HTMLElement {
                         ${roomOptions}
                     </select>
                 </div>
+                <!-- Location Dropdown (Initially hidden/empty) -->
                 <div class="move-container" style="width:100%; display:none;" id="loc-container-${item.name}">
                     <span style="font-size:12px;color:#aaa;width:60px">Loc:</span>
                     <select class="move-select" id="loc-select-${item.name}" onchange="this.getRootNode().host.updateSublocDropdown('${item.name}', this.value)">
                         <option value="">-- Select --</option>
                     </select>
                 </div>
+                <!-- Sublocation Dropdown (Initially hidden/empty) -->
                 <div class="move-container" style="width:100%; display:none;" id="subloc-container-${item.name}">
                     <span style="font-size:12px;color:#aaa;width:60px">Sub:</span>
                     <select class="move-select" id="target-subloc-${item.name}" onchange="this.getRootNode().host.handleMoveToPath('${item.name}')">
@@ -587,16 +589,28 @@ class HomeOrganizerPanel extends HTMLElement {
       const locContainer = this.shadowRoot.getElementById(`loc-container-${itemName}`);
       const locSelect = this.shadowRoot.getElementById(`loc-select-${itemName}`);
       const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemName}`);
+      
+      // Reset subsequent dropdowns
       subContainer.style.display = 'none';
       locSelect.innerHTML = '<option value="">-- Select --</option>';
-      if(!roomName) { locContainer.style.display = 'none'; return; }
+      
+      if(!roomName) {
+          locContainer.style.display = 'none';
+          return;
+      }
       
       let html = `<option value="">-- Select Location --</option>`;
+      
+      // Populate Level 2 (Locations) for the selected Room
       if(this.localData.hierarchy && this.localData.hierarchy[roomName]) {
-          Object.keys(this.localData.hierarchy[roomName]).forEach(loc => { html += `<option value="${loc}">${loc}</option>`; });
+          Object.keys(this.localData.hierarchy[roomName]).forEach(loc => {
+              html += `<option value="${loc}">${loc}</option>`;
+          });
       }
       locSelect.innerHTML = html;
       locContainer.style.display = 'flex';
+      
+      // Store selected room temporarily on the select element for next step
       locSelect.dataset.room = roomName;
   }
   
@@ -604,12 +618,20 @@ class HomeOrganizerPanel extends HTMLElement {
       const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemName}`);
       const subSelect = this.shadowRoot.getElementById(`target-subloc-${itemName}`);
       const roomName = this.shadowRoot.getElementById(`room-select-${itemName}`).value;
-      if(!locationName) { subContainer.style.display = 'none'; return; }
+      
+      if(!locationName) {
+          subContainer.style.display = 'none';
+          return;
+      }
       
       let html = `<option value="">-- Select Sublocation --</option>`;
-      html += `<option value="__ROOT__">Main ${locationName}</option>`;
+      html += `<option value="__ROOT__">Main ${locationName}</option>`; // Allow moving to the location root
+      
+      // Populate Level 3 (Sublocations)
       if(this.localData.hierarchy && this.localData.hierarchy[roomName] && this.localData.hierarchy[roomName][locationName]) {
-          this.localData.hierarchy[roomName][locationName].forEach(sub => { html += `<option value="${sub}">${sub}</option>`; });
+          this.localData.hierarchy[roomName][locationName].forEach(sub => {
+              html += `<option value="${sub}">${sub}</option>`;
+          });
       }
       subSelect.innerHTML = html;
       subContainer.style.display = 'flex';
@@ -619,11 +641,16 @@ class HomeOrganizerPanel extends HTMLElement {
       const room = this.shadowRoot.getElementById(`room-select-${itemName}`).value;
       const loc = this.shadowRoot.getElementById(`loc-select-${itemName}`).value;
       const sub = this.shadowRoot.getElementById(`target-subloc-${itemName}`).value;
+      
       if(!room || !loc || !sub) return;
+      
       let targetPath = [room, loc];
       if(sub !== "__ROOT__") targetPath.push(sub);
+      
       this.callHA('clipboard_action', {action: 'cut', item_name: itemName});
-      setTimeout(() => { this.callHA('paste_item', {target_path: targetPath}); }, 100);
+      setTimeout(() => {
+          this.callHA('paste_item', {target_path: targetPath});
+      }, 100);
   }
 
   deleteFolder(name) { if(confirm(`Delete folder '${name}' and ALL items inside it?`)) { this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); } }
