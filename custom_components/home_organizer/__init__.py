@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 3.9.0 (Hierarchy Data for Move)
+# Home Organizer Ultimate - ver 3.10.0 (3-Level Hierarchy Support)
 
 import logging
 import sqlite3
@@ -105,20 +105,22 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
     conn = get_db_connection(hass); c = conn.cursor()
     folders = []; items = []; shopping_list = []
     
-    # Fetch full hierarchy structure for "Move To" functionality
-    # Returns { "Kitchen": ["Fridge", "Cabinet"], "Bedroom": ["Closet"] }
+    # FETCH 3-LEVEL HIERARCHY
+    # Structure: { "Kitchen": { "Fridge": ["Shelf1"], "Cabinet": [] }, "Bedroom": {} }
     hierarchy = {}
     try:
-        # Get all distinct pairs of Level 1 and Level 2
-        c.execute("SELECT DISTINCT level_1, level_2 FROM items WHERE level_1 IS NOT NULL AND level_1 != ''")
+        c.execute("SELECT DISTINCT level_1, level_2, level_3 FROM items WHERE level_1 IS NOT NULL AND level_1 != ''")
         for r in c.fetchall():
-            l1 = r[0]
-            l2 = r[1]
-            if l1 not in hierarchy: hierarchy[l1] = []
-            if l2 and l2 not in hierarchy[l1]: hierarchy[l1].append(l2)
+            l1, l2, l3 = r[0], r[1], r[2]
             
-        # Ensure lists are sorted
-        for k in hierarchy: hierarchy[k].sort()
+            if l1 not in hierarchy: hierarchy[l1] = {}
+            
+            if l2:
+                if l2 not in hierarchy[l1]: hierarchy[l1][l2] = []
+                if l3 and l3 not in hierarchy[l1][l2]: hierarchy[l1][l2].append(l3)
+        
+        # Sort keys for UI
+        # Note: Dictionaries retain insertion order in modern Python, but sorting logic usually handled in JS for display
     except Exception as e:
         _LOGGER.error(f"Hierarchy fetch error: {e}")
 
@@ -212,7 +214,7 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
         "shopping_list": shopping_list,
         "app_version": VERSION,
         "depth": len(path_parts),
-        "hierarchy": hierarchy # New Data for Dropdowns
+        "hierarchy": hierarchy
     }
 
 async def register_services(hass, entry):
@@ -233,7 +235,6 @@ async def register_services(hass, entry):
             except: pass
 
         parts = call.data.get("current_path", [])
-        
         depth = len(parts)
         cols = ["name", "type", "quantity", "item_date", "image_path"]
         
