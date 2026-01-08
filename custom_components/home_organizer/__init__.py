@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 4.2.0 (Restored & Fixed)
+# Home Organizer Ultimate - Ver 4.3.0 (Recursive Delete Fix)
 
 import logging
 import sqlite3
@@ -18,7 +18,6 @@ from .const import DOMAIN, CONF_API_KEY, CONF_DEBUG, CONF_USE_AI, DB_FILE, IMG_D
 
 _LOGGER = logging.getLogger(__name__)
 MAX_LEVELS = 10
-
 WS_GET_DATA = "home_organizer/get_data"
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -43,7 +42,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})
     
-    # Safe Websocket Registration
     try:
         websocket_api.async_register_command(
             hass,
@@ -91,8 +89,6 @@ def init_db(hass):
         {cols}, item_date TEXT, quantity INTEGER DEFAULT 1, image_path TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
-    # --- MIGRATION LOGIC (CRITICAL FIX) ---
-    # Ensure all level columns exist for existing databases
     c.execute("PRAGMA table_info(items)")
     existing_cols = [col[1] for col in c.fetchall()]
     
@@ -103,11 +99,8 @@ def init_db(hass):
     for i in range(1, MAX_LEVELS + 1):
         col_name = f"level_{i}"
         if col_name not in existing_cols:
-            try:
-                c.execute(f"ALTER TABLE items ADD COLUMN {col_name} TEXT")
-                _LOGGER.info(f"Added missing column {col_name}")
-            except Exception as e:
-                _LOGGER.error(f"Migration failed for {col_name}: {e}")
+            try: c.execute(f"ALTER TABLE items ADD COLUMN {col_name} TEXT")
+            except: pass
 
     conn.commit(); conn.close()
 
@@ -124,7 +117,6 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
     conn = get_db_connection(hass); c = conn.cursor()
     folders = []; items = []; shopping_list = []
     
-    # Fetch Hierarchy for Dropdowns
     hierarchy = {}
     try:
         c.execute("SELECT DISTINCT level_1, level_2, level_3 FROM items WHERE level_1 IS NOT NULL AND level_1 != ''")
@@ -157,7 +149,6 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
         elif query or date_filter != "All":
             sql = "SELECT * FROM items WHERE 1=1"; params = []
             for i, p in enumerate(path_parts): sql += f" AND level_{i+1} = ?"; params.append(p)
-
             if query: sql += " AND name LIKE ?"; params.append(f"%{query}%")
             if date_filter == "Week": sql += " AND item_date >= ?"; params.append((datetime.now()-timedelta(days=7)).strftime("%Y-%m-%d"))
             elif date_filter == "Month": sql += " AND item_date LIKE ?"; params.append(datetime.now().strftime("%Y-%m") + "%")
@@ -209,16 +200,7 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                 items = fetched_items
 
     finally: conn.close()
-
-    return {
-        "path_display": is_shopping and "Shopping List" or (query and "Search Results" or (" > ".join(path_parts) if path_parts else "Main")),
-        "folders": folders,
-        "items": items,
-        "shopping_list": shopping_list,
-        "app_version": VERSION,
-        "depth": len(path_parts),
-        "hierarchy": hierarchy
-    }
+    return { "path_display": is_shopping and "Shopping List" or (query and "Search Results" or (" > ".join(path_parts) if path_parts else "Main")), "folders": folders, "items": items, "shopping_list": shopping_list, "app_version": VERSION, "depth": len(path_parts), "hierarchy": hierarchy }
 
 async def register_services(hass, entry):
     api_key = entry.options.get(CONF_API_KEY, entry.data.get(CONF_API_KEY, ""))
@@ -237,15 +219,12 @@ async def register_services(hass, entry):
         depth = len(parts)
         cols = ["name", "type", "quantity", "item_date", "image_path"]
         
-        # 3-Level Logic: If depth=0 (Root), we write to level_1. If depth=1 (Room), we write to level_2.
-        next_col = f"level_{depth+1}"
-
         if itype == 'folder':
             if depth >= MAX_LEVELS: return
             vals = [f"[Folder] {name}", "folder_marker", 0, date, fname]
             qs = ["?", "?", "?", "?", "?"]
             for i, p in enumerate(parts): cols.append(f"level_{i+1}"); vals.append(p); qs.append("?")
-            cols.append(next_col); vals.append(name); qs.append("?")
+            cols.append(f"level_{depth+1}"); vals.append(name); qs.append("?")
             def db_ins():
                 conn = get_db_connection(hass); c = conn.cursor()
                 c.execute(f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})", tuple(vals))
@@ -255,9 +234,6 @@ async def register_services(hass, entry):
             vals = [name, itype, 1, date, fname]
             qs = ["?", "?", "?", "?", "?"]
             for i, p in enumerate(parts): cols.append(f"level_{i+1}"); vals.append(p); qs.append("?")
-            # For items, we DON'T write to next_col (level_{depth+1}) unless we are in a sublocation view
-            # But the 'parts' already contains the full path.
-            # If we are at Root (parts=[]), item has level_1=NULL. This is correct.
             def db_ins():
                 conn = get_db_connection(hass); c = conn.cursor()
                 c.execute(f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})", tuple(vals))
@@ -275,15 +251,31 @@ async def register_services(hass, entry):
         def db_upd(): conn = get_db_connection(hass); conn.cursor().execute(f"UPDATE items SET quantity = ?, item_date = ? WHERE name = ?", (qty, today, name)); conn.commit(); conn.close()
         await hass.async_add_executor_job(db_upd); broadcast_update()
 
+    # --- UPDATED DELETE HANDLER ---
     async def handle_delete(call):
-        name = call.data.get("item_name"); parts = call.data.get("current_path", []); is_folder = call.data.get("is_folder", False)
+        name = call.data.get("item_name")
+        parts = call.data.get("current_path", [])
+        is_folder = call.data.get("is_folder", False)
+
         def db_del(): 
             conn = get_db_connection(hass); c = conn.cursor()
             if is_folder:
-                depth = len(parts); target_col = f"level_{depth+1}"; conditions = [f"{target_col} = ?"]; args = [name]
-                for i, p in enumerate(parts): conditions.append(f"level_{i+1} = ?"); args.append(p)
+                # Recursive Delete: Matches items where the current path matches AND the target sublocation column equals 'name'
+                depth = len(parts)
+                target_col = f"level_{depth+1}"
+                
+                # Build WHERE clause
+                conditions = [f"{target_col} = ?"]
+                args = [name]
+                for i, p in enumerate(parts):
+                    conditions.append(f"level_{i+1} = ?")
+                    args.append(p)
+                
+                # Execute Delete for ALL items in that folder structure
                 c.execute(f"DELETE FROM items WHERE {' AND '.join(conditions)}", tuple(args))
-            else: c.execute(f"DELETE FROM items WHERE name = ?", (name,))
+            else:
+                c.execute(f"DELETE FROM items WHERE name = ?", (name,))
+                
             conn.commit(); conn.close()
         await hass.async_add_executor_job(db_del); broadcast_update()
 
