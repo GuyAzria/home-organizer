@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 3.11.0 (Strict Cascading Move)
+// Home Organizer Ultimate - Ver 3.12.0 (Sync Fix)
 // License: MIT
 
 const ICONS = {
@@ -38,21 +38,29 @@ class HomeOrganizerPanel extends HTMLElement {
       this.localData = null; 
       this.pendingItem = null;
       this.useAiBg = true; 
-      
       this.shopQuantities = {};
-      
+      this.subscribed = false; // Flag to prevent double subscription
+
       this.initUI();
-      
-      if (this._hass && this._hass.connection) {
-          this._hass.connection.subscribeEvents((e) => this.fetchData(), 'home_organizer_db_update');
-          this._hass.connection.subscribeEvents((e) => {
-              if (e.data.mode === 'identify') {
+    }
+
+    // Robust subscription logic
+    if (this._hass && this._hass.connection && !this.subscribed) {
+        this.subscribed = true;
+        this._hass.connection.subscribeEvents((e) => {
+            console.log("Organizer: Sync event received");
+            this.fetchData();
+        }, 'home_organizer_db_update');
+        
+        this._hass.connection.subscribeEvents((e) => {
+             if (e.data.mode === 'identify') {
                   const input = this.shadowRoot.getElementById('add-name');
                   if(input) input.value = e.data.result;
-              }
-          }, 'home_organizer_ai_result');
-          this.fetchData(); 
-      }
+             }
+        }, 'home_organizer_ai_result');
+        
+        // Initial Fetch
+        this.fetchData();
     }
   }
 
@@ -113,7 +121,6 @@ class HomeOrganizerPanel extends HTMLElement {
         .expanded-details { margin-top: 10px; padding-top: 10px; border-top: 1px solid #555; display: flex; flex-direction: column; gap: 10px; }
         .detail-row { display: flex; gap: 10px; align-items: center; }
         
-        /* UNIFIED 2D BUTTONS FOR EDIT VIEW */
         .action-btn { 
             width: 40px; height: 40px; 
             border-radius: 8px; border: 1px solid #555; 
@@ -534,10 +541,20 @@ class HomeOrganizerPanel extends HTMLElement {
          const details = document.createElement('div');
          details.className = 'expanded-details';
          
+         let dropdownOptions = `<option value="">-- Move to... --</option>`;
+         dropdownOptions += `<option value="General">General (Root)</option>`;
+         // Location dropdown logic (Level 1)
          let roomOptions = `<option value="">-- Change Room --</option>`;
          if(this.localData.hierarchy) {
              Object.keys(this.localData.hierarchy).forEach(room => {
                  roomOptions += `<option value="${room}">${room}</option>`;
+             });
+         }
+         
+         // Sublocation dropdown (Current Room)
+         if(this.localData.folders) {
+             this.localData.folders.forEach(f => {
+                 dropdownOptions += `<option value="${f.name}">${f.name}</option>`;
              });
          }
 
