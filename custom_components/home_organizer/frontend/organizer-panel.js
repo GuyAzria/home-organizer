@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 3.11.0 (Strict Cascading Move)
+// Home Organizer Ultimate - Ver 4.0.1 (Frontend Match)
 // License: MIT
 
 const ICONS = {
@@ -12,7 +12,6 @@ const ICONS = {
   folder: '<svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>',
   item: '<svg viewBox="0 0 24 24"><path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/></svg>',
   delete: '<svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>',
-  cut: '<svg viewBox="0 0 24 24"><path d="M9.64 7.64c.23-.5.36-1.05.36-1.64 0-2.21-1.79-4-4-4S2 3.79 2 6s1.79 4 4 4c.59 0 1.14-.13 1.64-.36L10 12l-2.36 2.36C7.14 14.13 6.59 14 6 14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.59-.13-1.14-.36-1.64L12 14l7 7h3v-1L9.64 7.64zM6 8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm0 12c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm6-7.5c-.28 0-.5-.22-.5-.5s.22-.5 .5-.5 .5 .22 .5 .5-.22 .5-.5 .5z"/></svg>',
   paste: '<svg viewBox="0 0 24 24"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>',
   plus: '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>',
   minus: '<svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>',
@@ -22,7 +21,8 @@ const ICONS = {
   sparkles: '<svg viewBox="0 0 24 24"><path d="M9 9l1.5-4 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5zM19 19l-2.5-1 2.5-1 1-2.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5z"/></svg>',
   refresh: '<svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>',
   wand: '<svg viewBox="0 0 24 24"><path d="M7.5 5.6L10 7 7.5 8.4 6.1 10.9 4.7 8.4 2.2 7 4.7 5.6 6.1 3.1 7.5 5.6zm12 9.8L17 14l2.5-1.4L18.1 10.1 19.5 12.6 22 14 19.5 15.4 18.1 17.9 17 15.4zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5L22 2zm-8.8 11.2l-1.4-2.5L10.4 13.2 8 14.6 10.4 16 11.8 18.5 13.2 16 15.6 14.6 13.2 13.2z"/></svg>',
-  move: '<svg viewBox="0 0 24 24"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg>' 
+  move: '<svg viewBox="0 0 24 24"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg>',
+  cut: '<svg viewBox="0 0 24 24"><path d="M9.64 7.64c.23-.5.36-1.05.36-1.64 0-2.21-1.79-4-4-4S2 3.79 2 6s1.79 4 4 4c.59 0 1.14-.13 1.64-.36L10 12l-2.36 2.36C7.14 14.13 6.59 14 6 14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.59-.13-1.14-.36-1.64L12 14l7 7h3v-1L9.64 7.64zM6 8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm0 12c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm6-7.5c-.28 0-.5-.22-.5-.5s.22-.5 .5-.5 .5 .22 .5 .5-.22 .5-.5 .5z"/></svg>'
 };
 
 class HomeOrganizerPanel extends HTMLElement {
@@ -38,21 +38,22 @@ class HomeOrganizerPanel extends HTMLElement {
       this.localData = null; 
       this.pendingItem = null;
       this.useAiBg = true; 
-      
       this.shopQuantities = {};
-      
+      this.subscribed = false;
+
       this.initUI();
-      
-      if (this._hass && this._hass.connection) {
-          this._hass.connection.subscribeEvents((e) => this.fetchData(), 'home_organizer_db_update');
-          this._hass.connection.subscribeEvents((e) => {
-              if (e.data.mode === 'identify') {
+    }
+
+    if (this._hass && this._hass.connection && !this.subscribed) {
+        this.subscribed = true;
+        this._hass.connection.subscribeEvents((e) => this.fetchData(), 'home_organizer_db_update');
+        this._hass.connection.subscribeEvents((e) => {
+             if (e.data.mode === 'identify') {
                   const input = this.shadowRoot.getElementById('add-name');
                   if(input) input.value = e.data.result;
-              }
-          }, 'home_organizer_ai_result');
-          this.fetchData(); 
-      }
+             }
+        }, 'home_organizer_ai_result');
+        this.fetchData();
     }
   }
 
@@ -113,28 +114,13 @@ class HomeOrganizerPanel extends HTMLElement {
         .expanded-details { margin-top: 10px; padding-top: 10px; border-top: 1px solid #555; display: flex; flex-direction: column; gap: 10px; }
         .detail-row { display: flex; gap: 10px; align-items: center; }
         
-        /* UNIFIED 2D BUTTONS FOR EDIT VIEW */
-        .action-btn { 
-            width: 40px; height: 40px; 
-            border-radius: 8px; border: 1px solid #555; 
-            color: #ccc; background: var(--icon-btn-bg); 
-            cursor: pointer; display: flex; align-items: center; justify-content: center;
-            padding: 8px;
-        }
+        .action-btn { width: 40px; height: 40px; border-radius: 8px; border: 1px solid #555; color: #ccc; background: var(--icon-btn-bg); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 8px; }
         .action-btn:hover { background: #555; color: white; }
-        .action-btn svg { width: 24px; height: 24px; }
-        
         .btn-danger { color: #ff8a80; border-color: #d32f2f; }
-        .btn-danger:hover { background: #d32f2f; color: white; }
-        
         .btn-text { width: auto; padding: 0 15px; font-weight: bold; color: white; background: var(--primary); border: none; }
-        
-        /* Move Dropdown Styling */
         .move-container { display: flex; gap: 5px; align-items: center; flex: 1; }
         .move-select { flex: 1; padding: 8px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; }
-
         .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
-        .ai-btn { color: #FFD700 !important; }
         
         /* CAMERA OVERLAY STYLES */
         #camera-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: center; }
@@ -534,10 +520,20 @@ class HomeOrganizerPanel extends HTMLElement {
          const details = document.createElement('div');
          details.className = 'expanded-details';
          
+         let dropdownOptions = `<option value="">-- Move to... --</option>`;
+         dropdownOptions += `<option value="General">General (Root)</option>`;
+         // Location dropdown logic (Level 1)
          let roomOptions = `<option value="">-- Change Room --</option>`;
          if(this.localData.hierarchy) {
              Object.keys(this.localData.hierarchy).forEach(room => {
                  roomOptions += `<option value="${room}">${room}</option>`;
+             });
+         }
+         
+         // Sublocation dropdown (Current Room)
+         if(this.localData.folders) {
+             this.localData.folders.forEach(f => {
+                 dropdownOptions += `<option value="${f.name}">${f.name}</option>`;
              });
          }
 
@@ -556,27 +552,33 @@ class HomeOrganizerPanel extends HTMLElement {
                     </label>
                  </div>
                  <div style="display:flex;gap:10px;">
-                    <!-- Cut button removed -->
                     <button class="action-btn btn-danger" title="Delete" onclick="this.getRootNode().host.del('${item.name}')">${ICONS.delete}</button>
                  </div>
             </div>
             
-            <!-- Move Controls: Start with Room selection only -->
+            <!-- Move Controls -->
             <div class="detail-row" style="margin-top:10px; border-top:1px solid #444; padding-top:10px; flex-direction:column; gap:8px;">
+                <!-- Move to Sublocation (Current Room) -->
                 <div class="move-container" style="width:100%">
-                    <span style="font-size:12px;color:#aaa;width:60px">Move to:</span>
+                    <span style="font-size:12px;color:#aaa;width:60px">Subloc:</span>
+                    <select class="move-select" onchange="this.getRootNode().host.handleDropAction(this.value, '${item.name}')">
+                        ${dropdownOptions}
+                    </select>
+                </div>
+                
+                <!-- Move to Different Room -->
+                <div class="move-container" style="width:100%">
+                    <span style="font-size:12px;color:#aaa;width:60px">Room:</span>
                     <select class="move-select" id="room-select-${item.name}" onchange="this.getRootNode().host.updateLocationDropdown('${item.name}', this.value)">
                         ${roomOptions}
                     </select>
                 </div>
-                <!-- Location Dropdown (Initially hidden/empty) -->
                 <div class="move-container" style="width:100%; display:none;" id="loc-container-${item.name}">
                     <span style="font-size:12px;color:#aaa;width:60px">Loc:</span>
                     <select class="move-select" id="loc-select-${item.name}" onchange="this.getRootNode().host.updateSublocDropdown('${item.name}', this.value)">
                         <option value="">-- Select --</option>
                     </select>
                 </div>
-                <!-- Sublocation Dropdown (Initially hidden/empty) -->
                 <div class="move-container" style="width:100%; display:none;" id="subloc-container-${item.name}">
                     <span style="font-size:12px;color:#aaa;width:60px">Sub:</span>
                     <select class="move-select" id="target-subloc-${item.name}" onchange="this.getRootNode().host.handleMoveToPath('${item.name}')">
