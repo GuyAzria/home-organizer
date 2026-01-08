@@ -97,7 +97,23 @@ class HomeOrganizerPanel extends HTMLElement {
         .android-folder-icon { width: 56px; height: 56px; background: #3c4043; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #8ab4f8; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); position: relative; }
         .folder-delete-btn { position: absolute; top: -5px; right: -5px; background: var(--danger); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
         .item-list { display: flex; flex-direction: column; gap: 5px; }
-        .group-separator { color: #aaa; font-size: 14px; margin: 20px 0 10px 0; border-bottom: 1px solid #444; padding-bottom: 4px; text-transform: uppercase; font-weight: bold; display: flex; justify-content: space-between; align-items: center; min-height: 35px; }
+        
+        /* Updated Headers for Edit Mode Consistency */
+        .group-separator { 
+            color: #aaa; font-size: 14px; margin: 20px 0 10px 0; 
+            border-bottom: 1px solid #444; padding-bottom: 4px; 
+            text-transform: uppercase; font-weight: bold; 
+            display: flex; justify-content: space-between; align-items: center;
+            min-height: 35px;
+        }
+        .group-separator.drag-over { border-bottom: 2px solid var(--primary); color: var(--primary); background: rgba(3, 169, 244, 0.1); }
+        .oos-separator { color: var(--danger); border-color: var(--danger); }
+        
+        /* Sublocation Action Buttons - styled like item actions */
+        .edit-subloc-btn { background: none; border: none; color: #aaa; cursor: pointer; padding: 4px; }
+        .edit-subloc-btn:hover { color: var(--primary); }
+        .delete-subloc-btn { background: none; border: none; color: var(--danger); cursor: pointer; padding: 4px; }
+
         .item-row { background: #2c2c2e; margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid transparent; touch-action: pan-y; }
         .item-row.expanded { background: #3a3a3c; flex-direction: column; align-items: stretch; cursor: default; }
         .out-of-stock-frame { border: 2px solid var(--danger); }
@@ -133,7 +149,6 @@ class HomeOrganizerPanel extends HTMLElement {
         .wb-btn.active { color: #333; background: white; border-color: white; }
         .wb-btn svg { width: 24px; height: 24px; margin-bottom: 2px; }
         #camera-canvas { display: none; }
-        
         .direct-input-label { width: 40px; height: 40px; background: var(--icon-btn-bg); border-radius: 8px; border: 1px solid #555; display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer; color: #ccc; }
         .hidden-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10; }
       </style>
@@ -412,7 +427,7 @@ class HomeOrganizerPanel extends HTMLElement {
             this.setupDropTarget(header, subName);
 
             if (this.isEditMode && subName !== "General") {
-                header.innerHTML = `<span>${subName}</span> <div style="display:flex;gap:5px"><button class="edit-subloc-btn" onclick="this.getRootNode().host.renameSubloc('${subName}')">${ICONS.edit}</button><button class="edit-subloc-btn" style="color:var(--danger)" onclick="this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button></div>`;
+                header.innerHTML = `<span>${subName}</span> <div style="display:flex;gap:5px"><button class="edit-subloc-btn" onclick="this.getRootNode().host.renameSubloc('${subName}')">${ICONS.edit}</button><button class="delete-subloc-btn" onclick="this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button></div>`;
             } else {
                 header.innerText = subName;
             }
@@ -435,7 +450,7 @@ class HomeOrganizerPanel extends HTMLElement {
       el.draggable = true;
       el.ondragstart = (e) => { e.dataTransfer.setData("text/plain", itemName); e.dataTransfer.effectAllowed = "move"; el.classList.add('dragging'); };
       el.ondragend = () => el.classList.remove('dragging');
-      // Touch drag omitted for brevity in this specific update
+      // Touch drag omitted for brevity
   }
 
   setupDropTarget(el, subName) {
@@ -654,7 +669,17 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   deleteFolder(name) { if(confirm(`Delete folder '${name}' and ALL items inside it?`)) { this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); } }
-  deleteSubloc(name) { if(confirm(`Delete '${name}'?`)) { this.callHA('update_item_details', { original_name: name, new_name: "", new_date: "" }); } }
+  
+  // FIX: Using correct delete service for sublocation with is_folder: true
+  deleteSubloc(name) { 
+      if(confirm(`Delete '${name}'?`)) { 
+          this._hass.callService('home_organizer', 'delete_item', { 
+              item_name: name, 
+              current_path: this.currentPath,
+              is_folder: true 
+          }); 
+      } 
+  }
 
   render() { this.updateUI(); }
   navigate(dir, name) { if (dir === 'root') this.currentPath = []; else if (dir === 'up') this.currentPath.pop(); else if (dir === 'down' && name) this.currentPath.push(name); this.fetchData(); }
