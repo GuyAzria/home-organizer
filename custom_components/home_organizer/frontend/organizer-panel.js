@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 4.3.0 (Delete Sublocation Fix & Icons)
+// Home Organizer Ultimate - Ver 5.1.0 (Fixed Add Logic)
 // License: MIT
 
 const ICONS = {
@@ -23,7 +23,7 @@ const ICONS = {
   refresh: '<svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>',
   wand: '<svg viewBox="0 0 24 24"><path d="M7.5 5.6L10 7 7.5 8.4 6.1 10.9 4.7 8.4 2.2 7 4.7 5.6 6.1 3.1 7.5 5.6zm12 9.8L17 14l2.5-1.4L18.1 10.1 19.5 12.6 22 14 19.5 15.4 18.1 17.9 17 15.4zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5L22 2zm-8.8 11.2l-1.4-2.5L10.4 13.2 8 14.6 10.4 16 11.8 18.5 13.2 16 15.6 14.6 13.2 13.2z"/></svg>',
   move: '<svg viewBox="0 0 24 24"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg>',
-  plus_thick: '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>' // Standard plus for add button
+  plus_thick: '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>' 
 };
 
 class HomeOrganizerPanel extends HTMLElement {
@@ -39,7 +39,6 @@ class HomeOrganizerPanel extends HTMLElement {
       this.localData = null; 
       this.shopQuantities = {};
       this.subscribed = false;
-
       this.initUI();
     }
 
@@ -62,9 +61,7 @@ class HomeOrganizerPanel extends HTMLElement {
           });
           this.localData = data;
           this.updateUI();
-      } catch (e) {
-          console.error("Fetch error", e);
-      }
+      } catch (e) { console.error("Fetch error", e); }
   }
 
   initUI() {
@@ -90,55 +87,40 @@ class HomeOrganizerPanel extends HTMLElement {
         .android-folder-icon { width: 56px; height: 56px; background: #3c4043; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #8ab4f8; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); position: relative; }
         .folder-delete-btn { position: absolute; top: -5px; right: -5px; background: var(--danger); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
         
+        /* Inline Add Button Style */
+        .add-folder-btn .android-folder-icon { border: 2px solid var(--accent); background: rgba(76, 175, 80, 0.1); color: var(--accent); }
+        .folder-input { width: 100%; font-size: 12px; text-align: center; background: #222; color: white; border: 1px solid var(--accent); border-radius: 4px; }
+
         .item-list { display: flex; flex-direction: column; gap: 5px; }
-        .group-separator { 
-            color: #aaa; font-size: 14px; margin: 20px 0 10px 0; 
-            border-bottom: 1px solid #444; padding-bottom: 4px; 
-            text-transform: uppercase; font-weight: bold; 
-            display: flex; justify-content: space-between; align-items: center;
-            min-height: 35px;
-        }
-        .group-separator.drag-over { border-bottom: 2px solid var(--primary); color: var(--primary); background: rgba(3, 169, 244, 0.1); }
-        .oos-separator { color: var(--danger); border-color: var(--danger); }
-        
-        /* Updated Sublocation Buttons */
+        .group-separator { color: #aaa; font-size: 14px; margin: 20px 0 10px 0; border-bottom: 1px solid #444; padding-bottom: 4px; text-transform: uppercase; font-weight: bold; display: flex; justify-content: space-between; align-items: center; min-height: 35px; }
         .edit-subloc-btn { width: 32px; height: 32px; background: none; border: none; color: #aaa; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-        .edit-subloc-btn:hover { color: var(--primary); background: rgba(255,255,255,0.1); border-radius: 4px; }
         .delete-subloc-btn { width: 32px; height: 32px; background: none; border: none; color: var(--danger); cursor: pointer; display: flex; align-items: center; justify-content: center; }
-        .delete-subloc-btn:hover { background: rgba(244, 67, 54, 0.1); border-radius: 4px; }
 
         .item-row { background: #2c2c2e; margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid transparent; touch-action: pan-y; }
         .item-row.expanded { background: #3a3a3c; flex-direction: column; align-items: stretch; cursor: default; }
         .out-of-stock-frame { border: 2px solid var(--danger); }
-
+        
         .item-main { display: flex; align-items: center; justify-content: space-between; width: 100%; cursor: pointer; }
         .item-left { display: flex; align-items: center; gap: 10px; }
         .item-icon { color: var(--primary); display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; }
         .item-thumbnail { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: #fff; display: block; border: 1px solid #444; }
-
         .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 4px; border-radius: 20px; }
         .qty-btn { background: #444; border: none; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-        .bottom-bar { display: none; } /* Removed Bottom Bar */
+        
+        .bottom-bar { display: none; } 
         .expanded-details { margin-top: 10px; padding-top: 10px; border-top: 1px solid #555; display: flex; flex-direction: column; gap: 10px; }
         .detail-row { display: flex; gap: 10px; align-items: center; }
-        
         .action-btn { width: 40px; height: 40px; border-radius: 8px; border: 1px solid #555; color: #ccc; background: var(--icon-btn-bg); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 8px; }
         .btn-text { width: auto; padding: 0 15px; font-weight: bold; color: white; background: var(--primary); border: none; }
         
-        /* NEW: Add Item Button (List View) */
-        .add-item-row {
-            background: rgba(76, 175, 80, 0.1); 
-            border: 1px dashed var(--accent); 
-            color: var(--accent);
-            text-align: center;
-            padding: 12px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: bold;
-            margin-top: 10px;
-        }
-
-        /* Modals & Overlays */
+        /* Add Item Button (List View) */
+        .add-item-row { background: rgba(76, 175, 80, 0.1); border: 1px dashed var(--accent); color: var(--accent); text-align: center; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        
+        .move-container { display: flex; gap: 5px; align-items: center; flex: 1; }
+        .move-select { flex: 1; padding: 8px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; }
+        .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
+        
+        /* Camera Overlay */
         #camera-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: center; }
         #camera-video { width: 100%; height: 80%; object-fit: cover; }
         .camera-controls { height: 20%; width: 100%; display: flex; align-items: center; justify-content: center; gap: 30px; background: rgba(0,0,0,0.5); position: absolute; bottom: 0; }
@@ -146,33 +128,16 @@ class HomeOrganizerPanel extends HTMLElement {
         .close-cam-btn { color: white; background: none; border: none; font-size: 16px; cursor: pointer; }
         .wb-btn { color: #aaa; background: none; border: 2px solid #555; border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-direction: column; font-size: 10px; }
         .wb-btn.active { color: #333; background: white; border-color: white; }
-        .wb-btn svg { width: 24px; height: 24px; margin-bottom: 2px; }
         #camera-canvas { display: none; }
-        
-        /* Hidden Inputs */
         .direct-input-label { width: 40px; height: 40px; background: var(--icon-btn-bg); border-radius: 8px; border: 1px solid #555; display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer; color: #ccc; }
         .hidden-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10; }
-        
-        .move-container { display: flex; gap: 5px; align-items: center; flex: 1; }
-        .move-select { flex: 1; padding: 8px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; }
-        .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
       </style>
       
       <div class="app-container" id="app">
          <div class="top-bar">
-            <div style="display:flex;gap:5px">
-                <button class="nav-btn" id="btn-up">${ICONS.arrow_up}</button>
-                <button class="nav-btn" id="btn-home">${ICONS.home}</button>
-            </div>
-            <div class="title-box">
-                <div class="main-title" id="display-title">Organizer</div>
-                <div class="sub-title" id="display-path">Main</div>
-            </div>
-            <div style="display:flex;gap:5px">
-                <button class="nav-btn" id="btn-shop">${ICONS.cart}</button>
-                <button class="nav-btn" id="btn-search">${ICONS.search}</button>
-                <button class="nav-btn" id="btn-edit">${ICONS.edit}</button>
-            </div>
+            <div style="display:flex;gap:5px"><button class="nav-btn" id="btn-up">${ICONS.arrow_up}</button><button class="nav-btn" id="btn-home">${ICONS.home}</button></div>
+            <div class="title-box"><div class="main-title" id="display-title">Organizer</div><div class="sub-title" id="display-path">Main</div></div>
+            <div style="display:flex;gap:5px"><button class="nav-btn" id="btn-shop">${ICONS.cart}</button><button class="nav-btn" id="btn-search">${ICONS.search}</button><button class="nav-btn" id="btn-edit">${ICONS.edit}</button></div>
         </div>
         
         <div class="search-box" id="search-box" style="display:none;padding:10px;background:#2a2a2a">
@@ -180,12 +145,9 @@ class HomeOrganizerPanel extends HTMLElement {
             <button class="nav-btn" id="search-close">${ICONS.close}</button>
         </div>
         
-        <div class="content" id="content">
-            <div style="text-align:center;padding:20px;color:#888;">Loading...</div>
-        </div>
+        <div class="content" id="content"><div style="text-align:center;padding:20px;color:#888;">Loading...</div></div>
       </div>
       
-      <!-- Camera Modal (Unchanged) -->
       <div id="camera-modal">
           <video id="camera-video" autoplay playsinline muted></video>
           <div class="camera-controls">
@@ -196,7 +158,6 @@ class HomeOrganizerPanel extends HTMLElement {
           </div>
           <canvas id="camera-canvas"></canvas>
       </div>
-
       <div class="overlay" id="img-overlay" onclick="this.style.display='none'" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:200;justify-content:center;align-items:center"><img id="overlay-img" style="max-width:90%;max-height:90%;border-radius:8px"></div>
     `;
 
@@ -226,14 +187,12 @@ class HomeOrganizerPanel extends HTMLElement {
     if(!this.localData) return;
     const attrs = this.localData;
     const root = this.shadowRoot;
-    
     root.getElementById('display-title').innerText = attrs.path_display;
     const content = root.getElementById('content');
     content.innerHTML = '';
 
     // Shopping List
     if (attrs.shopping_list && attrs.shopping_list.length > 0) {
-        // ... (Shopping list logic same as before, simplified for brevity here) ...
         const listContainer = document.createElement('div');
         listContainer.className = 'item-list';
         const grouped = {};
@@ -246,190 +205,116 @@ class HomeOrganizerPanel extends HTMLElement {
         return;
     }
 
-    // Grid View (Depth < 2: Rooms or Main Locations)
+    // Grid View
     if (attrs.depth < 2) {
         const grid = document.createElement('div');
         grid.className = 'folder-grid';
-        
         if (attrs.folders) {
             attrs.folders.forEach(folder => {
-                const el = document.createElement('div');
-                el.className = 'folder-item';
+                const el = document.createElement('div'); el.className = 'folder-item';
                 el.onclick = () => this.navigate('down', folder.name);
-                
-                const deleteBtnHtml = this.isEditMode 
-                    ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` 
-                    : '';
-
-                el.innerHTML = `
-                    <div class="android-folder-icon">
-                        ${ICONS.folder}
-                        ${deleteBtnHtml}
-                    </div>
-                    <div class="folder-label">${folder.name}</div>
-                `;
+                const deleteBtnHtml = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` : '';
+                el.innerHTML = `<div class="android-folder-icon">${ICONS.folder}${deleteBtnHtml}</div><div class="folder-label">${folder.name}</div>`;
                 grid.appendChild(el);
             });
         }
-
-        // NEW: Add Room/Location Button
+        
+        // Inline Add Button
         const addBtn = document.createElement('div');
         addBtn.className = 'folder-item add-folder-btn';
         const labelText = (attrs.depth === 0) ? "הוסף חדר" : "הוסף מיקום";
-        
-        addBtn.innerHTML = `
-            <div class="android-folder-icon">
-                ${ICONS.plus_thick}
-            </div>
-            <div class="folder-label" id="add-folder-label">${labelText}</div>
-        `;
-        
-        // Inline Edit Logic
+        addBtn.innerHTML = `<div class="android-folder-icon">${ICONS.plus_thick}</div><div class="folder-label" id="add-folder-label">${labelText}</div>`;
         addBtn.onclick = (e) => {
             const labelEl = addBtn.querySelector('#add-folder-label');
-            if (labelEl.querySelector('input')) return; // Already editing
-            
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.className = 'folder-input';
-            input.placeholder = labelText;
+            if (labelEl.querySelector('input')) return;
+            const input = document.createElement('input'); input.type = 'text'; input.className = 'folder-input'; input.placeholder = labelText;
             input.onclick = (ev) => ev.stopPropagation();
-            
-            // Handle creation
-            const create = () => {
-                if(input.value) this.addItem('folder', input.value);
-                this.render(); // Reset UI (will refresh on update)
-            };
-            
-            input.onblur = create;
-            input.onkeydown = (ev) => { if(ev.key === 'Enter') create(); };
-            
-            labelEl.innerHTML = '';
-            labelEl.appendChild(input);
-            input.focus();
+            const create = () => { if(input.value) this.addItem('folder', input.value); };
+            input.onblur = create; input.onkeydown = (ev) => { if(ev.key === 'Enter') create(); };
+            labelEl.innerHTML = ''; labelEl.appendChild(input); input.focus();
         };
-
         grid.appendChild(addBtn);
         content.appendChild(grid);
     } 
-    // List View (Sublocations & Items)
+    // List View
     else {
         const listContainer = document.createElement('div');
         listContainer.className = 'item-list';
+        const inStock = [];
+        const outOfStock = [];
+        if (attrs.items) attrs.items.forEach(item => { if(item.qty === 0) outOfStock.push(item); else inStock.push(item); });
         
-        const inStock = [], outOfStock = [];
-        if (attrs.items) attrs.items.forEach(item => (item.qty === 0 ? outOfStock : inStock).push(item));
-
         const grouped = {};
         if (attrs.folders) attrs.folders.forEach(f => grouped[f.name] = []);
         if (!grouped["General"]) grouped["General"] = [];
-        
-        inStock.forEach(item => {
-            const sub = item.sub_location || "General";
-            if(!grouped[sub]) grouped[sub] = [];
-            grouped[sub].push(item);
-        });
+        inStock.forEach(item => { const sub = item.sub_location || "General"; if(!grouped[sub]) grouped[sub] = []; grouped[sub].push(item); });
 
-        // Render Groups
         Object.keys(grouped).sort().forEach(subName => {
-            // Header
             const header = document.createElement('div');
             header.className = 'group-separator';
-            
             if (this.isEditMode && subName !== "General") {
                 header.innerHTML = `<span>${subName}</span> <div style="display:flex;gap:5px"><button class="edit-subloc-btn" onclick="this.getRootNode().host.renameSubloc('${subName}')">${ICONS.edit}</button><button class="delete-subloc-btn" onclick="this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button></div>`;
-            } else {
-                header.innerText = subName;
-            }
+            } else { header.innerText = subName; }
             listContainer.appendChild(header);
-
-            // Items
             grouped[subName].forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
             
-            // NEW: Add Item Button INSIDE Sublocation
+            // Add Item Button inside Group
             const addSubItemBtn = document.createElement('div');
             addSubItemBtn.className = 'add-item-row';
-            addSubItemBtn.innerText = "הוסף"; 
-            addSubItemBtn.onclick = () => this.addItem('item', 'New Item', subName); // Pass subName!
-            
+            addSubItemBtn.innerText = "הוסף";
+            addSubItemBtn.onclick = () => this.addItem('item', 'New Item', subName);
             listContainer.appendChild(addSubItemBtn);
         });
-
+        
         if (outOfStock.length > 0) {
-            const oosHeader = document.createElement('div');
-            oosHeader.className = 'group-separator oos-separator';
-            oosHeader.innerText = "Out of Stock";
-            listContainer.appendChild(oosHeader);
+            const oosHeader = document.createElement('div'); oosHeader.className = 'group-separator oos-separator'; oosHeader.innerText = "Out of Stock"; listContainer.appendChild(oosHeader);
             outOfStock.forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
         }
         content.appendChild(listContainer);
     }
   }
-
-  // Updated addItem to handle sublocation context
-  addItem(type, nameOverride, subLocation) {
-    const name = nameOverride || `New Item ${Date.now().toString().slice(-4)}`; // Unique default name
-    const date = new Date().toISOString().split('T')[0];
-    
-    // Construct Path including Sublocation if provided
-    let path = [...this.currentPath];
-    if (subLocation && subLocation !== "General") {
-        path.push(subLocation);
-    }
-    
-    this._hass.callService('home_organizer', 'add_item', { 
-        item_name: name, 
-        item_type: type, 
-        item_date: date, 
-        image_data: null, 
-        current_path: path 
-    });
-  }
-
-  // ... (Rest of existing methods: navigate, toggleRow, updateQty, etc. remain unchanged) ...
   
   createItemRow(item, isShopMode) {
-      const div = document.createElement('div');
-      div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''}`;
-      div.onclick = (e) => {
-           // Prevent toggle if clicking on controls, handled bystopPropagation usually, but safe check
-           if(!e.target.closest('button') && !e.target.closest('select') && !e.target.closest('input')) {
-               this.toggleRow(item.name);
-           }
-      };
+     const div = document.createElement('div');
+     const oosClass = (item.qty === 0) ? 'out-of-stock-frame' : '';
+     div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''} ${oosClass}`;
+     div.onclick = (e) => {
+         if(!e.target.closest('button') && !e.target.closest('select') && !e.target.closest('input')) {
+             this.toggleRow(item.name);
+         }
+     };
 
-      let iconHtml = `<span class="item-icon">${ICONS.item}</span>`;
-      if (item.img) iconHtml = `<img src="${item.img}" class="item-thumbnail" onclick="event.stopPropagation(); this.getRootNode().host.showImg('${item.img}')">`;
-      
-      let controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${ICONS.plus}</button><span class="qty-val">${item.qty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${ICONS.minus}</button>`;
+     let iconHtml = `<span class="item-icon">${ICONS.item}</span>`;
+     if (item.img) iconHtml = `<img src="${item.img}" class="item-thumbnail" onclick="event.stopPropagation(); this.getRootNode().host.showImg('${item.img}')">`;
+     
+     let controls = '';
+     if (isShopMode) {
+         const localQty = (this.shopQuantities[item.name] !== undefined) ? this.shopQuantities[item.name] : 0;
+         const checkStyle = (localQty === 0) ? "background:#555;color:#888;cursor:not-allowed;width:40px;height:40px;margin-left:8px;" : "background:var(--accent);width:40px;height:40px;margin-left:8px;";
+         const checkDisabled = (localQty === 0) ? "disabled" : "";
+         controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', -1)">${ICONS.minus}</button><span class="qty-val" style="margin:0 8px">${localQty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', 1)">${ICONS.plus}</button><button class="qty-btn" style="${checkStyle}" ${checkDisabled} title="Complete" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.name}')">${ICONS.check}</button>`;
+     } else {
+         controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${ICONS.plus}</button><span class="qty-val">${item.qty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${ICONS.minus}</button>`;
+     }
 
-      div.innerHTML = `
+     const subText = isShopMode ? `${item.main_location} > ${item.sub_location || ''}` : `${item.date || ''}`;
+
+     div.innerHTML = `
         <div class="item-main">
-            <div class="item-left">${iconHtml}<div><div>${item.name}</div></div></div>
+            <div class="item-left">${iconHtml}<div><div>${item.name}</div><div class="sub-title">${subText}</div></div></div>
             <div class="item-qty-ctrl">${controls}</div>
         </div>
-      `;
-      
-      // Expanded view Logic (same as before)
-      if (this.expandedIdx === item.name) {
-          const details = document.createElement('div');
-          details.className = 'expanded-details';
-          // ... (Details HTML from previous version) ...
-          
-          let dropdownOptions = `<option value="">-- Move to... --</option>`;
+     `;
+     
+     if (this.expandedIdx === item.name) {
+         const details = document.createElement('div');
+         details.className = 'expanded-details';
+         
+         let dropdownOptions = `<option value="">-- Move to... --</option>`;
          dropdownOptions += `<option value="General">General (Root)</option>`;
-         // Location dropdown logic (Level 1)
          let roomOptions = `<option value="">-- Change Room --</option>`;
-         if(this.localData.hierarchy) {
-             Object.keys(this.localData.hierarchy).forEach(room => {
-                 roomOptions += `<option value="${room}">${room}</option>`;
-             });
-         }
-         if(this.localData.folders) {
-             this.localData.folders.forEach(f => {
-                 dropdownOptions += `<option value="${f.name}">${f.name}</option>`;
-             });
-         }
+         if(this.localData.hierarchy) { Object.keys(this.localData.hierarchy).forEach(room => { roomOptions += `<option value="${room}">${room}</option>`; }); }
+         if(this.localData.folders) { this.localData.folders.forEach(f => { dropdownOptions += `<option value="${f.name}">${f.name}</option>`; }); }
 
          details.innerHTML = `
             <div class="detail-row">
@@ -449,7 +334,6 @@ class HomeOrganizerPanel extends HTMLElement {
                     <button class="action-btn btn-danger" title="Delete" onclick="event.stopPropagation(); this.getRootNode().host.del('${item.name}')">${ICONS.delete}</button>
                  </div>
             </div>
-            
             <div class="detail-row" style="margin-top:10px; border-top:1px solid #444; padding-top:10px; flex-direction:column; gap:8px;">
                 <div class="move-container" style="width:100%">
                     <span style="font-size:12px;color:#aaa;width:60px">Move to:</span>
@@ -471,30 +355,37 @@ class HomeOrganizerPanel extends HTMLElement {
                 </div>
             </div>
          `;
-          div.appendChild(details);
-      }
-      return div;
+         div.appendChild(details);
+     }
+     return div;
   }
   
-  // Placeholders for standard methods
-  navigate(dir, name) { if (dir === 'root') this.currentPath = []; else if (dir === 'up') this.currentPath.pop(); else if (dir === 'down' && name) this.currentPath.push(name); this.fetchData(); }
-  updateQty(name, d) { this.callHA('update_qty', { item_name: name, change: d }); }
-  showImg(src) { const ov = this.shadowRoot.getElementById('overlay-img'); const ovc = this.shadowRoot.getElementById('img-overlay'); if(ov && ovc) { ov.src = src; ovc.style.display = 'flex'; } }
-  callHA(service, data) { return this._hass.callService('home_organizer', service, data); }
-  
-  // Include other helper methods (camera, etc)
+  // Updated addItem to support sublocation context
+  addItem(type, nameOverride, subLocation) {
+    const name = nameOverride || `New Item ${Date.now().toString().slice(-4)}`;
+    const date = new Date().toISOString().split('T')[0];
+    let path = [...this.currentPath];
+    if (subLocation && subLocation !== "General") { path.push(subLocation); }
+    
+    this._hass.callService('home_organizer', 'add_item', { item_name: name, item_type: type, item_date: date, image_data: null, current_path: path });
+  }
+
+  // --- Helper Methods ---
   toggleWhiteBG() { this.useAiBg = !this.useAiBg; const btn = this.shadowRoot.getElementById('btn-cam-wb'); if (this.useAiBg) btn.classList.add('active'); else btn.classList.remove('active'); }
   async openCamera(context) { this.cameraContext = context; const modal = this.shadowRoot.getElementById('camera-modal'); const video = this.shadowRoot.getElementById('camera-video'); modal.style.display = 'flex'; try { this.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: this.facingMode || "environment" } }); video.srcObject = this.stream; } catch (err) { alert("Camera Error: " + err.message); modal.style.display = 'none'; } }
   stopCamera() { const modal = this.shadowRoot.getElementById('camera-modal'); const video = this.shadowRoot.getElementById('camera-video'); if (this.stream) this.stream.getTracks().forEach(track => track.stop()); video.srcObject = null; modal.style.display = 'none'; }
   async switchCamera() { this.facingMode = (this.facingMode === "user") ? "environment" : "user"; this.stopCamera(); setTimeout(() => this.openCamera(this.cameraContext), 200); }
-  snapPhoto() { const video = this.shadowRoot.getElementById('camera-video'); const canvas = this.shadowRoot.getElementById('camera-canvas'); const context = canvas.getContext('2d'); canvas.width = video.videoWidth; canvas.height = video.videoHeight; context.drawImage(video, 0, 0, canvas.width, canvas.height); if (this.useAiBg) { let imageData = context.getImageData(0, 0, canvas.width, canvas.height); let data = imageData.data; for (let i = 0; i < data.length; i += 4) { let r = data[i], g = data[i+1], b = data[i+2]; if (r > 190 && g > 190 && b > 190) { data[i] = 255; data[i+1] = 255; data[i+2] = 255; } } context.putImageData(imageData, 0, 0); } const dataUrl = canvas.toDataURL('image/jpeg', 0.5); this.stopCamera(); if (this.cameraContext === 'search') { this.callHA('ai_action', { mode: 'search', image_data: dataUrl }); } else if (this.pendingItem) { this.callHA('update_image', { item_name: this.pendingItem, image_data: dataUrl }); this.pendingItem = null; } else { this.tempAddImage = dataUrl; const ic = this.shadowRoot.getElementById('add-cam-icon'); if(ic) ic.innerHTML = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`; } }
+  snapPhoto() { const video = this.shadowRoot.getElementById('camera-video'); const canvas = this.shadowRoot.getElementById('camera-canvas'); const context = canvas.getContext('2d'); canvas.width = video.videoWidth; canvas.height = video.videoHeight; context.drawImage(video, 0, 0, canvas.width, canvas.height); if (this.useAiBg) { let imageData = context.getImageData(0, 0, canvas.width, canvas.height); let data = imageData.data; for (let i = 0; i < data.length; i += 4) { let r = data[i], g = data[i+1], b = data[i+2]; if (r > 190 && g > 190 && b > 190) { data[i] = 255; data[i+1] = 255; data[i+2] = 255; } } context.putImageData(imageData, 0, 0); } const dataUrl = canvas.toDataURL('image/jpeg', 0.5); this.stopCamera(); if (this.cameraContext === 'search') { this.callHA('ai_action', { mode: 'search', image_data: dataUrl }); } else if (this.pendingItem) { this.callHA('update_image', { item_name: this.pendingItem, image_data: dataUrl }); this.pendingItem = null; } else { /* No logic for new item from camera */ } }
+  
   handleUpdateImage(input, name) { const file = input.files[0]; if (!file) return; this.compressImage(file, (dataUrl) => { this.callHA('update_image', { item_name: name, image_data: dataUrl }); }); input.value = ''; }
   compressImage(file, callback) { const reader = new FileReader(); reader.onload = (e) => { const img = new Image(); img.onload = () => { const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d'); const MAX = 1024; let w = img.width, h = img.height; if (w > h) { if (w > MAX) { h *= MAX/w; w = MAX; } } else { if (h > MAX) { w *= MAX/h; h = MAX; } } canvas.width = w; canvas.height = h; ctx.drawImage(img, 0, 0, w, h); callback(canvas.toDataURL('image/jpeg', 0.5)); }; img.src = e.target.result; }; reader.readAsDataURL(file); }
+  
   updateLocationDropdown(itemName, roomName) { const locContainer = this.shadowRoot.getElementById(`loc-container-${itemName}`); const locSelect = this.shadowRoot.getElementById(`loc-select-${itemName}`); const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemName}`); subContainer.style.display = 'none'; locSelect.innerHTML = '<option value="">-- Select --</option>'; if(!roomName) { locContainer.style.display = 'none'; return; } let html = `<option value="">-- Select Location --</option>`; if(this.localData.hierarchy && this.localData.hierarchy[roomName]) { Object.keys(this.localData.hierarchy[roomName]).forEach(loc => { html += `<option value="${loc}">${loc}</option>`; }); } locSelect.innerHTML = html; locContainer.style.display = 'flex'; locSelect.dataset.room = roomName; }
   updateSublocDropdown(itemName, locationName) { const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemName}`); const subSelect = this.shadowRoot.getElementById(`target-subloc-${itemName}`); const roomName = this.shadowRoot.getElementById(`room-select-${itemName}`).value; if(!locationName) { subContainer.style.display = 'none'; return; } let html = `<option value="">-- Select Sublocation --</option>`; html += `<option value="__ROOT__">Main ${locationName}</option>`; if(this.localData.hierarchy && this.localData.hierarchy[roomName] && this.localData.hierarchy[roomName][locationName]) { this.localData.hierarchy[roomName][locationName].forEach(sub => { html += `<option value="${sub}">${sub}</option>`; }); } subSelect.innerHTML = html; subContainer.style.display = 'flex'; }
   handleMoveToPath(itemName) { const room = this.shadowRoot.getElementById(`room-select-${itemName}`).value; const loc = this.shadowRoot.getElementById(`loc-select-${itemName}`).value; const sub = this.shadowRoot.getElementById(`target-subloc-${itemName}`).value; if(!room || !loc || !sub) return; let targetPath = [room, loc]; if(sub !== "__ROOT__") targetPath.push(sub); this.callHA('clipboard_action', {action: 'cut', item_name: itemName}); setTimeout(() => { this.callHA('paste_item', {target_path: targetPath}); }, 100); }
+  
   deleteFolder(name) { if(confirm(`Delete folder '${name}' and ALL items inside it?`)) { this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); } }
-  deleteSubloc(name) { if(confirm(`Delete '${name}'?`)) { this.callHA('update_item_details', { original_name: name, new_name: "", new_date: "" }); } }
+  deleteSubloc(name) { if(confirm(`Delete '${name}'?`)) { this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); } }
   renameSubloc(oldName) { const newName = prompt("Rename:", oldName); if (newName && newName !== oldName) { this.callHA('update_item_details', { original_name: oldName, new_name: newName, new_date: "" }); } }
   submitShopStock(name) { const qty = this.shopQuantities[name] || 1; this.callHA('update_stock', { item_name: name, quantity: qty }); delete this.shopQuantities[name]; }
   adjustShopQty(name, delta) { if (this.shopQuantities[name] === undefined) { this.shopQuantities[name] = 0; } this.shopQuantities[name] = Math.max(0, this.shopQuantities[name] + delta); this.render(); }
@@ -502,5 +393,7 @@ class HomeOrganizerPanel extends HTMLElement {
   saveDetails(idx, oldName) { const nEl = this.shadowRoot.getElementById(`name-${idx}`); const dEl = this.shadowRoot.getElementById(`date-${idx}`); if(nEl && dEl) { this.callHA('update_item_details', { original_name: oldName, new_name: nEl.value, new_date: dEl.value }); this.expandedIdx = null; } }
   cut(name) { this.callHA('clipboard_action', {action: 'cut', item_name: name}); }
   del(name) { this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: false }); }
+  showImg(src) { const ov = this.shadowRoot.getElementById('overlay-img'); const ovc = this.shadowRoot.getElementById('img-overlay'); if(ov && ovc) { ov.src = src; ovc.style.display = 'flex'; } }
+  callHA(service, data) { return this._hass.callService('home_organizer', service, data); }
 }
 customElements.define('home-organizer-panel', HomeOrganizerPanel);
