@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - Ver 4.0.0 (Stable Release)
+# Home Organizer Ultimate - Ver 4.0.1 (DB Migration Fix)
 
 import logging
 import sqlite3
@@ -42,18 +42,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
 
     # Register Websocket API
-    websocket_api.async_register_command(
-        hass,
-        WS_GET_DATA, 
-        websocket_get_data, 
-        websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend({
-            vol.Required("type"): WS_GET_DATA,
-            vol.Optional("path", default=[]): list,
-            vol.Optional("search_query", default=""): str,
-            vol.Optional("date_filter", default="All"): str,
-            vol.Optional("shopping_mode", default=False): bool,
-        })
-    )
+    # Check if already registered to avoid errors on reload
+    try:
+        websocket_api.async_register_command(
+            hass,
+            WS_GET_DATA, 
+            websocket_get_data, 
+            websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend({
+                vol.Required("type"): WS_GET_DATA,
+                vol.Optional("path", default=[]): list,
+                vol.Optional("search_query", default=""): str,
+                vol.Optional("date_filter", default="All"): str,
+                vol.Optional("shopping_mode", default=False): bool,
+            })
+        )
+    except Exception:
+        pass # Already registered
 
     await register_services(hass, entry)
     entry.async_on_unload(entry.add_update_listener(update_listener))
@@ -77,17 +81,37 @@ def get_db_connection(hass):
     return sqlite3.connect(hass.config.path(DB_FILE))
 
 def init_db(hass):
+    """Initialize DB and perform migration for missing columns."""
     if not os.path.exists(hass.config.path("www", IMG_DIR)): os.makedirs(hass.config.path("www", IMG_DIR))
     conn = get_db_connection(hass)
     c = conn.cursor()
-    cols = ", ".join([f"level_{i} TEXT" for i in range(1, MAX_LEVELS + 1)])
+    
+    # 1. Create Table if not exists (Basic Structure)
+    # We define it with at least level_1 to ensure it's valid
     c.execute(f'''CREATE TABLE IF NOT EXISTS items (
         id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, type TEXT DEFAULT 'item',
-        {cols}, item_date TEXT, quantity INTEGER DEFAULT 1, image_path TEXT,
+        level_1 TEXT, item_date TEXT, quantity INTEGER DEFAULT 1, image_path TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+    
+    # 2. Check for missing columns (Migration)
     c.execute("PRAGMA table_info(items)")
-    existing = [col[1] for col in c.fetchall()]
-    if 'image_path' not in existing: c.execute("ALTER TABLE items ADD COLUMN image_path TEXT")
+    existing_cols = [col[1] for col in c.fetchall()]
+    
+    # Add image_path if missing
+    if 'image_path' not in existing_cols:
+        try: c.execute("ALTER TABLE items ADD COLUMN image_path TEXT")
+        except: pass
+
+    # Add level_2 through MAX_LEVELS if missing
+    for i in range(1, MAX_LEVELS + 1):
+        col_name = f"level_{i}"
+        if col_name not in existing_cols:
+            try: 
+                c.execute(f"ALTER TABLE items ADD COLUMN {col_name} TEXT")
+                _LOGGER.info(f"Home Organizer: Added missing column {col_name}")
+            except Exception as e:
+                _LOGGER.error(f"Home Organizer Migration Error: {e}")
+
     conn.commit(); conn.close()
 
 @callback
@@ -103,9 +127,11 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
     conn = get_db_connection(hass); c = conn.cursor()
     folders = []; items = []; shopping_list = []
     
-    # 3-Level Hierarchy for Cascading Move
+    # Hierarchy fetch (Safe)
     hierarchy = {}
     try:
+        # Check if columns exist before querying to be safe, but init_db should have handled it.
+        # We assume init_db ran.
         c.execute("SELECT DISTINCT level_1, level_2, level_3 FROM items WHERE level_1 IS NOT NULL AND level_1 != ''")
         for r in c.fetchall():
             l1, l2, l3 = r[0], r[1], r[2]
@@ -113,7 +139,8 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
             if l2:
                 if l2 not in hierarchy[l1]: hierarchy[l1][l2] = []
                 if l3 and l3 not in hierarchy[l1][l2]: hierarchy[l1][l2].append(l3)
-    except Exception as e: _LOGGER.error(f"Hierarchy fetch error: {e}")
+    except Exception as e: 
+        _LOGGER.error(f"Hierarchy fetch warning (ignore if DB empty): {e}")
 
     try:
         if is_shopping:
@@ -121,14 +148,14 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
             col_names = [description[0] for description in c.description]
             for r in c.fetchall():
                 r_dict = dict(zip(col_names, r))
-                fp = []; [fp.append(r_dict[f"level_{i}"]) for i in range(1, MAX_LEVELS+1) if r_dict.get(f"level_{i}")]
+                fp = []; [fp.append(r_dict.get(f"level_{i}", "")) for i in range(1, MAX_LEVELS+1) if r_dict.get(f"level_{i}")]
                 img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
                 shopping_list.append({
                     "name": r_dict['name'], 
                     "qty": 0, 
                     "date": r_dict['item_date'], 
                     "img": img, 
-                    "location": " > ".join(fp),
+                    "location": " > ".join([p for p in fp if p]),
                     "main_location": r_dict.get("level_2", "General"),
                     "sub_location": r_dict.get("level_3", "")
                 })
@@ -144,10 +171,10 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
             col_names = [description[0] for description in c.description]
             for r in c.fetchall():
                 r_dict = dict(zip(col_names, r))
-                fp = []; [fp.append(r_dict[f"level_{i}"]) for i in range(1, MAX_LEVELS+1) if r_dict.get(f"level_{i}")]
+                fp = []; [fp.append(r_dict.get(f"level_{i}", "")) for i in range(1, MAX_LEVELS+1) if r_dict.get(f"level_{i}")]
                 if r_dict['type'] == 'item':
                     img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
-                    items.append({"name": r_dict['name'], "type": r_dict['type'], "qty": r_dict['quantity'], "date": r_dict['item_date'], "img": img, "location": " > ".join(fp)})
+                    items.append({"name": r_dict['name'], "type": r_dict['type'], "qty": r_dict['quantity'], "date": r_dict['item_date'], "img": img, "location": " > ".join([p for p in fp if p])})
 
         else:
             depth = len(path_parts)
