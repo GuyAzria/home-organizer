@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 3.10.0 (Cascading Move & UI Refine)
+// Home Organizer Ultimate - Ver 3.10.0 (Cascading Move Logic)
 // License: MIT
 
 const ICONS = {
