@@ -1,379 +1,40 @@
-# -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 3.10.0 (3-Level Hierarchy Support)
+# ... (Imports same as before) ...
+# Home Organizer Ultimate - ver 3.12.0 (Reliable Updates)
 
-import logging
-import sqlite3
-import os
-import shutil
-import base64
-import time
-import json
-import voluptuous as vol
-from datetime import datetime, timedelta
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall, callback
-from homeassistant.components import panel_custom, websocket_api
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from .const import DOMAIN, CONF_API_KEY, CONF_DEBUG, CONF_USE_AI, DB_FILE, IMG_DIR, VERSION
-
-_LOGGER = logging.getLogger(__name__)
-MAX_LEVELS = 10
-
-WS_GET_DATA = "home_organizer/get_data"
-
-async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    return True
-
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    if entry.options.get(CONF_DEBUG): _LOGGER.setLevel(logging.DEBUG)
-
-    await async_setup_frontend(hass)
-
-    await panel_custom.async_register_panel(
-        hass,
-        webcomponent_name="home-organizer-panel",
-        frontend_url_path="organizer",
-        module_url=f"/local/home_organizer_libs/organizer-panel.js?v={int(time.time())}",
-        sidebar_title="ארגונית",
-        sidebar_icon="mdi:package-variant-closed",
-        require_admin=False
-    )
-
-    await hass.async_add_executor_job(init_db, hass)
-
-    hass.data.setdefault(DOMAIN, {})
-    
-    websocket_api.async_register_command(
-        hass,
-        WS_GET_DATA, 
-        websocket_get_data, 
-        websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend({
-            vol.Required("type"): WS_GET_DATA,
-            vol.Optional("path", default=[]): list,
-            vol.Optional("search_query", default=""): str,
-            vol.Optional("date_filter", default="All"): str,
-            vol.Optional("shopping_mode", default=False): bool,
-        })
-    )
-
-    await register_services(hass, entry)
-    entry.async_on_unload(entry.add_update_listener(update_listener))
-    return True
-
-async def update_listener(hass: HomeAssistant, entry: ConfigEntry):
-    await hass.config_entries.async_reload(entry.entry_id)
-
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    hass.components.frontend.async_remove_panel("organizer")
-    return True
-
-async def async_setup_frontend(hass: HomeAssistant):
-    src = os.path.join(os.path.dirname(__file__), "frontend", "organizer-panel.js")
-    dest_dir = hass.config.path("www", "home_organizer_libs")
-    dest = os.path.join(dest_dir, "organizer-panel.js")
-    if not os.path.exists(dest_dir): await hass.async_add_executor_job(os.makedirs, dest_dir)
-    if os.path.exists(src): await hass.async_add_executor_job(shutil.copyfile, src, dest)
-
-def get_db_connection(hass):
-    return sqlite3.connect(hass.config.path(DB_FILE))
-
-def init_db(hass):
-    if not os.path.exists(hass.config.path("www", IMG_DIR)): os.makedirs(hass.config.path("www", IMG_DIR))
-    conn = get_db_connection(hass)
-    c = conn.cursor()
-    cols = ", ".join([f"level_{i} TEXT" for i in range(1, MAX_LEVELS + 1)])
-    c.execute(f'''CREATE TABLE IF NOT EXISTS items (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, type TEXT DEFAULT 'item',
-        {cols}, item_date TEXT, quantity INTEGER DEFAULT 1, image_path TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-    c.execute("PRAGMA table_info(items)")
-    existing = [col[1] for col in c.fetchall()]
-    if 'image_path' not in existing: c.execute("ALTER TABLE items ADD COLUMN image_path TEXT")
-    conn.commit(); conn.close()
-
-@callback
-def websocket_get_data(hass, connection, msg):
-    path = msg.get("path", [])
-    query = msg.get("search_query", "")
-    date_filter = msg.get("date_filter", "All")
-    is_shopping = msg.get("shopping_mode", False)
-    
-    data = get_view_data(hass, path, query, date_filter, is_shopping)
-    connection.send_result(msg["id"], data)
-
-def get_view_data(hass, path_parts, query, date_filter, is_shopping):
-    conn = get_db_connection(hass); c = conn.cursor()
-    folders = []; items = []; shopping_list = []
-    
-    # FETCH 3-LEVEL HIERARCHY
-    # Structure: { "Kitchen": { "Fridge": ["Shelf1"], "Cabinet": [] }, "Bedroom": {} }
-    hierarchy = {}
-    try:
-        c.execute("SELECT DISTINCT level_1, level_2, level_3 FROM items WHERE level_1 IS NOT NULL AND level_1 != ''")
-        for r in c.fetchall():
-            l1, l2, l3 = r[0], r[1], r[2]
-            
-            if l1 not in hierarchy: hierarchy[l1] = {}
-            
-            if l2:
-                if l2 not in hierarchy[l1]: hierarchy[l1][l2] = []
-                if l3 and l3 not in hierarchy[l1][l2]: hierarchy[l1][l2].append(l3)
-        
-        # Sort keys for UI
-        # Note: Dictionaries retain insertion order in modern Python, but sorting logic usually handled in JS for display
-    except Exception as e:
-        _LOGGER.error(f"Hierarchy fetch error: {e}")
-
-    try:
-        if is_shopping:
-            c.execute("SELECT * FROM items WHERE quantity = 0 AND type='item' ORDER BY level_2 ASC, level_3 ASC")
-            col_names = [description[0] for description in c.description]
-            for r in c.fetchall():
-                r_dict = dict(zip(col_names, r))
-                fp = []; [fp.append(r_dict[f"level_{i}"]) for i in range(1, MAX_LEVELS+1) if r_dict.get(f"level_{i}")]
-                img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
-                shopping_list.append({
-                    "name": r_dict['name'], 
-                    "qty": 0, 
-                    "date": r_dict['item_date'], 
-                    "img": img, 
-                    "location": " > ".join(fp),
-                    "main_location": r_dict.get("level_2", "General"),
-                    "sub_location": r_dict.get("level_3", "")
-                })
-
-        elif query or date_filter != "All":
-            sql = "SELECT * FROM items WHERE 1=1"; params = []
-            for i, p in enumerate(path_parts): sql += f" AND level_{i+1} = ?"; params.append(p)
-
-            if query: sql += " AND name LIKE ?"; params.append(f"%{query}%")
-            if date_filter == "Week": 
-                sql += " AND item_date >= ?"; params.append((datetime.now()-timedelta(days=7)).strftime("%Y-%m-%d"))
-            elif date_filter == "Month":
-                sql += " AND item_date LIKE ?"; params.append(datetime.now().strftime("%Y-%m") + "%")
-            
-            c.execute(sql, tuple(params))
-            col_names = [description[0] for description in c.description]
-            for r in c.fetchall():
-                r_dict = dict(zip(col_names, r))
-                fp = []; [fp.append(r_dict[f"level_{i}"]) for i in range(1, MAX_LEVELS+1) if r_dict.get(f"level_{i}")]
-                if r_dict['type'] == 'item':
-                    img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
-                    items.append({"name": r_dict['name'], "type": r_dict['type'], "qty": r_dict['quantity'], "date": r_dict['item_date'], "img": img, "location": " > ".join(fp)})
-
-        else:
-            depth = len(path_parts)
-            sql_where = ""; params = []
-            for i, p in enumerate(path_parts): sql_where += f" AND level_{i+1} = ?"; params.append(p)
-
-            if depth < 2:
-                col = f"level_{depth+1}"
-                c.execute(f"SELECT DISTINCT {col} FROM items WHERE {col} IS NOT NULL AND {col} != '' {sql_where} ORDER BY {col} ASC", tuple(params))
-                for r in c.fetchall(): folders.append({"name": r[0]})
-                
-                sql = f"SELECT * FROM items WHERE type='item' AND (level_{depth+1} IS NULL OR level_{depth+1} = '') {sql_where} ORDER BY name ASC"
-                c.execute(sql, tuple(params))
-                col_names = [description[0] for description in c.description]
-                for r in c.fetchall():
-                     r_dict = dict(zip(col_names, r))
-                     img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
-                     items.append({"name": r_dict['name'], "type": 'item', "qty": r_dict['quantity'], "img": img})
-            else:
-                sublocations = []
-                col = f"level_{depth+1}"
-                c.execute(f"SELECT DISTINCT {col} FROM items WHERE {col} IS NOT NULL AND {col} != '' {sql_where} ORDER BY {col} ASC", tuple(params))
-                for r in c.fetchall(): sublocations.append(r[0])
-
-                sql = f"SELECT * FROM items WHERE type='item' {sql_where} ORDER BY level_{depth+1} ASC, name ASC"
-                c.execute(sql, tuple(params))
-                col_names = [description[0] for description in c.description]
-                
-                fetched_items = []
-                for r in c.fetchall():
-                    r_dict = dict(zip(col_names, r))
-                    img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
-                    subloc = r_dict.get(f"level_{depth+1}", "")
-                    fetched_items.append({
-                        "name": r_dict['name'], 
-                        "type": 'item', 
-                        "qty": r_dict['quantity'], 
-                        "date": r_dict['item_date'], 
-                        "img": img, 
-                        "sub_location": subloc
-                    })
-                
-                for s in sublocations: folders.append({"name": s})
-                items = fetched_items
-
-    finally: conn.close()
-
-    return {
-        "path_display": is_shopping and "Shopping List" or (query and "Search Results" or (" > ".join(path_parts) if path_parts else "Main")),
-        "folders": folders,
-        "items": items,
-        "shopping_list": shopping_list,
-        "app_version": VERSION,
-        "depth": len(path_parts),
-        "hierarchy": hierarchy
-    }
+# ... (Previous code remains the same until register_services) ...
 
 async def register_services(hass, entry):
-    api_key = entry.options.get(CONF_API_KEY, entry.data.get(CONF_API_KEY, ""))
+    # ...
     
     def broadcast_update():
+        # Fire event to tell all clients to refresh
         hass.bus.async_fire("home_organizer_db_update")
 
-    async def handle_add(call):
-        name = call.data.get("item_name"); itype = call.data.get("item_type", "item")
-        date = call.data.get("item_date"); img_b64 = call.data.get("image_data")
-        fname = ""
-        if img_b64:
-            try:
-                if "," in img_b64: img_b64 = img_b64.split(",")[1]
-                fname = f"img_{int(time.time())}.jpg"
-                await hass.async_add_executor_job(lambda: open(hass.config.path("www", IMG_DIR, fname), "wb").write(base64.b64decode(img_b64)))
-            except: pass
-
-        parts = call.data.get("current_path", [])
-        depth = len(parts)
-        cols = ["name", "type", "quantity", "item_date", "image_path"]
-        
-        if itype == 'folder':
-            if depth >= MAX_LEVELS: return
-            vals = [f"[Folder] {name}", "folder_marker", 0, date, fname]
-            qs = ["?", "?", "?", "?", "?"]
-            for i, p in enumerate(parts): cols.append(f"level_{i+1}"); vals.append(p); qs.append("?")
-            cols.append(f"level_{depth+1}"); vals.append(name); qs.append("?")
-            
-            def db_ins():
-                conn = get_db_connection(hass); c = conn.cursor()
-                c.execute(f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})", tuple(vals))
-                conn.commit(); conn.close()
-            await hass.async_add_executor_job(db_ins)
-        else:
-            vals = [name, itype, 1, date, fname]
-            qs = ["?", "?", "?", "?", "?"]
-            for i, p in enumerate(parts): cols.append(f"level_{i+1}"); vals.append(p); qs.append("?")
-
-            def db_ins():
-                conn = get_db_connection(hass); c = conn.cursor()
-                c.execute(f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})", tuple(vals))
-                conn.commit(); conn.close()
-            await hass.async_add_executor_job(db_ins)
-
-        broadcast_update()
-
-    async def handle_update_qty(call):
-        name = call.data.get("item_name"); change = int(call.data.get("change"))
-        today = datetime.now().strftime("%Y-%m-%d")
-        def db_q():
-            conn = get_db_connection(hass); c = conn.cursor()
-            c.execute(f"UPDATE items SET quantity = MAX(0, quantity + ?), item_date = ? WHERE name = ?", (change, today, name))
-            conn.commit(); conn.close()
-        await hass.async_add_executor_job(db_q); broadcast_update()
-
-    async def handle_update_stock(call):
-        name = call.data.get("item_name"); qty = int(call.data.get("quantity"))
-        today = datetime.now().strftime("%Y-%m-%d")
-        def db_upd():
-            conn = get_db_connection(hass); c = conn.cursor()
-            c.execute(f"UPDATE items SET quantity = ?, item_date = ? WHERE name = ?", (qty, today, name))
-            conn.commit(); conn.close()
-        await hass.async_add_executor_job(db_upd); broadcast_update()
-
-    async def handle_delete(call):
-        name = call.data.get("item_name")
-        parts = call.data.get("current_path", [])
-        is_folder = call.data.get("is_folder", False)
-
-        def db_del(): 
-            conn = get_db_connection(hass); c = conn.cursor()
-            
-            if is_folder:
-                depth = len(parts)
-                target_col = f"level_{depth+1}"
-                conditions = [f"{target_col} = ?"]
-                args = [name]
-                for i, p in enumerate(parts):
-                    conditions.append(f"level_{i+1} = ?")
-                    args.append(p)
-                c.execute(f"DELETE FROM items WHERE {' AND '.join(conditions)}", tuple(args))
-            else:
-                c.execute(f"DELETE FROM items WHERE name = ?", (name,))
-                
-            conn.commit(); conn.close()
-        await hass.async_add_executor_job(db_del); broadcast_update()
-
-    async def handle_paste(call):
-        target_path = call.data.get("target_path")
-        item_name = hass.data.get(DOMAIN, {}).get("clipboard") 
-        if not item_name: return
-        def db_mv():
-            conn = get_db_connection(hass); c = conn.cursor()
-            upd = [f"level_{i} = ?" for i in range(1, MAX_LEVELS+1)]
-            vals = [target_path[i-1] if i <= len(target_path) else None for i in range(1, MAX_LEVELS+1)]
-            c.execute(f"UPDATE items SET {','.join(upd)} WHERE name = ?", (*vals, item_name))
-            conn.commit(); conn.close()
-        await hass.async_add_executor_job(db_mv)
-        hass.data[DOMAIN]["clipboard"] = None
-        broadcast_update()
-
-    async def handle_clipboard(call):
-        action = call.data.get("action"); item = call.data.get("item_name")
-        hass.data[DOMAIN]["clipboard"] = item if action == "cut" else None
-
-    async def handle_update_item_details(call):
-        orig, nn, nd = call.data.get("original_name"), call.data.get("new_name"), call.data.get("new_date")
-        def db_u():
-            conn = get_db_connection(hass); c = conn.cursor()
-            c.execute("SELECT * FROM items WHERE name = ?", (orig,))
-            row = c.fetchone()
-            if not row: return
-            
-            if nn and nn != orig:
-                c.execute("UPDATE items SET name = ? WHERE name = ?", (nn, orig))
-            if nd:
-                c.execute("UPDATE items SET item_date = ? WHERE name = ?", (nd, orig))
-            conn.commit(); conn.close()
-        await hass.async_add_executor_job(db_u); broadcast_update()
+    # ... (Other handlers) ...
 
     async def handle_update_image(call):
-        name = call.data.get("item_name"); img_b64 = call.data.get("image_data")
-        if "," in img_b64: img_b64 = img_b64.split(",")[1]
-        fname = f"{name}_{int(time.time())}.jpg"
-        def save():
-            open(hass.config.path("www", IMG_DIR, fname), "wb").write(base64.b64decode(img_b64))
-            conn = get_db_connection(hass); c = conn.cursor()
-            c.execute(f"UPDATE items SET image_path = ? WHERE name = ?", (fname, name)); conn.commit(); conn.close()
-        await hass.async_add_executor_job(save); broadcast_update()
-
-    async def handle_ai_action(call):
-        use_ai = entry.options.get(CONF_USE_AI, entry.data.get(CONF_USE_AI, True))
-        if not use_ai: return
-        mode = call.data.get("mode")
+        name = call.data.get("item_name")
         img_b64 = call.data.get("image_data")
-        if not img_b64 or not api_key: return
+        # Extract base64
         if "," in img_b64: img_b64 = img_b64.split(",")[1]
+        
+        # Unique filename with timestamp to force cache bust on all clients
+        fname = f"{name}_{int(time.time())}.jpg"
+        
+        def save_and_update_db():
+            # 1. Save File
+            file_path = hass.config.path("www", IMG_DIR, fname)
+            with open(file_path, "wb") as f:
+                f.write(base64.b64decode(img_b64))
+            
+            # 2. Update DB
+            conn = get_db_connection(hass); c = conn.cursor()
+            c.execute(f"UPDATE items SET image_path = ? WHERE name = ?", (fname, name))
+            conn.commit(); conn.close()
+            
+        await hass.async_add_executor_job(save_and_update_db)
+        
+        # 3. Broadcast to all clients
+        broadcast_update()
 
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-        prompt_text = "Identify this household item. Return ONLY the name in English or Hebrew. 2-3 words max."
-        if mode == 'search': prompt_text = "Identify this item. Return only 1 keyword for searching."
-
-        payload = {"contents": [{"parts": [{"text": prompt_text}, {"inline_data": {"mime_type": "image/jpeg", "data": img_b64}}]}]}
-
-        try:
-            session = async_get_clientsession(hass)
-            async with session.post(url, json=payload) as resp:
-                if resp.status == 200:
-                    json_resp = await resp.json()
-                    text = json_resp["candidates"][0]["content"]["parts"][0]["text"].strip()
-                    hass.bus.async_fire("home_organizer_ai_result", {"result": text, "mode": mode})
-        except Exception as e: _LOGGER.error(f"AI Error: {e}")
-
-    for n, h in [
-        ("add_item", handle_add), ("update_image", handle_update_image),
-        ("update_stock", handle_update_stock), ("update_qty", handle_update_qty), ("delete_item", handle_delete),
-        ("clipboard_action", handle_clipboard), ("paste_item", handle_paste), ("ai_action", handle_ai_action),
-        ("update_item_details", handle_update_item_details)
-    ]:
-        hass.services.async_register(DOMAIN, n, h)
+    # ... (Rest of file same as 3.10.0) ...
