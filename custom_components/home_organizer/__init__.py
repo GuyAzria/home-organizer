@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 5.1.0 (Restored Core + Fixes)
+# Home Organizer Ultimate - ver 5.2.0 (Fix Sublocation Rename Backend)
 
 import logging
 import sqlite3
@@ -185,9 +185,9 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                 c.execute(sql, tuple(params))
                 col_names = [description[0] for description in c.description]
                 for r in c.fetchall():
-                     r_dict = dict(zip(col_names, r))
-                     img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
-                     items.append({"name": r_dict['name'], "type": 'item', "qty": r_dict['quantity'], "img": img})
+                      r_dict = dict(zip(col_names, r))
+                      img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
+                      items.append({"name": r_dict['name'], "type": 'item', "qty": r_dict['quantity'], "img": img})
             else:
                 # List View logic from 3.10.0
                 sublocations = []
@@ -335,17 +335,69 @@ async def register_services(hass, entry):
         hass.data[DOMAIN]["clipboard"] = item if action == "cut" else None
 
     async def handle_update_item_details(call):
-        orig, nn, nd = call.data.get("original_name"), call.data.get("new_name"), call.data.get("new_date")
+        orig = call.data.get("original_name")
+        nn = call.data.get("new_name")
+        nd = call.data.get("new_date")
+        parts = call.data.get("current_path", [])
+        is_folder = call.data.get("is_folder", False)
+
         def db_u():
             conn = get_db_connection(hass); c = conn.cursor()
-            c.execute("SELECT * FROM items WHERE name = ?", (orig,))
-            row = c.fetchone()
-            if not row: return
             
-            if nn and nn != orig:
-                c.execute("UPDATE items SET name = ? WHERE name = ?", (nn, orig))
-            if nd:
-                c.execute("UPDATE items SET item_date = ? WHERE name = ?", (nd, orig))
+            if is_folder:
+                # Rename Sublocation/Folder (Update level column for ALL items in this path)
+                depth = len(parts)
+                if depth < MAX_LEVELS:
+                    target_col = f"level_{depth+1}"
+                    # Base conditions: current path levels must match
+                    where_clause = f"{target_col} = ?"
+                    where_args = [orig]
+                    for i, p in enumerate(parts):
+                        where_clause += f" AND level_{i+1} = ?"
+                        where_args.append(p)
+                    
+                    # 1. Update the level column value
+                    c.execute(f"UPDATE items SET {target_col} = ? WHERE {where_clause}", [nn] + where_args)
+                    
+                    # 2. Update the folder marker name if it exists (generic marker check)
+                    # We look for markers that shared the same path constraints
+                    # Note: Since step 1 already updated the level column to 'nn', we check that in WHERE
+                    marker_where = f"{target_col} = ?"
+                    marker_args = [nn] 
+                    for i, p in enumerate(parts):
+                        marker_where += f" AND level_{i+1} = ?"
+                        marker_args.append(p)
+                    
+                    # Only update items that look like folder markers for this specific folder
+                    c.execute(f"UPDATE items SET name = ? WHERE type = 'folder_marker' AND name = ? AND {marker_where}", 
+                              (f"[Folder] {nn}", f"[Folder] {orig}", *marker_args))
+
+            else:
+                # Rename Single Item
+                sql = "UPDATE items SET "
+                updates = []
+                params = []
+                
+                if nn and nn != orig:
+                    updates.append("name = ?")
+                    params.append(nn)
+                if nd:
+                    updates.append("item_date = ?")
+                    params.append(nd)
+                
+                if updates:
+                    sql += ", ".join(updates)
+                    sql += " WHERE name = ?"
+                    params.append(orig)
+                    
+                    # Optional: constrain by path to avoid renaming duplicates elsewhere
+                    if parts:
+                        for i, p in enumerate(parts):
+                            sql += f" AND level_{i+1} = ?"
+                            params.append(p)
+                            
+                    c.execute(sql, tuple(params))
+
             conn.commit(); conn.close()
         await hass.async_add_executor_job(db_u); broadcast_update()
 
