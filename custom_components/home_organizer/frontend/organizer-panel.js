@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 4.8.0 (Inline Sublocation Rename)
+// Home Organizer Ultimate - Ver 4.9.0 (Fix Inline Rename Persistence)
 // License: MIT
 
 const ICONS = {
@@ -821,11 +821,15 @@ class HomeOrganizerPanel extends HTMLElement {
   
   enableSublocRename(btn, oldName) {
       const header = btn.closest('.group-separator');
+      // Prevent multiple inputs
+      if (header.querySelector('input')) return; 
+      
       const titleSpan = header.querySelector('.subloc-title') || header.querySelector('span');
       if(!titleSpan) return;
 
       const input = document.createElement('input');
       input.value = oldName;
+      input.className = 'rename-input'; 
       input.style.background = '#222';
       input.style.color = 'white';
       input.style.border = '1px solid var(--primary)';
@@ -834,30 +838,53 @@ class HomeOrganizerPanel extends HTMLElement {
       input.style.fontSize = '14px';
       input.style.width = '200px'; 
       
-      // Stop click propagation so it doesn't trigger drag/drop or other row clicks if any
+      // Stop click propagation
       input.onclick = (e) => e.stopPropagation();
 
       titleSpan.replaceWith(input);
       input.focus();
 
+      let isSaving = false;
+
       const save = () => {
+          if (isSaving) return; // Prevent double firing
+          isSaving = true;
+
           const newVal = input.value.trim();
           if (newVal && newVal !== oldName) {
+              // Optimistic update: Show new name immediately
+              const newSpan = document.createElement('span');
+              newSpan.className = 'subloc-title';
+              newSpan.innerText = newVal;
+              newSpan.style.opacity = '0.7'; // Visual cue for pending save
+              input.replaceWith(newSpan);
+
               this.callHA('update_item_details', { 
                   original_name: oldName, 
                   new_name: newVal, 
                   new_date: "" 
+              }).catch(err => {
+                  console.error("Rename failed", err);
+                  // Revert if failed
+                  newSpan.innerText = oldName;
+                  newSpan.style.opacity = '1';
+                  alert("Failed to rename");
               });
           } else {
-              this.render(); // Revert to text
+              // Revert to old text if no change or empty
+              const originalSpan = document.createElement('span');
+              originalSpan.className = 'subloc-title';
+              originalSpan.innerText = oldName;
+              input.replaceWith(originalSpan);
           }
       };
 
       input.onkeydown = (e) => {
           if (e.key === 'Enter') {
-              input.blur();
+              input.blur(); // Triggers onblur -> save
           }
       };
+      
       input.onblur = () => save();
   }
 
