@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 4.1.0 (Delete Sublocation Fix)
+// Home Organizer Ultimate - Ver 4.2.0 (Inline Add & Edit Mode Update)
 // License: MIT
 
 const ICONS = {
@@ -49,8 +49,8 @@ class HomeOrganizerPanel extends HTMLElement {
         this._hass.connection.subscribeEvents((e) => this.fetchData(), 'home_organizer_db_update');
         this._hass.connection.subscribeEvents((e) => {
              if (e.data.mode === 'identify') {
-                  const input = this.shadowRoot.getElementById('add-name');
-                  if(input) input.value = e.data.result;
+                 const input = this.shadowRoot.getElementById('add-name');
+                 if(input) input.value = e.data.result;
              }
         }, 'home_organizer_ai_result');
         this.fetchData();
@@ -126,7 +126,17 @@ class HomeOrganizerPanel extends HTMLElement {
         .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 4px; border-radius: 20px; }
         .qty-btn { background: #444; border: none; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         .bottom-bar { background: #242426; padding: 15px; border-top: 1px solid var(--border); display: none; }
+        
+        /* Edit Mode Additions */
         .edit-mode .bottom-bar { display: block; }
+        .add-folder-card .android-folder-icon { border: 2px dashed #4caf50; background: rgba(76, 175, 80, 0.1); color: #4caf50; }
+        .add-folder-card:hover .android-folder-icon { background: rgba(76, 175, 80, 0.2); }
+        .add-folder-input { width: 100%; height: 100%; border: none; background: transparent; color: white; text-align: center; font-size: 12px; padding: 5px; outline: none; }
+        
+        .add-item-btn-row { width: 100%; margin-top: 10px; }
+        .add-item-btn { width: 100%; padding: 12px; background: rgba(76, 175, 80, 0.15); border: 1px dashed #4caf50; color: #4caf50; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; transition: background 0.2s; }
+        .add-item-btn:hover { background: rgba(76, 175, 80, 0.3); }
+
         .expanded-details { margin-top: 10px; padding-top: 10px; border-top: 1px solid #555; display: flex; flex-direction: column; gap: 10px; }
         .detail-row { display: flex; gap: 10px; align-items: center; }
         
@@ -370,38 +380,68 @@ class HomeOrganizerPanel extends HTMLElement {
         return;
     }
 
+    // FOLDER VIEW / LOCATION VIEW
     if (attrs.depth < 2) {
-        if (attrs.folders && attrs.folders.length > 0) {
+        if (attrs.folders && attrs.folders.length > 0 || this.isEditMode) {
             const grid = document.createElement('div');
             grid.className = 'folder-grid';
-            attrs.folders.forEach(folder => {
-                const el = document.createElement('div');
-                el.className = 'folder-item';
-                
-                el.onclick = () => this.navigate('down', folder.name);
-                
-                const deleteBtnHtml = this.isEditMode 
-                    ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` 
-                    : '';
+            
+            // Render existing folders
+            if (attrs.folders) {
+                attrs.folders.forEach(folder => {
+                    const el = document.createElement('div');
+                    el.className = 'folder-item';
+                    
+                    el.onclick = () => this.navigate('down', folder.name);
+                    
+                    const deleteBtnHtml = this.isEditMode 
+                        ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` 
+                        : '';
 
-                el.innerHTML = `
-                    <div class="android-folder-icon">
-                        ${ICONS.folder}
-                        ${deleteBtnHtml}
+                    el.innerHTML = `
+                        <div class="android-folder-icon">
+                            ${ICONS.folder}
+                            ${deleteBtnHtml}
+                        </div>
+                        <div class="folder-label">${folder.name}</div>
+                    `;
+                    grid.appendChild(el);
+                });
+            }
+
+            // Render "Add Room/Location" button if Edit Mode is ON
+            if (this.isEditMode) {
+                const addBtn = document.createElement('div');
+                addBtn.className = 'folder-item add-folder-card';
+                addBtn.innerHTML = `
+                    <div class="android-folder-icon" id="add-folder-icon">
+                        ${ICONS.plus}
                     </div>
-                    <div class="folder-label">${folder.name}</div>
+                    <div class="folder-label">Add</div>
                 `;
-                grid.appendChild(el);
-            });
+                addBtn.onclick = (e) => this.enableFolderInput(e.currentTarget);
+                grid.appendChild(addBtn);
+            }
+
             content.appendChild(grid);
         }
+        
         if (attrs.items && attrs.items.length > 0) {
             const list = document.createElement('div');
             list.className = 'item-list';
             attrs.items.forEach(item => list.appendChild(this.createItemRow(item, false)));
             content.appendChild(list);
         }
+        
+        // Render "Add Item" button if Edit Mode is ON (Under list in depth < 2)
+        if (this.isEditMode && attrs.depth === 1) {
+             const addBtn = document.createElement('div');
+             addBtn.className = 'add-item-btn-row';
+             addBtn.innerHTML = `<button class="add-item-btn" onclick="this.getRootNode().host.addQuickItem()">+ הוסף</button>`;
+             content.appendChild(addBtn);
+        }
     } 
+    // SUBLOCATION/ITEM GROUPED VIEW
     else {
         const listContainer = document.createElement('div');
         listContainer.className = 'item-list';
@@ -442,8 +482,76 @@ class HomeOrganizerPanel extends HTMLElement {
             listContainer.appendChild(oosHeader);
             outOfStock.forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
         }
+        
         content.appendChild(listContainer);
+
+        // Render "Add Item" button if Edit Mode is ON (Bottom of view)
+        if (this.isEditMode) {
+             const addBtn = document.createElement('div');
+             addBtn.className = 'add-item-btn-row';
+             addBtn.innerHTML = `<button class="add-item-btn" onclick="this.getRootNode().host.addQuickItem()">+ הוסף</button>`;
+             content.appendChild(addBtn);
+        }
     }
+  }
+  
+  // Logic to turn the "Add Folder" card into an input
+  enableFolderInput(cardEl) {
+      const iconContainer = cardEl.querySelector('.android-folder-icon');
+      const label = cardEl.querySelector('.folder-label');
+      
+      // Prevent multiple clicks
+      if(iconContainer.querySelector('input')) return;
+      
+      iconContainer.innerHTML = `<input type="text" class="add-folder-input" placeholder="Name">`;
+      const input = iconContainer.querySelector('input');
+      label.innerText = "Saving...";
+      
+      input.focus();
+      
+      // Save on Enter
+      input.onkeydown = (e) => {
+          if (e.key === 'Enter') {
+              this.saveNewFolder(input.value);
+          }
+      };
+      
+      // Save on blur if value exists, else reset
+      input.onblur = () => {
+          if (input.value.trim()) {
+              this.saveNewFolder(input.value);
+          } else {
+              this.render(); // Reset UI
+          }
+      };
+  }
+
+  saveNewFolder(name) {
+      if(!name) return;
+      this._hass.callService('home_organizer', 'add_item', { 
+          item_name: name, 
+          item_type: 'folder', 
+          item_date: '', 
+          image_data: null, 
+          current_path: this.currentPath 
+      });
+      // UI will refresh via event listener
+  }
+
+  // Logic to add an empty item quickly
+  addQuickItem() {
+      // Create a dummy item. The user will then edit it.
+      // We append a timestamp to ensure uniqueness until renamed.
+      const tempName = "New Item " + new Date().toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'});
+      const today = new Date().toISOString().split('T')[0];
+      
+      this._hass.callService('home_organizer', 'add_item', { 
+          item_name: tempName, 
+          item_type: 'item', 
+          item_date: today, 
+          image_data: null, 
+          current_path: this.currentPath 
+      });
   }
 
   setupDragSource(el, itemName) {
