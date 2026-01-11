@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 4.6.0 (Clean Up Edit UI)
+// Home Organizer Ultimate - Ver 4.7.0 (Green Edit Icon)
 // License: MIT
 
 const ICONS = {
@@ -86,6 +86,7 @@ class HomeOrganizerPanel extends HTMLElement {
         .nav-btn { background: none; border: none; color: var(--primary); cursor: pointer; padding: 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
         .nav-btn:hover { background: rgba(255,255,255,0.1); }
         .nav-btn.active { color: var(--warning); }
+        .nav-btn.edit-active { color: var(--accent); } /* Green for Edit Mode */
         .title-box { flex: 1; text-align: center; }
         .main-title { font-weight: bold; font-size: 16px; }
         .sub-title { font-size: 11px; color: #aaa; direction: ltr; }
@@ -198,8 +199,6 @@ class HomeOrganizerPanel extends HTMLElement {
         <div class="content" id="content">
             <div style="text-align:center;padding:20px;color:#888;">Loading...</div>
         </div>
-        
-        <!-- Bottom Bar Removed (Cleanup) -->
       </div>
       
       <!-- CUSTOM IN-APP CAMERA OVERLAY -->
@@ -326,7 +325,18 @@ class HomeOrganizerPanel extends HTMLElement {
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
     if(attrs.clipboard) root.getElementById('clipboard-name').innerText = attrs.clipboard;
     const app = root.getElementById('app');
-    if(this.isEditMode) app.classList.add('edit-mode'); else app.classList.remove('edit-mode');
+    if(this.isEditMode) {
+        app.classList.add('edit-mode'); 
+    } else {
+        app.classList.remove('edit-mode');
+    }
+    
+    // Toggle edit button color
+    const editBtn = root.getElementById('btn-edit');
+    if (editBtn) {
+        if (this.isEditMode) editBtn.classList.add('edit-active');
+        else editBtn.classList.remove('edit-active');
+    }
 
     const content = root.getElementById('content');
     content.innerHTML = '';
