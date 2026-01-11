@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 4.3.0 (Sublocation Context Add Buttons)
+// Home Organizer Ultimate - Ver 4.4.0 (Add Sublocation Button)
 // License: MIT
 
 const ICONS = {
@@ -479,7 +479,7 @@ class HomeOrganizerPanel extends HTMLElement {
             listContainer.appendChild(header);
             grouped[subName].forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
 
-            // NEW: Add Text Button per sublocation group (replacing global bottom button)
+            // Add Text Button per sublocation group (replacing global bottom button)
             if (this.isEditMode) {
                  const addRow = document.createElement('div');
                  addRow.className = "group-add-row";
@@ -494,6 +494,26 @@ class HomeOrganizerPanel extends HTMLElement {
             oosHeader.innerText = "Out of Stock";
             listContainer.appendChild(oosHeader);
             outOfStock.forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
+        }
+        
+        // NEW: Add "Add Sublocation" Square Button at the bottom of the list when in Edit Mode
+        if (this.isEditMode) {
+            const gridContainer = document.createElement('div');
+            gridContainer.className = 'folder-grid';
+            gridContainer.style.marginTop = '20px';
+
+            const addBtn = document.createElement('div');
+            addBtn.className = 'folder-item add-folder-card';
+            addBtn.innerHTML = `
+                <div class="android-folder-icon" id="add-subloc-icon">
+                    ${ICONS.plus}
+                </div>
+                <div class="folder-label">Add Sub</div>
+            `;
+            addBtn.onclick = (e) => this.enableFolderInput(e.currentTarget);
+            
+            gridContainer.appendChild(addBtn);
+            listContainer.appendChild(gridContainer);
         }
         
         content.appendChild(listContainer);
