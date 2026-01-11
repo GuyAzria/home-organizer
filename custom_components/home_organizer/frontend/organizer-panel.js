@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 4.9.0 (Fix Inline Rename Persistence)
+// Home Organizer Ultimate - Ver 4.10.0 (Fix Sublocation Rename Parameters)
 // License: MIT
 
 const ICONS = {
@@ -862,7 +862,9 @@ class HomeOrganizerPanel extends HTMLElement {
               this.callHA('update_item_details', { 
                   original_name: oldName, 
                   new_name: newVal, 
-                  new_date: "" 
+                  new_date: "",
+                  current_path: this.currentPath,
+                  is_folder: true
               }).catch(err => {
                   console.error("Rename failed", err);
                   // Revert if failed
