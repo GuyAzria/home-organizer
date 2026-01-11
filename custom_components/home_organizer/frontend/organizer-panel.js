@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 4.5.0 (Add Sublocation Button Fix)
+// Home Organizer Ultimate - Ver 4.6.0 (Clean Up Edit UI)
 // License: MIT
 
 const ICONS = {
@@ -49,8 +49,7 @@ class HomeOrganizerPanel extends HTMLElement {
         this._hass.connection.subscribeEvents((e) => this.fetchData(), 'home_organizer_db_update');
         this._hass.connection.subscribeEvents((e) => {
              if (e.data.mode === 'identify') {
-                 const input = this.shadowRoot.getElementById('add-name');
-                 if(input) input.value = e.data.result;
+                 // Removed add-name input binding as bottom bar is removed
              }
         }, 'home_organizer_ai_result');
         this.fetchData();
@@ -125,10 +124,8 @@ class HomeOrganizerPanel extends HTMLElement {
 
         .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 4px; border-radius: 20px; }
         .qty-btn { background: #444; border: none; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-        .bottom-bar { background: #242426; padding: 15px; border-top: 1px solid var(--border); display: none; }
         
         /* Edit Mode Additions */
-        .edit-mode .bottom-bar { display: block; }
         .add-folder-card .android-folder-icon { border: 2px dashed #4caf50; background: rgba(76, 175, 80, 0.1); color: #4caf50; }
         .add-folder-card:hover .android-folder-icon { background: rgba(76, 175, 80, 0.2); }
         .add-folder-input { width: 100%; height: 100%; border: none; background: transparent; color: white; text-align: center; font-size: 12px; padding: 5px; outline: none; }
@@ -202,21 +199,7 @@ class HomeOrganizerPanel extends HTMLElement {
             <div style="text-align:center;padding:20px;color:#888;">Loading...</div>
         </div>
         
-        <div class="bottom-bar" id="add-area">
-             <div style="display:flex;gap:10px;margin-bottom:10px">
-                <!-- IN-APP CAMERA BUTTON (Main) -->
-                <button class="action-btn" id="btn-open-cam" style="background:#333;width:45px;height:45px;padding:0;display:flex;align-items:center;justify-content:center">
-                   ${ICONS.camera}
-                </button>
-                
-                <div style="flex:1; display:flex; position:relative;">
-                    <input type="text" id="add-name" placeholder="Name..." style="width:100%;padding:10px;border-radius:8px;background:#111;color:white;border:1px solid #333">
-                    <button id="btn-ai-magic" class="nav-btn ai-btn" style="position:absolute;left:0;top:0;height:100%;border:none;background:none;display:none;">${ICONS.sparkles}</button>
-                </div>
-                <input type="date" id="add-date" style="width:110px;padding:10px;border-radius:8px;background:#111;color:white;border:1px solid #333">
-             </div>
-             <div style="display:flex;gap:10px"><button id="btn-create-folder" style="flex:1;padding:12px;background:#03a9f4;color:white;border:none;border-radius:8px">Location</button><button id="btn-create-item" style="flex:1;padding:12px;background:#4caf50;color:white;border:none;border-radius:8px">Item</button></div>
-        </div>
+        <!-- Bottom Bar Removed (Cleanup) -->
       </div>
       
       <!-- CUSTOM IN-APP CAMERA OVERLAY -->
@@ -254,19 +237,11 @@ class HomeOrganizerPanel extends HTMLElement {
     bind('search-input', 'oninput', (e) => this.fetchData());
     click('btn-edit', () => { this.isEditMode = !this.isEditMode; this.isShopMode = false; this.render(); });
     
-    click('btn-create-folder', () => this.addItem('folder'));
-    click('btn-create-item', () => this.addItem('item'));
     click('btn-paste', () => this.pasteItem());
-    const dateIn = root.getElementById('add-date');
-    if(dateIn) dateIn.value = new Date().toISOString().split('T')[0];
     
     // Camera
-    click('btn-open-cam', () => this.openCamera(null));
     click('btn-ai-search', () => this.openCamera('search'));
-    click('btn-ai-magic', () => {
-         if (!this.tempAddImage) return alert("Take a picture first!");
-         this.callHA('ai_action', { mode: 'identify', image_data: this.tempAddImage });
-    });
+    // btn-open-cam removed, main camera button removed
 
     click('btn-cam-close', () => this.stopCamera());
     click('btn-cam-snap', () => this.snapPhoto());
@@ -336,8 +311,7 @@ class HomeOrganizerPanel extends HTMLElement {
           this.pendingItem = null;
       } else {
           this.tempAddImage = dataUrl;
-          const ic = this.shadowRoot.getElementById('add-cam-icon');
-          if(ic) ic.innerHTML = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`;
+          // UI for tempAddImage is gone, so this branch might be unused, but kept for logic safety
       }
   }
 
@@ -831,13 +805,8 @@ class HomeOrganizerPanel extends HTMLElement {
   }
   
   addItem(type) {
-    const nEl = this.shadowRoot.getElementById('add-name');
-    const dEl = this.shadowRoot.getElementById('add-date');
-    if (!nEl || !nEl.value) return alert("Name required");
-    this._hass.callService('home_organizer', 'add_item', { item_name: nEl.value, item_type: type, item_date: dEl.value, image_data: this.tempAddImage, current_path: this.currentPath });
-    nEl.value = ''; this.tempAddImage = null;
-    const ic = this.shadowRoot.getElementById('add-cam-icon');
-    if(ic) ic.innerHTML = ICONS.camera;
+     // Legacy method kept for compatibility, but UI calling it is removed.
+     // Could be used for debugging or manual console calls.
   }
   
   renameSubloc(oldName) { const newName = prompt("Rename:", oldName); if (newName && newName !== oldName) { this.callHA('update_item_details', { original_name: oldName, new_name: newName, new_date: "" }); } }
