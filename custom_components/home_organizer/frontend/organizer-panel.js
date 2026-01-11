@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 4.4.0 (Add Sublocation Button)
+// Home Organizer Ultimate - Ver 4.5.0 (Add Sublocation Button Fix)
 // License: MIT
 
 const ICONS = {
