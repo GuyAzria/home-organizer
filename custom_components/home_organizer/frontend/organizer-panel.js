@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 4.2.0 (Inline Add & Edit Mode Update)
+// Home Organizer Ultimate - Ver 4.3.0 (Sublocation Context Add Buttons)
 // License: MIT
 
 const ICONS = {
@@ -133,6 +133,11 @@ class HomeOrganizerPanel extends HTMLElement {
         .add-folder-card:hover .android-folder-icon { background: rgba(76, 175, 80, 0.2); }
         .add-folder-input { width: 100%; height: 100%; border: none; background: transparent; color: white; text-align: center; font-size: 12px; padding: 5px; outline: none; }
         
+        /* New Text Button Styles */
+        .text-add-btn { background: none; border: none; color: var(--primary); font-size: 14px; font-weight: bold; cursor: pointer; padding: 8px 0; display: flex; align-items: center; gap: 5px; opacity: 0.8; }
+        .text-add-btn:hover { opacity: 1; text-decoration: underline; }
+        .group-add-row { padding: 0 10px; margin-bottom: 15px; }
+
         .add-item-btn-row { width: 100%; margin-top: 10px; }
         .add-item-btn { width: 100%; padding: 12px; background: rgba(76, 175, 80, 0.15); border: 1px dashed #4caf50; color: #4caf50; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; transition: background 0.2s; }
         .add-item-btn:hover { background: rgba(76, 175, 80, 0.3); }
@@ -473,6 +478,14 @@ class HomeOrganizerPanel extends HTMLElement {
             }
             listContainer.appendChild(header);
             grouped[subName].forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
+
+            // NEW: Add Text Button per sublocation group (replacing global bottom button)
+            if (this.isEditMode) {
+                 const addRow = document.createElement('div');
+                 addRow.className = "group-add-row";
+                 addRow.innerHTML = `<button class="text-add-btn" onclick="this.getRootNode().host.addQuickItem('${subName}')">${ICONS.plus} הוסף</button>`;
+                 listContainer.appendChild(addRow);
+            }
         });
 
         if (outOfStock.length > 0) {
@@ -484,14 +497,6 @@ class HomeOrganizerPanel extends HTMLElement {
         }
         
         content.appendChild(listContainer);
-
-        // Render "Add Item" button if Edit Mode is ON (Bottom of view)
-        if (this.isEditMode) {
-             const addBtn = document.createElement('div');
-             addBtn.className = 'add-item-btn-row';
-             addBtn.innerHTML = `<button class="add-item-btn" onclick="this.getRootNode().host.addQuickItem()">+ הוסף</button>`;
-             content.appendChild(addBtn);
-        }
     }
   }
   
@@ -539,18 +544,23 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   // Logic to add an empty item quickly
-  addQuickItem() {
-      // Create a dummy item. The user will then edit it.
-      // We append a timestamp to ensure uniqueness until renamed.
+  // UPDATED: Now accepts optional targetSubloc to place item in specific sublocation
+  addQuickItem(targetSubloc) {
       const tempName = "New Item " + new Date().toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'});
       const today = new Date().toISOString().split('T')[0];
       
+      let usePath = [...this.currentPath];
+      // If we are adding to a specific sublocation group (and it's not the generic root container 'General')
+      if (targetSubloc && targetSubloc !== "General") {
+          usePath.push(targetSubloc);
+      }
+
       this._hass.callService('home_organizer', 'add_item', { 
           item_name: tempName, 
           item_type: 'item', 
           item_date: today, 
           image_data: null, 
-          current_path: this.currentPath 
+          current_path: usePath
       });
   }
 
