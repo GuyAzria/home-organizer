@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 4.7.0 (Green Edit Icon)
+// Home Organizer Ultimate - Ver 4.8.0 (Inline Sublocation Rename)
 // License: MIT
 
 const ICONS = {
@@ -456,7 +456,7 @@ class HomeOrganizerPanel extends HTMLElement {
             this.setupDropTarget(header, subName);
 
             if (this.isEditMode && subName !== "General") {
-                header.innerHTML = `<span>${subName}</span> <div style="display:flex;gap:5px"><button class="edit-subloc-btn" onclick="this.getRootNode().host.renameSubloc('${subName}')">${ICONS.edit}</button><button class="delete-subloc-btn" onclick="this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button></div>`;
+                header.innerHTML = `<span class="subloc-title">${subName}</span> <div style="display:flex;gap:5px"><button class="edit-subloc-btn" onclick="this.getRootNode().host.enableSublocRename(this, '${subName}')">${ICONS.edit}</button><button class="delete-subloc-btn" onclick="this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button></div>`;
             } else {
                 header.innerText = subName;
             }
@@ -819,7 +819,47 @@ class HomeOrganizerPanel extends HTMLElement {
      // Could be used for debugging or manual console calls.
   }
   
-  renameSubloc(oldName) { const newName = prompt("Rename:", oldName); if (newName && newName !== oldName) { this.callHA('update_item_details', { original_name: oldName, new_name: newName, new_date: "" }); } }
+  enableSublocRename(btn, oldName) {
+      const header = btn.closest('.group-separator');
+      const titleSpan = header.querySelector('.subloc-title') || header.querySelector('span');
+      if(!titleSpan) return;
+
+      const input = document.createElement('input');
+      input.value = oldName;
+      input.style.background = '#222';
+      input.style.color = 'white';
+      input.style.border = '1px solid var(--primary)';
+      input.style.borderRadius = '4px';
+      input.style.padding = '4px';
+      input.style.fontSize = '14px';
+      input.style.width = '200px'; 
+      
+      // Stop click propagation so it doesn't trigger drag/drop or other row clicks if any
+      input.onclick = (e) => e.stopPropagation();
+
+      titleSpan.replaceWith(input);
+      input.focus();
+
+      const save = () => {
+          const newVal = input.value.trim();
+          if (newVal && newVal !== oldName) {
+              this.callHA('update_item_details', { 
+                  original_name: oldName, 
+                  new_name: newVal, 
+                  new_date: "" 
+              });
+          } else {
+              this.render(); // Revert to text
+          }
+      };
+
+      input.onkeydown = (e) => {
+          if (e.key === 'Enter') {
+              input.blur();
+          }
+      };
+      input.onblur = () => save();
+  }
 
   handleFile(e) { }
   handleUpdateImage(input, name) {
