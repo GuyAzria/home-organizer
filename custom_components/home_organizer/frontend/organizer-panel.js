@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 4.11.0 (Collapsible Sublocations & Item Counters)
+// Home Organizer Ultimate - Ver 4.10.0 (Fix Sublocation Rename Parameters)
 // License: MIT
 
 const ICONS = {
@@ -22,9 +22,7 @@ const ICONS = {
   sparkles: '<svg viewBox="0 0 24 24"><path d="M9 9l1.5-4 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5zM19 19l-2.5-1 2.5-1 1-2.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5z"/></svg>',
   refresh: '<svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>',
   wand: '<svg viewBox="0 0 24 24"><path d="M7.5 5.6L10 7 7.5 8.4 6.1 10.9 4.7 8.4 2.2 7 4.7 5.6 6.1 3.1 7.5 5.6zm12 9.8L17 14l2.5-1.4L18.1 10.1 19.5 12.6 22 14 19.5 15.4 18.1 17.9 17 15.4zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5L22 2zm-8.8 11.2l-1.4-2.5L10.4 13.2 8 14.6 10.4 16 11.8 18.5 13.2 16 15.6 14.6 13.2 13.2z"/></svg>',
-  move: '<svg viewBox="0 0 24 24"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg>',
-  chevron_right: '<svg viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>',
-  chevron_down: '<svg viewBox="0 0 24 24"><path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z"/></svg>'
+  move: '<svg viewBox="0 0 24 24"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg>' 
 };
 
 class HomeOrganizerPanel extends HTMLElement {
@@ -41,7 +39,6 @@ class HomeOrganizerPanel extends HTMLElement {
       this.pendingItem = null;
       this.useAiBg = true; 
       this.shopQuantities = {};
-      this.expandedSublocs = new Set(); // Track expanded sublocations
       this.subscribed = false;
 
       this.initUI();
@@ -108,9 +105,7 @@ class HomeOrganizerPanel extends HTMLElement {
             text-transform: uppercase; font-weight: bold; 
             display: flex; justify-content: space-between; align-items: center;
             min-height: 35px;
-            cursor: pointer; /* Clickable */
         }
-        .group-separator:hover { background: rgba(255,255,255,0.05); }
         .group-separator.drag-over { border-bottom: 2px solid var(--primary); color: var(--primary); background: rgba(3, 169, 244, 0.1); }
         .oos-separator { color: var(--danger); border-color: var(--danger); }
         
@@ -456,50 +451,24 @@ class HomeOrganizerPanel extends HTMLElement {
         Object.keys(grouped).sort().forEach(subName => {
             if (subName === "General" && grouped[subName].length === 0 && !this.isEditMode) return;
 
-            const isExpanded = this.expandedSublocs.has(subName);
-            const count = grouped[subName].length;
-            const icon = isExpanded ? ICONS.chevron_down : ICONS.chevron_right;
-            const countBadge = `<span style="font-size:12px; background:#444; padding:2px 6px; border-radius:10px; margin-left:8px;">${count}</span>`;
-
             const header = document.createElement('div');
             header.className = 'group-separator';
             this.setupDropTarget(header, subName);
 
-            // Toggle Expand Logic attached to header
-            header.onclick = () => this.toggleSubloc(subName);
-
             if (this.isEditMode && subName !== "General") {
-                header.innerHTML = `
-                    <div style="display:flex;align-items:center;">
-                        <span style="margin-right:5px;display:flex;align-items:center">${icon}</span>
-                        <span class="subloc-title">${subName}</span>
-                        ${countBadge}
-                    </div>
-                    <div style="display:flex;gap:5px">
-                        <button class="edit-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableSublocRename(this, '${subName}')">${ICONS.edit}</button>
-                        <button class="delete-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button>
-                    </div>`;
+                header.innerHTML = `<span class="subloc-title">${subName}</span> <div style="display:flex;gap:5px"><button class="edit-subloc-btn" onclick="this.getRootNode().host.enableSublocRename(this, '${subName}')">${ICONS.edit}</button><button class="delete-subloc-btn" onclick="this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button></div>`;
             } else {
-                header.innerHTML = `
-                    <div style="display:flex;align-items:center;">
-                        <span style="margin-right:5px;display:flex;align-items:center">${icon}</span>
-                        <span>${subName}</span>
-                        ${countBadge}
-                    </div>`;
+                header.innerText = subName;
             }
             listContainer.appendChild(header);
-            
-            // Only render items if expanded
-            if (isExpanded) {
-                grouped[subName].forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
+            grouped[subName].forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
 
-                // Add Text Button per sublocation group (replacing global bottom button)
-                if (this.isEditMode) {
-                     const addRow = document.createElement('div');
-                     addRow.className = "group-add-row";
-                     addRow.innerHTML = `<button class="text-add-btn" onclick="this.getRootNode().host.addQuickItem('${subName}')">${ICONS.plus} הוסף</button>`;
-                     listContainer.appendChild(addRow);
-                }
+            // Add Text Button per sublocation group (replacing global bottom button)
+            if (this.isEditMode) {
+                 const addRow = document.createElement('div');
+                 addRow.className = "group-add-row";
+                 addRow.innerHTML = `<button class="text-add-btn" onclick="this.getRootNode().host.addQuickItem('${subName}')">${ICONS.plus} הוסף</button>`;
+                 listContainer.appendChild(addRow);
             }
         });
 
@@ -533,15 +502,6 @@ class HomeOrganizerPanel extends HTMLElement {
         
         content.appendChild(listContainer);
     }
-  }
-  
-  toggleSubloc(name) {
-      if (this.expandedSublocs.has(name)) {
-          this.expandedSublocs.delete(name);
-      } else {
-          this.expandedSublocs.add(name);
-      }
-      this.render();
   }
   
   // Logic to turn the "Add Folder" card into an input
@@ -844,14 +804,7 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   render() { this.updateUI(); }
-  navigate(dir, name) { 
-      if (dir === 'root') this.currentPath = []; 
-      else if (dir === 'up') this.currentPath.pop(); 
-      else if (dir === 'down' && name) this.currentPath.push(name); 
-      
-      this.expandedSublocs.clear(); // Collapse all on navigate
-      this.fetchData(); 
-  }
+  navigate(dir, name) { if (dir === 'root') this.currentPath = []; else if (dir === 'up') this.currentPath.pop(); else if (dir === 'down' && name) this.currentPath.push(name); this.fetchData(); }
   toggleRow(name) { this.expandedIdx = (this.expandedIdx === name) ? null : name; this.render(); }
   updateQty(name, d) { this.callHA('update_qty', { item_name: name, change: d }); }
   
