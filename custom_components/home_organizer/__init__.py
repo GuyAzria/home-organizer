@@ -1,981 +1,443 @@
-// Home Organizer Ultimate - Ver 4.11.0 (Collapsible Sublocations & Item Counters)
-// License: MIT
+# -*- coding: utf-8 -*-
+# Home Organizer Ultimate - ver 5.3.0 (Accordion Logic & Counters)
 
-const ICONS = {
-  arrow_up: '<svg viewBox="0 0 24 24"><path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/></svg>',
-  home: '<svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>',
-  cart: '<svg viewBox="0 0 24 24"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>',
-  search: '<svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>',
-  edit: '<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>',
-  close: '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>',
-  camera: '<svg viewBox="0 0 24 24"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm6 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>',
-  folder: '<svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>',
-  item: '<svg viewBox="0 0 24 24"><path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/></svg>',
-  delete: '<svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>',
-  cut: '<svg viewBox="0 0 24 24"><path d="M9.64 7.64c.23-.5.36-1.05.36-1.64 0-2.21-1.79-4-4-4S2 3.79 2 6s1.79 4 4 4c.59 0 1.14-.13 1.64-.36L10 12l-2.36 2.36C7.14 14.13 6.59 14 6 14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.59-.13-1.14-.36-1.64L12 14l7 7h3v-1L9.64 7.64zM6 8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm0 12c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm6-7.5c-.28 0-.5-.22-.5-.5s.22-.5 .5-.5 .5 .22 .5 .5-.22 .5-.5 .5z"/></svg>',
-  paste: '<svg viewBox="0 0 24 24"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>',
-  plus: '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>',
-  minus: '<svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>',
-  save: '<svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>',
-  check: '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
-  image: '<svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>',
-  sparkles: '<svg viewBox="0 0 24 24"><path d="M9 9l1.5-4 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5zM19 19l-2.5-1 2.5-1 1-2.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5z"/></svg>',
-  refresh: '<svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>',
-  wand: '<svg viewBox="0 0 24 24"><path d="M7.5 5.6L10 7 7.5 8.4 6.1 10.9 4.7 8.4 2.2 7 4.7 5.6 6.1 3.1 7.5 5.6zm12 9.8L17 14l2.5-1.4L18.1 10.1 19.5 12.6 22 14 19.5 15.4 18.1 17.9 17 15.4zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5L22 2zm-8.8 11.2l-1.4-2.5L10.4 13.2 8 14.6 10.4 16 11.8 18.5 13.2 16 15.6 14.6 13.2 13.2z"/></svg>',
-  move: '<svg viewBox="0 0 24 24"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg>',
-  chevron_right: '<svg viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>',
-  chevron_down: '<svg viewBox="0 0 24 24"><path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z"/></svg>'
-};
+import logging
+import sqlite3
+import os
+import shutil
+import base64
+import time
+import json
+import voluptuous as vol
+from datetime import datetime, timedelta
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.components import panel_custom, websocket_api
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from .const import DOMAIN, CONF_API_KEY, CONF_DEBUG, CONF_USE_AI, DB_FILE, IMG_DIR, VERSION
 
-class HomeOrganizerPanel extends HTMLElement {
-  set hass(hass) {
-    this._hass = hass;
-    if (!this.content) {
-      this.currentPath = [];
-      this.isEditMode = false;
-      this.isSearch = false;
-      this.isShopMode = false;
-      this.expandedIdx = null;
-      this.lastAI = "";
-      this.localData = null; 
-      this.pendingItem = null;
-      this.useAiBg = true; 
-      this.shopQuantities = {};
-      this.expandedSublocs = new Set(); // Track expanded sublocations
-      this.subscribed = false;
+_LOGGER = logging.getLogger(__name__)
+MAX_LEVELS = 10
 
-      this.initUI();
-    }
+WS_GET_DATA = "home_organizer/get_data"
 
-    if (this._hass && this._hass.connection && !this.subscribed) {
-        this.subscribed = true;
-        this._hass.connection.subscribeEvents((e) => this.fetchData(), 'home_organizer_db_update');
-        this._hass.connection.subscribeEvents((e) => {
-             if (e.data.mode === 'identify') {
-                 // Removed add-name input binding as bottom bar is removed
-             }
-        }, 'home_organizer_ai_result');
-        this.fetchData();
-    }
-  }
+async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+    return True
 
-  async fetchData() {
-      if (!this._hass) return;
-      try {
-          const data = await this._hass.callWS({
-              type: 'home_organizer/get_data',
-              path: this.currentPath,
-              search_query: this.shadowRoot.getElementById('search-input')?.value || "",
-              date_filter: "All",
-              shopping_mode: this.isShopMode
-          });
-          this.localData = data;
-          this.updateUI();
-      } catch (e) {
-          console.error("Fetch error", e);
-      }
-  }
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    if entry.options.get(CONF_DEBUG): _LOGGER.setLevel(logging.DEBUG)
 
-  initUI() {
-    this.content = true;
-    this.attachShadow({mode: 'open'});
-    this.shadowRoot.innerHTML = `
-      <style>
-        :host { --app-bg: #1c1c1e; --primary: #03a9f4; --accent: #4caf50; --danger: #f44336; --text: #fff; --border: #333; --warning: #ffeb3b; --icon-btn-bg: #444; }
-        * { box-sizing: border-box; }
-        .app-container { background: var(--app-bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; font-family: sans-serif; direction: rtl; }
-        svg { width: 24px; height: 24px; fill: currentColor; }
-        .top-bar { background: #242426; padding: 10px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-shrink: 0; height: 60px; }
-        .nav-btn { background: none; border: none; color: var(--primary); cursor: pointer; padding: 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-        .nav-btn:hover { background: rgba(255,255,255,0.1); }
-        .nav-btn.active { color: var(--warning); }
-        .nav-btn.edit-active { color: var(--accent); } /* Green for Edit Mode */
-        .title-box { flex: 1; text-align: center; }
-        .main-title { font-weight: bold; font-size: 16px; }
-        .sub-title { font-size: 11px; color: #aaa; direction: ltr; }
-        .content { flex: 1; padding: 15px; overflow-y: auto; }
-        
-        .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 20px; }
-        .folder-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; position: relative; }
-        .android-folder-icon { width: 56px; height: 56px; background: #3c4043; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #8ab4f8; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); position: relative; }
-        .folder-delete-btn { position: absolute; top: -5px; right: -5px; background: var(--danger); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
-        .item-list { display: flex; flex-direction: column; gap: 5px; }
-        
-        /* Updated Headers for Edit Mode Consistency */
-        .group-separator { 
-            color: #aaa; font-size: 14px; margin: 20px 0 10px 0; 
-            border-bottom: 1px solid #444; padding-bottom: 4px; 
-            text-transform: uppercase; font-weight: bold; 
-            display: flex; justify-content: space-between; align-items: center;
-            min-height: 35px;
-            cursor: pointer; /* Clickable */
-        }
-        .group-separator:hover { background: rgba(255,255,255,0.05); }
-        .group-separator.drag-over { border-bottom: 2px solid var(--primary); color: var(--primary); background: rgba(3, 169, 244, 0.1); }
-        .oos-separator { color: var(--danger); border-color: var(--danger); }
-        
-        /* Sublocation Action Buttons - styled like item actions */
-        .edit-subloc-btn { background: none; border: none; color: #aaa; cursor: pointer; padding: 4px; }
-        .edit-subloc-btn:hover { color: var(--primary); }
-        .delete-subloc-btn { background: none; border: none; color: var(--danger); cursor: pointer; padding: 4px; }
+    await async_setup_frontend(hass)
 
-        .item-row { background: #2c2c2e; margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid transparent; touch-action: pan-y; }
-        .item-row.expanded { background: #3a3a3c; flex-direction: column; align-items: stretch; cursor: default; }
-        .out-of-stock-frame { border: 2px solid var(--danger); }
+    await panel_custom.async_register_panel(
+        hass,
+        webcomponent_name="home-organizer-panel",
+        frontend_url_path="organizer",
+        module_url=f"/local/home_organizer_libs/organizer-panel.js?v={int(time.time())}",
+        sidebar_title="ארגונית",
+        sidebar_icon="mdi:package-variant-closed",
+        require_admin=False
+    )
 
-        .item-main { display: flex; align-items: center; justify-content: space-between; width: 100%; cursor: pointer; }
-        .item-left { display: flex; align-items: center; gap: 10px; }
-        .item-icon { color: var(--primary); display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; }
-        .item-thumbnail { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: #fff; display: block; border: 1px solid #444; }
+    await hass.async_add_executor_job(init_db, hass)
 
-        .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 4px; border-radius: 20px; }
-        .qty-btn { background: #444; border: none; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-        
-        /* Edit Mode Additions */
-        .add-folder-card .android-folder-icon { border: 2px dashed #4caf50; background: rgba(76, 175, 80, 0.1); color: #4caf50; }
-        .add-folder-card:hover .android-folder-icon { background: rgba(76, 175, 80, 0.2); }
-        .add-folder-input { width: 100%; height: 100%; border: none; background: transparent; color: white; text-align: center; font-size: 12px; padding: 5px; outline: none; }
-        
-        /* New Text Button Styles */
-        .text-add-btn { background: none; border: none; color: var(--primary); font-size: 14px; font-weight: bold; cursor: pointer; padding: 8px 0; display: flex; align-items: center; gap: 5px; opacity: 0.8; }
-        .text-add-btn:hover { opacity: 1; text-decoration: underline; }
-        .group-add-row { padding: 0 10px; margin-bottom: 15px; }
-
-        .add-item-btn-row { width: 100%; margin-top: 10px; }
-        .add-item-btn { width: 100%; padding: 12px; background: rgba(76, 175, 80, 0.15); border: 1px dashed #4caf50; color: #4caf50; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; transition: background 0.2s; }
-        .add-item-btn:hover { background: rgba(76, 175, 80, 0.3); }
-
-        .expanded-details { margin-top: 10px; padding-top: 10px; border-top: 1px solid #555; display: flex; flex-direction: column; gap: 10px; }
-        .detail-row { display: flex; gap: 10px; align-items: center; }
-        
-        .action-btn { width: 40px; height: 40px; border-radius: 8px; border: 1px solid #555; color: #ccc; background: var(--icon-btn-bg); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 8px; }
-        .action-btn:hover { background: #555; color: white; }
-        .btn-danger { color: #ff8a80; border-color: #d32f2f; }
-        .btn-text { width: auto; padding: 0 15px; font-weight: bold; color: white; background: var(--primary); border: none; }
-        .move-container { display: flex; gap: 5px; align-items: center; flex: 1; }
-        .move-select { flex: 1; padding: 8px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; }
-        .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
-        
-        /* CAMERA OVERLAY STYLES */
-        #camera-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: center; }
-        #camera-video { width: 100%; height: 80%; object-fit: cover; }
-        .camera-controls { height: 20%; width: 100%; display: flex; align-items: center; justify-content: center; gap: 30px; background: rgba(0,0,0,0.5); position: absolute; bottom: 0; }
-        .snap-btn { width: 70px; height: 70px; border-radius: 50%; background: white; border: 5px solid #ccc; cursor: pointer; }
-        .snap-btn.white-bg-active { background: #e3f2fd; border-color: var(--primary); }
-        .close-cam-btn { color: white; background: none; border: none; font-size: 16px; cursor: pointer; }
-        .wb-btn { color: #aaa; background: none; border: 2px solid #555; border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-direction: column; font-size: 10px; }
-        .wb-btn.active { color: #333; background: white; border-color: white; }
-        .wb-btn svg { width: 24px; height: 24px; margin-bottom: 2px; }
-        #camera-canvas { display: none; }
-        .direct-input-label { width: 40px; height: 40px; background: var(--icon-btn-bg); border-radius: 8px; border: 1px solid #555; display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer; color: #ccc; }
-        .hidden-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10; }
-      </style>
-      
-      <!-- MAIN APP UI -->
-      <div class="app-container" id="app">
-         <div class="top-bar">
-            <div style="display:flex;gap:5px">
-                <button class="nav-btn" id="btn-up">${ICONS.arrow_up}</button>
-                <button class="nav-btn" id="btn-home">${ICONS.home}</button>
-            </div>
-            <div class="title-box">
-                <div class="main-title" id="display-title">Organizer</div>
-                <div class="sub-title" id="display-path">Main</div>
-            </div>
-            <div style="display:flex;gap:5px">
-                <button class="nav-btn" id="btn-shop">${ICONS.cart}</button>
-                <button class="nav-btn" id="btn-search">${ICONS.search}</button>
-                <button class="nav-btn" id="btn-edit">${ICONS.edit}</button>
-            </div>
-        </div>
-        
-        <div class="search-box" id="search-box">
-            <div style="position:relative; flex:1;">
-                <input type="text" id="search-input" style="width:100%;padding:8px;padding-left:35px;border-radius:8px;background:#111;color:white;border:1px solid #333">
-                <button class="nav-btn ai-btn" id="btn-ai-search" style="position:absolute;left:0;top:0;height:100%;background:none;border:none;">
-                   ${ICONS.camera}
-                </button>
-            </div>
-            <button class="nav-btn" id="search-close">${ICONS.close}</button>
-        </div>
-        
-        <div class="paste-bar" id="paste-bar" style="display:none;padding:10px;background:rgba(255,235,59,0.2);color:#ffeb3b;align-items:center;justify-content:space-between"><div>${ICONS.cut} Cut: <b id="clipboard-name"></b></div><button id="btn-paste" style="background:#4caf50;color:white;border:none;padding:5px 15px;border-radius:15px">Paste</button></div>
-        
-        <div class="content" id="content">
-            <div style="text-align:center;padding:20px;color:#888;">Loading...</div>
-        </div>
-      </div>
-      
-      <!-- CUSTOM IN-APP CAMERA OVERLAY -->
-      <div id="camera-modal">
-          <video id="camera-video" autoplay playsinline muted></video>
-          <div class="camera-controls">
-              <button class="close-cam-btn" id="btn-cam-switch">${ICONS.refresh}</button>
-              <button class="snap-btn" id="btn-cam-snap"></button>
-              <button class="wb-btn active" id="btn-cam-wb" title="Toggle AI Background Removal">${ICONS.wand}<span>AI BG</span></button>
-              <button class="close-cam-btn" id="btn-cam-close" style="position:absolute;top:-50px;right:20px;background:rgba(0,0,0,0.5);border-radius:50%;width:40px;height:40px">✕</button>
-          </div>
-          <canvas id="camera-canvas"></canvas>
-      </div>
-
-      <div class="overlay" id="img-overlay" onclick="this.style.display='none'" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:200;justify-content:center;align-items:center"><img id="overlay-img" style="max-width:90%;max-height:90%;border-radius:8px"></div>
-    `;
-
-    if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-         console.warn("Camera access requires HTTPS.");
-    }
-
-    this.bindEvents();
-  }
-
-  bindEvents() {
-    const root = this.shadowRoot;
-    const bind = (id, event, fn) => { const el = root.getElementById(id); if(el) el[event] = fn; };
-    const click = (id, fn) => bind(id, 'onclick', fn);
-
-    click('btn-up', () => this.navigate('up'));
-    click('btn-home', () => { this.isShopMode = false; this.isSearch = false; this.navigate('root'); });
-    click('btn-shop', () => { this.isShopMode = !this.isShopMode; if(this.isShopMode) { this.isSearch=false; this.isEditMode=false; } this.fetchData(); });
-    click('btn-search', () => { this.isSearch = true; this.isShopMode = false; this.render(); });
-    click('search-close', () => { this.isSearch = false; this.fetchData(); });
-    bind('search-input', 'oninput', (e) => this.fetchData());
-    click('btn-edit', () => { this.isEditMode = !this.isEditMode; this.isShopMode = false; this.render(); });
+    hass.data.setdefault(DOMAIN, {})
     
-    click('btn-paste', () => this.pasteItem());
+    # Safe Websocket Registration (Fixes crash on reload)
+    try:
+        websocket_api.async_register_command(
+            hass,
+            WS_GET_DATA, 
+            websocket_get_data, 
+            websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend({
+                vol.Required("type"): WS_GET_DATA,
+                vol.Optional("path", default=[]): list,
+                vol.Optional("search_query", default=""): str,
+                vol.Optional("date_filter", default="All"): str,
+                vol.Optional("shopping_mode", default=False): bool,
+            })
+        )
+    except Exception:
+        pass 
+
+    await register_services(hass, entry)
+    entry.async_on_unload(entry.add_update_listener(update_listener))
+    return True
+
+async def update_listener(hass: HomeAssistant, entry: ConfigEntry):
+    await hass.config_entries.async_reload(entry.entry_id)
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    hass.components.frontend.async_remove_panel("organizer")
+    return True
+
+async def async_setup_frontend(hass: HomeAssistant):
+    src = os.path.join(os.path.dirname(__file__), "frontend", "organizer-panel.js")
+    dest_dir = hass.config.path("www", "home_organizer_libs")
+    dest = os.path.join(dest_dir, "organizer-panel.js")
+    if not os.path.exists(dest_dir): await hass.async_add_executor_job(os.makedirs, dest_dir)
+    if os.path.exists(src): await hass.async_add_executor_job(shutil.copyfile, src, dest)
+
+def get_db_connection(hass):
+    return sqlite3.connect(hass.config.path(DB_FILE))
+
+def init_db(hass):
+    if not os.path.exists(hass.config.path("www", IMG_DIR)): os.makedirs(hass.config.path("www", IMG_DIR))
+    conn = get_db_connection(hass)
+    c = conn.cursor()
+    cols = ", ".join([f"level_{i} TEXT" for i in range(1, MAX_LEVELS + 1)])
+    c.execute(f'''CREATE TABLE IF NOT EXISTS items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, type TEXT DEFAULT 'item',
+        {cols}, item_date TEXT, quantity INTEGER DEFAULT 1, image_path TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
-    // Camera
-    click('btn-ai-search', () => this.openCamera('search'));
-    // btn-open-cam removed, main camera button removed
-
-    click('btn-cam-close', () => this.stopCamera());
-    click('btn-cam-snap', () => this.snapPhoto());
-    click('btn-cam-switch', () => this.switchCamera());
-    click('btn-cam-wb', () => this.toggleWhiteBG());
-  }
-  
-  toggleWhiteBG() {
-      this.useAiBg = !this.useAiBg;
-      const btn = this.shadowRoot.getElementById('btn-cam-wb');
-      if (this.useAiBg) btn.classList.add('active'); else btn.classList.remove('active');
-  }
-
-  async openCamera(context) {
-      this.cameraContext = context;
-      const modal = this.shadowRoot.getElementById('camera-modal');
-      const video = this.shadowRoot.getElementById('camera-video');
-      modal.style.display = 'flex';
-      try {
-          this.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: this.facingMode || "environment" } });
-          video.srcObject = this.stream;
-      } catch (err) {
-          alert("Camera Error: " + err.message);
-          modal.style.display = 'none';
-      }
-  }
-
-  stopCamera() {
-      const modal = this.shadowRoot.getElementById('camera-modal');
-      const video = this.shadowRoot.getElementById('camera-video');
-      if (this.stream) this.stream.getTracks().forEach(track => track.stop());
-      video.srcObject = null;
-      modal.style.display = 'none';
-  }
-
-  async switchCamera() {
-      this.facingMode = (this.facingMode === "user") ? "environment" : "user";
-      this.stopCamera();
-      setTimeout(() => this.openCamera(this.cameraContext), 200);
-  }
-
-  snapPhoto() {
-      const video = this.shadowRoot.getElementById('camera-video');
-      const canvas = this.shadowRoot.getElementById('camera-canvas');
-      const context = canvas.getContext('2d');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
-      if (this.useAiBg) {
-          let imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-          let data = imageData.data;
-          for (let i = 0; i < data.length; i += 4) {
-              let r = data[i], g = data[i+1], b = data[i+2];
-              if (r > 190 && g > 190 && b > 190) { data[i] = 255; data[i+1] = 255; data[i+2] = 255; }
-          }
-          context.putImageData(imageData, 0, 0);
-      }
-      
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
-      this.stopCamera();
-      
-      if (this.cameraContext === 'search') {
-          this.callHA('ai_action', { mode: 'search', image_data: dataUrl });
-      } else if (this.pendingItem) {
-          this.callHA('update_image', { item_name: this.pendingItem, image_data: dataUrl });
-          this.pendingItem = null;
-      } else {
-          this.tempAddImage = dataUrl;
-          // UI for tempAddImage is gone, so this branch might be unused, but kept for logic safety
-      }
-  }
-
-  updateUI() {
-    if(!this.localData) return;
-    const attrs = this.localData;
-    const root = this.shadowRoot;
+    # SAFE MIGRATION: Ensure columns exist without breaking old DB
+    c.execute("PRAGMA table_info(items)")
+    existing_cols = [col[1] for col in c.fetchall()]
     
-    root.getElementById('display-title').innerText = attrs.path_display;
+    if 'image_path' not in existing_cols:
+        try: c.execute("ALTER TABLE items ADD COLUMN image_path TEXT")
+        except: pass
+        
+    for i in range(1, MAX_LEVELS + 1):
+        col_name = f"level_{i}"
+        if col_name not in existing_cols:
+            try: c.execute(f"ALTER TABLE items ADD COLUMN {col_name} TEXT")
+            except: pass
+
+    conn.commit(); conn.close()
+
+@callback
+def websocket_get_data(hass, connection, msg):
+    path = msg.get("path", [])
+    query = msg.get("search_query", "")
+    date_filter = msg.get("date_filter", "All")
+    is_shopping = msg.get("shopping_mode", False)
     
-    root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
-    root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
-    if(attrs.clipboard) root.getElementById('clipboard-name').innerText = attrs.clipboard;
-    const app = root.getElementById('app');
-    if(this.isEditMode) {
-        app.classList.add('edit-mode'); 
-    } else {
-        app.classList.remove('edit-mode');
-    }
+    data = get_view_data(hass, path, query, date_filter, is_shopping)
+    connection.send_result(msg["id"], data)
+
+def get_view_data(hass, path_parts, query, date_filter, is_shopping):
+    conn = get_db_connection(hass); c = conn.cursor()
+    folders = []; items = []; shopping_list = []
     
-    // Toggle edit button color
-    const editBtn = root.getElementById('btn-edit');
-    if (editBtn) {
-        if (this.isEditMode) editBtn.classList.add('edit-active');
-        else editBtn.classList.remove('edit-active');
-    }
+    hierarchy = {}
+    try:
+        # Hierarchy fetch from 3.10.0 logic
+        c.execute("SELECT DISTINCT level_1, level_2, level_3 FROM items WHERE level_1 IS NOT NULL AND level_1 != ''")
+        for r in c.fetchall():
+            l1, l2, l3 = r[0], r[1], r[2]
+            if l1 not in hierarchy: hierarchy[l1] = {}
+            if l2:
+                if l2 not in hierarchy[l1]: hierarchy[l1][l2] = []
+                if l3 and l3 not in hierarchy[l1][l2]: hierarchy[l1][l2].append(l3)
+    except: pass
 
-    const content = root.getElementById('content');
-    content.innerHTML = '';
+    try:
+        if is_shopping:
+            c.execute("SELECT * FROM items WHERE quantity = 0 AND type='item' ORDER BY level_2 ASC, level_3 ASC")
+            col_names = [description[0] for description in c.description]
+            for r in c.fetchall():
+                r_dict = dict(zip(col_names, r))
+                fp = []; [fp.append(r_dict.get(f"level_{i}", "")) for i in range(1, MAX_LEVELS+1) if r_dict.get(f"level_{i}")]
+                img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
+                shopping_list.append({
+                    "name": r_dict['name'], 
+                    "qty": 0, 
+                    "date": r_dict['item_date'], 
+                    "img": img, 
+                    "location": " > ".join([p for p in fp if p]),
+                    "main_location": r_dict.get("level_2", "General"),
+                    "sub_location": r_dict.get("level_3", "")
+                })
 
-    if (attrs.shopping_list && attrs.shopping_list.length > 0) {
-        const listContainer = document.createElement('div');
-        listContainer.className = 'item-list';
-        const grouped = {};
-        attrs.shopping_list.forEach(item => {
-            const loc = item.main_location || "Other";
-            if(!grouped[loc]) grouped[loc] = [];
-            grouped[loc].push(item);
-        });
-        Object.keys(grouped).sort().forEach(locName => {
-            const header = document.createElement('div');
-            header.className = 'group-separator';
-            header.innerText = locName;
-            listContainer.appendChild(header);
-            grouped[locName].forEach(item => listContainer.appendChild(this.createItemRow(item, true)));
-        });
-        content.appendChild(listContainer);
-        return;
-    }
+        elif query or date_filter != "All":
+            sql = "SELECT * FROM items WHERE 1=1"; params = []
+            for i, p in enumerate(path_parts): sql += f" AND level_{i+1} = ?"; params.append(p)
 
-    if ((this.isSearch || (attrs.path_display && attrs.path_display.startsWith('Search'))) && attrs.items) {
-        const list = document.createElement('div');
-        list.className = 'item-list';
-        attrs.items.forEach(item => list.appendChild(this.createItemRow(item, false)));
-        content.appendChild(list);
-        return;
-    }
-
-    // FOLDER VIEW / LOCATION VIEW
-    if (attrs.depth < 2) {
-        if (attrs.folders && attrs.folders.length > 0 || this.isEditMode) {
-            const grid = document.createElement('div');
-            grid.className = 'folder-grid';
+            if query: sql += " AND name LIKE ?"; params.append(f"%{query}%")
+            if date_filter == "Week": 
+                sql += " AND item_date >= ?"; params.append((datetime.now()-timedelta(days=7)).strftime("%Y-%m-%d"))
+            elif date_filter == "Month":
+                sql += " AND item_date LIKE ?"; params.append(datetime.now().strftime("%Y-%m") + "%")
             
-            // Render existing folders
-            if (attrs.folders) {
-                attrs.folders.forEach(folder => {
-                    const el = document.createElement('div');
-                    el.className = 'folder-item';
+            c.execute(sql, tuple(params))
+            col_names = [description[0] for description in c.description]
+            for r in c.fetchall():
+                r_dict = dict(zip(col_names, r))
+                fp = []; [fp.append(r_dict.get(f"level_{i}", "")) for i in range(1, MAX_LEVELS+1) if r_dict.get(f"level_{i}")]
+                if r_dict['type'] == 'item':
+                    img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
+                    items.append({"name": r_dict['name'], "type": r_dict['type'], "qty": r_dict['quantity'], "date": r_dict['item_date'], "img": img, "location": " > ".join([p for p in fp if p])})
+
+        else:
+            depth = len(path_parts)
+            sql_where = ""; params = []
+            for i, p in enumerate(path_parts): sql_where += f" AND level_{i+1} = ?"; params.append(p)
+
+            if depth < 2:
+                # Grid View logic from 3.10.0
+                col = f"level_{depth+1}"
+                c.execute(f"SELECT DISTINCT {col} FROM items WHERE {col} IS NOT NULL AND {col} != '' {sql_where} ORDER BY {col} ASC", tuple(params))
+                for r in c.fetchall(): folders.append({"name": r[0]})
+                
+                sql = f"SELECT * FROM items WHERE type='item' AND (level_{depth+1} IS NULL OR level_{depth+1} = '') {sql_where} ORDER BY name ASC"
+                c.execute(sql, tuple(params))
+                col_names = [description[0] for description in c.description]
+                for r in c.fetchall():
+                      r_dict = dict(zip(col_names, r))
+                      img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
+                      items.append({"name": r_dict['name'], "type": 'item', "qty": r_dict['quantity'], "img": img})
+            else:
+                # List View logic from 3.10.0
+                sublocations = []
+                col = f"level_{depth+1}"
+                c.execute(f"SELECT DISTINCT {col} FROM items WHERE {col} IS NOT NULL AND {col} != '' {sql_where} ORDER BY {col} ASC", tuple(params))
+                for r in c.fetchall(): sublocations.append(r[0])
+
+                sql = f"SELECT * FROM items WHERE type='item' {sql_where} ORDER BY level_{depth+1} ASC, name ASC"
+                c.execute(sql, tuple(params))
+                col_names = [description[0] for description in c.description]
+                
+                fetched_items = []
+                for r in c.fetchall():
+                    r_dict = dict(zip(col_names, r))
+                    img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
+                    subloc = r_dict.get(f"level_{depth+1}", "")
+                    fetched_items.append({
+                        "name": r_dict['name'], 
+                        "type": 'item', 
+                        "qty": r_dict['quantity'], 
+                        "date": r_dict['item_date'], 
+                        "img": img, 
+                        "sub_location": subloc
+                    })
+                
+                for s in sublocations: folders.append({"name": s})
+                items = fetched_items
+
+    finally: conn.close()
+
+    return {
+        "path_display": is_shopping and "Shopping List" or (query and "Search Results" or (" > ".join(path_parts) if path_parts else "Main")),
+        "folders": folders,
+        "items": items,
+        "shopping_list": shopping_list,
+        "app_version": VERSION,
+        "depth": len(path_parts),
+        "hierarchy": hierarchy
+    }
+
+async def register_services(hass, entry):
+    api_key = entry.options.get(CONF_API_KEY, entry.data.get(CONF_API_KEY, ""))
+    
+    def broadcast_update():
+        hass.bus.async_fire("home_organizer_db_update")
+
+    async def handle_add(call):
+        name = call.data.get("item_name"); itype = call.data.get("item_type", "item")
+        date = call.data.get("item_date"); img_b64 = call.data.get("image_data")
+        fname = ""
+        if img_b64:
+            try:
+                if "," in img_b64: img_b64 = img_b64.split(",")[1]
+                fname = f"img_{int(time.time())}.jpg"
+                await hass.async_add_executor_job(lambda: open(hass.config.path("www", IMG_DIR, fname), "wb").write(base64.b64decode(img_b64)))
+            except: pass
+
+        parts = call.data.get("current_path", [])
+        depth = len(parts)
+        cols = ["name", "type", "quantity", "item_date", "image_path"]
+        
+        if itype == 'folder':
+            if depth >= MAX_LEVELS: return
+            vals = [f"[Folder] {name}", "folder_marker", 0, date, fname]
+            qs = ["?", "?", "?", "?", "?"]
+            for i, p in enumerate(parts): cols.append(f"level_{i+1}"); vals.append(p); qs.append("?")
+            cols.append(f"level_{depth+1}"); vals.append(name); qs.append("?")
+            
+            def db_ins():
+                conn = get_db_connection(hass); c = conn.cursor()
+                c.execute(f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})", tuple(vals))
+                conn.commit(); conn.close()
+            await hass.async_add_executor_job(db_ins)
+        else:
+            vals = [name, itype, 1, date, fname]
+            qs = ["?", "?", "?", "?", "?"]
+            for i, p in enumerate(parts): cols.append(f"level_{i+1}"); vals.append(p); qs.append("?")
+
+            def db_ins():
+                conn = get_db_connection(hass); c = conn.cursor()
+                c.execute(f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})", tuple(vals))
+                conn.commit(); conn.close()
+            await hass.async_add_executor_job(db_ins)
+
+        broadcast_update()
+
+    async def handle_update_qty(call):
+        name = call.data.get("item_name"); change = int(call.data.get("change"))
+        today = datetime.now().strftime("%Y-%m-%d")
+        def db_q():
+            conn = get_db_connection(hass); c = conn.cursor()
+            c.execute(f"UPDATE items SET quantity = MAX(0, quantity + ?), item_date = ? WHERE name = ?", (change, today, name))
+            conn.commit(); conn.close()
+        await hass.async_add_executor_job(db_q); broadcast_update()
+
+    async def handle_update_stock(call):
+        name = call.data.get("item_name"); qty = int(call.data.get("quantity"))
+        today = datetime.now().strftime("%Y-%m-%d")
+        def db_upd():
+            conn = get_db_connection(hass); c = conn.cursor()
+            c.execute(f"UPDATE items SET quantity = ?, item_date = ? WHERE name = ?", (qty, today, name))
+            conn.commit(); conn.close()
+        await hass.async_add_executor_job(db_upd); broadcast_update()
+
+    async def handle_delete(call):
+        name = call.data.get("item_name")
+        parts = call.data.get("current_path", [])
+        is_folder = call.data.get("is_folder", False)
+
+        def db_del(): 
+            conn = get_db_connection(hass); c = conn.cursor()
+            
+            # RECURSIVE DELETE LOGIC
+            if is_folder:
+                depth = len(parts)
+                target_col = f"level_{depth+1}"
+                conditions = [f"{target_col} = ?"]
+                args = [name]
+                for i, p in enumerate(parts):
+                    conditions.append(f"level_{i+1} = ?")
+                    args.append(p)
+                c.execute(f"DELETE FROM items WHERE {' AND '.join(conditions)}", tuple(args))
+            else:
+                c.execute(f"DELETE FROM items WHERE name = ?", (name,))
+                
+            conn.commit(); conn.close()
+        await hass.async_add_executor_job(db_del); broadcast_update()
+
+    async def handle_paste(call):
+        target_path = call.data.get("target_path")
+        item_name = hass.data.get(DOMAIN, {}).get("clipboard") 
+        if not item_name: return
+        def db_mv():
+            conn = get_db_connection(hass); c = conn.cursor()
+            upd = [f"level_{i} = ?" for i in range(1, MAX_LEVELS+1)]
+            vals = [target_path[i-1] if i <= len(target_path) else None for i in range(1, MAX_LEVELS+1)]
+            c.execute(f"UPDATE items SET {','.join(upd)} WHERE name = ?", (*vals, item_name))
+            conn.commit(); conn.close()
+        await hass.async_add_executor_job(db_mv)
+        hass.data[DOMAIN]["clipboard"] = None
+        broadcast_update()
+
+    async def handle_clipboard(call):
+        action = call.data.get("action"); item = call.data.get("item_name")
+        hass.data[DOMAIN]["clipboard"] = item if action == "cut" else None
+
+    async def handle_update_item_details(call):
+        orig = call.data.get("original_name")
+        nn = call.data.get("new_name")
+        nd = call.data.get("new_date")
+        parts = call.data.get("current_path", [])
+        is_folder = call.data.get("is_folder", False)
+
+        def db_u():
+            conn = get_db_connection(hass); c = conn.cursor()
+            
+            if is_folder:
+                # Rename Sublocation/Folder (Update level column for ALL items in this path)
+                depth = len(parts)
+                if depth < MAX_LEVELS:
+                    target_col = f"level_{depth+1}"
+                    # Base conditions: current path levels must match
+                    where_clause = f"{target_col} = ?"
+                    where_args = [orig]
+                    for i, p in enumerate(parts):
+                        where_clause += f" AND level_{i+1} = ?"
+                        where_args.append(p)
                     
-                    el.onclick = () => this.navigate('down', folder.name);
+                    # 1. Update the level column value
+                    c.execute(f"UPDATE items SET {target_col} = ? WHERE {where_clause}", [nn] + where_args)
                     
-                    const deleteBtnHtml = this.isEditMode 
-                        ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` 
-                        : '';
+                    # 2. Update the folder marker name if it exists (generic marker check)
+                    # We look for markers that shared the same path constraints
+                    # Note: Since step 1 already updated the level column to 'nn', we check that in WHERE
+                    marker_where = f"{target_col} = ?"
+                    marker_args = [nn] 
+                    for i, p in enumerate(parts):
+                        marker_where += f" AND level_{i+1} = ?"
+                        marker_args.append(p)
+                    
+                    # Only update items that look like folder markers for this specific folder
+                    c.execute(f"UPDATE items SET name = ? WHERE type = 'folder_marker' AND name = ? AND {marker_where}", 
+                              (f"[Folder] {nn}", f"[Folder] {orig}", *marker_args))
 
-                    el.innerHTML = `
-                        <div class="android-folder-icon">
-                            ${ICONS.folder}
-                            ${deleteBtnHtml}
-                        </div>
-                        <div class="folder-label">${folder.name}</div>
-                    `;
-                    grid.appendChild(el);
-                });
-            }
+            else:
+                # Rename Single Item
+                sql = "UPDATE items SET "
+                updates = []
+                params = []
+                
+                if nn and nn != orig:
+                    updates.append("name = ?")
+                    params.append(nn)
+                if nd:
+                    updates.append("item_date = ?")
+                    params.append(nd)
+                
+                if updates:
+                    sql += ", ".join(updates)
+                    sql += " WHERE name = ?"
+                    params.append(orig)
+                    
+                    # Optional: constrain by path to avoid renaming duplicates elsewhere
+                    if parts:
+                        for i, p in enumerate(parts):
+                            sql += f" AND level_{i+1} = ?"
+                            params.append(p)
+                            
+                    c.execute(sql, tuple(params))
 
-            // Render "Add Room/Location" button if Edit Mode is ON
-            if (this.isEditMode) {
-                const addBtn = document.createElement('div');
-                addBtn.className = 'folder-item add-folder-card';
-                addBtn.innerHTML = `
-                    <div class="android-folder-icon" id="add-folder-icon">
-                        ${ICONS.plus}
-                    </div>
-                    <div class="folder-label">Add</div>
-                `;
-                addBtn.onclick = (e) => this.enableFolderInput(e.currentTarget);
-                grid.appendChild(addBtn);
-            }
+            conn.commit(); conn.close()
+        await hass.async_add_executor_job(db_u); broadcast_update()
 
-            content.appendChild(grid);
-        }
-        
-        if (attrs.items && attrs.items.length > 0) {
-            const list = document.createElement('div');
-            list.className = 'item-list';
-            attrs.items.forEach(item => list.appendChild(this.createItemRow(item, false)));
-            content.appendChild(list);
-        }
-        
-        // Render "Add Item" button if Edit Mode is ON (Under list in depth < 2)
-        if (this.isEditMode && attrs.depth === 1) {
-             const addBtn = document.createElement('div');
-             addBtn.className = 'add-item-btn-row';
-             addBtn.innerHTML = `<button class="add-item-btn" onclick="this.getRootNode().host.addQuickItem()">+ הוסף</button>`;
-             content.appendChild(addBtn);
-        }
-    } 
-    // SUBLOCATION/ITEM GROUPED VIEW
-    else {
-        const listContainer = document.createElement('div');
-        listContainer.className = 'item-list';
-        
-        const inStock = [], outOfStock = [];
-        if (attrs.items) attrs.items.forEach(item => (item.qty === 0 ? outOfStock : inStock).push(item));
+    async def handle_update_image(call):
+        name = call.data.get("item_name"); img_b64 = call.data.get("image_data")
+        if "," in img_b64: img_b64 = img_b64.split(",")[1]
+        fname = f"{name}_{int(time.time())}.jpg"
+        def save():
+            open(hass.config.path("www", IMG_DIR, fname), "wb").write(base64.b64decode(img_b64))
+            conn = get_db_connection(hass); c = conn.cursor()
+            c.execute(f"UPDATE items SET image_path = ? WHERE name = ?", (fname, name)); conn.commit(); conn.close()
+        await hass.async_add_executor_job(save); broadcast_update()
 
-        const grouped = {};
-        if (attrs.folders) attrs.folders.forEach(f => grouped[f.name] = []);
-        if (!grouped["General"]) grouped["General"] = [];
+    async def handle_ai_action(call):
+        use_ai = entry.options.get(CONF_USE_AI, entry.data.get(CONF_USE_AI, True))
+        if not use_ai: return
+        mode = call.data.get("mode")
+        img_b64 = call.data.get("image_data")
+        if not img_b64 or not api_key: return
+        if "," in img_b64: img_b64 = img_b64.split(",")[1]
 
-        inStock.forEach(item => {
-            const sub = item.sub_location || "General";
-            if(!grouped[sub]) grouped[sub] = [];
-            grouped[sub].push(item);
-        });
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        prompt_text = "Identify this household item. Return ONLY the name in English or Hebrew. 2-3 words max."
+        if mode == 'search': prompt_text = "Identify this item. Return only 1 keyword for searching."
 
-        Object.keys(grouped).sort().forEach(subName => {
-            if (subName === "General" && grouped[subName].length === 0 && !this.isEditMode) return;
+        payload = {"contents": [{"parts": [{"text": prompt_text}, {"inline_data": {"mime_type": "image/jpeg", "data": img_b64}}]}]}
 
-            const isExpanded = this.expandedSublocs.has(subName);
-            const count = grouped[subName].length;
-            const icon = isExpanded ? ICONS.chevron_down : ICONS.chevron_right;
-            const countBadge = `<span style="font-size:12px; background:#444; padding:2px 6px; border-radius:10px; margin-left:8px;">${count}</span>`;
+        try:
+            session = async_get_clientsession(hass)
+            async with session.post(url, json=payload) as resp:
+                if resp.status == 200:
+                    json_resp = await resp.json()
+                    text = json_resp["candidates"][0]["content"]["parts"][0]["text"].strip()
+                    hass.bus.async_fire("home_organizer_ai_result", {"result": text, "mode": mode})
+        except Exception as e: _LOGGER.error(f"AI Error: {e}")
 
-            const header = document.createElement('div');
-            header.className = 'group-separator';
-            this.setupDropTarget(header, subName);
-
-            // Toggle Expand Logic attached to header
-            header.onclick = () => this.toggleSubloc(subName);
-
-            if (this.isEditMode && subName !== "General") {
-                header.innerHTML = `
-                    <div style="display:flex;align-items:center;">
-                        <span style="margin-right:5px;display:flex;align-items:center">${icon}</span>
-                        <span class="subloc-title">${subName}</span>
-                        ${countBadge}
-                    </div>
-                    <div style="display:flex;gap:5px">
-                        <button class="edit-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableSublocRename(this, '${subName}')">${ICONS.edit}</button>
-                        <button class="delete-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button>
-                    </div>`;
-            } else {
-                header.innerHTML = `
-                    <div style="display:flex;align-items:center;">
-                        <span style="margin-right:5px;display:flex;align-items:center">${icon}</span>
-                        <span>${subName}</span>
-                        ${countBadge}
-                    </div>`;
-            }
-            listContainer.appendChild(header);
-            
-            // Only render items if expanded
-            if (isExpanded) {
-                grouped[subName].forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
-
-                // Add Text Button per sublocation group (replacing global bottom button)
-                if (this.isEditMode) {
-                     const addRow = document.createElement('div');
-                     addRow.className = "group-add-row";
-                     addRow.innerHTML = `<button class="text-add-btn" onclick="this.getRootNode().host.addQuickItem('${subName}')">${ICONS.plus} הוסף</button>`;
-                     listContainer.appendChild(addRow);
-                }
-            }
-        });
-
-        if (outOfStock.length > 0) {
-            const oosHeader = document.createElement('div');
-            oosHeader.className = 'group-separator oos-separator';
-            oosHeader.innerText = "Out of Stock";
-            listContainer.appendChild(oosHeader);
-            outOfStock.forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
-        }
-        
-        // NEW: Add "Add Sublocation" Square Button at the bottom of the list when in Edit Mode
-        if (this.isEditMode) {
-            const gridContainer = document.createElement('div');
-            gridContainer.className = 'folder-grid';
-            gridContainer.style.marginTop = '20px';
-
-            const addBtn = document.createElement('div');
-            addBtn.className = 'folder-item add-folder-card';
-            addBtn.innerHTML = `
-                <div class="android-folder-icon" id="add-subloc-icon">
-                    ${ICONS.plus}
-                </div>
-                <div class="folder-label">Add Sub</div>
-            `;
-            addBtn.onclick = (e) => this.enableFolderInput(e.currentTarget);
-            
-            gridContainer.appendChild(addBtn);
-            listContainer.appendChild(gridContainer);
-        }
-        
-        content.appendChild(listContainer);
-    }
-  }
-  
-  toggleSubloc(name) {
-      if (this.expandedSublocs.has(name)) {
-          this.expandedSublocs.delete(name);
-      } else {
-          this.expandedSublocs.add(name);
-      }
-      this.render();
-  }
-  
-  // Logic to turn the "Add Folder" card into an input
-  enableFolderInput(cardEl) {
-      const iconContainer = cardEl.querySelector('.android-folder-icon');
-      const label = cardEl.querySelector('.folder-label');
-      
-      // Prevent multiple clicks
-      if(iconContainer.querySelector('input')) return;
-      
-      iconContainer.innerHTML = `<input type="text" class="add-folder-input" placeholder="Name">`;
-      const input = iconContainer.querySelector('input');
-      label.innerText = "Saving...";
-      
-      input.focus();
-      
-      // Save on Enter
-      input.onkeydown = (e) => {
-          if (e.key === 'Enter') {
-              this.saveNewFolder(input.value);
-          }
-      };
-      
-      // Save on blur if value exists, else reset
-      input.onblur = () => {
-          if (input.value.trim()) {
-              this.saveNewFolder(input.value);
-          } else {
-              this.render(); // Reset UI
-          }
-      };
-  }
-
-  saveNewFolder(name) {
-      if(!name) return;
-      this._hass.callService('home_organizer', 'add_item', { 
-          item_name: name, 
-          item_type: 'folder', 
-          item_date: '', 
-          image_data: null, 
-          current_path: this.currentPath 
-      });
-      // UI will refresh via event listener
-  }
-
-  // Logic to add an empty item quickly
-  // UPDATED: Now accepts optional targetSubloc to place item in specific sublocation
-  addQuickItem(targetSubloc) {
-      const tempName = "New Item " + new Date().toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'});
-      const today = new Date().toISOString().split('T')[0];
-      
-      let usePath = [...this.currentPath];
-      // If we are adding to a specific sublocation group (and it's not the generic root container 'General')
-      if (targetSubloc && targetSubloc !== "General") {
-          usePath.push(targetSubloc);
-      }
-
-      this._hass.callService('home_organizer', 'add_item', { 
-          item_name: tempName, 
-          item_type: 'item', 
-          item_date: today, 
-          image_data: null, 
-          current_path: usePath
-      });
-  }
-
-  setupDragSource(el, itemName) {
-      el.draggable = true;
-      el.ondragstart = (e) => { e.dataTransfer.setData("text/plain", itemName); e.dataTransfer.effectAllowed = "move"; el.classList.add('dragging'); };
-      el.ondragend = () => el.classList.remove('dragging');
-      // Touch drag omitted for brevity
-  }
-
-  setupDropTarget(el, subName) {
-      el.dataset.subloc = subName;
-      el.ondragover = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drag-over'); };
-      el.ondragleave = () => el.classList.remove('drag-over');
-      el.ondrop = (e) => { 
-          e.preventDefault(); 
-          el.classList.remove('drag-over'); 
-          const itemName = e.dataTransfer.getData("text/plain");
-          this.handleDropAction(subName, itemName); 
-      };
-  }
-
-  async handleDropAction(targetSubloc, itemName) {
-      if (!itemName) return;
-      let targetPath = [...this.currentPath];
-      if (targetSubloc !== "General") targetPath.push(targetSubloc);
-      try {
-          await this.callHA('clipboard_action', {action: 'cut', item_name: itemName});
-          await this.callHA('paste_item', {target_path: targetPath});
-      } catch (err) { console.error("Drop failed:", err); }
-  }
-
-  triggerCameraEdit(itemName) {
-      this.pendingItem = itemName;
-      this.openCamera('update');
-  }
-  
-  adjustShopQty(name, delta) {
-      if (this.shopQuantities[name] === undefined) {
-          this.shopQuantities[name] = 0; // Default to 0 as requested
-      }
-      this.shopQuantities[name] = Math.max(0, this.shopQuantities[name] + delta);
-      this.render();
-  }
-
-  createItemRow(item, isShopMode) {
-     const div = document.createElement('div');
-     const oosClass = (item.qty === 0) ? 'out-of-stock-frame' : '';
-     div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''} ${oosClass}`;
-     this.setupDragSource(div, item.name);
-     
-     let controls = '';
-     if (isShopMode) {
-         // Default to 0 if undefined
-         const localQty = (this.shopQuantities[item.name] !== undefined) ? this.shopQuantities[item.name] : 0;
-         // Disable style if qty is 0
-         const checkStyle = (localQty === 0) 
-            ? "background:#555;color:#888;cursor:not-allowed;width:40px;height:40px;margin-left:8px;" 
-            : "background:var(--accent);width:40px;height:40px;margin-left:8px;";
-         const checkDisabled = (localQty === 0) ? "disabled" : "";
-
-         // Changed button logic to update local quantity only, submit via checkmark
-         controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', -1)">${ICONS.minus}</button><span class="qty-val" style="margin:0 8px">${localQty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', 1)">${ICONS.plus}</button><button class="qty-btn" style="${checkStyle}" ${checkDisabled} title="Complete" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.name}')">${ICONS.check}</button>`;
-     } else {
-         controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${ICONS.plus}</button><span class="qty-val">${item.qty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${ICONS.minus}</button>`;
-     }
-
-     const subText = isShopMode ? `${item.main_location} > ${item.sub_location || ''}` : `${item.date || ''}`;
-     
-     // ITEM ICON UPDATE: Show thumbnail if image exists
-     let iconHtml = `<span class="item-icon">${ICONS.item}</span>`;
-     if (item.img) {
-         iconHtml = `<img src="${item.img}" class="item-thumbnail" alt="${item.name}" onclick="event.stopPropagation(); this.getRootNode().host.showImg('${item.img}')">`;
-     }
-
-     div.innerHTML = `
-        <div class="item-main" onclick="this.getRootNode().host.toggleRow('${item.name}')">
-            <div class="item-left">
-                ${iconHtml}
-                <div>
-                    <div>${item.name}</div>
-                    <div class="sub-title">${subText}</div>
-                </div>
-            </div>
-            <div class="item-qty-ctrl">${controls}</div>
-        </div>
-     `;
-     
-     if (this.expandedIdx === item.name) {
-         const details = document.createElement('div');
-         details.className = 'expanded-details';
-         
-         let dropdownOptions = `<option value="">-- Move to... --</option>`;
-         dropdownOptions += `<option value="General">General (Root)</option>`;
-         // Location dropdown logic (Level 1)
-         let roomOptions = `<option value="">-- Change Room --</option>`;
-         if(this.localData.hierarchy) {
-             Object.keys(this.localData.hierarchy).forEach(room => {
-                 roomOptions += `<option value="${room}">${room}</option>`;
-             });
-         }
-         
-         // Sublocation dropdown (Current Room)
-         if(this.localData.folders) {
-             this.localData.folders.forEach(f => {
-                 dropdownOptions += `<option value="${f.name}">${f.name}</option>`;
-             });
-         }
-
-         details.innerHTML = `
-            <div class="detail-row">
-                <input type="text" id="name-${item.name}" value="${item.name}" style="flex:1;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px">
-                <input type="date" id="date-${item.name}" value="${item.date}" style="width:110px;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px">
-                <button class="action-btn btn-text" onclick="this.getRootNode().host.saveDetails('${item.name}', '${item.name}')">Save</button>
-            </div>
-            <div class="detail-row" style="justify-content:space-between; margin-top:10px;">
-                 <div style="display:flex;gap:10px;">
-                    <button class="action-btn" title="Take Photo" onclick="this.getRootNode().host.triggerCameraEdit('${item.name}')">${ICONS.camera}</button>
-                    <label class="action-btn" title="Upload Image">
-                        ${ICONS.image}
-                        <input type="file" accept="image/*" style="display:none" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
-                    </label>
-                 </div>
-                 <div style="display:flex;gap:10px;">
-                    <button class="action-btn btn-danger" title="Delete" onclick="this.getRootNode().host.del('${item.name}')">${ICONS.delete}</button>
-                 </div>
-            </div>
-            
-            <!-- Move Controls -->
-            <div class="detail-row" style="margin-top:10px; border-top:1px solid #444; padding-top:10px; flex-direction:column; gap:8px;">
-                <div class="move-container" style="width:100%">
-                    <span style="font-size:12px;color:#aaa;width:60px">Move to:</span>
-                    <select class="move-select" id="room-select-${item.name}" onchange="this.getRootNode().host.updateLocationDropdown('${item.name}', this.value)">
-                        ${roomOptions}
-                    </select>
-                </div>
-                <!-- Location Dropdown (Initially hidden/empty) -->
-                <div class="move-container" style="width:100%; display:none;" id="loc-container-${item.name}">
-                    <span style="font-size:12px;color:#aaa;width:60px">Loc:</span>
-                    <select class="move-select" id="loc-select-${item.name}" onchange="this.getRootNode().host.updateSublocDropdown('${item.name}', this.value)">
-                        <option value="">-- Select --</option>
-                    </select>
-                </div>
-                <!-- Sublocation Dropdown (Initially hidden/empty) -->
-                <div class="move-container" style="width:100%; display:none;" id="subloc-container-${item.name}">
-                    <span style="font-size:12px;color:#aaa;width:60px">Sub:</span>
-                    <select class="move-select" id="target-subloc-${item.name}" onchange="this.getRootNode().host.handleMoveToPath('${item.name}')">
-                        <option value="">-- Select --</option>
-                    </select>
-                </div>
-            </div>
-         `;
-         div.appendChild(details);
-     }
-     return div;
-  }
-  
-  updateLocationDropdown(itemName, roomName) {
-      const locContainer = this.shadowRoot.getElementById(`loc-container-${itemName}`);
-      const locSelect = this.shadowRoot.getElementById(`loc-select-${itemName}`);
-      const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemName}`);
-      
-      // Reset subsequent dropdowns
-      subContainer.style.display = 'none';
-      locSelect.innerHTML = '<option value="">-- Select --</option>';
-      
-      if(!roomName) {
-          locContainer.style.display = 'none';
-          return;
-      }
-      
-      let html = `<option value="">-- Select Location --</option>`;
-      
-      // Populate Level 2 (Locations) for the selected Room
-      if(this.localData.hierarchy && this.localData.hierarchy[roomName]) {
-          Object.keys(this.localData.hierarchy[roomName]).forEach(loc => {
-              html += `<option value="${loc}">${loc}</option>`;
-          });
-      }
-      locSelect.innerHTML = html;
-      locContainer.style.display = 'flex';
-      
-      // Store selected room temporarily on the select element for next step
-      locSelect.dataset.room = roomName;
-  }
-  
-  updateSublocDropdown(itemName, locationName) {
-      const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemName}`);
-      const subSelect = this.shadowRoot.getElementById(`target-subloc-${itemName}`);
-      const roomName = this.shadowRoot.getElementById(`room-select-${itemName}`).value;
-      
-      if(!locationName) {
-          subContainer.style.display = 'none';
-          return;
-      }
-      
-      let html = `<option value="">-- Select Sublocation --</option>`;
-      html += `<option value="__ROOT__">Main ${locationName}</option>`; // Allow moving to the location root
-      
-      // Populate Level 3 (Sublocations)
-      if(this.localData.hierarchy && this.localData.hierarchy[roomName] && this.localData.hierarchy[roomName][locationName]) {
-          this.localData.hierarchy[roomName][locationName].forEach(sub => {
-              html += `<option value="${sub}">${sub}</option>`;
-          });
-      }
-      subSelect.innerHTML = html;
-      subContainer.style.display = 'flex';
-  }
-  
-  handleMoveToPath(itemName) {
-      const room = this.shadowRoot.getElementById(`room-select-${itemName}`).value;
-      const loc = this.shadowRoot.getElementById(`loc-select-${itemName}`).value;
-      const sub = this.shadowRoot.getElementById(`target-subloc-${itemName}`).value;
-      
-      if(!room || !loc || !sub) return;
-      
-      let targetPath = [room, loc];
-      if(sub !== "__ROOT__") targetPath.push(sub);
-      
-      this.callHA('clipboard_action', {action: 'cut', item_name: itemName});
-      setTimeout(() => {
-          this.callHA('paste_item', {target_path: targetPath});
-      }, 100);
-  }
-
-  deleteFolder(name) { if(confirm(`Delete folder '${name}' and ALL items inside it?`)) { this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); } }
-  
-  // FIX: Using correct delete service for sublocation with is_folder: true
-  deleteSubloc(name) { 
-      if(confirm(`Delete '${name}'?`)) { 
-          this._hass.callService('home_organizer', 'delete_item', { 
-              item_name: name, 
-              current_path: this.currentPath,
-              is_folder: true 
-          }); 
-      } 
-  }
-
-  render() { this.updateUI(); }
-  navigate(dir, name) { 
-      if (dir === 'root') this.currentPath = []; 
-      else if (dir === 'up') this.currentPath.pop(); 
-      else if (dir === 'down' && name) this.currentPath.push(name); 
-      
-      this.expandedSublocs.clear(); // Collapse all on navigate
-      this.fetchData(); 
-  }
-  toggleRow(name) { this.expandedIdx = (this.expandedIdx === name) ? null : name; this.render(); }
-  updateQty(name, d) { this.callHA('update_qty', { item_name: name, change: d }); }
-  
-  submitShopStock(name) { 
-      const qty = this.shopQuantities[name] || 1;
-      this.callHA('update_stock', { item_name: name, quantity: qty }); 
-      delete this.shopQuantities[name];
-  }
-  
-  addItem(type) {
-     // Legacy method kept for compatibility, but UI calling it is removed.
-     // Could be used for debugging or manual console calls.
-  }
-  
-  enableSublocRename(btn, oldName) {
-      const header = btn.closest('.group-separator');
-      // Prevent multiple inputs
-      if (header.querySelector('input')) return; 
-      
-      const titleSpan = header.querySelector('.subloc-title') || header.querySelector('span');
-      if(!titleSpan) return;
-
-      const input = document.createElement('input');
-      input.value = oldName;
-      input.className = 'rename-input'; 
-      input.style.background = '#222';
-      input.style.color = 'white';
-      input.style.border = '1px solid var(--primary)';
-      input.style.borderRadius = '4px';
-      input.style.padding = '4px';
-      input.style.fontSize = '14px';
-      input.style.width = '200px'; 
-      
-      // Stop click propagation
-      input.onclick = (e) => e.stopPropagation();
-
-      titleSpan.replaceWith(input);
-      input.focus();
-
-      let isSaving = false;
-
-      const save = () => {
-          if (isSaving) return; // Prevent double firing
-          isSaving = true;
-
-          const newVal = input.value.trim();
-          if (newVal && newVal !== oldName) {
-              // Optimistic update: Show new name immediately
-              const newSpan = document.createElement('span');
-              newSpan.className = 'subloc-title';
-              newSpan.innerText = newVal;
-              newSpan.style.opacity = '0.7'; // Visual cue for pending save
-              input.replaceWith(newSpan);
-
-              this.callHA('update_item_details', { 
-                  original_name: oldName, 
-                  new_name: newVal, 
-                  new_date: "",
-                  current_path: this.currentPath,
-                  is_folder: true
-              }).catch(err => {
-                  console.error("Rename failed", err);
-                  // Revert if failed
-                  newSpan.innerText = oldName;
-                  newSpan.style.opacity = '1';
-                  alert("Failed to rename");
-              });
-          } else {
-              // Revert to old text if no change or empty
-              const originalSpan = document.createElement('span');
-              originalSpan.className = 'subloc-title';
-              originalSpan.innerText = oldName;
-              input.replaceWith(originalSpan);
-          }
-      };
-
-      input.onkeydown = (e) => {
-          if (e.key === 'Enter') {
-              input.blur(); // Triggers onblur -> save
-          }
-      };
-      
-      input.onblur = () => save();
-  }
-
-  handleFile(e) { }
-  handleUpdateImage(input, name) {
-    const file = input.files[0]; if (!file) return;
-    this.compressImage(file, (dataUrl) => {
-        this.callHA('update_image', { item_name: name, image_data: dataUrl });
-    });
-    input.value = '';
-  }
-
-  compressImage(file, callback) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-          const img = new Image();
-          img.onload = () => {
-              const canvas = document.createElement('canvas');
-              const ctx = canvas.getContext('2d');
-              const MAX = 1024;
-              let w = img.width, h = img.height;
-              if (w > h) { if (w > MAX) { h *= MAX/w; w = MAX; } } else { if (h > MAX) { w *= MAX/h; h = MAX; } }
-              canvas.width = w; canvas.height = h;
-              ctx.drawImage(img, 0, 0, w, h);
-              callback(canvas.toDataURL('image/jpeg', 0.5));
-          };
-          img.src = e.target.result;
-      };
-      reader.readAsDataURL(file);
-  }
-
-  pasteItem() { this.callHA('paste_item', { target_path: this.currentPath }); }
-  saveDetails(idx, oldName) { const nEl = this.shadowRoot.getElementById(`name-${idx}`); const dEl = this.shadowRoot.getElementById(`date-${idx}`); if(nEl && dEl) { this.callHA('update_item_details', { original_name: oldName, new_name: nEl.value, new_date: dEl.value }); this.expandedIdx = null; } }
-  cut(name) { this.callHA('clipboard_action', {action: 'cut', item_name: name}); }
-  del(name) { this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: false }); }
-  
-  showImg(src) { 
-      const ov = this.shadowRoot.getElementById('overlay-img');
-      const ovc = this.shadowRoot.getElementById('img-overlay');
-      if(ov && ovc) { ov.src = src; ovc.style.display = 'flex'; }
-  }
-
-  callHA(service, data) { return this._hass.callService('home_organizer', service, data); }
-}
-customElements.define('home-organizer-panel', HomeOrganizerPanel);
+    for n, h in [
+        ("add_item", handle_add), ("update_image", handle_update_image),
+        ("update_stock", handle_update_stock), ("update_qty", handle_update_qty), ("delete_item", handle_delete),
+        ("clipboard_action", handle_clipboard), ("paste_item", handle_paste), ("ai_action", handle_ai_action),
+        ("update_item_details", handle_update_item_details)
+    ]:
+        hass.services.async_register(DOMAIN, n, h)
