@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 4.11.0 (Collapsible Sublocations & Item Counters)
+// Home Organizer Ultimate - Ver 4.12.0 (Room/Location Rename Buttons)
 // License: MIT
 
 const ICONS = {
@@ -98,7 +98,11 @@ class HomeOrganizerPanel extends HTMLElement {
         .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 20px; }
         .folder-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; position: relative; }
         .android-folder-icon { width: 56px; height: 56px; background: #3c4043; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #8ab4f8; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); position: relative; }
+        
         .folder-delete-btn { position: absolute; top: -5px; right: -5px; background: var(--danger); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
+        .folder-edit-btn { position: absolute; top: -5px; left: -5px; background: var(--primary); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
+        .folder-edit-btn svg { width: 12px; height: 12px; }
+
         .item-list { display: flex; flex-direction: column; gap: 5px; }
         
         /* Updated Headers for Edit Mode Consistency */
@@ -391,10 +395,15 @@ class HomeOrganizerPanel extends HTMLElement {
                     const deleteBtnHtml = this.isEditMode 
                         ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` 
                         : '';
+                    
+                    const editBtnHtml = this.isEditMode 
+                        ? `<div class="folder-edit-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'), '${folder.name}')">${ICONS.edit}</div>` 
+                        : '';
 
                     el.innerHTML = `
                         <div class="android-folder-icon">
                             ${ICONS.folder}
+                            ${editBtnHtml}
                             ${deleteBtnHtml}
                         </div>
                         <div class="folder-label">${folder.name}</div>
@@ -573,6 +582,49 @@ class HomeOrganizerPanel extends HTMLElement {
               this.render(); // Reset UI
           }
       };
+  }
+  
+  // NEW: Logic for inline renaming of Rooms/Locations (Folders)
+  enableFolderRename(labelEl, oldName) {
+      if (!labelEl || labelEl.querySelector('input')) return;
+      
+      const input = document.createElement('input');
+      input.value = oldName;
+      // styling to match dark theme grid item
+      input.style.width = '100%';
+      input.style.background = '#222';
+      input.style.color = 'white';
+      input.style.border = '1px solid var(--primary)';
+      input.style.borderRadius = '4px';
+      input.style.textAlign = 'center';
+      input.style.fontSize = '12px';
+      input.onclick = (e) => e.stopPropagation();
+      
+      labelEl.innerHTML = '';
+      labelEl.appendChild(input);
+      input.focus();
+      
+      let isSaving = false;
+      const save = () => {
+          if (isSaving) return; 
+          isSaving = true;
+          
+          const newVal = input.value.trim();
+          if (newVal && newVal !== oldName) {
+              this.callHA('update_item_details', { 
+                  original_name: oldName, 
+                  new_name: newVal, 
+                  new_date: "",
+                  current_path: this.currentPath,
+                  is_folder: true
+              });
+          } else {
+              this.render(); 
+          }
+      };
+      
+      input.onkeydown = (e) => { if (e.key === 'Enter') input.blur(); };
+      input.onblur = () => save();
   }
 
   saveNewFolder(name) {
