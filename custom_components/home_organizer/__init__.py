@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 5.4.1 (Folder Images Support)
+# Home Organizer Ultimate - ver 5.4.2 (Fix Icon File Copy)
 
 import logging
 import sqlite3
@@ -27,8 +27,10 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if entry.options.get(CONF_DEBUG): _LOGGER.setLevel(logging.DEBUG)
 
+    # 1. Ensure frontend files (panel AND icons) are copied to www
     await async_setup_frontend(hass)
 
+    # 2. Register the panel pointing to the www folder (/local/)
     await panel_custom.async_register_panel(
         hass,
         webcomponent_name="home-organizer-panel",
@@ -71,11 +73,19 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 async def async_setup_frontend(hass: HomeAssistant):
-    src = os.path.join(os.path.dirname(__file__), "frontend", "organizer-panel.js")
+    """Copy both the panel and the icon library to the www folder."""
+    frontend_dir = os.path.join(os.path.dirname(__file__), "frontend")
     dest_dir = hass.config.path("www", "home_organizer_libs")
-    dest = os.path.join(dest_dir, "organizer-panel.js")
-    if not os.path.exists(dest_dir): await hass.async_add_executor_job(os.makedirs, dest_dir)
-    if os.path.exists(src): await hass.async_add_executor_job(shutil.copyfile, src, dest)
+    
+    if not os.path.exists(dest_dir):
+        await hass.async_add_executor_job(os.makedirs, dest_dir)
+
+    # UPDATED: Loop through both required files
+    for filename in ["organizer-panel.js", "organizer-icon.js"]:
+        src = os.path.join(frontend_dir, filename)
+        dest = os.path.join(dest_dir, filename)
+        if os.path.exists(src):
+            await hass.async_add_executor_job(shutil.copyfile, src, dest)
 
 def get_db_connection(hass):
     return sqlite3.connect(hass.config.path(DB_FILE))
