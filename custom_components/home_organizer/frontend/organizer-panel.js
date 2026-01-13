@@ -1,7 +1,7 @@
 // Home Organizer Ultimate - Ver 4.15.3 (Relative Import for Component)
 // License: MIT
 // Use relative import for files in the same directory (custom_components/home_organizer/frontend/)
-import { ICONS, ICON_LIB } from './organizer-icon.js';
+import { ICONS, ICON_LIB } from '/local/home_organizer_libs/organizer-icon.js';
 
 class HomeOrganizerPanel extends HTMLElement {
   set hass(hass) {
@@ -1157,3 +1157,4 @@ class HomeOrganizerPanel extends HTMLElement {
   callHA(service, data) { return this._hass.callService('home_organizer', service, data); }
 }
 customElements.define('home-organizer-panel', HomeOrganizerPanel);
+
