@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 4.15.1 (Fix Registry & Icon Selection)
+// Home Organizer Ultimate - Ver 4.15.0 (Fix Icon Library Selection)
 // License: MIT
 
 const ICONS = {
@@ -885,6 +885,110 @@ class HomeOrganizerPanel extends HTMLElement {
      return div;
   }
   
+  updateLocationDropdown(itemName, roomName) {
+      const locContainer = this.shadowRoot.getElementById(`loc-container-${itemName}`);
+      const locSelect = this.shadowRoot.getElementById(`loc-select-${itemName}`);
+      const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemName}`);
+      
+      // Reset subsequent dropdowns
+      subContainer.style.display = 'none';
+      locSelect.innerHTML = '<option value="">-- Select --</option>';
+      
+      if(!roomName) {
+          locContainer.style.display = 'none';
+          return;
+      }
+      
+      let html = `<option value="">-- Select Location --</option>`;
+      
+      // Populate Level 2 (Locations) for the selected Room
+      if(this.localData.hierarchy && this.localData.hierarchy[roomName]) {
+          Object.keys(this.localData.hierarchy[roomName]).forEach(loc => {
+              html += `<option value="${loc}">${loc}</option>`;
+          });
+      }
+      locSelect.innerHTML = html;
+      locContainer.style.display = 'flex';
+      
+      // Store selected room temporarily on the select element for next step
+      locSelect.dataset.room = roomName;
+  }
+  
+  updateSublocDropdown(itemName, locationName) {
+      const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemName}`);
+      const subSelect = this.shadowRoot.getElementById(`target-subloc-${itemName}`);
+      const roomName = this.shadowRoot.getElementById(`room-select-${itemName}`).value;
+      
+      if(!locationName) {
+          subContainer.style.display = 'none';
+          return;
+      }
+      
+      let html = `<option value="">-- Select Sublocation --</option>`;
+      html += `<option value="__ROOT__">Main ${locationName}</option>`; // Allow moving to the location root
+      
+      // Populate Level 3 (Sublocations)
+      if(this.localData.hierarchy && this.localData.hierarchy[roomName] && this.localData.hierarchy[roomName][locationName]) {
+          this.localData.hierarchy[roomName][locationName].forEach(sub => {
+              html += `<option value="${sub}">${sub}</option>`;
+          });
+      }
+      subSelect.innerHTML = html;
+      subContainer.style.display = 'flex';
+  }
+  
+  handleMoveToPath(itemName) {
+      const room = this.shadowRoot.getElementById(`room-select-${itemName}`).value;
+      const loc = this.shadowRoot.getElementById(`loc-select-${itemName}`).value;
+      const sub = this.shadowRoot.getElementById(`target-subloc-${itemName}`).value;
+      
+      if(!room || !loc || !sub) return;
+      
+      let targetPath = [room, loc];
+      if(sub !== "__ROOT__") targetPath.push(sub);
+      
+      this.callHA('clipboard_action', {action: 'cut', item_name: itemName});
+      setTimeout(() => {
+          this.callHA('paste_item', {target_path: targetPath});
+      }, 100);
+  }
+
+  deleteFolder(name) { if(confirm(`Delete folder '${name}' and ALL items inside it?`)) { this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); } }
+  
+  // FIX: Using correct delete service for sublocation with is_folder: true
+  deleteSubloc(name) { 
+      if(confirm(`Delete '${name}'?`)) { 
+          this._hass.callService('home_organizer', 'delete_item', { 
+              item_name: name, 
+              current_path: this.currentPath,
+              is_folder: true 
+          }); 
+      } 
+  }
+
+  render() { this.updateUI(); }
+  navigate(dir, name) { 
+      if (dir === 'root') this.currentPath = []; 
+      else if (dir === 'up') this.currentPath.pop(); 
+      else if (dir === 'down' && name) this.currentPath.push(name); 
+      
+      this.expandedSublocs.clear(); // Collapse all on navigate
+      this.fetchData(); 
+  }
+  toggleRow(name) { this.expandedIdx = (this.expandedIdx === name) ? null : name; this.render(); }
+  updateQty(name, d) { this.callHA('update_qty', { item_name: name, change: d }); }
+  
+  submitShopStock(name) { 
+      const qty = this.shopQuantities[name] || 1;
+      this.callHA('update_stock', { item_name: name, quantity: qty }); 
+      delete this.shopQuantities[name];
+  }
+  
+  addItem(type) {
+     // Legacy method kept for compatibility, but UI calling it is removed.
+     // Could be used for debugging or manual console calls.
+  }
+  
   enableSublocRename(btn, oldName) {
       const header = btn.closest('.group-separator');
       // Prevent multiple inputs
@@ -984,27 +1088,17 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   selectLibraryIcon(svgHtml) {
-      // Close modal immediately for better UX
-      const modal = this.shadowRoot.getElementById('icon-modal');
-      if (modal) modal.style.display = 'none';
-
-      // Robust SVG string construction
+      // Ensure namespace, size, and color for conversion
       let source = svgHtml;
+      if (!source.includes('xmlns')) source = source.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
       
-      // 1. Ensure xmlns
-      if (!source.includes('xmlns')) {
-          source = source.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
-      }
+      // Inject standard size and color
+      if (!source.includes('width=')) source = source.replace('<svg', '<svg width="200" height="200"');
       
-      // 2. Ensure dimensions
-      if (!source.includes('width=')) {
-          source = source.replace('<svg', '<svg width="200" height="200"');
-      }
-      
-      // 3. Ensure Color (Light Blue)
-      if (!source.includes('fill=')) {
-          source = source.replace('<svg', '<svg fill="#4fc3f7" style="fill:#4fc3f7;"');
-      }
+      // Force fill color (Light Blue #4fc3f7) on the SVG root to ensure visibility
+      // NOTE: Some SVGs might not inherit fill if paths are hardcoded black, 
+      // but this usually works for simple icon sets like these.
+      source = source.replace('<svg', '<svg fill="#4fc3f7"');
 
       const img = new Image();
       const blob = new Blob([source], {type: 'image/svg+xml;charset=utf-8'});
@@ -1022,12 +1116,12 @@ class HomeOrganizerPanel extends HTMLElement {
               const markerName = `[Folder] ${this.pendingFolderIcon}`;
               this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
           }
+          this.shadowRoot.getElementById('icon-modal').style.display = 'none';
           URL.revokeObjectURL(url);
       };
       
       img.onerror = (e) => {
           console.error("Failed to render SVG to Image", e);
-          alert("Error converting icon.");
           URL.revokeObjectURL(url);
       };
       
@@ -1105,7 +1199,4 @@ class HomeOrganizerPanel extends HTMLElement {
 
   callHA(service, data) { return this._hass.callService('home_organizer', service, data); }
 }
-
-if (!customElements.get('home-organizer-panel')) {
-    customElements.define('home-organizer-panel', HomeOrganizerPanel);
-}
+customElements.define('home-organizer-panel', HomeOrganizerPanel);
