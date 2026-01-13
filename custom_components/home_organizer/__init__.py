@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 5.4.0 (Folder Images Support)
+# Home Organizer Ultimate - ver 5.4.1 (Folder Images Support)
 
 import logging
 import sqlite3
