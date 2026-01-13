@@ -1157,3 +1157,4 @@ class HomeOrganizerPanel extends HTMLElement {
   callHA(service, data) { return this._hass.callService('home_organizer', service, data); }
 }
 customElements.define('home-organizer-panel', HomeOrganizerPanel);
+
