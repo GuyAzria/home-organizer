@@ -1,7 +1,50 @@
-// Home Organizer Ultimate - Ver 4.15.3 (Relative Import for Component)
+// Home Organizer Ultimate - Ver 4.15.0 (Fix Icon Library Selection)
 // License: MIT
-// Use relative import for files in the same directory (custom_components/home_organizer/frontend/)
-import { ICONS, ICON_LIB } from '/local/home_organizer_libs/organizer-icon.js';
+
+const ICONS = {
+  arrow_up: '<svg viewBox="0 0 24 24"><path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/></svg>',
+  home: '<svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>',
+  cart: '<svg viewBox="0 0 24 24"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>',
+  search: '<svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>',
+  edit: '<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>',
+  close: '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>',
+  camera: '<svg viewBox="0 0 24 24"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm6 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>',
+  folder: '<svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>',
+  item: '<svg viewBox="0 0 24 24"><path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/></svg>',
+  delete: '<svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>',
+  cut: '<svg viewBox="0 0 24 24"><path d="M9.64 7.64c.23-.5.36-1.05.36-1.64 0-2.21-1.79-4-4-4S2 3.79 2 6s1.79 4 4 4c.59 0 1.14-.13 1.64-.36L10 12l-2.36 2.36C7.14 14.13 6.59 14 6 14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.59-.13-1.14-.36-1.64L12 14l7 7h3v-1L9.64 7.64zM6 8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm0 12c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm6-7.5c-.28 0-.5-.22-.5-.5s.22-.5 .5-.5 .5 .22 .5 .5-.22 .5-.5 .5z"/></svg>',
+  paste: '<svg viewBox="0 0 24 24"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>',
+  plus: '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>',
+  minus: '<svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>',
+  save: '<svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>',
+  check: '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
+  image: '<svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>',
+  sparkles: '<svg viewBox="0 0 24 24"><path d="M9 9l1.5-4 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5zM19 19l-2.5-1 2.5-1 1-2.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5z"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>',
+  wand: '<svg viewBox="0 0 24 24"><path d="M7.5 5.6L10 7 7.5 8.4 6.1 10.9 4.7 8.4 2.2 7 4.7 5.6 6.1 3.1 7.5 5.6zm12 9.8L17 14l2.5-1.4L18.1 10.1 19.5 12.6 22 14 19.5 15.4 18.1 17.9 17 15.4zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5L22 2zm-8.8 11.2l-1.4-2.5L10.4 13.2 8 14.6 10.4 16 11.8 18.5 13.2 16 15.6 14.6 13.2 13.2z"/></svg>',
+  move: '<svg viewBox="0 0 24 24"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg>',
+  chevron_right: '<svg viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>',
+  chevron_down: '<svg viewBox="0 0 24 24"><path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z"/></svg>'
+};
+
+const ICON_LIB = {
+    "Bed": '<svg viewBox="0 0 24 24"><path d="M20 10V7c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v3c-1.1 0-2 .9-2 2v5h1.33L4 19h1l.67-2h12.67l.66 2h1l.67-2H22v-5c0-1.1-.9-2-2-2zm-9 0H6V7h5v3zm7 0h-5V7h5v3z"/></svg>',
+    "Kitchen": '<svg viewBox="0 0 24 24"><path d="M8.1 13.34l2.83-2.83L3.91 3.5c-1.56 1.56-1.56 4.09 0 5.66l4.19 4.18zm6.78-1.81c1.53.71 3.68.21 5.27-1.38 1.91-1.91 2.28-4.65.81-6.12-1.46-1.46-4.2-1.1-6.12.81-1.59 1.59-2.09 3.74-1.38 5.27L3.7 19.87l1.41 1.41L12 14.41l6.88 6.88 1.41-1.41L13.41 12.99l1.47-1.46z"/></svg>',
+    "Bath": '<svg viewBox="0 0 24 24"><path d="M20 13V4.83C20 3.27 18.73 2 17.17 2c-.75 0-1.47.3-2 .83l-3.52 3.52c-.63-.63-1.66-.63-2.29 0l-.32.32c-.63.63-.63 1.66 0 2.29l.32.32c.63.63 1.66.63 2.29 0l3.52-3.52c.53-.53 1.25-.83 2-.83 1.56 0 2.83 1.27 2.83 2.83V13h-9.9l-2.6 2.6L12 20.08l4.08-4.08H20zM3 13c0 2.21 1.79 4 4 4h6l-6-6H3z"/></svg>',
+    "Living": '<svg viewBox="0 0 24 24"><path d="M4 18h16v-3c0-1.1-.9-2-2-2h-3.5C12.5 13 11 11.5 11 9.5V6H8v3.5c0 2 1.5 3.5 3.5 3.5H15v2H5v-2h1c.55 0 1-.45 1-1V9c0-1.1-.9-2-2-2H3v10c0 .55.45 1 1 1z"/></svg>',
+    "Garage": '<svg viewBox="0 0 24 24"><path d="M19 5H5c-1.1 0-2 .9-2 2v12h2v-2h14v2h2V7c0-1.1-.9-2-2-2zm-2 9H7v-2h10v2zm0-4H7V8h10v2z"/></svg>',
+    "Garden": '<svg viewBox="0 0 24 24"><path d="M12 2c-4.97 0-9 4.03-9 9 0 4.17 2.84 7.67 6.69 8.69L12 22l2.31-2.31C18.16 18.67 21 15.17 21 11c0-4.97-4.03-9-9-9zm0 16c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7zm1-11h-2v3H8v2h3v3h2v-3h3v-2h-3V7z"/></svg>',
+    "Closet": '<svg viewBox="0 0 24 24"><path d="M12 2C9.24 2 7 4.24 7 7v10H4v4h16v-4h-3V7c0-2.76-2.24-5-5-5zm-3 5c0-1.66 1.34-3 3-3s3 1.34 3 3v2h-6V7zm10 12H5v-2h14v2zm-2-4H7V7h10v8z"/></svg>',
+    "Kids": '<svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-5 10l-2.5-3.75L10 16l-3-4.5-3 4.5v-7h12v7z"/></svg>',
+    "Office": '<svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6 8h-4v-2h4v2zm2-4H8V8h8v2z"/></svg>',
+    "Storage": '<svg viewBox="0 0 24 24"><path d="M20 18H4v-2h16v2zm0-5H4v-2h16v2zm0-5H4V6h16v2z"/></svg>',
+    "Tech": '<svg viewBox="0 0 24 24"><path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>',
+    "Pool": '<svg viewBox="0 0 24 24"><path d="M22 20v-7.5c0-1.38-1.12-2.5-2.5-2.5h-15C3.12 10 2 11.12 2 12.5V20h20zM5 14h14v4H5v-4z"/></svg>',
+    "Tools": '<svg viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>',
+    "Basement": '<svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6 8H6v-2h8v2zm4-4H6V8h12v2z"/></svg>',
+    "Dining": '<svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 14H4v-2h8v2zm0-4H4V8h8v4zm6 4h-4v-2h4v2zm0-4h-4V8h4v4z"/></svg>',
+    "Door": '<svg viewBox="0 0 24 24"><path d="M19 19V5c0-1.1-.9-2-2-2H7c-1.1 0-2 .9-2 2v14H3v2h18v-2h-2zm-8-6h2v2h-2v-2z"/></svg>'
+};
 
 class HomeOrganizerPanel extends HTMLElement {
   set hass(hass) {
@@ -533,10 +576,10 @@ class HomeOrganizerPanel extends HTMLElement {
 
                 // Add Text Button per sublocation group (replacing global bottom button)
                 if (this.isEditMode) {
-                      const addRow = document.createElement('div');
-                      addRow.className = "group-add-row";
-                      addRow.innerHTML = `<button class="text-add-btn" onclick="this.getRootNode().host.addQuickItem('${subName}')">${ICONS.plus} הוסף</button>`;
-                      listContainer.appendChild(addRow);
+                     const addRow = document.createElement('div');
+                     addRow.className = "group-add-row";
+                     addRow.innerHTML = `<button class="text-add-btn" onclick="this.getRootNode().host.addQuickItem('${subName}')">${ICONS.plus} הוסף</button>`;
+                     listContainer.appendChild(addRow);
                 }
             }
         });
@@ -731,36 +774,36 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   createItemRow(item, isShopMode) {
-      const div = document.createElement('div');
-      const oosClass = (item.qty === 0) ? 'out-of-stock-frame' : '';
-      div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''} ${oosClass}`;
-      this.setupDragSource(div, item.name);
-      
-      let controls = '';
-      if (isShopMode) {
-          // Default to 0 if undefined
-          const localQty = (this.shopQuantities[item.name] !== undefined) ? this.shopQuantities[item.name] : 0;
-          // Disable style if qty is 0
-          const checkStyle = (localQty === 0) 
+     const div = document.createElement('div');
+     const oosClass = (item.qty === 0) ? 'out-of-stock-frame' : '';
+     div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''} ${oosClass}`;
+     this.setupDragSource(div, item.name);
+     
+     let controls = '';
+     if (isShopMode) {
+         // Default to 0 if undefined
+         const localQty = (this.shopQuantities[item.name] !== undefined) ? this.shopQuantities[item.name] : 0;
+         // Disable style if qty is 0
+         const checkStyle = (localQty === 0) 
             ? "background:#555;color:#888;cursor:not-allowed;width:40px;height:40px;margin-left:8px;" 
             : "background:var(--accent);width:40px;height:40px;margin-left:8px;";
-          const checkDisabled = (localQty === 0) ? "disabled" : "";
+         const checkDisabled = (localQty === 0) ? "disabled" : "";
 
-          // Changed button logic to update local quantity only, submit via checkmark
-          controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', -1)">${ICONS.minus}</button><span class="qty-val" style="margin:0 8px">${localQty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', 1)">${ICONS.plus}</button><button class="qty-btn" style="${checkStyle}" ${checkDisabled} title="Complete" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.name}')">${ICONS.check}</button>`;
-      } else {
-          controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${ICONS.plus}</button><span class="qty-val">${item.qty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${ICONS.minus}</button>`;
-      }
+         // Changed button logic to update local quantity only, submit via checkmark
+         controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', -1)">${ICONS.minus}</button><span class="qty-val" style="margin:0 8px">${localQty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', 1)">${ICONS.plus}</button><button class="qty-btn" style="${checkStyle}" ${checkDisabled} title="Complete" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.name}')">${ICONS.check}</button>`;
+     } else {
+         controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${ICONS.plus}</button><span class="qty-val">${item.qty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${ICONS.minus}</button>`;
+     }
 
-      const subText = isShopMode ? `${item.main_location} > ${item.sub_location || ''}` : `${item.date || ''}`;
-      
-      // ITEM ICON UPDATE: Show thumbnail if image exists
-      let iconHtml = `<span class="item-icon">${ICONS.item}</span>`;
-      if (item.img) {
-          iconHtml = `<img src="${item.img}" class="item-thumbnail" alt="${item.name}" onclick="event.stopPropagation(); this.getRootNode().host.showImg('${item.img}')">`;
-      }
+     const subText = isShopMode ? `${item.main_location} > ${item.sub_location || ''}` : `${item.date || ''}`;
+     
+     // ITEM ICON UPDATE: Show thumbnail if image exists
+     let iconHtml = `<span class="item-icon">${ICONS.item}</span>`;
+     if (item.img) {
+         iconHtml = `<img src="${item.img}" class="item-thumbnail" alt="${item.name}" onclick="event.stopPropagation(); this.getRootNode().host.showImg('${item.img}')">`;
+     }
 
-      div.innerHTML = `
+     div.innerHTML = `
         <div class="item-main" onclick="this.getRootNode().host.toggleRow('${item.name}')">
             <div class="item-left">
                 ${iconHtml}
@@ -771,30 +814,30 @@ class HomeOrganizerPanel extends HTMLElement {
             </div>
             <div class="item-qty-ctrl">${controls}</div>
         </div>
-      `;
-      
-      if (this.expandedIdx === item.name) {
-          const details = document.createElement('div');
-          details.className = 'expanded-details';
-          
-          let dropdownOptions = `<option value="">-- Move to... --</option>`;
-          dropdownOptions += `<option value="General">General (Root)</option>`;
-          // Location dropdown logic (Level 1)
-          let roomOptions = `<option value="">-- Change Room --</option>`;
-          if(this.localData.hierarchy) {
-              Object.keys(this.localData.hierarchy).forEach(room => {
-                  roomOptions += `<option value="${room}">${room}</option>`;
-              });
-          }
-          
-          // Sublocation dropdown (Current Room)
-          if(this.localData.folders) {
-              this.localData.folders.forEach(f => {
-                  dropdownOptions += `<option value="${f.name}">${f.name}</option>`;
-              });
-          }
+     `;
+     
+     if (this.expandedIdx === item.name) {
+         const details = document.createElement('div');
+         details.className = 'expanded-details';
+         
+         let dropdownOptions = `<option value="">-- Move to... --</option>`;
+         dropdownOptions += `<option value="General">General (Root)</option>`;
+         // Location dropdown logic (Level 1)
+         let roomOptions = `<option value="">-- Change Room --</option>`;
+         if(this.localData.hierarchy) {
+             Object.keys(this.localData.hierarchy).forEach(room => {
+                 roomOptions += `<option value="${room}">${room}</option>`;
+             });
+         }
+         
+         // Sublocation dropdown (Current Room)
+         if(this.localData.folders) {
+             this.localData.folders.forEach(f => {
+                 dropdownOptions += `<option value="${f.name}">${f.name}</option>`;
+             });
+         }
 
-          details.innerHTML = `
+         details.innerHTML = `
             <div class="detail-row">
                 <input type="text" id="name-${item.name}" value="${item.name}" style="flex:1;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px">
                 <input type="date" id="date-${item.name}" value="${item.date}" style="width:110px;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px">
@@ -838,8 +881,8 @@ class HomeOrganizerPanel extends HTMLElement {
             </div>
          `;
          div.appendChild(details);
-      }
-      return div;
+     }
+     return div;
   }
   
   updateLocationDropdown(itemName, roomName) {
@@ -942,8 +985,8 @@ class HomeOrganizerPanel extends HTMLElement {
   }
   
   addItem(type) {
-      // Legacy method kept for compatibility, but UI calling it is removed.
-      // Could be used for debugging or manual console calls.
+     // Legacy method kept for compatibility, but UI calling it is removed.
+     // Could be used for debugging or manual console calls.
   }
   
   enableSublocRename(btn, oldName) {
@@ -1157,4 +1200,3 @@ class HomeOrganizerPanel extends HTMLElement {
   callHA(service, data) { return this._hass.callService('home_organizer', service, data); }
 }
 customElements.define('home-organizer-panel', HomeOrganizerPanel);
-
