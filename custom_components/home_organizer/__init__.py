@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 5.3.0 (Accordion Logic & Counters)
+# Home Organizer Ultimate - ver 5.4.0 (Folder Images Support)
 
 import logging
 import sqlite3
@@ -43,7 +43,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})
     
-    # Safe Websocket Registration (Fixes crash on reload)
     try:
         websocket_api.async_register_command(
             hass,
@@ -91,7 +90,6 @@ def init_db(hass):
         {cols}, item_date TEXT, quantity INTEGER DEFAULT 1, image_path TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
-    # SAFE MIGRATION: Ensure columns exist without breaking old DB
     c.execute("PRAGMA table_info(items)")
     existing_cols = [col[1] for col in c.fetchall()]
     
@@ -123,7 +121,6 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
     
     hierarchy = {}
     try:
-        # Hierarchy fetch from 3.10.0 logic
         c.execute("SELECT DISTINCT level_1, level_2, level_3 FROM items WHERE level_1 IS NOT NULL AND level_1 != ''")
         for r in c.fetchall():
             l1, l2, l3 = r[0], r[1], r[2]
@@ -176,11 +173,23 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
             for i, p in enumerate(path_parts): sql_where += f" AND level_{i+1} = ?"; params.append(p)
 
             if depth < 2:
-                # Grid View logic from 3.10.0
+                # 1. Fetch Folders
                 col = f"level_{depth+1}"
                 c.execute(f"SELECT DISTINCT {col} FROM items WHERE {col} IS NOT NULL AND {col} != '' {sql_where} ORDER BY {col} ASC", tuple(params))
-                for r in c.fetchall(): folders.append({"name": r[0]})
+                found_folders = [r[0] for r in c.fetchall()]
                 
+                # 2. Fetch images for these folders (look for folder_marker)
+                for f_name in found_folders:
+                    marker_sql = f"SELECT image_path FROM items WHERE type='folder_marker' AND name=? {sql_where} AND {col}=?"
+                    # Param order: name, path_params..., folder_col_value
+                    marker_params = [f"[Folder] {f_name}"] + params + [f_name]
+                    
+                    c.execute(marker_sql, tuple(marker_params))
+                    row = c.fetchone()
+                    img = f"/local/{IMG_DIR}/{row[0]}?v={int(time.time())}" if row and row[0] else None
+                    folders.append({"name": f_name, "img": img})
+                
+                # 3. Fetch Items
                 sql = f"SELECT * FROM items WHERE type='item' AND (level_{depth+1} IS NULL OR level_{depth+1} = '') {sql_where} ORDER BY name ASC"
                 c.execute(sql, tuple(params))
                 col_names = [description[0] for description in c.description]
@@ -189,7 +198,7 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                       img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
                       items.append({"name": r_dict['name'], "type": 'item', "qty": r_dict['quantity'], "img": img})
             else:
-                # List View logic from 3.10.0
+                # List View Logic
                 sublocations = []
                 col = f"level_{depth+1}"
                 c.execute(f"SELECT DISTINCT {col} FROM items WHERE {col} IS NOT NULL AND {col} != '' {sql_where} ORDER BY {col} ASC", tuple(params))
@@ -299,8 +308,6 @@ async def register_services(hass, entry):
 
         def db_del(): 
             conn = get_db_connection(hass); c = conn.cursor()
-            
-            # RECURSIVE DELETE LOGIC
             if is_folder:
                 depth = len(parts)
                 target_col = f"level_{depth+1}"
@@ -312,7 +319,6 @@ async def register_services(hass, entry):
                 c.execute(f"DELETE FROM items WHERE {' AND '.join(conditions)}", tuple(args))
             else:
                 c.execute(f"DELETE FROM items WHERE name = ?", (name,))
-                
             conn.commit(); conn.close()
         await hass.async_add_executor_job(db_del); broadcast_update()
 
@@ -345,57 +351,38 @@ async def register_services(hass, entry):
             conn = get_db_connection(hass); c = conn.cursor()
             
             if is_folder:
-                # Rename Sublocation/Folder (Update level column for ALL items in this path)
                 depth = len(parts)
                 if depth < MAX_LEVELS:
                     target_col = f"level_{depth+1}"
-                    # Base conditions: current path levels must match
                     where_clause = f"{target_col} = ?"
                     where_args = [orig]
                     for i, p in enumerate(parts):
                         where_clause += f" AND level_{i+1} = ?"
                         where_args.append(p)
                     
-                    # 1. Update the level column value
                     c.execute(f"UPDATE items SET {target_col} = ? WHERE {where_clause}", [nn] + where_args)
                     
-                    # 2. Update the folder marker name if it exists (generic marker check)
-                    # We look for markers that shared the same path constraints
-                    # Note: Since step 1 already updated the level column to 'nn', we check that in WHERE
                     marker_where = f"{target_col} = ?"
                     marker_args = [nn] 
                     for i, p in enumerate(parts):
                         marker_where += f" AND level_{i+1} = ?"
                         marker_args.append(p)
                     
-                    # Only update items that look like folder markers for this specific folder
                     c.execute(f"UPDATE items SET name = ? WHERE type = 'folder_marker' AND name = ? AND {marker_where}", 
                               (f"[Folder] {nn}", f"[Folder] {orig}", *marker_args))
-
             else:
-                # Rename Single Item
                 sql = "UPDATE items SET "
                 updates = []
                 params = []
-                
-                if nn and nn != orig:
-                    updates.append("name = ?")
-                    params.append(nn)
-                if nd:
-                    updates.append("item_date = ?")
-                    params.append(nd)
+                if nn and nn != orig: updates.append("name = ?"); params.append(nn)
+                if nd: updates.append("item_date = ?"); params.append(nd)
                 
                 if updates:
                     sql += ", ".join(updates)
                     sql += " WHERE name = ?"
                     params.append(orig)
-                    
-                    # Optional: constrain by path to avoid renaming duplicates elsewhere
                     if parts:
-                        for i, p in enumerate(parts):
-                            sql += f" AND level_{i+1} = ?"
-                            params.append(p)
-                            
+                        for i, p in enumerate(parts): sql += f" AND level_{i+1} = ?"; params.append(p)
                     c.execute(sql, tuple(params))
 
             conn.commit(); conn.close()
@@ -408,6 +395,8 @@ async def register_services(hass, entry):
         def save():
             open(hass.config.path("www", IMG_DIR, fname), "wb").write(base64.b64decode(img_b64))
             conn = get_db_connection(hass); c = conn.cursor()
+            # Handle Folder Image Updates specially if name starts with [Folder]
+            # This ensures we are updating the marker item
             c.execute(f"UPDATE items SET image_path = ? WHERE name = ?", (fname, name)); conn.commit(); conn.close()
         await hass.async_add_executor_job(save); broadcast_update()
 
