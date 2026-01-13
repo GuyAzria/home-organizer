@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 4.13.0 (Icon Library & Replacement)
+// Home Organizer Ultimate - Ver 4.14.0 (Display Folder Images Fix)
 // License: MIT
 
 const ICONS = {
@@ -452,6 +452,12 @@ class HomeOrganizerPanel extends HTMLElement {
                     
                     el.onclick = () => this.navigate('down', folder.name);
                     
+                    // Folder content: Image or Icon
+                    let folderContent = ICONS.folder;
+                    if (folder.img) {
+                        folderContent = `<img src="${folder.img}" style="width:100%;height:100%;object-fit:cover;border-radius:16px">`;
+                    }
+
                     const deleteBtnHtml = this.isEditMode 
                         ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` 
                         : '';
@@ -467,7 +473,7 @@ class HomeOrganizerPanel extends HTMLElement {
 
                     el.innerHTML = `
                         <div class="android-folder-icon">
-                            ${ICONS.folder}
+                            ${folderContent}
                             ${editBtnHtml}
                             ${deleteBtnHtml}
                             ${imgBtnHtml}
