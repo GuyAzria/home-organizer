@@ -1,6 +1,6 @@
-// Home Organizer Ultimate - Ver 4.15.1 (Refactored Icons)
+// Home Organizer Ultimate - Ver 4.15.3 (Relative Import for Component)
 // License: MIT
-// Make sure to load this as type: module in Home Assistant
+// Use relative import for files in the same directory (custom_components/home_organizer/frontend/)
 import { ICONS, ICON_LIB } from './organizer-icon.js';
 
 class HomeOrganizerPanel extends HTMLElement {
@@ -1157,4 +1157,3 @@ class HomeOrganizerPanel extends HTMLElement {
   callHA(service, data) { return this._hass.callService('home_organizer', service, data); }
 }
 customElements.define('home-organizer-panel', HomeOrganizerPanel);
-
