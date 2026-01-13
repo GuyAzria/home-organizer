@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 4.12.0 (Room/Location Rename Buttons)
+// Home Organizer Ultimate - Ver 4.13.0 (Icon Library & Replacement)
 // License: MIT
 
 const ICONS = {
@@ -25,6 +25,25 @@ const ICONS = {
   move: '<svg viewBox="0 0 24 24"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg>',
   chevron_right: '<svg viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>',
   chevron_down: '<svg viewBox="0 0 24 24"><path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z"/></svg>'
+};
+
+const ICON_LIB = {
+    "Bed": '<svg viewBox="0 0 24 24"><path d="M20 10V7c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v3c-1.1 0-2 .9-2 2v5h1.33L4 19h1l.67-2h12.67l.66 2h1l.67-2H22v-5c0-1.1-.9-2-2-2zm-9 0H6V7h5v3zm7 0h-5V7h5v3z"/></svg>',
+    "Kitchen": '<svg viewBox="0 0 24 24"><path d="M8.1 13.34l2.83-2.83L3.91 3.5c-1.56 1.56-1.56 4.09 0 5.66l4.19 4.18zm6.78-1.81c1.53.71 3.68.21 5.27-1.38 1.91-1.91 2.28-4.65.81-6.12-1.46-1.46-4.2-1.1-6.12.81-1.59 1.59-2.09 3.74-1.38 5.27L3.7 19.87l1.41 1.41L12 14.41l6.88 6.88 1.41-1.41L13.41 12.99l1.47-1.46z"/></svg>',
+    "Bath": '<svg viewBox="0 0 24 24"><path d="M20 13V4.83C20 3.27 18.73 2 17.17 2c-.75 0-1.47.3-2 .83l-3.52 3.52c-.63-.63-1.66-.63-2.29 0l-.32.32c-.63.63-.63 1.66 0 2.29l.32.32c.63.63 1.66.63 2.29 0l3.52-3.52c.53-.53 1.25-.83 2-.83 1.56 0 2.83 1.27 2.83 2.83V13h-9.9l-2.6 2.6L12 20.08l4.08-4.08H20zM3 13c0 2.21 1.79 4 4 4h6l-6-6H3z"/></svg>',
+    "Living": '<svg viewBox="0 0 24 24"><path d="M4 18h16v-3c0-1.1-.9-2-2-2h-3.5C12.5 13 11 11.5 11 9.5V6H8v3.5c0 2 1.5 3.5 3.5 3.5H15v2H5v-2h1c.55 0 1-.45 1-1V9c0-1.1-.9-2-2-2H3v10c0 .55.45 1 1 1z"/></svg>',
+    "Garage": '<svg viewBox="0 0 24 24"><path d="M19 5H5c-1.1 0-2 .9-2 2v12h2v-2h14v2h2V7c0-1.1-.9-2-2-2zm-2 9H7v-2h10v2zm0-4H7V8h10v2z"/></svg>',
+    "Garden": '<svg viewBox="0 0 24 24"><path d="M12 2c-4.97 0-9 4.03-9 9 0 4.17 2.84 7.67 6.69 8.69L12 22l2.31-2.31C18.16 18.67 21 15.17 21 11c0-4.97-4.03-9-9-9zm0 16c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7zm1-11h-2v3H8v2h3v3h2v-3h3v-2h-3V7z"/></svg>',
+    "Closet": '<svg viewBox="0 0 24 24"><path d="M12 2C9.24 2 7 4.24 7 7v10H4v4h16v-4h-3V7c0-2.76-2.24-5-5-5zm-3 5c0-1.66 1.34-3 3-3s3 1.34 3 3v2h-6V7zm10 12H5v-2h14v2zm-2-4H7V7h10v8z"/></svg>',
+    "Kids": '<svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-5 10l-2.5-3.75L10 16l-3-4.5-3 4.5v-7h12v7z"/></svg>',
+    "Office": '<svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6 8h-4v-2h4v2zm2-4H8V8h8v2z"/></svg>',
+    "Storage": '<svg viewBox="0 0 24 24"><path d="M20 18H4v-2h16v2zm0-5H4v-2h16v2zm0-5H4V6h16v2z"/></svg>',
+    "Tech": '<svg viewBox="0 0 24 24"><path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>',
+    "Pool": '<svg viewBox="0 0 24 24"><path d="M22 20v-7.5c0-1.38-1.12-2.5-2.5-2.5h-15C3.12 10 2 11.12 2 12.5V20h20zM5 14h14v4H5v-4z"/></svg>',
+    "Tools": '<svg viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>',
+    "Basement": '<svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6 8H6v-2h8v2zm4-4H6V8h12v2z"/></svg>',
+    "Dining": '<svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 14H4v-2h8v2zm0-4H4V8h8v4zm6 4h-4v-2h4v2zm0-4h-4V8h4v4z"/></svg>',
+    "Door": '<svg viewBox="0 0 24 24"><path d="M19 19V5c0-1.1-.9-2-2-2H7c-1.1 0-2 .9-2 2v14H3v2h18v-2h-2zm-8-6h2v2h-2v-2z"/></svg>'
 };
 
 class HomeOrganizerPanel extends HTMLElement {
@@ -97,11 +116,13 @@ class HomeOrganizerPanel extends HTMLElement {
         
         .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 20px; }
         .folder-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; position: relative; }
-        .android-folder-icon { width: 56px; height: 56px; background: #3c4043; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #8ab4f8; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); position: relative; }
+        .android-folder-icon { width: 56px; height: 56px; background: #3c4043; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #8ab4f8; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); position: relative; overflow: visible; }
         
         .folder-delete-btn { position: absolute; top: -5px; right: -5px; background: var(--danger); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
         .folder-edit-btn { position: absolute; top: -5px; left: -5px; background: var(--primary); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
         .folder-edit-btn svg { width: 12px; height: 12px; }
+        .folder-img-btn { position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%); background: #ff9800; color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
+        .folder-img-btn svg { width: 12px; height: 12px; }
 
         .item-list { display: flex; flex-direction: column; gap: 5px; }
         
@@ -160,6 +181,17 @@ class HomeOrganizerPanel extends HTMLElement {
         .move-select { flex: 1; padding: 8px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; }
         .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
         
+        /* Modal for Icons */
+        #icon-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2500; display: none; align-items: center; justify-content: center; flex-direction: column; }
+        .modal-content { background: #242426; width: 90%; max-width: 400px; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 15px; max-height: 80vh; overflow-y: auto; }
+        .modal-title { font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 10px; }
+        .icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 10px; }
+        .lib-icon { background: #333; border-radius: 8px; padding: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 5px; }
+        .lib-icon:hover { background: #444; }
+        .lib-icon svg { width: 32px; height: 32px; fill: #ccc; }
+        .lib-icon span { font-size: 10px; color: #888; }
+        .url-input-row { display: flex; gap: 10px; margin-top: 10px; border-top: 1px solid #444; padding-top: 10px; }
+        
         /* CAMERA OVERLAY STYLES */
         #camera-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: center; }
         #camera-video { width: 100%; height: 80%; object-fit: cover; }
@@ -210,6 +242,27 @@ class HomeOrganizerPanel extends HTMLElement {
         </div>
       </div>
       
+      <!-- ICON PICKER MODAL -->
+      <div id="icon-modal" onclick="this.style.display='none'">
+          <div class="modal-content" onclick="event.stopPropagation()">
+              <div class="modal-title">Change Icon</div>
+              <div class="icon-grid" id="icon-lib-grid"></div>
+              
+              <div class="url-input-row">
+                  <input type="text" id="icon-url-input" placeholder="Paste Image URL..." style="flex:1;padding:8px;background:#111;color:white;border:1px solid #444;border-radius:4px">
+                  <button class="action-btn" id="btn-load-url">${ICONS.check}</button>
+              </div>
+              
+              <div style="text-align:center; margin-top:10px;">
+                  <label class="action-btn" style="width:100%; display:flex; gap:10px; justify-content:center;">
+                      ${ICONS.image} Upload File
+                      <input type="file" id="icon-file-upload" accept="image/*" style="display:none">
+                  </label>
+              </div>
+              <button class="action-btn" style="width:100%;margin-top:10px;background:#444" onclick="this.closest('#icon-modal').style.display='none'">Cancel</button>
+          </div>
+      </div>
+      
       <!-- CUSTOM IN-APP CAMERA OVERLAY -->
       <div id="camera-modal">
           <video id="camera-video" autoplay playsinline muted></video>
@@ -246,6 +299,13 @@ class HomeOrganizerPanel extends HTMLElement {
     click('btn-edit', () => { this.isEditMode = !this.isEditMode; this.isShopMode = false; this.render(); });
     
     click('btn-paste', () => this.pasteItem());
+    
+    // Icon Modal Bindings
+    click('btn-load-url', () => {
+        const url = root.getElementById('icon-url-input').value;
+        if(url) this.handleUrlIcon(url);
+    });
+    bind('icon-file-upload', 'onchange', (e) => this.handleIconUpload(e.target));
     
     // Camera
     click('btn-ai-search', () => this.openCamera('search'));
@@ -399,12 +459,18 @@ class HomeOrganizerPanel extends HTMLElement {
                     const editBtnHtml = this.isEditMode 
                         ? `<div class="folder-edit-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'), '${folder.name}')">${ICONS.edit}</div>` 
                         : '';
+                    
+                    // NEW: Icon/Image Change Button
+                    const imgBtnHtml = this.isEditMode
+                        ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${folder.name}')">${ICONS.image}</div>`
+                        : '';
 
                     el.innerHTML = `
                         <div class="android-folder-icon">
                             ${ICONS.folder}
                             ${editBtnHtml}
                             ${deleteBtnHtml}
+                            ${imgBtnHtml}
                         </div>
                         <div class="folder-label">${folder.name}</div>
                     `;
@@ -584,7 +650,7 @@ class HomeOrganizerPanel extends HTMLElement {
       };
   }
   
-  // NEW: Logic for inline renaming of Rooms/Locations (Folders)
+  // Logic for inline renaming of Rooms/Locations (Folders)
   enableFolderRename(labelEl, oldName) {
       if (!labelEl || labelEl.querySelector('input')) return;
       
@@ -640,7 +706,6 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   // Logic to add an empty item quickly
-  // UPDATED: Now accepts optional targetSubloc to place item in specific sublocation
   addQuickItem(targetSubloc) {
       const tempName = "New Item " + new Date().toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'});
       const today = new Date().toISOString().split('T')[0];
@@ -997,6 +1062,96 @@ class HomeOrganizerPanel extends HTMLElement {
     });
     input.value = '';
   }
+
+  // --- NEW ICON PICKER LOGIC ---
+  openIconPicker(folderName) {
+      this.pendingFolderIcon = folderName;
+      const modal = this.shadowRoot.getElementById('icon-modal');
+      const grid = this.shadowRoot.getElementById('icon-lib-grid');
+      grid.innerHTML = '';
+      
+      Object.keys(ICON_LIB).forEach(key => {
+          const div = document.createElement('div');
+          div.className = 'lib-icon';
+          div.innerHTML = `${ICON_LIB[key]}<span>${key}</span>`;
+          div.onclick = () => this.selectLibraryIcon(ICON_LIB[key]);
+          grid.appendChild(div);
+      });
+      
+      modal.style.display = 'flex';
+  }
+
+  selectLibraryIcon(svgHtml) {
+      // 1. Create a temporary image from SVG
+      const img = new Image();
+      const svg = new Blob([svgHtml], {type: 'image/svg+xml;charset=utf-8'});
+      const url = URL.createObjectURL(svg);
+      
+      img.onload = () => {
+          // 2. Draw to canvas
+          const canvas = document.createElement('canvas');
+          canvas.width = 200; // reasonable icon size
+          canvas.height = 200;
+          const ctx = canvas.getContext('2d');
+          
+          // Optional: Add background color or ensure transparent
+          // ctx.fillStyle = '#3c4043'; ctx.fillRect(0,0,200,200); 
+          
+          ctx.drawImage(img, 0, 0, 200, 200);
+          
+          // 3. Convert to JPG/PNG data URL
+          const dataUrl = canvas.toDataURL('image/png');
+          
+          // 4. Upload as [Folder] {name}
+          if(this.pendingFolderIcon) {
+              const markerName = `[Folder] ${this.pendingFolderIcon}`;
+              this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
+          }
+          
+          this.shadowRoot.getElementById('icon-modal').style.display = 'none';
+          URL.revokeObjectURL(url);
+      };
+      
+      img.src = url;
+  }
+
+  handleUrlIcon(url) {
+      // Cross-Origin might block this, but we try standard fetch -> blob -> reader
+      // Or set img.src with crossorigin="anonymous"
+      const img = new Image();
+      img.crossOrigin = "Anonymous";
+      img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          const dataUrl = canvas.toDataURL('image/jpeg');
+          
+          if(this.pendingFolderIcon) {
+              const markerName = `[Folder] ${this.pendingFolderIcon}`;
+              this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
+          }
+          this.shadowRoot.getElementById('icon-modal').style.display = 'none';
+          this.shadowRoot.getElementById('icon-url-input').value = '';
+      };
+      img.onerror = () => alert("Could not load image. Check CORS/URL.");
+      img.src = url;
+  }
+
+  handleIconUpload(input) {
+      const file = input.files[0];
+      if (!file) return;
+      this.compressImage(file, (dataUrl) => {
+          if(this.pendingFolderIcon) {
+              const markerName = `[Folder] ${this.pendingFolderIcon}`;
+              this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
+          }
+          this.shadowRoot.getElementById('icon-modal').style.display = 'none';
+      });
+      input.value = '';
+  }
+  // --- END ICON PICKER LOGIC ---
 
   compressImage(file, callback) {
       const reader = new FileReader();
