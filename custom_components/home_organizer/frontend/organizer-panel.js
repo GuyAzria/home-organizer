@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 4.14.0 (Display Folder Images Fix)
+// Home Organizer Ultimate - Ver 4.15.0 (Fix Icon Library Selection)
 // License: MIT
 
 const ICONS = {
@@ -1088,33 +1088,40 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   selectLibraryIcon(svgHtml) {
-      // 1. Create a temporary image from SVG
+      // Ensure namespace, size, and color for conversion
+      let source = svgHtml;
+      if (!source.includes('xmlns')) source = source.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+      
+      // Inject standard size and color
+      if (!source.includes('width=')) source = source.replace('<svg', '<svg width="200" height="200"');
+      
+      // Force fill color (Light Blue #4fc3f7) on the SVG root to ensure visibility
+      // NOTE: Some SVGs might not inherit fill if paths are hardcoded black, 
+      // but this usually works for simple icon sets like these.
+      source = source.replace('<svg', '<svg fill="#4fc3f7"');
+
       const img = new Image();
-      const svg = new Blob([svgHtml], {type: 'image/svg+xml;charset=utf-8'});
-      const url = URL.createObjectURL(svg);
+      const blob = new Blob([source], {type: 'image/svg+xml;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
       
       img.onload = () => {
-          // 2. Draw to canvas
           const canvas = document.createElement('canvas');
-          canvas.width = 200; // reasonable icon size
+          canvas.width = 200;
           canvas.height = 200;
           const ctx = canvas.getContext('2d');
-          
-          // Optional: Add background color or ensure transparent
-          // ctx.fillStyle = '#3c4043'; ctx.fillRect(0,0,200,200); 
-          
           ctx.drawImage(img, 0, 0, 200, 200);
-          
-          // 3. Convert to JPG/PNG data URL
           const dataUrl = canvas.toDataURL('image/png');
           
-          // 4. Upload as [Folder] {name}
           if(this.pendingFolderIcon) {
               const markerName = `[Folder] ${this.pendingFolderIcon}`;
               this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
           }
-          
           this.shadowRoot.getElementById('icon-modal').style.display = 'none';
+          URL.revokeObjectURL(url);
+      };
+      
+      img.onerror = (e) => {
+          console.error("Failed to render SVG to Image", e);
           URL.revokeObjectURL(url);
       };
       
@@ -1122,8 +1129,6 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   handleUrlIcon(url) {
-      // Cross-Origin might block this, but we try standard fetch -> blob -> reader
-      // Or set img.src with crossorigin="anonymous"
       const img = new Image();
       img.crossOrigin = "Anonymous";
       img.onload = () => {
@@ -1132,16 +1137,19 @@ class HomeOrganizerPanel extends HTMLElement {
           canvas.height = img.height;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0);
-          const dataUrl = canvas.toDataURL('image/jpeg');
-          
-          if(this.pendingFolderIcon) {
-              const markerName = `[Folder] ${this.pendingFolderIcon}`;
-              this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
+          try {
+              const dataUrl = canvas.toDataURL('image/jpeg');
+              if(this.pendingFolderIcon) {
+                  const markerName = `[Folder] ${this.pendingFolderIcon}`;
+                  this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
+              }
+              this.shadowRoot.getElementById('icon-modal').style.display = 'none';
+              this.shadowRoot.getElementById('icon-url-input').value = '';
+          } catch(e) {
+              alert("CORS prevented saving this image. Try uploading the file directly.");
           }
-          this.shadowRoot.getElementById('icon-modal').style.display = 'none';
-          this.shadowRoot.getElementById('icon-url-input').value = '';
       };
-      img.onerror = () => alert("Could not load image. Check CORS/URL.");
+      img.onerror = () => alert("Could not load image. Check URL or CORS permissions.");
       img.src = url;
   }
 
