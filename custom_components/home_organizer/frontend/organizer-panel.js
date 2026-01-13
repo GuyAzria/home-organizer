@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 4.15.1 (Fix Icon Library Selection)
+// Home Organizer Ultimate - Ver 4.16.0 (Fix Registry Crash & Icon Selection)
 // License: MIT
 
 const ICONS = {
@@ -1105,4 +1105,7 @@ class HomeOrganizerPanel extends HTMLElement {
 
   callHA(service, data) { return this._hass.callService('home_organizer', service, data); }
 }
-customElements.define('home-organizer-panel', HomeOrganizerPanel);
+
+if (!customElements.get('home-organizer-panel')) {
+    customElements.define('home-organizer-panel', HomeOrganizerPanel);
+}
