@@ -1,9 +1,7 @@
-// Home Organizer Ultimate - Ver 5.5.0 (Standard Import)
+// Home Organizer Ultimate - Ver 5.6.0 (Contextual Icons)
 // License: MIT
 
-// IMPORT from the Static Path defined in __init__.py
-// Note: We add a timestamp (?v=...) to force the browser to reload if the file changes
-import { ICONS, ICON_LIB } from './organizer-icon.js?v=5.5.0';
+import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.0';
 
 class HomeOrganizerPanel extends HTMLElement {
   set hass(hass) {
@@ -21,6 +19,7 @@ class HomeOrganizerPanel extends HTMLElement {
       this.shopQuantities = {};
       this.expandedSublocs = new Set(); 
       this.subscribed = false;
+      this.pickerContext = 'room'; // track which lib to show
 
       this.initUI();
     }
@@ -259,7 +258,6 @@ class HomeOrganizerPanel extends HTMLElement {
     
     // Camera
     click('btn-ai-search', () => this.openCamera('search'));
-    // btn-open-cam removed, main camera button removed
 
     click('btn-cam-close', () => this.stopCamera());
     click('btn-cam-snap', () => this.snapPhoto());
@@ -327,9 +325,6 @@ class HomeOrganizerPanel extends HTMLElement {
       } else if (this.pendingItem) {
           this.callHA('update_image', { item_name: this.pendingItem, image_data: dataUrl });
           this.pendingItem = null;
-      } else {
-          this.tempAddImage = dataUrl;
-          // UI for tempAddImage is gone, so this branch might be unused, but kept for logic safety
       }
   }
 
@@ -350,7 +345,6 @@ class HomeOrganizerPanel extends HTMLElement {
         app.classList.remove('edit-mode');
     }
     
-    // Toggle edit button color
     const editBtn = root.getElementById('btn-edit');
     if (editBtn) {
         if (this.isEditMode) editBtn.classList.add('edit-active');
@@ -394,15 +388,12 @@ class HomeOrganizerPanel extends HTMLElement {
             const grid = document.createElement('div');
             grid.className = 'folder-grid';
             
-            // Render existing folders
             if (attrs.folders) {
                 attrs.folders.forEach(folder => {
                     const el = document.createElement('div');
                     el.className = 'folder-item';
-                    
                     el.onclick = () => this.navigate('down', folder.name);
                     
-                    // Folder content: Image or Icon
                     let folderContent = ICONS.folder;
                     if (folder.img) {
                         folderContent = `<img src="${folder.img}" style="width:100%;height:100%;object-fit:cover;border-radius:16px">`;
@@ -416,9 +407,10 @@ class HomeOrganizerPanel extends HTMLElement {
                         ? `<div class="folder-edit-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'), '${folder.name}')">${ICONS.edit}</div>` 
                         : '';
                     
-                    // NEW: Icon/Image Change Button
+                    // Contextual Icon Picker Logic for Folder depth
+                    const context = attrs.depth === 0 ? 'room' : 'location';
                     const imgBtnHtml = this.isEditMode
-                        ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${folder.name}')">${ICONS.image}</div>`
+                        ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${folder.name}', '${context}')">${ICONS.image}</div>`
                         : '';
 
                     el.innerHTML = `
@@ -434,7 +426,6 @@ class HomeOrganizerPanel extends HTMLElement {
                 });
             }
 
-            // Render "Add Room/Location" button if Edit Mode is ON
             if (this.isEditMode) {
                 const addBtn = document.createElement('div');
                 addBtn.className = 'folder-item add-folder-card';
@@ -458,7 +449,6 @@ class HomeOrganizerPanel extends HTMLElement {
             content.appendChild(list);
         }
         
-        // Render "Add Item" button if Edit Mode is ON (Under list in depth < 1)
         if (this.isEditMode && attrs.depth === 1) {
              const addBtn = document.createElement('div');
              addBtn.className = 'add-item-btn-row';
@@ -466,7 +456,6 @@ class HomeOrganizerPanel extends HTMLElement {
              content.appendChild(addBtn);
         }
     } 
-    // SUBLOCATION/ITEM GROUPED VIEW
     else {
         const listContainer = document.createElement('div');
         listContainer.className = 'item-list';
@@ -495,8 +484,6 @@ class HomeOrganizerPanel extends HTMLElement {
             const header = document.createElement('div');
             header.className = 'group-separator';
             this.setupDropTarget(header, subName);
-
-            // Toggle Expand Logic attached to header
             header.onclick = () => this.toggleSubloc(subName);
 
             if (this.isEditMode && subName !== "General") {
@@ -520,11 +507,8 @@ class HomeOrganizerPanel extends HTMLElement {
             }
             listContainer.appendChild(header);
             
-            // Only render items if expanded
             if (isExpanded) {
                 grouped[subName].forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
-
-                // Add Text Button per sublocation group (replacing global bottom button)
                 if (this.isEditMode) {
                      const addRow = document.createElement('div');
                      addRow.className = "group-add-row";
@@ -542,7 +526,6 @@ class HomeOrganizerPanel extends HTMLElement {
             outOfStock.forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
         }
         
-        // NEW: Add "Add Sublocation" Square Button at the bottom of the list when in Edit Mode
         if (this.isEditMode) {
             const gridContainer = document.createElement('div');
             gridContainer.className = 'folder-grid';
@@ -575,44 +558,22 @@ class HomeOrganizerPanel extends HTMLElement {
       this.render();
   }
   
-  // Logic to turn the "Add Folder" card into an input
   enableFolderInput(cardEl) {
       const iconContainer = cardEl.querySelector('.android-folder-icon');
       const label = cardEl.querySelector('.folder-label');
-      
-      // Prevent multiple clicks
       if(iconContainer.querySelector('input')) return;
-      
       iconContainer.innerHTML = `<input type="text" class="add-folder-input" placeholder="Name">`;
       const input = iconContainer.querySelector('input');
       label.innerText = "Saving...";
-      
       input.focus();
-      
-      // Save on Enter
-      input.onkeydown = (e) => {
-          if (e.key === 'Enter') {
-              this.saveNewFolder(input.value);
-          }
-      };
-      
-      // Save on blur if value exists, else reset
-      input.onblur = () => {
-          if (input.value.trim()) {
-              this.saveNewFolder(input.value);
-          } else {
-              this.render(); // Reset UI
-          }
-      };
+      input.onkeydown = (e) => { if (e.key === 'Enter') this.saveNewFolder(input.value); };
+      input.onblur = () => { if (input.value.trim()) this.saveNewFolder(input.value); else this.render(); };
   }
   
-  // Logic for inline renaming of Rooms/Locations (Folders)
   enableFolderRename(labelEl, oldName) {
       if (!labelEl || labelEl.querySelector('input')) return;
-      
       const input = document.createElement('input');
       input.value = oldName;
-      // styling to match dark theme grid item
       input.style.width = '100%';
       input.style.background = '#222';
       input.style.color = 'white';
@@ -621,16 +582,13 @@ class HomeOrganizerPanel extends HTMLElement {
       input.style.textAlign = 'center';
       input.style.fontSize = '12px';
       input.onclick = (e) => e.stopPropagation();
-      
       labelEl.innerHTML = '';
       labelEl.appendChild(input);
       input.focus();
-      
       let isSaving = false;
       const save = () => {
           if (isSaving) return; 
           isSaving = true;
-          
           const newVal = input.value.trim();
           if (newVal && newVal !== oldName) {
               this.callHA('update_item_details', { 
@@ -640,11 +598,8 @@ class HomeOrganizerPanel extends HTMLElement {
                   current_path: this.currentPath,
                   is_folder: true
               });
-          } else {
-              this.render(); 
-          }
+          } else { this.render(); }
       };
-      
       input.onkeydown = (e) => { if (e.key === 'Enter') input.blur(); };
       input.onblur = () => save();
   }
@@ -658,20 +613,13 @@ class HomeOrganizerPanel extends HTMLElement {
           image_data: null, 
           current_path: this.currentPath 
       });
-      // UI will refresh via event listener
   }
 
-  // Logic to add an empty item quickly
   addQuickItem(targetSubloc) {
       const tempName = "New Item " + new Date().toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'});
       const today = new Date().toISOString().split('T')[0];
-      
       let usePath = [...this.currentPath];
-      // If we are adding to a specific sublocation group (and it's not the generic root container 'General')
-      if (targetSubloc && targetSubloc !== "General") {
-          usePath.push(targetSubloc);
-      }
-
+      if (targetSubloc && targetSubloc !== "General") usePath.push(targetSubloc);
       this._hass.callService('home_organizer', 'add_item', { 
           item_name: tempName, 
           item_type: 'item', 
@@ -685,7 +633,6 @@ class HomeOrganizerPanel extends HTMLElement {
       el.draggable = true;
       el.ondragstart = (e) => { e.dataTransfer.setData("text/plain", itemName); e.dataTransfer.effectAllowed = "move"; el.classList.add('dragging'); };
       el.ondragend = () => el.classList.remove('dragging');
-      // Touch drag omitted for brevity
   }
 
   setupDropTarget(el, subName) {
@@ -716,9 +663,7 @@ class HomeOrganizerPanel extends HTMLElement {
   }
   
   adjustShopQty(name, delta) {
-      if (this.shopQuantities[name] === undefined) {
-          this.shopQuantities[name] = 0; // Default to 0 as requested
-      }
+      if (this.shopQuantities[name] === undefined) this.shopQuantities[name] = 0;
       this.shopQuantities[name] = Math.max(0, this.shopQuantities[name] + delta);
       this.render();
   }
@@ -731,15 +676,11 @@ class HomeOrganizerPanel extends HTMLElement {
      
      let controls = '';
      if (isShopMode) {
-         // Default to 0 if undefined
          const localQty = (this.shopQuantities[item.name] !== undefined) ? this.shopQuantities[item.name] : 0;
-         // Disable style if qty is 0
          const checkStyle = (localQty === 0) 
             ? "background:#555;color:#888;cursor:not-allowed;width:40px;height:40px;margin-left:8px;" 
             : "background:var(--accent);width:40px;height:40px;margin-left:8px;";
          const checkDisabled = (localQty === 0) ? "disabled" : "";
-
-         // Changed button logic to update local quantity only, submit via checkmark
          controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', -1)">${ICONS.minus}</button><span class="qty-val" style="margin:0 8px">${localQty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', 1)">${ICONS.plus}</button><button class="qty-btn" style="${checkStyle}" ${checkDisabled} title="Complete" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.name}')">${ICONS.check}</button>`;
      } else {
          controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${ICONS.plus}</button><span class="qty-val">${item.qty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${ICONS.minus}</button>`;
@@ -747,7 +688,6 @@ class HomeOrganizerPanel extends HTMLElement {
 
      const subText = isShopMode ? `${item.main_location} > ${item.sub_location || ''}` : `${item.date || ''}`;
      
-     // ITEM ICON UPDATE: Show thumbnail if image exists
      let iconHtml = `<span class="item-icon">${ICONS.item}</span>`;
      if (item.img) {
          iconHtml = `<img src="${item.img}" class="item-thumbnail" alt="${item.name}" onclick="event.stopPropagation(); this.getRootNode().host.showImg('${item.img}')">`;
@@ -770,20 +710,10 @@ class HomeOrganizerPanel extends HTMLElement {
          const details = document.createElement('div');
          details.className = 'expanded-details';
          
-         let dropdownOptions = `<option value="">-- Move to... --</option>`;
-         dropdownOptions += `<option value="General">General (Root)</option>`;
-         // Location dropdown logic (Level 1)
          let roomOptions = `<option value="">-- Change Room --</option>`;
          if(this.localData.hierarchy) {
              Object.keys(this.localData.hierarchy).forEach(room => {
                  roomOptions += `<option value="${room}">${room}</option>`;
-             });
-         }
-         
-         // Sublocation dropdown (Current Room)
-         if(this.localData.folders) {
-             this.localData.folders.forEach(f => {
-                 dropdownOptions += `<option value="${f.name}">${f.name}</option>`;
              });
          }
 
@@ -796,10 +726,8 @@ class HomeOrganizerPanel extends HTMLElement {
             <div class="detail-row" style="justify-content:space-between; margin-top:10px;">
                  <div style="display:flex;gap:10px;">
                     <button class="action-btn" title="Take Photo" onclick="this.getRootNode().host.triggerCameraEdit('${item.name}')">${ICONS.camera}</button>
-                    <label class="action-btn" title="Upload Image">
-                        ${ICONS.image}
-                        <input type="file" accept="image/*" style="display:none" onchange="this.getRootNode().host.handleUpdateImage(this, '${item.name}')">
-                    </label>
+                    <!-- UPDATED: Replaced file input label with icon picker button for items -->
+                    <button class="action-btn" title="Change Icon/Image" onclick="this.getRootNode().host.openIconPicker('${item.name}', 'item')">${ICONS.image}</button>
                  </div>
                  <div style="display:flex;gap:10px;">
                     <button class="action-btn btn-danger" title="Delete" onclick="this.getRootNode().host.del('${item.name}')">${ICONS.delete}</button>
@@ -836,28 +764,15 @@ class HomeOrganizerPanel extends HTMLElement {
       const locContainer = this.shadowRoot.getElementById(`loc-container-${itemName}`);
       const locSelect = this.shadowRoot.getElementById(`loc-select-${itemName}`);
       const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemName}`);
-      
-      // Reset subsequent dropdowns
       subContainer.style.display = 'none';
       locSelect.innerHTML = '<option value="">-- Select --</option>';
-      
-      if(!roomName) {
-          locContainer.style.display = 'none';
-          return;
-      }
-      
+      if(!roomName) { locContainer.style.display = 'none'; return; }
       let html = `<option value="">-- Select Location --</option>`;
-      
-      // Populate Level 2 (Locations) for the selected Room
       if(this.localData.hierarchy && this.localData.hierarchy[roomName]) {
-          Object.keys(this.localData.hierarchy[roomName]).forEach(loc => {
-              html += `<option value="${loc}">${loc}</option>`;
-          });
+          Object.keys(this.localData.hierarchy[roomName]).forEach(loc => { html += `<option value="${loc}">${loc}</option>`; });
       }
       locSelect.innerHTML = html;
       locContainer.style.display = 'flex';
-      
-      // Store selected room temporarily on the select element for next step
       locSelect.dataset.room = roomName;
   }
   
@@ -865,20 +780,11 @@ class HomeOrganizerPanel extends HTMLElement {
       const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemName}`);
       const subSelect = this.shadowRoot.getElementById(`target-subloc-${itemName}`);
       const roomName = this.shadowRoot.getElementById(`room-select-${itemName}`).value;
-      
-      if(!locationName) {
-          subContainer.style.display = 'none';
-          return;
-      }
-      
+      if(!locationName) { subContainer.style.display = 'none'; return; }
       let html = `<option value="">-- Select Sublocation --</option>`;
-      html += `<option value="__ROOT__">Main ${locationName}</option>`; // Allow moving to the location root
-      
-      // Populate Level 3 (Sublocations)
+      html += `<option value="__ROOT__">Main ${locationName}</option>`;
       if(this.localData.hierarchy && this.localData.hierarchy[roomName] && this.localData.hierarchy[roomName][locationName]) {
-          this.localData.hierarchy[roomName][locationName].forEach(sub => {
-              html += `<option value="${sub}">${sub}</option>`;
-          });
+          this.localData.hierarchy[roomName][locationName].forEach(sub => { html += `<option value="${sub}">${sub}</option>`; });
       }
       subSelect.innerHTML = html;
       subContainer.style.display = 'flex';
@@ -888,61 +794,37 @@ class HomeOrganizerPanel extends HTMLElement {
       const room = this.shadowRoot.getElementById(`room-select-${itemName}`).value;
       const loc = this.shadowRoot.getElementById(`loc-select-${itemName}`).value;
       const sub = this.shadowRoot.getElementById(`target-subloc-${itemName}`).value;
-      
       if(!room || !loc || !sub) return;
-      
       let targetPath = [room, loc];
       if(sub !== "__ROOT__") targetPath.push(sub);
-      
       this.callHA('clipboard_action', {action: 'cut', item_name: itemName});
-      setTimeout(() => {
-          this.callHA('paste_item', {target_path: targetPath});
-      }, 100);
+      setTimeout(() => { this.callHA('paste_item', {target_path: targetPath}); }, 100);
   }
 
   deleteFolder(name) { if(confirm(`Delete folder '${name}' and ALL items inside it?`)) { this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); } }
-  
-  deleteSubloc(name) { 
-      if(confirm(`Delete '${name}'?`)) { 
-          this._hass.callService('home_organizer', 'delete_item', { 
-              item_name: name, 
-              current_path: this.currentPath,
-              is_folder: true 
-          }); 
-      } 
-  }
+  deleteSubloc(name) { if(confirm(`Delete '${name}'?`)) { this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); } }
 
   render() { this.updateUI(); }
   navigate(dir, name) { 
       if (dir === 'root') this.currentPath = []; 
       else if (dir === 'up') this.currentPath.pop(); 
       else if (dir === 'down' && name) this.currentPath.push(name); 
-      
-      this.expandedSublocs.clear(); // Collapse all on navigate
+      this.expandedSublocs.clear();
       this.fetchData(); 
   }
   toggleRow(name) { this.expandedIdx = (this.expandedIdx === name) ? null : name; this.render(); }
   updateQty(name, d) { this.callHA('update_qty', { item_name: name, change: d }); }
-  
   submitShopStock(name) { 
       const qty = this.shopQuantities[name] || 1;
       this.callHA('update_stock', { item_name: name, quantity: qty }); 
       delete this.shopQuantities[name];
   }
   
-  addItem(type) {
-     // Legacy method kept for compatibility, but UI calling it is removed.
-     // Could be used for debugging or manual console calls.
-  }
-  
   enableSublocRename(btn, oldName) {
       const header = btn.closest('.group-separator');
-      // Prevent multiple inputs
       if (header.querySelector('input')) return; 
-      
       const titleSpan = header.querySelector('.subloc-title') || header.querySelector('span');
       if(!titleSpan) return;
-
       const input = document.createElement('input');
       input.value = oldName;
       input.className = 'rename-input'; 
@@ -953,28 +835,20 @@ class HomeOrganizerPanel extends HTMLElement {
       input.style.padding = '4px';
       input.style.fontSize = '14px';
       input.style.width = '200px'; 
-      
-      // Stop click propagation
       input.onclick = (e) => e.stopPropagation();
-
       titleSpan.replaceWith(input);
       input.focus();
-
       let isSaving = false;
-
       const save = () => {
-          if (isSaving) return; // Prevent double firing
+          if (isSaving) return;
           isSaving = true;
-
           const newVal = input.value.trim();
           if (newVal && newVal !== oldName) {
-              // Optimistic update: Show new name immediately
               const newSpan = document.createElement('span');
               newSpan.className = 'subloc-title';
               newSpan.innerText = newVal;
-              newSpan.style.opacity = '0.7'; // Visual cue for pending save
+              newSpan.style.opacity = '0.7';
               input.replaceWith(newSpan);
-
               this.callHA('update_item_details', { 
                   original_name: oldName, 
                   new_name: newVal, 
@@ -982,31 +856,21 @@ class HomeOrganizerPanel extends HTMLElement {
                   current_path: this.currentPath,
                   is_folder: true
               }).catch(err => {
-                  console.error("Rename failed", err);
-                  // Revert if failed
                   newSpan.innerText = oldName;
                   newSpan.style.opacity = '1';
                   alert("Failed to rename");
               });
           } else {
-              // Revert to old text if no change or empty
               const originalSpan = document.createElement('span');
               originalSpan.className = 'subloc-title';
               originalSpan.innerText = oldName;
               input.replaceWith(originalSpan);
           }
       };
-
-      input.onkeydown = (e) => {
-          if (e.key === 'Enter') {
-              input.blur(); // Triggers onblur -> save
-          }
-      };
-      
+      input.onkeydown = (e) => { if (e.key === 'Enter') input.blur(); };
       input.onblur = () => save();
   }
 
-  handleFile(e) { }
   handleUpdateImage(input, name) {
     const file = input.files[0]; if (!file) return;
     this.compressImage(file, (dataUrl) => {
@@ -1015,18 +879,26 @@ class HomeOrganizerPanel extends HTMLElement {
     input.value = '';
   }
 
-  // --- NEW ICON PICKER LOGIC ---
-  openIconPicker(folderName) {
-      this.pendingFolderIcon = folderName;
+  // --- UPDATED CONTEXTUAL ICON PICKER LOGIC ---
+  openIconPicker(targetName, context) {
+      this.pendingFolderIcon = targetName;
+      this.pickerContext = context; // 'room', 'location', or 'item'
+      
       const modal = this.shadowRoot.getElementById('icon-modal');
       const grid = this.shadowRoot.getElementById('icon-lib-grid');
       grid.innerHTML = '';
       
-      Object.keys(ICON_LIB).forEach(key => {
+      // Select appropriate library based on context
+      let lib = ICON_LIB;
+      if (context === 'room') lib = ICON_LIB_ROOM;
+      else if (context === 'location') lib = ICON_LIB_LOCATION;
+      else if (context === 'item') lib = ICON_LIB_ITEM;
+
+      Object.keys(lib).forEach(key => {
           const div = document.createElement('div');
           div.className = 'lib-icon';
-          div.innerHTML = `${ICON_LIB[key]}<span>${key}</span>`;
-          div.onclick = () => this.selectLibraryIcon(ICON_LIB[key]);
+          div.innerHTML = `${lib[key]}<span>${key}</span>`;
+          div.onclick = () => this.selectLibraryIcon(lib[key]);
           grid.appendChild(div);
       });
       
@@ -1034,14 +906,9 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   selectLibraryIcon(svgHtml) {
-      // Ensure namespace, size, and color for conversion
       let source = svgHtml;
       if (!source.includes('xmlns')) source = source.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
-      
-      // Inject standard size and color
       if (!source.includes('width=')) source = source.replace('<svg', '<svg width="200" height="200"');
-      
-      // Force fill color (Light Blue #4fc3f7) on the SVG root to ensure visibility
       source = source.replace('<svg', '<svg fill="#4fc3f7"');
 
       const img = new Image();
@@ -1050,25 +917,20 @@ class HomeOrganizerPanel extends HTMLElement {
       
       img.onload = () => {
           const canvas = document.createElement('canvas');
-          canvas.width = 200;
-          canvas.height = 200;
+          canvas.width = 200; canvas.height = 200;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, 200, 200);
           const dataUrl = canvas.toDataURL('image/png');
           
           if(this.pendingFolderIcon) {
-              const markerName = `[Folder] ${this.pendingFolderIcon}`;
+              // Only prepend [Folder] for rooms and locations
+              const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
+              const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
               this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
           }
           this.shadowRoot.getElementById('icon-modal').style.display = 'none';
           URL.revokeObjectURL(url);
       };
-      
-      img.onerror = (e) => {
-          console.error("Failed to render SVG to Image", e);
-          URL.revokeObjectURL(url);
-      };
-      
       img.src = url;
   }
 
@@ -1077,39 +939,35 @@ class HomeOrganizerPanel extends HTMLElement {
       img.crossOrigin = "Anonymous";
       img.onload = () => {
           const canvas = document.createElement('canvas');
-          canvas.width = img.width;
-          canvas.height = img.height;
+          canvas.width = img.width; canvas.height = img.height;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0);
           try {
               const dataUrl = canvas.toDataURL('image/jpeg');
               if(this.pendingFolderIcon) {
-                  const markerName = `[Folder] ${this.pendingFolderIcon}`;
+                  const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
+                  const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
                   this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
               }
               this.shadowRoot.getElementById('icon-modal').style.display = 'none';
               this.shadowRoot.getElementById('icon-url-input').value = '';
-          } catch(e) {
-              alert("CORS prevented saving this image. Try uploading the file directly.");
-          }
+          } catch(e) { alert("CORS prevented saving this image. Try uploading the file directly."); }
       };
-      img.onerror = () => alert("Could not load image. Check URL or CORS permissions.");
       img.src = url;
   }
 
   handleIconUpload(input) {
-      const file = input.files[0];
-      if (!file) return;
+      const file = input.files[0]; if (!file) return;
       this.compressImage(file, (dataUrl) => {
           if(this.pendingFolderIcon) {
-              const markerName = `[Folder] ${this.pendingFolderIcon}`;
+              const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
+              const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
               this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
           }
           this.shadowRoot.getElementById('icon-modal').style.display = 'none';
       });
       input.value = '';
   }
-  // --- END ICON PICKER LOGIC ---
 
   compressImage(file, callback) {
       const reader = new FileReader();
@@ -1134,18 +992,14 @@ class HomeOrganizerPanel extends HTMLElement {
   saveDetails(idx, oldName) { const nEl = this.shadowRoot.getElementById(`name-${idx}`); const dEl = this.shadowRoot.getElementById(`date-${idx}`); if(nEl && dEl) { this.callHA('update_item_details', { original_name: oldName, new_name: nEl.value, new_date: dEl.value }); this.expandedIdx = null; } }
   cut(name) { this.callHA('clipboard_action', {action: 'cut', item_name: name}); }
   del(name) { this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: false }); }
-  
   showImg(src) { 
       const ov = this.shadowRoot.getElementById('overlay-img');
       const ovc = this.shadowRoot.getElementById('img-overlay');
       if(ov && ovc) { ov.src = src; ovc.style.display = 'flex'; }
   }
-
   callHA(service, data) { return this._hass.callService('home_organizer', service, data); }
 }
 
-// Ensure define happens only once
 if (!customElements.get('home-organizer-panel')) {
     customElements.define('home-organizer-panel', HomeOrganizerPanel);
 }
-
