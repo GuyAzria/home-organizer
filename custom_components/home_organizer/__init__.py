@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 5.4.0 (Folder Images Support)
+# Home Organizer Ultimate - ver 5.5.0 (Direct Static Path)
 
 import logging
 import sqlite3
 import os
-import shutil
 import base64
 import time
 import json
@@ -21,19 +20,31 @@ MAX_LEVELS = 10
 
 WS_GET_DATA = "home_organizer/get_data"
 
+# Define the URL prefix for your frontend files
+STATIC_PATH_URL = "/home_organizer_static"
+
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if entry.options.get(CONF_DEBUG): _LOGGER.setLevel(logging.DEBUG)
 
-    await async_setup_frontend(hass)
+    # 1. REGISTER STATIC PATH
+    # This tells HA: "When browser asks for /home_organizer_static, serve files from my local frontend folder"
+    frontend_folder = os.path.join(os.path.dirname(__file__), "frontend")
+    hass.http.register_static_path(
+        STATIC_PATH_URL, 
+        frontend_folder, 
+        cache_headers=False # Set True for production to cache files
+    )
 
+    # 2. REGISTER PANEL
+    # Pointing to the new STATIC_PATH_URL
     await panel_custom.async_register_panel(
         hass,
         webcomponent_name="home-organizer-panel",
         frontend_url_path="organizer",
-        module_url=f"/local/home_organizer_libs/organizer-panel.js?v={int(time.time())}",
+        module_url=f"{STATIC_PATH_URL}/organizer-panel.js?v={int(time.time())}",
         sidebar_title="ארגונית",
         sidebar_icon="mdi:package-variant-closed",
         require_admin=False
@@ -70,12 +81,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.components.frontend.async_remove_panel("organizer")
     return True
 
-async def async_setup_frontend(hass: HomeAssistant):
-    src = os.path.join(os.path.dirname(__file__), "frontend", "organizer-panel.js")
-    dest_dir = hass.config.path("www", "home_organizer_libs")
-    dest = os.path.join(dest_dir, "organizer-panel.js")
-    if not os.path.exists(dest_dir): await hass.async_add_executor_job(os.makedirs, dest_dir)
-    if os.path.exists(src): await hass.async_add_executor_job(shutil.copyfile, src, dest)
+# REMOVED: async_setup_frontend (No longer need to copy files)
 
 def get_db_connection(hass):
     return sqlite3.connect(hass.config.path(DB_FILE))
