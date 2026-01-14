@@ -1,8 +1,9 @@
-// Home Organizer Ultimate - Ver 4.15.0 (Fix Icon Library Selection)
+// Home Organizer Ultimate - Ver 5.5.0 (Standard Import)
 // License: MIT
 
-// IMPORT ICONS from the same directory
-import { ICONS, ICON_LIB } from './organizer-icon.js';
+// IMPORT from the Static Path defined in __init__.py
+// Note: We add a timestamp (?v=...) to force the browser to reload if the file changes
+import { ICONS, ICON_LIB } from '/home_organizer_static/organizer-icon.js?v=5.5.0';
 
 class HomeOrganizerPanel extends HTMLElement {
   set hass(hass) {
@@ -18,7 +19,7 @@ class HomeOrganizerPanel extends HTMLElement {
       this.pendingItem = null;
       this.useAiBg = true; 
       this.shopQuantities = {};
-      this.expandedSublocs = new Set(); // Track expanded sublocations
+      this.expandedSublocs = new Set(); 
       this.subscribed = false;
 
       this.initUI();
@@ -29,7 +30,7 @@ class HomeOrganizerPanel extends HTMLElement {
         this._hass.connection.subscribeEvents((e) => this.fetchData(), 'home_organizer_db_update');
         this._hass.connection.subscribeEvents((e) => {
              if (e.data.mode === 'identify') {
-                 // Removed add-name input binding as bottom bar is removed
+                 // AI logic
              }
         }, 'home_organizer_ai_result');
         this.fetchData();
@@ -66,7 +67,7 @@ class HomeOrganizerPanel extends HTMLElement {
         .nav-btn { background: none; border: none; color: var(--primary); cursor: pointer; padding: 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
         .nav-btn:hover { background: rgba(255,255,255,0.1); }
         .nav-btn.active { color: var(--warning); }
-        .nav-btn.edit-active { color: var(--accent); } /* Green for Edit Mode */
+        .nav-btn.edit-active { color: var(--accent); } 
         .title-box { flex: 1; text-align: center; }
         .main-title { font-weight: bold; font-size: 16px; }
         .sub-title { font-size: 11px; color: #aaa; direction: ltr; }
@@ -84,20 +85,18 @@ class HomeOrganizerPanel extends HTMLElement {
 
         .item-list { display: flex; flex-direction: column; gap: 5px; }
         
-        /* Updated Headers for Edit Mode Consistency */
         .group-separator { 
             color: #aaa; font-size: 14px; margin: 20px 0 10px 0; 
             border-bottom: 1px solid #444; padding-bottom: 4px; 
             text-transform: uppercase; font-weight: bold; 
             display: flex; justify-content: space-between; align-items: center;
             min-height: 35px;
-            cursor: pointer; /* Clickable */
+            cursor: pointer; 
         }
         .group-separator:hover { background: rgba(255,255,255,0.05); }
         .group-separator.drag-over { border-bottom: 2px solid var(--primary); color: var(--primary); background: rgba(3, 169, 244, 0.1); }
         .oos-separator { color: var(--danger); border-color: var(--danger); }
         
-        /* Sublocation Action Buttons - styled like item actions */
         .edit-subloc-btn { background: none; border: none; color: #aaa; cursor: pointer; padding: 4px; }
         .edit-subloc-btn:hover { color: var(--primary); }
         .delete-subloc-btn { background: none; border: none; color: var(--danger); cursor: pointer; padding: 4px; }
@@ -114,12 +113,10 @@ class HomeOrganizerPanel extends HTMLElement {
         .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 4px; border-radius: 20px; }
         .qty-btn { background: #444; border: none; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         
-        /* Edit Mode Additions */
         .add-folder-card .android-folder-icon { border: 2px dashed #4caf50; background: rgba(76, 175, 80, 0.1); color: #4caf50; }
         .add-folder-card:hover .android-folder-icon { background: rgba(76, 175, 80, 0.2); }
         .add-folder-input { width: 100%; height: 100%; border: none; background: transparent; color: white; text-align: center; font-size: 12px; padding: 5px; outline: none; }
         
-        /* New Text Button Styles */
         .text-add-btn { background: none; border: none; color: var(--primary); font-size: 14px; font-weight: bold; cursor: pointer; padding: 8px 0; display: flex; align-items: center; gap: 5px; opacity: 0.8; }
         .text-add-btn:hover { opacity: 1; text-decoration: underline; }
         .group-add-row { padding: 0 10px; margin-bottom: 15px; }
@@ -139,7 +136,6 @@ class HomeOrganizerPanel extends HTMLElement {
         .move-select { flex: 1; padding: 8px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; }
         .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
         
-        /* Modal for Icons */
         #icon-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2500; display: none; align-items: center; justify-content: center; flex-direction: column; }
         .modal-content { background: #242426; width: 90%; max-width: 400px; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 15px; max-height: 80vh; overflow-y: auto; }
         .modal-title { font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 10px; }
@@ -150,7 +146,6 @@ class HomeOrganizerPanel extends HTMLElement {
         .lib-icon span { font-size: 10px; color: #888; }
         .url-input-row { display: flex; gap: 10px; margin-top: 10px; border-top: 1px solid #444; padding-top: 10px; }
         
-        /* CAMERA OVERLAY STYLES */
         #camera-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: center; }
         #camera-video { width: 100%; height: 80%; object-fit: cover; }
         .camera-controls { height: 20%; width: 100%; display: flex; align-items: center; justify-content: center; gap: 30px; background: rgba(0,0,0,0.5); position: absolute; bottom: 0; }
@@ -463,7 +458,7 @@ class HomeOrganizerPanel extends HTMLElement {
             content.appendChild(list);
         }
         
-        // Render "Add Item" button if Edit Mode is ON (Under list in depth < 2)
+        // Render "Add Item" button if Edit Mode is ON (Under list in depth < 1)
         if (this.isEditMode && attrs.depth === 1) {
              const addBtn = document.createElement('div');
              addBtn.className = 'add-item-btn-row';
@@ -907,7 +902,6 @@ class HomeOrganizerPanel extends HTMLElement {
 
   deleteFolder(name) { if(confirm(`Delete folder '${name}' and ALL items inside it?`)) { this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); } }
   
-  // FIX: Using correct delete service for sublocation with is_folder: true
   deleteSubloc(name) { 
       if(confirm(`Delete '${name}'?`)) { 
           this._hass.callService('home_organizer', 'delete_item', { 
@@ -1048,8 +1042,6 @@ class HomeOrganizerPanel extends HTMLElement {
       if (!source.includes('width=')) source = source.replace('<svg', '<svg width="200" height="200"');
       
       // Force fill color (Light Blue #4fc3f7) on the SVG root to ensure visibility
-      // NOTE: Some SVGs might not inherit fill if paths are hardcoded black, 
-      // but this usually works for simple icon sets like these.
       source = source.replace('<svg', '<svg fill="#4fc3f7"');
 
       const img = new Image();
@@ -1151,4 +1143,8 @@ class HomeOrganizerPanel extends HTMLElement {
 
   callHA(service, data) { return this._hass.callService('home_organizer', service, data); }
 }
-customElements.define('home-organizer-panel', HomeOrganizerPanel);
+
+// Ensure define happens only once
+if (!customElements.get('home-organizer-panel')) {
+    customElements.define('home-organizer-panel', HomeOrganizerPanel);
+}
