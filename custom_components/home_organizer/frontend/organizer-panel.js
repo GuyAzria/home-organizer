@@ -1,7 +1,7 @@
-// Home Organizer Ultimate - Ver 5.6.0 (Contextual Icons)
+// Home Organizer Ultimate - Ver 5.6.1 (Paginated Icons & Resized Assets)
 // License: MIT
 
-import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.0';
+import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.1';
 
 class HomeOrganizerPanel extends HTMLElement {
   set hass(hass) {
@@ -19,7 +19,9 @@ class HomeOrganizerPanel extends HTMLElement {
       this.shopQuantities = {};
       this.expandedSublocs = new Set(); 
       this.subscribed = false;
-      this.pickerContext = 'room'; // track which lib to show
+      this.pickerContext = 'room'; 
+      this.pickerPage = 0;
+      this.pickerPageSize = 15;
 
       this.initUI();
     }
@@ -138,11 +140,17 @@ class HomeOrganizerPanel extends HTMLElement {
         #icon-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2500; display: none; align-items: center; justify-content: center; flex-direction: column; }
         .modal-content { background: #242426; width: 90%; max-width: 400px; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 15px; max-height: 80vh; overflow-y: auto; }
         .modal-title { font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 10px; }
-        .icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 10px; }
+        .icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 10px; min-height: 200px; }
         .lib-icon { background: #333; border-radius: 8px; padding: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 5px; }
         .lib-icon:hover { background: #444; }
         .lib-icon svg { width: 32px; height: 32px; fill: #ccc; }
-        .lib-icon span { font-size: 10px; color: #888; }
+        .lib-icon span { font-size: 10px; color: #888; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; width: 50px; text-align: center; }
+        
+        .pagination-ctrls { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding: 10px 0; border-top: 1px solid #444; }
+        .page-btn { background: #444; color: white; border: none; border-radius: 4px; padding: 5px 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .page-info { font-size: 12px; color: #aaa; }
+
         .url-input-row { display: flex; gap: 10px; margin-top: 10px; border-top: 1px solid #444; padding-top: 10px; }
         
         #camera-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: center; }
@@ -198,6 +206,12 @@ class HomeOrganizerPanel extends HTMLElement {
               <div class="modal-title">Change Icon</div>
               <div class="icon-grid" id="icon-lib-grid"></div>
               
+              <div class="pagination-ctrls">
+                  <button class="page-btn" id="picker-prev">${ICONS.arrow_up}</button>
+                  <div class="page-info" id="picker-page-info">Page 1 of 1</div>
+                  <button class="page-btn" id="picker-next" style="transform: rotate(180deg)">${ICONS.arrow_up}</button>
+              </div>
+
               <div class="url-input-row">
                   <input type="text" id="icon-url-input" placeholder="Paste Image URL..." style="flex:1;padding:8px;background:#111;color:white;border:1px solid #444;border-radius:4px">
                   <button class="action-btn" id="btn-load-url">${ICONS.check}</button>
@@ -256,6 +270,14 @@ class HomeOrganizerPanel extends HTMLElement {
     });
     bind('icon-file-upload', 'onchange', (e) => this.handleIconUpload(e.target));
     
+    // Picker Pagination
+    click('picker-prev', () => { if(this.pickerPage > 0) { this.pickerPage--; this.renderIconPickerGrid(); } });
+    click('picker-next', () => { 
+        const lib = this.getCurrentPickerLib();
+        const maxPage = Math.ceil(Object.keys(lib).length / this.pickerPageSize) - 1;
+        if(this.pickerPage < maxPage) { this.pickerPage++; this.renderIconPickerGrid(); } 
+    });
+
     // Camera
     click('btn-ai-search', () => this.openCamera('search'));
 
@@ -407,7 +429,6 @@ class HomeOrganizerPanel extends HTMLElement {
                         ? `<div class="folder-edit-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'), '${folder.name}')">${ICONS.edit}</div>` 
                         : '';
                     
-                    // Contextual Icon Picker Logic for Folder depth
                     const context = attrs.depth === 0 ? 'room' : 'location';
                     const imgBtnHtml = this.isEditMode
                         ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${folder.name}', '${context}')">${ICONS.image}</div>`
@@ -726,7 +747,6 @@ class HomeOrganizerPanel extends HTMLElement {
             <div class="detail-row" style="justify-content:space-between; margin-top:10px;">
                  <div style="display:flex;gap:10px;">
                     <button class="action-btn" title="Take Photo" onclick="this.getRootNode().host.triggerCameraEdit('${item.name}')">${ICONS.camera}</button>
-                    <!-- UPDATED: Replaced file input label with icon picker button for items -->
                     <button class="action-btn" title="Change Icon/Image" onclick="this.getRootNode().host.openIconPicker('${item.name}', 'item')">${ICONS.image}</button>
                  </div>
                  <div style="display:flex;gap:10px;">
@@ -879,36 +899,64 @@ class HomeOrganizerPanel extends HTMLElement {
     input.value = '';
   }
 
-  // --- UPDATED CONTEXTUAL ICON PICKER LOGIC ---
+  // --- UPDATED CONTEXTUAL ICON PICKER LOGIC WITH PAGINATION ---
   openIconPicker(targetName, context) {
       this.pendingFolderIcon = targetName;
-      this.pickerContext = context; // 'room', 'location', or 'item'
+      this.pickerContext = context; 
+      this.pickerPage = 0; 
+      this.renderIconPickerGrid();
+      this.shadowRoot.getElementById('icon-modal').style.display = 'flex';
+  }
+
+  getCurrentPickerLib() {
+      if (this.pickerContext === 'room') return ICON_LIB_ROOM;
+      if (this.pickerContext === 'location') return ICON_LIB_LOCATION;
+      if (this.pickerContext === 'item') return ICON_LIB_ITEM;
+      return ICON_LIB;
+  }
+
+  renderIconPickerGrid() {
+      const lib = this.getCurrentPickerLib();
+      const keys = Object.keys(lib);
+      const totalPages = Math.ceil(keys.length / this.pickerPageSize);
       
-      const modal = this.shadowRoot.getElementById('icon-modal');
       const grid = this.shadowRoot.getElementById('icon-lib-grid');
+      const pageInfo = this.shadowRoot.getElementById('picker-page-info');
+      const prevBtn = this.shadowRoot.getElementById('picker-prev');
+      const nextBtn = this.shadowRoot.getElementById('picker-next');
+
       grid.innerHTML = '';
       
-      // Select appropriate library based on context
-      let lib = ICON_LIB;
-      if (context === 'room') lib = ICON_LIB_ROOM;
-      else if (context === 'location') lib = ICON_LIB_LOCATION;
-      else if (context === 'item') lib = ICON_LIB_ITEM;
+      const start = this.pickerPage * this.pickerPageSize;
+      const end = Math.min(start + this.pickerPageSize, keys.length);
+      const pageKeys = keys.slice(start, end);
 
-      Object.keys(lib).forEach(key => {
+      pageKeys.forEach(key => {
           const div = document.createElement('div');
           div.className = 'lib-icon';
           div.innerHTML = `${lib[key]}<span>${key}</span>`;
           div.onclick = () => this.selectLibraryIcon(lib[key]);
           grid.appendChild(div);
       });
-      
-      modal.style.display = 'flex';
+
+      pageInfo.innerText = `Page ${this.pickerPage + 1} of ${totalPages || 1}`;
+      prevBtn.disabled = this.pickerPage === 0;
+      nextBtn.disabled = this.pickerPage >= totalPages - 1;
   }
 
   selectLibraryIcon(svgHtml) {
       let source = svgHtml;
+      // Reduced size by 30%: 200 * 0.7 = 140
+      const size = 140; 
       if (!source.includes('xmlns')) source = source.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
-      if (!source.includes('width=')) source = source.replace('<svg', '<svg width="200" height="200"');
+      
+      // Update or add size attributes
+      if (source.includes('width=')) {
+          source = source.replace(/width="[^"]*"/, `width="${size}"`).replace(/height="[^"]*"/, `height="${size}"`);
+      } else {
+          source = source.replace('<svg', `<svg width="${size}" height="${size}"`);
+      }
+      
       source = source.replace('<svg', '<svg fill="#4fc3f7"');
 
       const img = new Image();
@@ -917,13 +965,12 @@ class HomeOrganizerPanel extends HTMLElement {
       
       img.onload = () => {
           const canvas = document.createElement('canvas');
-          canvas.width = 200; canvas.height = 200;
+          canvas.width = size; canvas.height = size;
           const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, 200, 200);
+          ctx.drawImage(img, 0, 0, size, size);
           const dataUrl = canvas.toDataURL('image/png');
           
           if(this.pendingFolderIcon) {
-              // Only prepend [Folder] for rooms and locations
               const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
               const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
               this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
