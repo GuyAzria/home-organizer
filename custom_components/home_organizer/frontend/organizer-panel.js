@@ -1,7 +1,7 @@
-// Home Organizer Ultimate - Ver 5.6.1 (Paginated Icons & Resized Assets)
+// Home Organizer Ultimate - Ver 5.6.2 (Reduced Folder Icon Scale)
 // License: MIT
 
-import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.1';
+import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.2';
 
 class HomeOrganizerPanel extends HTMLElement {
   set hass(hass) {
@@ -76,7 +76,11 @@ class HomeOrganizerPanel extends HTMLElement {
         
         .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 20px; }
         .folder-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; position: relative; }
+        
+        /* Updated: Reduced icon content size by adding padding/containment */
         .android-folder-icon { width: 56px; height: 56px; background: #3c4043; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #8ab4f8; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); position: relative; overflow: visible; }
+        .android-folder-icon svg { width: 34px; height: 34px; }
+        .android-folder-icon img { width: 38px; height: 38px; object-fit: contain; border-radius: 4px; }
         
         .folder-delete-btn { position: absolute; top: -5px; right: -5px; background: var(--danger); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
         .folder-edit-btn { position: absolute; top: -5px; left: -5px; background: var(--primary); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
@@ -418,7 +422,7 @@ class HomeOrganizerPanel extends HTMLElement {
                     
                     let folderContent = ICONS.folder;
                     if (folder.img) {
-                        folderContent = `<img src="${folder.img}" style="width:100%;height:100%;object-fit:cover;border-radius:16px">`;
+                        folderContent = `<img src="${folder.img}">`;
                     }
 
                     const deleteBtnHtml = this.isEditMode 
