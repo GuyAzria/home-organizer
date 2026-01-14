@@ -3,7 +3,7 @@
 
 // IMPORT from the Static Path defined in __init__.py
 // Note: We add a timestamp (?v=...) to force the browser to reload if the file changes
-import { ICONS, ICON_LIB } from '/home_organizer_static/organizer-icon.js?v=5.5.0';
+import { ICONS, ICON_LIB } from './organizer-icon.js?v=5.5.0';
 
 class HomeOrganizerPanel extends HTMLElement {
   set hass(hass) {
@@ -1148,3 +1148,4 @@ class HomeOrganizerPanel extends HTMLElement {
 if (!customElements.get('home-organizer-panel')) {
     customElements.define('home-organizer-panel', HomeOrganizerPanel);
 }
+
