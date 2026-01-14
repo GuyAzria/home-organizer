@@ -1,8 +1,8 @@
-// Home Organizer Ultimate - Ver 4.16.0 (No-Module Dynamic Load Fix)
+// Home Organizer Ultimate - Ver 4.15.0 (Fix Icon Library Selection)
 // License: MIT
 
-// REMOVED: import { ICONS, ICON_LIB } from './organizer-icon.js'; 
-// REASON: Browser "Classic Scripts" (non-module) crash on import statements.
+// IMPORT ICONS from the same directory
+import { ICONS, ICON_LIB } from './organizer-icon.js';
 
 class HomeOrganizerPanel extends HTMLElement {
   set hass(hass) {
@@ -18,7 +18,7 @@ class HomeOrganizerPanel extends HTMLElement {
       this.pendingItem = null;
       this.useAiBg = true; 
       this.shopQuantities = {};
-      this.expandedSublocs = new Set(); 
+      this.expandedSublocs = new Set(); // Track expanded sublocations
       this.subscribed = false;
 
       this.initUI();
@@ -54,31 +54,6 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   initUI() {
-    // --- DYNAMIC LOADING LOGIC START ---
-    // If icons are not loaded yet, inject the script manually
-    if (!window.OrganizerAssets) {
-        // Prevent double loading
-        if (document.getElementById('organizer-icons-loader')) return;
-        
-        const script = document.createElement('script');
-        script.id = 'organizer-icons-loader';
-        // Path derived from your error message: /local/home_organizer_libs/
-        script.src = "/local/home_organizer_libs/organizer-icon.js?v=" + new Date().getTime(); 
-        script.onload = () => {
-            console.log("Organizer Icons Loaded Successfully");
-            this.initUI(); // Restart init now that variables exist
-        };
-        script.onerror = () => {
-             this.shadowRoot.innerHTML = `<div style="padding:20px;color:red">Error: Could not load icons from /local/home_organizer_libs/organizer-icon.js</div>`;
-        };
-        document.head.appendChild(script);
-        return; // Stop execution until script loads
-    }
-    
-    // Unpack globals
-    const ICONS = window.OrganizerAssets.ICONS;
-    // --- DYNAMIC LOADING LOGIC END ---
-
     this.content = true;
     this.attachShadow({mode: 'open'});
     this.shadowRoot.innerHTML = `
@@ -91,7 +66,7 @@ class HomeOrganizerPanel extends HTMLElement {
         .nav-btn { background: none; border: none; color: var(--primary); cursor: pointer; padding: 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
         .nav-btn:hover { background: rgba(255,255,255,0.1); }
         .nav-btn.active { color: var(--warning); }
-        .nav-btn.edit-active { color: var(--accent); } 
+        .nav-btn.edit-active { color: var(--accent); } /* Green for Edit Mode */
         .title-box { flex: 1; text-align: center; }
         .main-title { font-weight: bold; font-size: 16px; }
         .sub-title { font-size: 11px; color: #aaa; direction: ltr; }
@@ -109,18 +84,20 @@ class HomeOrganizerPanel extends HTMLElement {
 
         .item-list { display: flex; flex-direction: column; gap: 5px; }
         
+        /* Updated Headers for Edit Mode Consistency */
         .group-separator { 
             color: #aaa; font-size: 14px; margin: 20px 0 10px 0; 
             border-bottom: 1px solid #444; padding-bottom: 4px; 
             text-transform: uppercase; font-weight: bold; 
             display: flex; justify-content: space-between; align-items: center;
             min-height: 35px;
-            cursor: pointer; 
+            cursor: pointer; /* Clickable */
         }
         .group-separator:hover { background: rgba(255,255,255,0.05); }
         .group-separator.drag-over { border-bottom: 2px solid var(--primary); color: var(--primary); background: rgba(3, 169, 244, 0.1); }
         .oos-separator { color: var(--danger); border-color: var(--danger); }
         
+        /* Sublocation Action Buttons - styled like item actions */
         .edit-subloc-btn { background: none; border: none; color: #aaa; cursor: pointer; padding: 4px; }
         .edit-subloc-btn:hover { color: var(--primary); }
         .delete-subloc-btn { background: none; border: none; color: var(--danger); cursor: pointer; padding: 4px; }
@@ -137,10 +114,12 @@ class HomeOrganizerPanel extends HTMLElement {
         .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 4px; border-radius: 20px; }
         .qty-btn { background: #444; border: none; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         
+        /* Edit Mode Additions */
         .add-folder-card .android-folder-icon { border: 2px dashed #4caf50; background: rgba(76, 175, 80, 0.1); color: #4caf50; }
         .add-folder-card:hover .android-folder-icon { background: rgba(76, 175, 80, 0.2); }
         .add-folder-input { width: 100%; height: 100%; border: none; background: transparent; color: white; text-align: center; font-size: 12px; padding: 5px; outline: none; }
         
+        /* New Text Button Styles */
         .text-add-btn { background: none; border: none; color: var(--primary); font-size: 14px; font-weight: bold; cursor: pointer; padding: 8px 0; display: flex; align-items: center; gap: 5px; opacity: 0.8; }
         .text-add-btn:hover { opacity: 1; text-decoration: underline; }
         .group-add-row { padding: 0 10px; margin-bottom: 15px; }
@@ -160,6 +139,7 @@ class HomeOrganizerPanel extends HTMLElement {
         .move-select { flex: 1; padding: 8px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; }
         .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
         
+        /* Modal for Icons */
         #icon-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2500; display: none; align-items: center; justify-content: center; flex-direction: column; }
         .modal-content { background: #242426; width: 90%; max-width: 400px; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 15px; max-height: 80vh; overflow-y: auto; }
         .modal-title { font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 10px; }
@@ -170,6 +150,7 @@ class HomeOrganizerPanel extends HTMLElement {
         .lib-icon span { font-size: 10px; color: #888; }
         .url-input-row { display: flex; gap: 10px; margin-top: 10px; border-top: 1px solid #444; padding-top: 10px; }
         
+        /* CAMERA OVERLAY STYLES */
         #camera-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: center; }
         #camera-video { width: 100%; height: 80%; object-fit: cover; }
         .camera-controls { height: 20%; width: 100%; display: flex; align-items: center; justify-content: center; gap: 30px; background: rgba(0,0,0,0.5); position: absolute; bottom: 0; }
@@ -260,9 +241,6 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   bindEvents() {
-    // Unpack GLOBALS for use here
-    const ICONS = window.OrganizerAssets.ICONS;
-    
     const root = this.shadowRoot;
     const bind = (id, event, fn) => { const el = root.getElementById(id); if(el) el[event] = fn; };
     const click = (id, fn) => bind(id, 'onclick', fn);
@@ -364,9 +342,6 @@ class HomeOrganizerPanel extends HTMLElement {
     if(!this.localData) return;
     const attrs = this.localData;
     const root = this.shadowRoot;
-    
-    // Globals
-    const ICONS = window.OrganizerAssets.ICONS;
     
     root.getElementById('display-title').innerText = attrs.path_display;
     
@@ -488,7 +463,7 @@ class HomeOrganizerPanel extends HTMLElement {
             content.appendChild(list);
         }
         
-        // Render "Add Item" button if Edit Mode is ON (Under list in depth < 1)
+        // Render "Add Item" button if Edit Mode is ON (Under list in depth < 2)
         if (this.isEditMode && attrs.depth === 1) {
              const addBtn = document.createElement('div');
              addBtn.className = 'add-item-btn-row';
@@ -754,7 +729,6 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   createItemRow(item, isShopMode) {
-     const ICONS = window.OrganizerAssets.ICONS; // Global Access
      const div = document.createElement('div');
      const oosClass = (item.qty === 0) ? 'out-of-stock-frame' : '';
      div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''} ${oosClass}`;
@@ -933,6 +907,7 @@ class HomeOrganizerPanel extends HTMLElement {
 
   deleteFolder(name) { if(confirm(`Delete folder '${name}' and ALL items inside it?`)) { this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); } }
   
+  // FIX: Using correct delete service for sublocation with is_folder: true
   deleteSubloc(name) { 
       if(confirm(`Delete '${name}'?`)) { 
           this._hass.callService('home_organizer', 'delete_item', { 
@@ -1051,8 +1026,6 @@ class HomeOrganizerPanel extends HTMLElement {
       this.pendingFolderIcon = folderName;
       const modal = this.shadowRoot.getElementById('icon-modal');
       const grid = this.shadowRoot.getElementById('icon-lib-grid');
-      const ICON_LIB = window.OrganizerAssets.ICON_LIB; // Global Access
-      
       grid.innerHTML = '';
       
       Object.keys(ICON_LIB).forEach(key => {
@@ -1075,6 +1048,8 @@ class HomeOrganizerPanel extends HTMLElement {
       if (!source.includes('width=')) source = source.replace('<svg', '<svg width="200" height="200"');
       
       // Force fill color (Light Blue #4fc3f7) on the SVG root to ensure visibility
+      // NOTE: Some SVGs might not inherit fill if paths are hardcoded black, 
+      // but this usually works for simple icon sets like these.
       source = source.replace('<svg', '<svg fill="#4fc3f7"');
 
       const img = new Image();
@@ -1174,11 +1149,6 @@ class HomeOrganizerPanel extends HTMLElement {
       if(ov && ovc) { ov.src = src; ovc.style.display = 'flex'; }
   }
 
-callHA(service, data) { return this._hass.callService('home_organizer', service, data); }
+  callHA(service, data) { return this._hass.callService('home_organizer', service, data); }
 }
-
-// CHECK IF DEFINED BEFORE DEFINING TO PREVENT CRASHES
-if (!customElements.get('home-organizer-panel')) {
-    customElements.define('home-organizer-panel', HomeOrganizerPanel);
-}
-
+customElements.define('home-organizer-panel', HomeOrganizerPanel);
