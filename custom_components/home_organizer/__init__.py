@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 5.5.0 (Direct Static Path)
+# Home Organizer Ultimate - ver 5.5.1 (Fix Static Path Registration)
 
 import logging
 import sqlite3
@@ -12,6 +12,8 @@ from datetime import datetime, timedelta
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.components import panel_custom, websocket_api
+# CHANGED: Import StaticPathConfig
+from homeassistant.components.http import StaticPathConfig 
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .const import DOMAIN, CONF_API_KEY, CONF_DEBUG, CONF_USE_AI, DB_FILE, IMG_DIR, VERSION
 
@@ -29,14 +31,17 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if entry.options.get(CONF_DEBUG): _LOGGER.setLevel(logging.DEBUG)
 
-    # 1. REGISTER STATIC PATH
+    # 1. REGISTER STATIC PATH (FIXED)
     # This tells HA: "When browser asks for /home_organizer_static, serve files from my local frontend folder"
     frontend_folder = os.path.join(os.path.dirname(__file__), "frontend")
-    hass.http.register_static_path(
-        STATIC_PATH_URL, 
-        frontend_folder, 
-        cache_headers=False # Set True for production to cache files
-    )
+    
+    await hass.http.async_register_static_paths([
+        StaticPathConfig(
+            url_path=STATIC_PATH_URL,
+            path=frontend_folder,
+            cache_headers=False 
+        )
+    ])
 
     # 2. REGISTER PANEL
     # Pointing to the new STATIC_PATH_URL
@@ -80,8 +85,6 @@ async def update_listener(hass: HomeAssistant, entry: ConfigEntry):
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.components.frontend.async_remove_panel("organizer")
     return True
-
-# REMOVED: async_setup_frontend (No longer need to copy files)
 
 def get_db_connection(hass):
     return sqlite3.connect(hass.config.path(DB_FILE))
@@ -187,7 +190,6 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                 # 2. Fetch images for these folders (look for folder_marker)
                 for f_name in found_folders:
                     marker_sql = f"SELECT image_path FROM items WHERE type='folder_marker' AND name=? {sql_where} AND {col}=?"
-                    # Param order: name, path_params..., folder_col_value
                     marker_params = [f"[Folder] {f_name}"] + params + [f_name]
                     
                     c.execute(marker_sql, tuple(marker_params))
@@ -401,8 +403,6 @@ async def register_services(hass, entry):
         def save():
             open(hass.config.path("www", IMG_DIR, fname), "wb").write(base64.b64decode(img_b64))
             conn = get_db_connection(hass); c = conn.cursor()
-            # Handle Folder Image Updates specially if name starts with [Folder]
-            # This ensures we are updating the marker item
             c.execute(f"UPDATE items SET image_path = ? WHERE name = ?", (fname, name)); conn.commit(); conn.close()
         await hass.async_add_executor_job(save); broadcast_update()
 
