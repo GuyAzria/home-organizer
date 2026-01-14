@@ -1174,6 +1174,11 @@ class HomeOrganizerPanel extends HTMLElement {
       if(ov && ovc) { ov.src = src; ovc.style.display = 'flex'; }
   }
 
-  callHA(service, data) { return this._hass.callService('home_organizer', service, data); }
+callHA(service, data) { return this._hass.callService('home_organizer', service, data); }
 }
-customElements.define('home-organizer-panel', HomeOrganizerPanel);
+
+// CHECK IF DEFINED BEFORE DEFINING TO PREVENT CRASHES
+if (!customElements.get('home-organizer-panel')) {
+    customElements.define('home-organizer-panel', HomeOrganizerPanel);
+}
+
