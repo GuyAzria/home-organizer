@@ -253,3 +253,4 @@ export const ICON_LIB_ITEM = {
   "Vase": '<svg viewBox="0 0 24 24"><path d="M12 2C9.24 2 7 4.24 7 7v10H4v4h16v-4h-3V7c0-2.76-2.24-5-5-5z"/></svg>',
   "Candle": '<svg viewBox="0 0 24 24"><path d="M12 2C9.24 2 7 4.24 7 7v10H4v4h16v-4h-3V7c0-2.76-2.24-5-5-5z"/></svg>'
 };
+
