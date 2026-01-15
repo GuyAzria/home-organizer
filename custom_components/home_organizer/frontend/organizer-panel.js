@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.6.7 (Stable 5.6.3 Base + Square Yellow Category Picker)
+// Home Organizer Ultimate - Ver 5.6.8 (Restore 5.6.3 Design + Categorized Icon Picker)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -23,7 +23,7 @@ class HomeOrganizerPanel extends HTMLElement {
       this.pickerPage = 0;
       this.pickerPageSize = 15;
       
-      // Category State
+      // Category State for Item Icons
       this.selectedItemCategory = (ICON_LIB_ITEM && Object.keys(ICON_LIB_ITEM).length > 0) ? Object.keys(ICON_LIB_ITEM)[0] : "";
 
       this.initUI();
@@ -97,7 +97,6 @@ class HomeOrganizerPanel extends HTMLElement {
         .oos-separator { color: var(--danger); border-color: var(--danger); }
         
         .edit-subloc-btn { background: none; border: none; color: #aaa; cursor: pointer; padding: 4px; }
-        .edit-subloc-btn:hover { color: var(--primary); }
         .delete-subloc-btn { background: none; border: none; color: var(--danger); cursor: pointer; padding: 4px; }
 
         .item-row { background: #2c2c2e; margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid transparent; touch-action: pan-y; }
@@ -113,61 +112,52 @@ class HomeOrganizerPanel extends HTMLElement {
         .qty-btn { background: #444; border: none; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         
         .add-folder-card .android-folder-icon { border: 2px dashed #4caf50; background: rgba(76, 175, 80, 0.1); color: #4caf50; }
-        .add-folder-card:hover .android-folder-icon { background: rgba(76, 175, 80, 0.2); }
         .add-folder-input { width: 100%; height: 100%; border: none; background: transparent; color: white; text-align: center; font-size: 12px; padding: 5px; outline: none; }
-        
         .text-add-btn { background: none; border: none; color: var(--primary); font-size: 14px; font-weight: bold; cursor: pointer; padding: 8px 0; display: flex; align-items: center; gap: 5px; opacity: 0.8; }
-        .text-add-btn:hover { opacity: 1; text-decoration: underline; }
-        .group-add-row { padding: 0 10px; margin-bottom: 15px; }
-
-        .add-item-btn-row { width: 100%; margin-top: 10px; }
         .add-item-btn { width: 100%; padding: 12px; background: rgba(76, 175, 80, 0.15); border: 1px dashed #4caf50; color: #4caf50; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; transition: background 0.2s; }
-        .add-item-btn:hover { background: rgba(76, 175, 80, 0.3); }
 
         .expanded-details { margin-top: 10px; padding-top: 10px; border-top: 1px solid #555; display: flex; flex-direction: column; gap: 10px; }
         .detail-row { display: flex; gap: 10px; align-items: center; }
-        
         .action-btn { width: 40px; height: 40px; border-radius: 8px; border: 1px solid #555; color: #ccc; background: var(--icon-btn-bg); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 8px; }
-        .action-btn:hover { background: #555; color: white; }
         .btn-danger { color: #ff8a80; border-color: #d32f2f; }
-        .btn-text { width: auto; padding: 0 15px; font-weight: bold; color: white; background: var(--primary); border: none; }
+        .btn-text { width: auto; padding: 0 15px; font-weight: bold; color: white; background: var(--primary); border: none; height: 40px; border-radius: 8px; }
         .move-container { display: flex; gap: 5px; align-items: center; flex: 1; }
         .move-select { flex: 1; padding: 8px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; }
-        .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
+
+        /* ICON PICKER POPUP */
+        #icon-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2500; display: none; align-items: center; justify-content: center; flex-direction: column; }
+        .modal-content { background: #242426; width: 95%; max-width: 480px; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 15px; max-height: 85vh; border: 1px solid #444; }
         
-        /* CATEGORY SELECTOR UI (POPUP ONLY) */
-        #icon-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2500; display: none; align-items: center; justify-content: center; flex-direction: column; }
-        .modal-content { background: #242426; width: 95%; max-width: 450px; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 15px; max-height: 85vh; overflow-y: auto; border: 1px solid #444; }
-        
+        /* Categories row inside popup */
         .category-scroll-area { width: 100%; overflow-x: auto; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #444; }
         .category-row { display: flex; gap: 10px; min-width: max-content; padding: 5px; }
         .category-btn { 
-            width: 75px; height: 75px; 
+            width: 80px; height: 80px; 
             background: #333; 
-            border: 2px solid var(--warning); /* Yellow Border */
+            border: 3px solid var(--warning); /* Yellow Square Border */
             border-radius: 8px; 
             cursor: pointer; 
             display: flex; flex-direction: column; align-items: center; justify-content: center; 
             color: white; flex-shrink: 0; transition: transform 0.1s;
         }
-        .category-btn.active { background: var(--warning); color: #000; border-color: #fff; transform: scale(1.05); }
-        .category-btn svg { width: 32px; height: 32px; margin-bottom: 4px; }
+        .category-btn.active { background: #444; border-color: #fff; box-shadow: 0 0 10px var(--warning); transform: scale(1.05); }
+        .category-btn svg { width: 35px; height: 35px; margin-bottom: 4px; }
         .category-btn span { font-size: 10px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; }
 
-        .icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(65px, 1fr)); gap: 10px; min-height: 180px; }
-        .lib-icon { background: #333; border-radius: 8px; padding: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 5px; }
-        .lib-icon:hover { background: #444; }
+        .icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 12px; overflow-y: auto; flex: 1; padding: 5px; }
+        .lib-icon { background: #333; border-radius: 8px; padding: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-direction: column; border: 1px solid #444; }
         .lib-icon svg { width: 34px; height: 34px; }
-        .lib-icon b { font-size: 9px; color: #888; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; width: 50px; text-align: center; }
-        
+        .lib-icon b { font-size: 9px; color: #888; margin-top: 5px; display: block; width: 100%; text-align: center; }
+
         .pagination-ctrls { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding: 10px 0; border-top: 1px solid #444; }
-        .page-btn { background: #444; color: white; border: none; border-radius: 4px; padding: 5px 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-        .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .page-btn { background: #444; color: white; border: none; border-radius: 4px; padding: 8px 15px; cursor: pointer; }
         
         #camera-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: center; }
         #camera-video { width: 100%; height: 80%; object-fit: cover; }
         .camera-controls { height: 20%; width: 100%; display: flex; align-items: center; justify-content: center; gap: 30px; background: rgba(0,0,0,0.5); position: absolute; bottom: 0; }
         .snap-btn { width: 70px; height: 70px; border-radius: 50%; background: white; border: 5px solid #ccc; cursor: pointer; }
+        .wb-btn { color: #aaa; background: none; border: 2px solid #555; border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-direction: column; font-size: 10px; }
+        .wb-btn.active { color: #333; background: white; border-color: white; }
       </style>
       
       <div class="app-container" id="app">
@@ -187,12 +177,10 @@ class HomeOrganizerPanel extends HTMLElement {
             </div>
         </div>
         
-        <div class="search-box" id="search-box">
+        <div class="search-box" id="search-box" style="display:none; padding:10px; background:#2a2a2a; gap: 5px; align-items: center;">
             <div style="position:relative; flex:1;">
                 <input type="text" id="search-input" style="width:100%;padding:8px;padding-left:35px;border-radius:8px;background:#111;color:white;border:1px solid #333">
-                <button class="nav-btn ai-btn" id="btn-ai-search" style="position:absolute;left:0;top:0;height:100%;background:none;border:none;">
-                   ${ICONS.camera}
-                </button>
+                <button class="nav-btn ai-btn" id="btn-ai-search" style="position:absolute;left:0;top:0;height:100%;background:none;border:none;">${ICONS.camera}</button>
             </div>
             <button class="nav-btn" id="search-close">${ICONS.close}</button>
         </div>
@@ -216,12 +204,12 @@ class HomeOrganizerPanel extends HTMLElement {
               
               <div class="pagination-ctrls">
                   <button class="page-btn" id="picker-prev">${ICONS.arrow_up}</button>
-                  <div class="page-info" id="picker-page-info">Page 1</div>
+                  <div id="picker-page-info" style="font-size:12px;color:#aaa">Page 1</div>
                   <button class="page-btn" id="picker-next" style="transform: rotate(180deg)">${ICONS.arrow_up}</button>
               </div>
 
               <div style="display:flex;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid #444">
-                  <input type="text" id="icon-url-input" placeholder="URL..." style="flex:1;padding:8px;background:#111;color:white;border:1px solid #444;border-radius:4px">
+                  <input type="text" id="icon-url-input" placeholder="Paste Image URL..." style="flex:1;padding:8px;background:#111;color:white;border:1px solid #444;border-radius:4px">
                   <button class="action-btn" id="btn-load-url">${ICONS.check}</button>
               </div>
               <button class="action-btn" style="width:100%;margin-top:10px;background:#444" onclick="this.closest('#icon-modal').style.display='none'">Cancel</button>
@@ -236,7 +224,7 @@ class HomeOrganizerPanel extends HTMLElement {
               <button class="wb-btn active" id="btn-cam-wb" title="Toggle AI Background Removal">${ICONS.wand}<span>AI BG</span></button>
               <button class="close-cam-btn" id="btn-cam-close" style="position:absolute;top:-50px;right:20px;background:rgba(0,0,0,0.5);border-radius:50%;width:40px;height:40px">✕</button>
           </div>
-          <canvas id="camera-canvas"></canvas>
+          <canvas id="camera-canvas" style="display:none"></canvas>
       </div>
 
       <div class="overlay" id="img-overlay" onclick="this.style.display='none'" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:200;justify-content:center;align-items:center"><img id="overlay-img" style="max-width:90%;max-height:90%;border-radius:8px"></div>
@@ -351,7 +339,6 @@ class HomeOrganizerPanel extends HTMLElement {
       let source = svgHtml;
       if (!source.includes('xmlns')) source = source.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
       source = source.replace('<svg', `<svg width="${size}" height="${size}"`);
-      if (this.pickerContext !== 'item') source = source.replace('<svg', '<svg fill="#4fc3f7"');
 
       const img = new Image();
       const blob = new Blob([source], {type: 'image/svg+xml;charset=utf-8'});
@@ -407,9 +394,8 @@ class HomeOrganizerPanel extends HTMLElement {
   snapPhoto() {
       const video = this.shadowRoot.getElementById('camera-video');
       const canvas = this.shadowRoot.getElementById('camera-canvas');
-      const context = canvas.getContext('2d');
       canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-      context.drawImage(video, 0, 0);
+      canvas.getContext('2d').drawImage(video, 0, 0);
       const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
       this.stopCamera();
       if (this.cameraContext === 'search') this.callHA('ai_action', { mode: 'search', image_data: dataUrl });
@@ -420,33 +406,60 @@ class HomeOrganizerPanel extends HTMLElement {
     if(!this.localData) return;
     const attrs = this.localData;
     const root = this.shadowRoot;
+    
     root.getElementById('display-title').innerText = attrs.path_display || "Organizer";
+    root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
+    root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
+    if(attrs.clipboard) root.getElementById('clipboard-name').innerText = attrs.clipboard;
+    
+    const editBtn = root.getElementById('btn-edit');
+    if (this.isEditMode) editBtn.classList.add('edit-active'); else editBtn.classList.remove('edit-active');
+
     const content = root.getElementById('content');
     content.innerHTML = '';
 
+    // Folder Grid View
     if (attrs.depth < 2) {
-        const grid = document.createElement('div');
-        grid.className = 'folder-grid';
-        if (attrs.folders) {
-            attrs.folders.forEach(folder => {
-                const el = document.createElement('div');
-                el.className = 'folder-item';
-                el.onclick = () => this.navigate('down', folder.name);
-                const icon = folder.img ? `<img src="${folder.img}">` : ICONS.folder;
-                const deleteBtn = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` : '';
-                const imgBtn = this.isEditMode ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${folder.name}', '${attrs.depth === 0 ? 'room' : 'location'}')">${ICONS.image}</div>` : '';
-                el.innerHTML = `<div class="android-folder-icon">${icon}${deleteBtn}${imgBtn}</div><div>${folder.name}</div>`;
-                grid.appendChild(el);
-            });
+        if (attrs.folders || this.isEditMode) {
+            const grid = document.createElement('div');
+            grid.className = 'folder-grid';
+            if (attrs.folders) {
+                attrs.folders.forEach(folder => {
+                    const el = document.createElement('div');
+                    el.className = 'folder-item';
+                    el.onclick = () => this.navigate('down', folder.name);
+                    const icon = folder.img ? `<img src="${folder.img}">` : ICONS.folder;
+                    const deleteBtn = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` : '';
+                    const editBtn = this.isEditMode ? `<div class="folder-edit-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'), '${folder.name}')">${ICONS.edit}</div>` : '';
+                    const imgBtn = this.isEditMode ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${folder.name}', '${attrs.depth === 0 ? 'room' : 'location'}')">${ICONS.image}</div>` : '';
+                    el.innerHTML = `<div class="android-folder-icon">${icon}${editBtn}${deleteBtn}${imgBtn}</div><div class="folder-label">${folder.name}</div>`;
+                    grid.appendChild(el);
+                });
+            }
+            if (this.isEditMode) {
+                const addBtn = document.createElement('div');
+                addBtn.className = 'folder-item add-folder-card';
+                addBtn.innerHTML = `<div class="android-folder-icon">${ICONS.plus}</div><div class="folder-label">Add</div>`;
+                addBtn.onclick = () => this.enableFolderInput(addBtn);
+                grid.appendChild(addBtn);
+            }
+            content.appendChild(grid);
         }
-        content.appendChild(grid);
     }
     
+    // Items View
     if (attrs.items) {
         const list = document.createElement('div');
         list.className = 'item-list';
         attrs.items.forEach(item => list.appendChild(this.createItemRow(item)));
         content.appendChild(list);
+    }
+    
+    if (this.isEditMode && attrs.depth === 1) {
+         const row = document.createElement('div');
+         row.className = 'add-item-btn-row';
+         row.innerHTML = `<button class="add-item-btn" onclick="this.getRootNode().host.addQuickItem()">+ הוסף</button>`;
+         content.appendChild(row);
     }
   }
 
@@ -470,10 +483,14 @@ class HomeOrganizerPanel extends HTMLElement {
           det.innerHTML = `
             <div class="detail-row">
                 <input type="text" id="name-${item.name}" value="${item.name}" style="flex:1;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px">
+                <input type="date" id="date-${item.name}" value="${item.date}" style="width:110px;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px">
                 <button class="btn-text" onclick="this.getRootNode().host.saveDetails('${item.name}', '${item.name}')">Save</button>
             </div>
-            <div class="detail-row">
-                <button class="action-btn" onclick="this.getRootNode().host.openIconPicker('${item.name}', 'item')">${ICONS.image}</button>
+            <div class="detail-row" style="justify-content:space-between">
+                <div style="display:flex;gap:10px">
+                    <button class="action-btn" title="Take Photo" onclick="this.getRootNode().host.triggerCameraEdit('${item.name}')">${ICONS.camera}</button>
+                    <button class="action-btn" title="Change Icon" onclick="this.getRootNode().host.openIconPicker('${item.name}', 'item')">${ICONS.image}</button>
+                </div>
                 <button class="action-btn btn-danger" onclick="this.getRootNode().host.del('${item.name}')">${ICONS.delete}</button>
             </div>
           `;
@@ -487,16 +504,23 @@ class HomeOrganizerPanel extends HTMLElement {
       else if (dir === 'down' && name) this.currentPath.push(name); 
       this.fetchData(); 
   }
-  toggleRow(name) { this.expandedIdx = (this.expandedIdx === name) ? null : name; this.updateUI(); }
+  toggleRow(name) { this.expandedIdx = (this.expandedIdx === name) ? null : name; this.render(); }
   render() { this.updateUI(); }
   callHA(s, d) { return this._hass.callService('home_organizer', s, d); }
   updateQty(name, d) { this.callHA('update_qty', { item_name: name, change: d }); }
   del(name) { this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath }); }
+  deleteFolder(name) { if(confirm(`Delete folder '${name}'?`)) this.callHA('delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); }
+  
   saveDetails(idx, oldName) { 
     const nEl = this.shadowRoot.getElementById(`name-${idx}`); 
-    if(nEl) this.callHA('update_item_details', { original_name: oldName, new_name: nEl.value, current_path: this.currentPath });
+    const dEl = this.shadowRoot.getElementById(`date-${idx}`); 
+    if(nEl && dEl) {
+      this.callHA('update_item_details', { original_name: oldName, new_name: nEl.value, new_date: dEl.value, current_path: this.currentPath });
+    }
     this.expandedIdx = null;
   }
+  
+  triggerCameraEdit(itemName) { this.pendingItem = itemName; this.openCamera('update'); }
 }
 
 if (!customElements.get('home-organizer-panel')) {
