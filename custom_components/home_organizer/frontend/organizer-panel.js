@@ -1,7 +1,7 @@
-// Home Organizer Ultimate - Ver 5.6.2 (Reduced Folder Icon Scale)
+// Home Organizer Ultimate - Ver 5.6.3 (Black Item Background)
 // License: MIT
 
-import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.2';
+import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.3';
 
 class HomeOrganizerPanel extends HTMLElement {
   set hass(hass) {
@@ -77,7 +77,6 @@ class HomeOrganizerPanel extends HTMLElement {
         .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 20px; }
         .folder-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; position: relative; }
         
-        /* Updated: Reduced icon content size by adding padding/containment */
         .android-folder-icon { width: 56px; height: 56px; background: #3c4043; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #8ab4f8; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); position: relative; overflow: visible; }
         .android-folder-icon svg { width: 34px; height: 34px; }
         .android-folder-icon img { width: 38px; height: 38px; object-fit: contain; border-radius: 4px; }
@@ -113,7 +112,9 @@ class HomeOrganizerPanel extends HTMLElement {
         .item-main { display: flex; align-items: center; justify-content: space-between; width: 100%; cursor: pointer; }
         .item-left { display: flex; align-items: center; gap: 10px; }
         .item-icon { color: var(--primary); display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; }
-        .item-thumbnail { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: #fff; display: block; border: 1px solid #444; }
+        
+        /* Updated: Changed item thumbnail background from white (#fff) to black (#000) */
+        .item-thumbnail { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: #000; display: block; border: 1px solid #444; }
 
         .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 4px; border-radius: 20px; }
         .qty-btn { background: #444; border: none; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
@@ -971,6 +972,13 @@ class HomeOrganizerPanel extends HTMLElement {
           const canvas = document.createElement('canvas');
           canvas.width = size; canvas.height = size;
           const ctx = canvas.getContext('2d');
+          
+          // Optional: Force black background into the generated file for items
+          if (this.pickerContext === 'item') {
+              ctx.fillStyle = '#000';
+              ctx.fillRect(0, 0, size, size);
+          }
+          
           ctx.drawImage(img, 0, 0, size, size);
           const dataUrl = canvas.toDataURL('image/png');
           
