@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.6.6 (Sub-Header Navigation Update)
+// Home Organizer Ultimate - Ver 5.6.7 (Right-Aligned Navigation Update)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -72,17 +72,18 @@ class HomeOrganizerPanel extends HTMLElement {
         /* Main Top Bar */
         .top-bar { background: #242426; padding: 10px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-shrink: 0; height: 60px; width: 100%; }
         
-        /* NEW: Sub-Navigation Bar (Home/Back) */
+        /* Updated: Sub-Navigation Bar positioned under tools - Right Aligned */
         .sub-nav { 
             background: #2c2c2e; 
             border-bottom: 1px solid var(--border); 
             display: flex; 
-            justify-content: center; 
+            justify-content: flex-start; /* Align to right in RTL */
             align-items: center; 
-            gap: 40px;
-            height: 40px; /* Smaller height (approx 50% relative visual weight) */
+            gap: 15px; /* Tighter gap for corner placement */
+            height: 40px; 
             width: 100%; 
             flex-shrink: 0;
+            padding: 0 10px; /* Spacing from the right edge */
         }
         .sub-nav .nav-btn {
             height: 32px;
@@ -208,7 +209,6 @@ class HomeOrganizerPanel extends HTMLElement {
             </div>
         </div>
 
-        <!-- NEW: Sub-Navigation Bar positioned under tools -->
         <div class="sub-nav">
              <button class="nav-btn" id="btn-home" title="Home">${ICONS.home}</button>
              <button class="nav-btn" id="btn-up" title="Back">${ICONS.arrow_up}</button>
