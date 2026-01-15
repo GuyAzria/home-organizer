@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.6.5 (Bottom Navigation Update)
+// Home Organizer Ultimate - Ver 5.6.4 (Category Navigation Update)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -20,7 +20,7 @@ class HomeOrganizerPanel extends HTMLElement {
       this.expandedSublocs = new Set(); 
       this.subscribed = false;
       this.pickerContext = 'room'; 
-      this.pickerCategory = null;
+      this.pickerCategory = null; // Tracks current item category
       this.pickerPage = 0;
       this.pickerPageSize = 15;
 
@@ -59,59 +59,21 @@ class HomeOrganizerPanel extends HTMLElement {
   initUI() {
     this.content = true;
     this.attachShadow({mode: 'open'});
-    
-    // Adding a generic User/Settings icon to the library for your placeholder
-    ICONS.user = '<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>';
-
     this.shadowRoot.innerHTML = `
       <style>
         :host { --app-bg: #1c1c1e; --primary: #03a9f4; --accent: #4caf50; --danger: #f44336; --text: #fff; --border: #333; --warning: #ffeb3b; --icon-btn-bg: #444; }
         * { box-sizing: border-box; }
         .app-container { background: var(--app-bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; font-family: sans-serif; direction: rtl; }
         svg { width: 24px; height: 24px; fill: currentColor; }
-        
         .top-bar { background: #242426; padding: 10px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-shrink: 0; height: 60px; }
-        
-        /* New User Button Style */
-        .user-btn { color: #888; transition: color 0.2s; }
-        .user-btn:hover { color: var(--primary); }
-
         .nav-btn { background: none; border: none; color: var(--primary); cursor: pointer; padding: 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
         .nav-btn:hover { background: rgba(255,255,255,0.1); }
         .nav-btn.active { color: var(--warning); }
         .nav-btn.edit-active { color: var(--accent); } 
-        
         .title-box { flex: 1; text-align: center; }
         .main-title { font-weight: bold; font-size: 16px; }
         .sub-title { font-size: 11px; color: #aaa; direction: ltr; }
-        
-        .content { flex: 1; padding: 15px; overflow-y: auto; padding-bottom: 80px; } /* Added bottom padding for nav bar */
-
-        /* NEW: Sticky Bottom Navigation Styles */
-        .bottom-nav { 
-            position: fixed; 
-            bottom: 0; 
-            left: 0; 
-            right: 0; 
-            height: 65px; 
-            background: #242426; 
-            border-top: 1px solid var(--border); 
-            display: flex; 
-            justify-content: space-around; 
-            align-items: center; 
-            z-index: 100;
-            padding: 0 20px;
-        }
-        .bottom-nav .nav-btn {
-            flex-direction: column;
-            gap: 2px;
-            font-size: 10px;
-            border-radius: 8px;
-            padding: 5px 20px;
-            color: #aaa;
-        }
-        .bottom-nav .nav-btn:hover { background: rgba(255,255,255,0.05); color: var(--primary); }
-        .bottom-nav .nav-btn svg { width: 26px; height: 26px; }
+        .content { flex: 1; padding: 15px; overflow-y: auto; }
         
         .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 20px; }
         .folder-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; position: relative; }
@@ -127,10 +89,19 @@ class HomeOrganizerPanel extends HTMLElement {
         .folder-img-btn svg { width: 12px; height: 12px; }
 
         .item-list { display: flex; flex-direction: column; gap: 5px; }
-        .group-separator { color: #aaa; font-size: 14px; margin: 20px 0 10px 0; border-bottom: 1px solid #444; padding-bottom: 4px; text-transform: uppercase; font-weight: bold; display: flex; justify-content: space-between; align-items: center; min-height: 35px; cursor: pointer; }
+        
+        .group-separator { 
+            color: #aaa; font-size: 14px; margin: 20px 0 10px 0; 
+            border-bottom: 1px solid #444; padding-bottom: 4px; 
+            text-transform: uppercase; font-weight: bold; 
+            display: flex; justify-content: space-between; align-items: center;
+            min-height: 35px;
+            cursor: pointer; 
+        }
         .group-separator:hover { background: rgba(255,255,255,0.05); }
         .group-separator.drag-over { border-bottom: 2px solid var(--primary); color: var(--primary); background: rgba(3, 169, 244, 0.1); }
         .oos-separator { color: var(--danger); border-color: var(--danger); }
+        
         .edit-subloc-btn { background: none; border: none; color: #aaa; cursor: pointer; padding: 4px; }
         .edit-subloc-btn:hover { color: var(--primary); }
         .delete-subloc-btn { background: none; border: none; color: var(--danger); cursor: pointer; padding: 4px; }
@@ -142,7 +113,9 @@ class HomeOrganizerPanel extends HTMLElement {
         .item-main { display: flex; align-items: center; justify-content: space-between; width: 100%; cursor: pointer; }
         .item-left { display: flex; align-items: center; gap: 10px; }
         .item-icon { color: var(--primary); display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; }
+        
         .item-thumbnail { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: #000; display: block; border: 1px solid #444; }
+
         .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 4px; border-radius: 20px; }
         .qty-btn { background: #444; border: none; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         
@@ -173,6 +146,7 @@ class HomeOrganizerPanel extends HTMLElement {
         .modal-content { background: #242426; width: 95%; max-width: 450px; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 15px; max-height: 90vh; overflow-y: auto; }
         .modal-title { font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 5px; }
         
+        /* New Category Bar Styles */
         .category-bar { display: none; gap: 10px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 10px; scrollbar-width: thin; scrollbar-color: var(--warning) transparent; }
         .category-bar::-webkit-scrollbar { height: 4px; }
         .category-bar::-webkit-scrollbar-thumb { background: var(--warning); border-radius: 2px; }
@@ -207,16 +181,14 @@ class HomeOrganizerPanel extends HTMLElement {
       
       <div class="app-container" id="app">
          <div class="top-bar">
-            <!-- Navigation buttons removed from here to make room for User menu -->
             <div style="display:flex;gap:5px">
-                <button class="nav-btn user-btn" id="btn-user-menu">${ICONS.user}</button>
+                <button class="nav-btn" id="btn-up">${ICONS.arrow_up}</button>
+                <button class="nav-btn" id="btn-home">${ICONS.home}</button>
             </div>
-            
             <div class="title-box">
                 <div class="main-title" id="display-title">Organizer</div>
                 <div class="sub-title" id="display-path">Main</div>
             </div>
-            
             <div style="display:flex;gap:5px">
                 <button class="nav-btn" id="btn-shop">${ICONS.cart}</button>
                 <button class="nav-btn" id="btn-search">${ICONS.search}</button>
@@ -239,29 +211,27 @@ class HomeOrganizerPanel extends HTMLElement {
         <div class="content" id="content">
             <div style="text-align:center;padding:20px;color:#888;">Loading...</div>
         </div>
-
-        <!-- NEW: Bottom Navigation Bar -->
-        <div class="bottom-nav">
-             <button class="nav-btn" id="btn-home">${ICONS.home}<span>Home</span></button>
-             <button class="nav-btn" id="btn-up">${ICONS.arrow_up}<span>Back</span></button>
-        </div>
       </div>
       
-      <!-- Icon Modal, Camera Modal, Overlay (Remained unchanged) -->
       <div id="icon-modal" onclick="this.style.display='none'">
           <div class="modal-content" onclick="event.stopPropagation()">
               <div class="modal-title">Change Icon</div>
+              
               <div class="category-bar" id="picker-categories"></div>
+              
               <div class="icon-grid" id="icon-lib-grid"></div>
+              
               <div class="pagination-ctrls">
                   <button class="page-btn" id="picker-prev">${ICONS.arrow_up}</button>
                   <div class="page-info" id="picker-page-info">Page 1 of 1</div>
                   <button class="page-btn" id="picker-next" style="transform: rotate(180deg)">${ICONS.arrow_up}</button>
               </div>
+
               <div class="url-input-row">
                   <input type="text" id="icon-url-input" placeholder="Paste Image URL..." style="flex:1;padding:8px;background:#111;color:white;border:1px solid #444;border-radius:4px">
                   <button class="action-btn" id="btn-load-url">${ICONS.check}</button>
               </div>
+              
               <div style="text-align:center; margin-top:10px;">
                   <label class="action-btn" style="width:100%; display:flex; gap:10px; justify-content:center;">
                       ${ICONS.image} Upload File
@@ -282,6 +252,7 @@ class HomeOrganizerPanel extends HTMLElement {
           </div>
           <canvas id="camera-canvas"></canvas>
       </div>
+
       <div class="overlay" id="img-overlay" onclick="this.style.display='none'" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:200;justify-content:center;align-items:center"><img id="overlay-img" style="max-width:90%;max-height:90%;border-radius:8px"></div>
     `;
 
@@ -325,15 +296,8 @@ class HomeOrganizerPanel extends HTMLElement {
     click('btn-cam-snap', () => this.snapPhoto());
     click('btn-cam-switch', () => this.switchCamera());
     click('btn-cam-wb', () => this.toggleWhiteBG());
-
-    // Placeholder for your User Menu logic
-    click('btn-user-menu', () => {
-        // Here you can trigger your language dropdown or settings modal
-        alert("User Menu: Languages / Settings Placeholder");
-    });
   }
   
-  // (Rest of the helper functions remain exactly the same as ver 5.6.4)
   toggleWhiteBG() {
       this.useAiBg = !this.useAiBg;
       const btn = this.shadowRoot.getElementById('btn-cam-wb');
@@ -385,8 +349,10 @@ class HomeOrganizerPanel extends HTMLElement {
           }
           context.putImageData(imageData, 0, 0);
       }
+      
       const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
       this.stopCamera();
+      
       if (this.cameraContext === 'search') {
           this.callHA('ai_action', { mode: 'search', image_data: dataUrl });
       } else if (this.pendingItem) {
@@ -405,13 +371,16 @@ class HomeOrganizerPanel extends HTMLElement {
     if(attrs.clipboard) root.getElementById('clipboard-name').innerText = attrs.clipboard;
     const app = root.getElementById('app');
     if(this.isEditMode) app.classList.add('edit-mode'); else app.classList.remove('edit-mode');
+    
     const editBtn = root.getElementById('btn-edit');
     if (editBtn) {
         if (this.isEditMode) editBtn.classList.add('edit-active');
         else editBtn.classList.remove('edit-active');
     }
+
     const content = root.getElementById('content');
     content.innerHTML = '';
+
     if (attrs.shopping_list && attrs.shopping_list.length > 0) {
         const listContainer = document.createElement('div');
         listContainer.className = 'item-list';
@@ -431,6 +400,7 @@ class HomeOrganizerPanel extends HTMLElement {
         content.appendChild(listContainer);
         return;
     }
+
     if ((this.isSearch || (attrs.path_display && attrs.path_display.startsWith('Search'))) && attrs.items) {
         const list = document.createElement('div');
         list.className = 'item-list';
@@ -438,6 +408,7 @@ class HomeOrganizerPanel extends HTMLElement {
         content.appendChild(list);
         return;
     }
+
     if (attrs.depth < 2) {
         if (attrs.folders && attrs.folders.length > 0 || this.isEditMode) {
             const grid = document.createElement('div');
@@ -449,11 +420,16 @@ class HomeOrganizerPanel extends HTMLElement {
                     el.onclick = () => this.navigate('down', folder.name);
                     let folderContent = ICONS.folder;
                     if (folder.img) folderContent = `<img src="${folder.img}">`;
+
                     const deleteBtnHtml = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` : '';
                     const editBtnHtml = this.isEditMode ? `<div class="folder-edit-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'), '${folder.name}')">${ICONS.edit}</div>` : '';
                     const context = attrs.depth === 0 ? 'room' : 'location';
                     const imgBtnHtml = this.isEditMode ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${folder.name}', '${context}')">${ICONS.image}</div>` : '';
-                    el.innerHTML = `<div class="android-folder-icon">${folderContent}${editBtnHtml}${deleteBtnHtml}${imgBtnHtml}</div><div class="folder-label">${folder.name}</div>`;
+
+                    el.innerHTML = `
+                        <div class="android-folder-icon">${folderContent}${editBtnHtml}${deleteBtnHtml}${imgBtnHtml}</div>
+                        <div class="folder-label">${folder.name}</div>
+                    `;
                     grid.appendChild(el);
                 });
             }
@@ -466,12 +442,14 @@ class HomeOrganizerPanel extends HTMLElement {
             }
             content.appendChild(grid);
         }
+        
         if (attrs.items && attrs.items.length > 0) {
             const list = document.createElement('div');
             list.className = 'item-list';
             attrs.items.forEach(item => list.appendChild(this.createItemRow(item, false)));
             content.appendChild(list);
         }
+        
         if (this.isEditMode && attrs.depth === 1) {
              const addBtn = document.createElement('div');
              addBtn.className = 'add-item-btn-row';
@@ -502,7 +480,16 @@ class HomeOrganizerPanel extends HTMLElement {
             this.setupDropTarget(header, subName);
             header.onclick = () => this.toggleSubloc(subName);
             if (this.isEditMode && subName !== "General") {
-                header.innerHTML = `<div style="display:flex;align-items:center;"><span style="margin-right:5px;display:flex;align-items:center">${icon}</span><span class="subloc-title">${subName}</span>${countBadge}</div><div style="display:flex;gap:5px"><button class="edit-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableSublocRename(this, '${subName}')">${ICONS.edit}</button><button class="delete-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button></div>`;
+                header.innerHTML = `
+                    <div style="display:flex;align-items:center;">
+                        <span style="margin-right:5px;display:flex;align-items:center">${icon}</span>
+                        <span class="subloc-title">${subName}</span>
+                        ${countBadge}
+                    </div>
+                    <div style="display:flex;gap:5px">
+                        <button class="edit-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableSublocRename(this, '${subName}')">${ICONS.edit}</button>
+                        <button class="delete-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button>
+                    </div>`;
             } else {
                 header.innerHTML = `<div style="display:flex;align-items:center;"><span style="margin-right:5px;display:flex;align-items:center">${icon}</span><span>${subName}</span>${countBadge}</div>`;
             }
@@ -539,7 +526,11 @@ class HomeOrganizerPanel extends HTMLElement {
     }
   }
   
-  toggleSubloc(name) { if (this.expandedSublocs.has(name)) this.expandedSublocs.delete(name); else this.expandedSublocs.add(name); this.render(); }
+  toggleSubloc(name) {
+      if (this.expandedSublocs.has(name)) this.expandedSublocs.delete(name); else this.expandedSublocs.add(name);
+      this.render();
+  }
+  
   enableFolderInput(cardEl) {
       const iconContainer = cardEl.querySelector('.android-folder-icon');
       const label = cardEl.querySelector('.folder-label');
@@ -551,41 +542,395 @@ class HomeOrganizerPanel extends HTMLElement {
       input.onkeydown = (e) => { if (e.key === 'Enter') this.saveNewFolder(input.value); };
       input.onblur = () => { if (input.value.trim()) this.saveNewFolder(input.value); else this.render(); };
   }
+  
   enableFolderRename(labelEl, oldName) {
       if (!labelEl || labelEl.querySelector('input')) return;
       const input = document.createElement('input');
       input.value = oldName;
-      input.style.width = '100%'; input.style.background = '#222'; input.style.color = 'white'; input.style.border = '1px solid var(--primary)'; input.style.borderRadius = '4px'; input.style.textAlign = 'center'; input.style.fontSize = '12px';
+      input.style.width = '100%';
+      input.style.background = '#222';
+      input.style.color = 'white';
+      input.style.border = '1px solid var(--primary)';
+      input.style.borderRadius = '4px';
+      input.style.textAlign = 'center';
+      input.style.fontSize = '12px';
       input.onclick = (e) => e.stopPropagation();
-      labelEl.innerHTML = ''; labelEl.appendChild(input);
+      labelEl.innerHTML = '';
+      labelEl.appendChild(input);
       input.focus();
       let isSaving = false;
-      const save = () => { if (isSaving) return; isSaving = true; const newVal = input.value.trim(); if (newVal && newVal !== oldName) { this.callHA('update_item_details', { original_name: oldName, new_name: newVal, new_date: "", current_path: this.currentPath, is_folder: true }); } else this.render(); };
+      const save = () => {
+          if (isSaving) return; 
+          isSaving = true;
+          const newVal = input.value.trim();
+          if (newVal && newVal !== oldName) {
+              this.callHA('update_item_details', { original_name: oldName, new_name: newVal, new_date: "", current_path: this.currentPath, is_folder: true });
+          } else this.render();
+      };
       input.onkeydown = (e) => { if (e.key === 'Enter') input.blur(); };
       input.onblur = () => save();
   }
-  saveNewFolder(name) { if(!name) return; this._hass.callService('home_organizer', 'add_item', { item_name: name, item_type: 'folder', item_date: '', image_data: null, current_path: this.currentPath }); }
-  addQuickItem(targetSubloc) { const tempName = "New Item " + new Date().toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'}); const today = new Date().toISOString().split('T')[0]; let usePath = [...this.currentPath]; if (targetSubloc && targetSubloc !== "General") usePath.push(targetSubloc); this._hass.callService('home_organizer', 'add_item', { item_name: tempName, item_type: 'item', item_date: today, image_data: null, current_path: usePath }); }
-  setupDragSource(el, itemName) { el.draggable = true; el.ondragstart = (e) => { e.dataTransfer.setData("text/plain", itemName); e.dataTransfer.effectAllowed = "move"; el.classList.add('dragging'); }; el.ondragend = () => el.classList.remove('dragging'); }
-  setupDropTarget(el, subName) { el.dataset.subloc = subName; el.ondragover = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drag-over'); }; el.ondragleave = () => el.classList.remove('drag-over'); el.ondrop = (e) => { e.preventDefault(); el.classList.remove('drag-over'); const itemName = e.dataTransfer.getData("text/plain"); this.handleDropAction(subName, itemName); }; }
-  async handleDropAction(targetSubloc, itemName) { if (!itemName) return; let targetPath = [...this.currentPath]; if (targetSubloc !== "General") targetPath.push(targetSubloc); try { await this.callHA('clipboard_action', {action: 'cut', item_name: itemName}); await this.callHA('paste_item', {target_path: targetPath}); } catch (err) { console.error("Drop failed:", err); } }
-  adjustShopQty(name, delta) { if (this.shopQuantities[name] === undefined) this.shopQuantities[name] = 0; this.shopQuantities[name] = Math.max(0, this.shopQuantities[name] + delta); this.render(); }
-  updateLocationDropdown(itemName, roomName) { const locContainer = this.shadowRoot.getElementById(`loc-container-${itemName}`); const locSelect = this.shadowRoot.getElementById(`loc-select-${itemName}`); const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemName}`); subContainer.style.display = 'none'; locSelect.innerHTML = '<option value="">-- Select --</option>'; if(!roomName) { locContainer.style.display = 'none'; return; } let html = `<option value="">-- Select Location --</option>`; if(this.localData.hierarchy && this.localData.hierarchy[roomName]) Object.keys(this.localData.hierarchy[roomName]).forEach(loc => { html += `<option value="${loc}">${loc}</option>`; }); locSelect.innerHTML = html; locContainer.style.display = 'flex'; locSelect.dataset.room = roomName; }
-  updateSublocDropdown(itemName, locationName) { const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemName}`); const subSelect = this.shadowRoot.getElementById(`target-subloc-${itemName}`); const roomName = this.shadowRoot.getElementById(`room-select-${itemName}`).value; if(!locationName) { subContainer.style.display = 'none'; return; } let html = `<option value="">-- Select Sublocation --</option>`; html += `<option value="__ROOT__">Main ${locationName}</option>`; if(this.localData.hierarchy && this.localData.hierarchy[roomName] && this.localData.hierarchy[roomName][locationName]) this.localData.hierarchy[roomName][locationName].forEach(sub => { html += `<option value="${sub}">${sub}</option>`; }); subSelect.innerHTML = html; subContainer.style.display = 'flex'; }
-  handleMoveToPath(itemName) { const room = this.shadowRoot.getElementById(`room-select-${itemName}`).value; const loc = this.shadowRoot.getElementById(`loc-select-${itemName}`).value; const sub = this.shadowRoot.getElementById(`target-subloc-${itemName}`).value; if(!room || !loc || !sub) return; let targetPath = [room, loc]; if(sub !== "__ROOT__") targetPath.push(sub); this.callHA('clipboard_action', {action: 'cut', item_name: itemName}); setTimeout(() => { this.callHA('paste_item', {target_path: targetPath}); }, 100); }
+
+  saveNewFolder(name) {
+      if(!name) return;
+      this._hass.callService('home_organizer', 'add_item', { item_name: name, item_type: 'folder', item_date: '', image_data: null, current_path: this.currentPath });
+  }
+
+  addQuickItem(targetSubloc) {
+      const tempName = "New Item " + new Date().toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'});
+      const today = new Date().toISOString().split('T')[0];
+      let usePath = [...this.currentPath];
+      if (targetSubloc && targetSubloc !== "General") usePath.push(targetSubloc);
+      this._hass.callService('home_organizer', 'add_item', { item_name: tempName, item_type: 'item', item_date: today, image_data: null, current_path: usePath });
+  }
+
+  setupDragSource(el, itemName) {
+      el.draggable = true;
+      el.ondragstart = (e) => { e.dataTransfer.setData("text/plain", itemName); e.dataTransfer.effectAllowed = "move"; el.classList.add('dragging'); };
+      el.ondragend = () => el.classList.remove('dragging');
+  }
+
+  setupDropTarget(el, subName) {
+      el.dataset.subloc = subName;
+      el.ondragover = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drag-over'); };
+      el.ondragleave = () => el.classList.remove('drag-over');
+      el.ondrop = (e) => { e.preventDefault(); el.classList.remove('drag-over'); const itemName = e.dataTransfer.getData("text/plain"); this.handleDropAction(subName, itemName); };
+  }
+
+  async handleDropAction(targetSubloc, itemName) {
+      if (!itemName) return;
+      let targetPath = [...this.currentPath];
+      if (targetSubloc !== "General") targetPath.push(targetSubloc);
+      try {
+          await this.callHA('clipboard_action', {action: 'cut', item_name: itemName});
+          await this.callHA('paste_item', {target_path: targetPath});
+      } catch (err) { console.error("Drop failed:", err); }
+  }
+
+  triggerCameraEdit(itemName) { this.pendingItem = itemName; this.openCamera('update'); }
+  adjustShopQty(name, delta) {
+      if (this.shopQuantities[name] === undefined) this.shopQuantities[name] = 0;
+      this.shopQuantities[name] = Math.max(0, this.shopQuantities[name] + delta);
+      this.render();
+  }
+
+  createItemRow(item, isShopMode) {
+     const div = document.createElement('div');
+     const oosClass = (item.qty === 0) ? 'out-of-stock-frame' : '';
+     div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''} ${oosClass}`;
+     this.setupDragSource(div, item.name);
+     
+     let controls = '';
+     if (isShopMode) {
+         const localQty = (this.shopQuantities[item.name] !== undefined) ? this.shopQuantities[item.name] : 0;
+         const checkStyle = (localQty === 0) ? "background:#555;color:#888;cursor:not-allowed;width:40px;height:40px;margin-left:8px;" : "background:var(--accent);width:40px;height:40px;margin-left:8px;";
+         const checkDisabled = (localQty === 0) ? "disabled" : "";
+         controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', -1)">${ICONS.minus}</button><span class="qty-val" style="margin:0 8px">${localQty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', 1)">${ICONS.plus}</button><button class="qty-btn" style="${checkStyle}" ${checkDisabled} title="Complete" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.name}')">${ICONS.check}</button>`;
+     } else {
+         controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${ICONS.plus}</button><span class="qty-val">${item.qty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${ICONS.minus}</button>`;
+     }
+     const subText = isShopMode ? `${item.main_location} > ${item.sub_location || ''}` : `${item.date || ''}`;
+     let iconHtml = `<span class="item-icon">${ICONS.item}</span>`;
+     if (item.img) iconHtml = `<img src="${item.img}" class="item-thumbnail" alt="${item.name}" onclick="event.stopPropagation(); this.getRootNode().host.showImg('${item.img}')">`;
+
+     div.innerHTML = `
+        <div class="item-main" onclick="this.getRootNode().host.toggleRow('${item.name}')">
+            <div class="item-left">${iconHtml}<div><div>${item.name}</div><div class="sub-title">${subText}</div></div></div>
+            <div class="item-qty-ctrl">${controls}</div>
+        </div>
+     `;
+     
+     if (this.expandedIdx === item.name) {
+         const details = document.createElement('div');
+         details.className = 'expanded-details';
+         let roomOptions = `<option value="">-- Change Room --</option>`;
+         if(this.localData.hierarchy) Object.keys(this.localData.hierarchy).forEach(room => { roomOptions += `<option value="${room}">${room}</option>`; });
+
+         details.innerHTML = `
+            <div class="detail-row">
+                <input type="text" id="name-${item.name}" value="${item.name}" style="flex:1;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px">
+                <input type="date" id="date-${item.name}" value="${item.date}" style="width:110px;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px">
+                <button class="action-btn btn-text" onclick="this.getRootNode().host.saveDetails('${item.name}', '${item.name}')">Save</button>
+            </div>
+            <div class="detail-row" style="justify-content:space-between; margin-top:10px;">
+                 <div style="display:flex;gap:10px;">
+                    <button class="action-btn" title="Take Photo" onclick="this.getRootNode().host.triggerCameraEdit('${item.name}')">${ICONS.camera}</button>
+                    <button class="action-btn" title="Change Icon/Image" onclick="this.getRootNode().host.openIconPicker('${item.name}', 'item')">${ICONS.image}</button>
+                 </div>
+                 <div style="display:flex;gap:10px;"><button class="action-btn btn-danger" title="Delete" onclick="this.getRootNode().host.del('${item.name}')">${ICONS.delete}</button></div>
+            </div>
+            <div class="detail-row" style="margin-top:10px; border-top:1px solid #444; padding-top:10px; flex-direction:column; gap:8px;">
+                <div class="move-container" style="width:100%"><span style="font-size:12px;color:#aaa;width:60px">Move to:</span><select class="move-select" id="room-select-${item.name}" onchange="this.getRootNode().host.updateLocationDropdown('${item.name}', this.value)">${roomOptions}</select></div>
+                <div class="move-container" style="width:100%; display:none;" id="loc-container-${item.name}"><span style="font-size:12px;color:#aaa;width:60px">Loc:</span><select class="move-select" id="loc-select-${item.name}" onchange="this.getRootNode().host.updateSublocDropdown('${item.name}', this.value)"><option value="">-- Select --</option></select></div>
+                <div class="move-container" style="width:100%; display:none;" id="subloc-container-${item.name}"><span style="font-size:12px;color:#aaa;width:60px">Sub:</span><select class="move-select" id="target-subloc-${item.name}" onchange="this.getRootNode().host.handleMoveToPath('${item.name}')"><option value="">-- Select --</option></select></div>
+            </div>
+         `;
+         div.appendChild(details);
+     }
+     return div;
+  }
+  
+  updateLocationDropdown(itemName, roomName) {
+      const locContainer = this.shadowRoot.getElementById(`loc-container-${itemName}`);
+      const locSelect = this.shadowRoot.getElementById(`loc-select-${itemName}`);
+      const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemName}`);
+      subContainer.style.display = 'none';
+      locSelect.innerHTML = '<option value="">-- Select --</option>';
+      if(!roomName) { locContainer.style.display = 'none'; return; }
+      let html = `<option value="">-- Select Location --</option>`;
+      if(this.localData.hierarchy && this.localData.hierarchy[roomName]) Object.keys(this.localData.hierarchy[roomName]).forEach(loc => { html += `<option value="${loc}">${loc}</option>`; });
+      locSelect.innerHTML = html;
+      locContainer.style.display = 'flex';
+      locSelect.dataset.room = roomName;
+  }
+  
+  updateSublocDropdown(itemName, locationName) {
+      const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemName}`);
+      const subSelect = this.shadowRoot.getElementById(`target-subloc-${itemName}`);
+      const roomName = this.shadowRoot.getElementById(`room-select-${itemName}`).value;
+      if(!locationName) { subContainer.style.display = 'none'; return; }
+      let html = `<option value="">-- Select Sublocation --</option>`;
+      html += `<option value="__ROOT__">Main ${locationName}</option>`;
+      if(this.localData.hierarchy && this.localData.hierarchy[roomName] && this.localData.hierarchy[roomName][locationName]) this.localData.hierarchy[roomName][locationName].forEach(sub => { html += `<option value="${sub}">${sub}</option>`; });
+      subSelect.innerHTML = html;
+      subContainer.style.display = 'flex';
+  }
+  
+  handleMoveToPath(itemName) {
+      const room = this.shadowRoot.getElementById(`room-select-${itemName}`).value;
+      const loc = this.shadowRoot.getElementById(`loc-select-${itemName}`).value;
+      const sub = this.shadowRoot.getElementById(`target-subloc-${itemName}`).value;
+      if(!room || !loc || !sub) return;
+      let targetPath = [room, loc];
+      if(sub !== "__ROOT__") targetPath.push(sub);
+      this.callHA('clipboard_action', {action: 'cut', item_name: itemName});
+      setTimeout(() => { this.callHA('paste_item', {target_path: targetPath}); }, 100);
+  }
+
+  deleteFolder(name) { if(confirm(`Delete folder '${name}' and ALL items inside it?`)) this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); }
+  deleteSubloc(name) { if(confirm(`Delete '${name}'?`)) this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); }
+
   render() { this.updateUI(); }
-  navigate(dir, name) { if (dir === 'root') this.currentPath = []; else if (dir === 'up') this.currentPath.pop(); else if (dir === 'down' && name) this.currentPath.push(name); this.expandedSublocs.clear(); this.fetchData(); }
+  navigate(dir, name) { 
+      if (dir === 'root') this.currentPath = []; 
+      else if (dir === 'up') this.currentPath.pop(); 
+      else if (dir === 'down' && name) this.currentPath.push(name); 
+      this.expandedSublocs.clear();
+      this.fetchData(); 
+  }
   toggleRow(name) { this.expandedIdx = (this.expandedIdx === name) ? null : name; this.render(); }
   updateQty(name, d) { this.callHA('update_qty', { item_name: name, change: d }); }
-  submitShopStock(name) { const qty = this.shopQuantities[name] || 1; this.callHA('update_stock', { item_name: name, quantity: qty }); delete this.shopQuantities[name]; }
-  enableSublocRename(btn, oldName) { const header = btn.closest('.group-separator'); if (header.querySelector('input')) return; const titleSpan = header.querySelector('.subloc-title') || header.querySelector('span'); if(!titleSpan) return; const input = document.createElement('input'); input.value = oldName; input.style.background = '#222'; input.style.color = 'white'; input.style.border = '1px solid var(--primary)'; input.style.borderRadius = '4px'; input.style.padding = '4px'; input.style.fontSize = '14px'; input.style.width = '200px'; input.onclick = (e) => e.stopPropagation(); titleSpan.replaceWith(input); input.focus(); let isSaving = false; const save = () => { if (isSaving) return; isSaving = true; const newVal = input.value.trim(); if (newVal && newVal !== oldName) { const newSpan = document.createElement('span'); newSpan.className = 'subloc-title'; newSpan.innerText = newVal; newSpan.style.opacity = '0.7'; input.replaceWith(newSpan); this.callHA('update_item_details', { original_name: oldName, new_name: newVal, new_date: "", current_path: this.currentPath, is_folder: true }).catch(err => { newSpan.innerText = oldName; newSpan.style.opacity = '1'; alert("Failed to rename"); }); } else { const originalSpan = document.createElement('span'); originalSpan.className = 'subloc-title'; originalSpan.innerText = oldName; input.replaceWith(originalSpan); } }; input.onkeydown = (e) => { if (e.key === 'Enter') input.blur(); }; input.onblur = () => save(); }
-  openIconPicker(targetName, context) { this.pendingFolderIcon = targetName; this.pickerContext = context; this.pickerPage = 0; if (context === 'item') { this.pickerCategory = Object.keys(ICON_LIB_ITEM)[0]; } else { this.pickerCategory = null; } this.renderIconPickerGrid(); this.shadowRoot.getElementById('icon-modal').style.display = 'flex'; }
-  getCurrentPickerLib() { if (this.pickerContext === 'room') return ICON_LIB_ROOM; if (this.pickerContext === 'location') return ICON_LIB_LOCATION; if (this.pickerContext === 'item') { return ICON_LIB_ITEM[this.pickerCategory] || {}; } return ICON_LIB; }
-  renderIconPickerGrid() { const lib = this.getCurrentPickerLib(); const keys = Object.keys(lib); const totalPages = Math.ceil(keys.length / this.pickerPageSize); const grid = this.shadowRoot.getElementById('icon-lib-grid'); const categoryBar = this.shadowRoot.getElementById('picker-categories'); const pageInfo = this.shadowRoot.getElementById('picker-page-info'); const prevBtn = this.shadowRoot.getElementById('picker-prev'); const nextBtn = this.shadowRoot.getElementById('picker-next'); if (this.pickerContext === 'item') { categoryBar.style.display = 'flex'; categoryBar.innerHTML = ''; Object.keys(ICON_LIB_ITEM).forEach(cat => { const btn = document.createElement('button'); btn.className = `cat-btn ${this.pickerCategory === cat ? 'active' : ''}`; const firstIconKey = Object.keys(ICON_LIB_ITEM[cat])[0]; const sampleIcon = ICON_LIB_ITEM[cat][firstIconKey] || ''; btn.innerHTML = `${sampleIcon}<span>${cat}</span>`; btn.onclick = () => { this.pickerCategory = cat; this.pickerPage = 0; this.renderIconPickerGrid(); }; categoryBar.appendChild(btn); }); } else { categoryBar.style.display = 'none'; } grid.innerHTML = ''; const start = this.pickerPage * this.pickerPageSize; const end = Math.min(start + this.pickerPageSize, keys.length); const pageKeys = keys.slice(start, end); pageKeys.forEach(key => { const div = document.createElement('div'); div.className = 'lib-icon'; div.innerHTML = `${lib[key]}<span>${key}</span>`; div.onclick = () => this.selectLibraryIcon(lib[key]); grid.appendChild(div); }); pageInfo.innerText = `Page ${this.pickerPage + 1} of ${totalPages || 1}`; prevBtn.disabled = this.pickerPage === 0; nextBtn.disabled = this.pickerPage >= totalPages - 1; }
-  selectLibraryIcon(svgHtml) { let source = svgHtml; const size = 140; if (!source.includes('xmlns')) source = source.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"'); if (source.includes('width=')) { source = source.replace(/width="[^"]*"/, `width="${size}"`).replace(/height="[^"]*"/, `height="${size}"`); } else { source = source.replace('<svg', `<svg width="${size}" height="${size}"`); } source = source.replace('<svg', '<svg fill="#4fc3f7"'); const img = new Image(); const blob = new Blob([source], {type: 'image/svg+xml;charset=utf-8'}); const url = URL.createObjectURL(blob); img.onload = () => { const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size; const ctx = canvas.getContext('2d'); if (this.pickerContext === 'item') { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, size, size); } ctx.drawImage(img, 0, 0, size, size); const dataUrl = canvas.toDataURL('image/png'); if(this.pendingFolderIcon) { const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location'); const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon; this.callHA('update_image', { item_name: markerName, image_data: dataUrl }); } this.shadowRoot.getElementById('icon-modal').style.display = 'none'; URL.revokeObjectURL(url); }; img.src = url; }
-  handleUrlIcon(url) { const img = new Image(); img.crossOrigin = "Anonymous"; img.onload = () => { const canvas = document.createElement('canvas'); canvas.width = img.width; canvas.height = img.height; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0); try { const dataUrl = canvas.toDataURL('image/jpeg'); if(this.pendingFolderIcon) { const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location'); const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon; this.callHA('update_image', { item_name: markerName, image_data: dataUrl }); } this.shadowRoot.getElementById('icon-modal').style.display = 'none'; this.shadowRoot.getElementById('icon-url-input').value = ''; } catch(e) { alert("CORS prevented saving this image. Try uploading the file directly."); } }; img.src = url; }
-  handleIconUpload(input) { const file = input.files[0]; if (!file) return; this.compressImage(file, (dataUrl) => { if(this.pendingFolderIcon) { const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location'); const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon; this.callHA('update_image', { item_name: markerName, image_data: dataUrl }); } this.shadowRoot.getElementById('icon-modal').style.display = 'none'; }); input.value = ''; }
-  compressImage(file, callback) { const reader = new FileReader(); reader.onload = (e) => { const img = new Image(); img.onload = () => { const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d'); const MAX = 1024; let w = img.width, h = img.height; if (w > h) { if (w > MAX) { h *= MAX/w; w = MAX; } } else { if (h > MAX) { w *= MAX/h; h = MAX; } } canvas.width = w; canvas.height = h; ctx.drawImage(img, 0, 0, w, h); callback(canvas.toDataURL('image/jpeg', 0.5)); }; img.src = e.target.result; }; reader.readAsDataURL(file); }
+  submitShopStock(name) { 
+      const qty = this.shopQuantities[name] || 1;
+      this.callHA('update_stock', { item_name: name, quantity: qty }); 
+      delete this.shopQuantities[name];
+  }
+  
+  enableSublocRename(btn, oldName) {
+      const header = btn.closest('.group-separator');
+      if (header.querySelector('input')) return; 
+      const titleSpan = header.querySelector('.subloc-title') || header.querySelector('span');
+      if(!titleSpan) return;
+      const input = document.createElement('input');
+      input.value = oldName;
+      input.style.background = '#222';
+      input.style.color = 'white';
+      input.style.border = '1px solid var(--primary)';
+      input.style.borderRadius = '4px';
+      input.style.padding = '4px';
+      input.style.fontSize = '14px';
+      input.style.width = '200px'; 
+      input.onclick = (e) => e.stopPropagation();
+      titleSpan.replaceWith(input);
+      input.focus();
+      let isSaving = false;
+      const save = () => {
+          if (isSaving) return;
+          isSaving = true;
+          const newVal = input.value.trim();
+          if (newVal && newVal !== oldName) {
+              const newSpan = document.createElement('span');
+              newSpan.className = 'subloc-title';
+              newSpan.innerText = newVal;
+              newSpan.style.opacity = '0.7';
+              input.replaceWith(newSpan);
+              this.callHA('update_item_details', { original_name: oldName, new_name: newVal, new_date: "", current_path: this.currentPath, is_folder: true }).catch(err => {
+                  newSpan.innerText = oldName; newSpan.style.opacity = '1'; alert("Failed to rename");
+              });
+          } else {
+              const originalSpan = document.createElement('span');
+              originalSpan.className = 'subloc-title'; originalSpan.innerText = oldName; input.replaceWith(originalSpan);
+          }
+      };
+      input.onkeydown = (e) => { if (e.key === 'Enter') input.blur(); };
+      input.onblur = () => save();
+  }
+
+  // --- ICON PICKER LOGIC WITH CATEGORIES ---
+  openIconPicker(targetName, context) {
+      this.pendingFolderIcon = targetName;
+      this.pickerContext = context; 
+      this.pickerPage = 0; 
+      
+      // Reset category for items
+      if (context === 'item') {
+          this.pickerCategory = Object.keys(ICON_LIB_ITEM)[0];
+      } else {
+          this.pickerCategory = null;
+      }
+
+      this.renderIconPickerGrid();
+      this.shadowRoot.getElementById('icon-modal').style.display = 'flex';
+  }
+
+  getCurrentPickerLib() {
+      if (this.pickerContext === 'room') return ICON_LIB_ROOM;
+      if (this.pickerContext === 'location') return ICON_LIB_LOCATION;
+      if (this.pickerContext === 'item') {
+          return ICON_LIB_ITEM[this.pickerCategory] || {};
+      }
+      return ICON_LIB;
+  }
+
+  renderIconPickerGrid() {
+      const lib = this.getCurrentPickerLib();
+      const keys = Object.keys(lib);
+      const totalPages = Math.ceil(keys.length / this.pickerPageSize);
+      
+      const grid = this.shadowRoot.getElementById('icon-lib-grid');
+      const categoryBar = this.shadowRoot.getElementById('picker-categories');
+      const pageInfo = this.shadowRoot.getElementById('picker-page-info');
+      const prevBtn = this.shadowRoot.getElementById('picker-prev');
+      const nextBtn = this.shadowRoot.getElementById('picker-next');
+
+      // Category Navigation
+      if (this.pickerContext === 'item') {
+          categoryBar.style.display = 'flex';
+          categoryBar.innerHTML = '';
+          Object.keys(ICON_LIB_ITEM).forEach(cat => {
+              const btn = document.createElement('button');
+              btn.className = `cat-btn ${this.pickerCategory === cat ? 'active' : ''}`;
+              
+              // Find a sample icon for the category button if available
+              const firstIconKey = Object.keys(ICON_LIB_ITEM[cat])[0];
+              const sampleIcon = ICON_LIB_ITEM[cat][firstIconKey] || '';
+              
+              btn.innerHTML = `${sampleIcon}<span>${cat}</span>`;
+              btn.onclick = () => {
+                  this.pickerCategory = cat;
+                  this.pickerPage = 0;
+                  this.renderIconPickerGrid();
+              };
+              categoryBar.appendChild(btn);
+          });
+      } else {
+          categoryBar.style.display = 'none';
+      }
+
+      grid.innerHTML = '';
+      const start = this.pickerPage * this.pickerPageSize;
+      const end = Math.min(start + this.pickerPageSize, keys.length);
+      const pageKeys = keys.slice(start, end);
+
+      pageKeys.forEach(key => {
+          const div = document.createElement('div');
+          div.className = 'lib-icon';
+          div.innerHTML = `${lib[key]}<span>${key}</span>`;
+          div.onclick = () => this.selectLibraryIcon(lib[key]);
+          grid.appendChild(div);
+      });
+
+      pageInfo.innerText = `Page ${this.pickerPage + 1} of ${totalPages || 1}`;
+      prevBtn.disabled = this.pickerPage === 0;
+      nextBtn.disabled = this.pickerPage >= totalPages - 1;
+  }
+
+  selectLibraryIcon(svgHtml) {
+      let source = svgHtml;
+      const size = 140; 
+      if (!source.includes('xmlns')) source = source.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+      if (source.includes('width=')) {
+          source = source.replace(/width="[^"]*"/, `width="${size}"`).replace(/height="[^"]*"/, `height="${size}"`);
+      } else {
+          source = source.replace('<svg', `<svg width="${size}" height="${size}"`);
+      }
+      source = source.replace('<svg', '<svg fill="#4fc3f7"');
+
+      const img = new Image();
+      const blob = new Blob([source], {type: 'image/svg+xml;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = size; canvas.height = size;
+          const ctx = canvas.getContext('2d');
+          if (this.pickerContext === 'item') { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, size, size); }
+          ctx.drawImage(img, 0, 0, size, size);
+          const dataUrl = canvas.toDataURL('image/png');
+          if(this.pendingFolderIcon) {
+              const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
+              const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
+              this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
+          }
+          this.shadowRoot.getElementById('icon-modal').style.display = 'none';
+          URL.revokeObjectURL(url);
+      };
+      img.src = url;
+  }
+
+  handleUrlIcon(url) {
+      const img = new Image();
+      img.crossOrigin = "Anonymous";
+      img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width; canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          try {
+              const dataUrl = canvas.toDataURL('image/jpeg');
+              if(this.pendingFolderIcon) {
+                  const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
+                  const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
+                  this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
+              }
+              this.shadowRoot.getElementById('icon-modal').style.display = 'none';
+              this.shadowRoot.getElementById('icon-url-input').value = '';
+          } catch(e) { alert("CORS prevented saving this image. Try uploading the file directly."); }
+      };
+      img.src = url;
+  }
+
+  handleIconUpload(input) {
+      const file = input.files[0]; if (!file) return;
+      this.compressImage(file, (dataUrl) => {
+          if(this.pendingFolderIcon) {
+              const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
+              const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
+              this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
+          }
+          this.shadowRoot.getElementById('icon-modal').style.display = 'none';
+      });
+      input.value = '';
+  }
+
+  compressImage(file, callback) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+              const MAX = 1024;
+              let w = img.width, h = img.height;
+              if (w > h) { if (w > MAX) { h *= MAX/w; w = MAX; } } else { if (h > MAX) { w *= MAX/h; h = MAX; } }
+              canvas.width = w; canvas.height = h;
+              ctx.drawImage(img, 0, 0, w, h);
+              callback(canvas.toDataURL('image/jpeg', 0.5));
+          };
+          img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+  }
+
   pasteItem() { this.callHA('paste_item', { target_path: this.currentPath }); }
   saveDetails(idx, oldName) { const nEl = this.shadowRoot.getElementById(`name-${idx}`); const dEl = this.shadowRoot.getElementById(`date-${idx}`); if(nEl && dEl) { this.callHA('update_item_details', { original_name: oldName, new_name: nEl.value, new_date: dEl.value }); this.expandedIdx = null; } }
   cut(name) { this.callHA('clipboard_action', {action: 'cut', item_name: name}); }
