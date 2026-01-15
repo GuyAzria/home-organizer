@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.6.5 (Bottom Navigation Update)
+// Home Organizer Ultimate - Ver 5.6.6 (Sub-Header Navigation Update)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -60,7 +60,6 @@ class HomeOrganizerPanel extends HTMLElement {
     this.content = true;
     this.attachShadow({mode: 'open'});
     
-    // Adding a generic User/Settings icon to the library for your placeholder
     ICONS.user = '<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>';
 
     this.shadowRoot.innerHTML = `
@@ -70,9 +69,33 @@ class HomeOrganizerPanel extends HTMLElement {
         .app-container { background: var(--app-bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; font-family: sans-serif; direction: rtl; }
         svg { width: 24px; height: 24px; fill: currentColor; }
         
-        .top-bar { background: #242426; padding: 10px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-shrink: 0; height: 60px; }
+        /* Main Top Bar */
+        .top-bar { background: #242426; padding: 10px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-shrink: 0; height: 60px; width: 100%; }
         
-        /* New User Button Style */
+        /* NEW: Sub-Navigation Bar (Home/Back) */
+        .sub-nav { 
+            background: #2c2c2e; 
+            border-bottom: 1px solid var(--border); 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            gap: 40px;
+            height: 40px; /* Smaller height (approx 50% relative visual weight) */
+            width: 100%; 
+            flex-shrink: 0;
+        }
+        .sub-nav .nav-btn {
+            height: 32px;
+            width: 32px;
+            padding: 4px;
+        }
+        .sub-nav .nav-btn svg {
+            width: 20px;
+            height: 20px;
+            color: #aaa;
+        }
+        .sub-nav .nav-btn:hover svg { color: var(--primary); }
+
         .user-btn { color: #888; transition: color 0.2s; }
         .user-btn:hover { color: var(--primary); }
 
@@ -85,47 +108,19 @@ class HomeOrganizerPanel extends HTMLElement {
         .main-title { font-weight: bold; font-size: 16px; }
         .sub-title { font-size: 11px; color: #aaa; direction: ltr; }
         
-        .content { flex: 1; padding: 15px; overflow-y: auto; padding-bottom: 80px; } /* Added bottom padding for nav bar */
+        .content { flex: 1; padding: 15px; overflow-y: auto; }
 
-        /* NEW: Sticky Bottom Navigation Styles */
-        .bottom-nav { 
-            position: fixed; 
-            bottom: 0; 
-            left: 0; 
-            right: 0; 
-            height: 65px; 
-            background: #242426; 
-            border-top: 1px solid var(--border); 
-            display: flex; 
-            justify-content: space-around; 
-            align-items: center; 
-            z-index: 100;
-            padding: 0 20px;
-        }
-        .bottom-nav .nav-btn {
-            flex-direction: column;
-            gap: 2px;
-            font-size: 10px;
-            border-radius: 8px;
-            padding: 5px 20px;
-            color: #aaa;
-        }
-        .bottom-nav .nav-btn:hover { background: rgba(255,255,255,0.05); color: var(--primary); }
-        .bottom-nav .nav-btn svg { width: 26px; height: 26px; }
-        
+        /* Folder/Grid/Item styles */
         .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 20px; }
         .folder-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; position: relative; }
-        
         .android-folder-icon { width: 56px; height: 56px; background: #3c4043; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #8ab4f8; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); position: relative; overflow: visible; }
         .android-folder-icon svg { width: 34px; height: 34px; }
         .android-folder-icon img { width: 38px; height: 38px; object-fit: contain; border-radius: 4px; }
-        
         .folder-delete-btn { position: absolute; top: -5px; right: -5px; background: var(--danger); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
         .folder-edit-btn { position: absolute; top: -5px; left: -5px; background: var(--primary); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
         .folder-edit-btn svg { width: 12px; height: 12px; }
         .folder-img-btn { position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%); background: #ff9800; color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
         .folder-img-btn svg { width: 12px; height: 12px; }
-
         .item-list { display: flex; flex-direction: column; gap: 5px; }
         .group-separator { color: #aaa; font-size: 14px; margin: 20px 0 10px 0; border-bottom: 1px solid #444; padding-bottom: 4px; text-transform: uppercase; font-weight: bold; display: flex; justify-content: space-between; align-items: center; min-height: 35px; cursor: pointer; }
         .group-separator:hover { background: rgba(255,255,255,0.05); }
@@ -134,33 +129,26 @@ class HomeOrganizerPanel extends HTMLElement {
         .edit-subloc-btn { background: none; border: none; color: #aaa; cursor: pointer; padding: 4px; }
         .edit-subloc-btn:hover { color: var(--primary); }
         .delete-subloc-btn { background: none; border: none; color: var(--danger); cursor: pointer; padding: 4px; }
-
         .item-row { background: #2c2c2e; margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid transparent; touch-action: pan-y; }
         .item-row.expanded { background: #3a3a3c; flex-direction: column; align-items: stretch; cursor: default; }
         .out-of-stock-frame { border: 2px solid var(--danger); }
-
         .item-main { display: flex; align-items: center; justify-content: space-between; width: 100%; cursor: pointer; }
         .item-left { display: flex; align-items: center; gap: 10px; }
         .item-icon { color: var(--primary); display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; }
         .item-thumbnail { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: #000; display: block; border: 1px solid #444; }
         .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 4px; border-radius: 20px; }
         .qty-btn { background: #444; border: none; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-        
         .add-folder-card .android-folder-icon { border: 2px dashed #4caf50; background: rgba(76, 175, 80, 0.1); color: #4caf50; }
         .add-folder-card:hover .android-folder-icon { background: rgba(76, 175, 80, 0.2); }
         .add-folder-input { width: 100%; height: 100%; border: none; background: transparent; color: white; text-align: center; font-size: 12px; padding: 5px; outline: none; }
-        
         .text-add-btn { background: none; border: none; color: var(--primary); font-size: 14px; font-weight: bold; cursor: pointer; padding: 8px 0; display: flex; align-items: center; gap: 5px; opacity: 0.8; }
         .text-add-btn:hover { opacity: 1; text-decoration: underline; }
         .group-add-row { padding: 0 10px; margin-bottom: 15px; }
-
         .add-item-btn-row { width: 100%; margin-top: 10px; }
         .add-item-btn { width: 100%; padding: 12px; background: rgba(76, 175, 80, 0.15); border: 1px dashed #4caf50; color: #4caf50; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; transition: background 0.2s; }
         .add-item-btn:hover { background: rgba(76, 175, 80, 0.3); }
-
         .expanded-details { margin-top: 10px; padding-top: 10px; border-top: 1px solid #555; display: flex; flex-direction: column; gap: 10px; }
         .detail-row { display: flex; gap: 10px; align-items: center; }
-        
         .action-btn { width: 40px; height: 40px; border-radius: 8px; border: 1px solid #555; color: #ccc; background: var(--icon-btn-bg); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 8px; }
         .action-btn:hover { background: #555; color: white; }
         .btn-danger { color: #ff8a80; border-color: #d32f2f; }
@@ -169,28 +157,25 @@ class HomeOrganizerPanel extends HTMLElement {
         .move-select { flex: 1; padding: 8px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; }
         .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
         
+        /* Modal and Category Bar styles */
         #icon-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2500; display: none; align-items: center; justify-content: center; flex-direction: column; }
         .modal-content { background: #242426; width: 95%; max-width: 450px; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 15px; max-height: 90vh; overflow-y: auto; }
         .modal-title { font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 5px; }
-        
         .category-bar { display: none; gap: 10px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 10px; scrollbar-width: thin; scrollbar-color: var(--warning) transparent; }
         .category-bar::-webkit-scrollbar { height: 4px; }
         .category-bar::-webkit-scrollbar-thumb { background: var(--warning); border-radius: 2px; }
         .cat-btn { min-width: 65px; height: 65px; background: #333; border: 2px solid var(--warning); border-radius: 8px; color: white; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; text-align: center; padding: 5px; flex-shrink: 0; transition: all 0.2s; }
         .cat-btn.active { background: var(--warning); color: #000; font-weight: bold; }
         .cat-btn svg { width: 24px; height: 24px; margin-bottom: 4px; }
-
         .icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 10px; min-height: 200px; }
         .lib-icon { background: #333; border-radius: 8px; padding: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 5px; }
         .lib-icon:hover { background: #444; }
         .lib-icon svg { width: 32px; height: 32px; fill: #ccc; }
         .lib-icon span { font-size: 10px; color: #888; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; width: 50px; text-align: center; }
-        
         .pagination-ctrls { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding: 10px 0; border-top: 1px solid #444; }
         .page-btn { background: #444; color: white; border: none; border-radius: 4px; padding: 5px 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
         .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
         .page-info { font-size: 12px; color: #aaa; }
-
         .url-input-row { display: flex; gap: 10px; margin-top: 10px; border-top: 1px solid #444; padding-top: 10px; }
         
         #camera-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: center; }
@@ -207,7 +192,6 @@ class HomeOrganizerPanel extends HTMLElement {
       
       <div class="app-container" id="app">
          <div class="top-bar">
-            <!-- Navigation buttons removed from here to make room for User menu -->
             <div style="display:flex;gap:5px">
                 <button class="nav-btn user-btn" id="btn-user-menu">${ICONS.user}</button>
             </div>
@@ -222,6 +206,12 @@ class HomeOrganizerPanel extends HTMLElement {
                 <button class="nav-btn" id="btn-search">${ICONS.search}</button>
                 <button class="nav-btn" id="btn-edit">${ICONS.edit}</button>
             </div>
+        </div>
+
+        <!-- NEW: Sub-Navigation Bar positioned under tools -->
+        <div class="sub-nav">
+             <button class="nav-btn" id="btn-home" title="Home">${ICONS.home}</button>
+             <button class="nav-btn" id="btn-up" title="Back">${ICONS.arrow_up}</button>
         </div>
         
         <div class="search-box" id="search-box">
@@ -239,15 +229,8 @@ class HomeOrganizerPanel extends HTMLElement {
         <div class="content" id="content">
             <div style="text-align:center;padding:20px;color:#888;">Loading...</div>
         </div>
-
-        <!-- NEW: Bottom Navigation Bar -->
-        <div class="bottom-nav">
-             <button class="nav-btn" id="btn-home">${ICONS.home}<span>Home</span></button>
-             <button class="nav-btn" id="btn-up">${ICONS.arrow_up}<span>Back</span></button>
-        </div>
       </div>
       
-      <!-- Icon Modal, Camera Modal, Overlay (Remained unchanged) -->
       <div id="icon-modal" onclick="this.style.display='none'">
           <div class="modal-content" onclick="event.stopPropagation()">
               <div class="modal-title">Change Icon</div>
@@ -304,36 +287,28 @@ class HomeOrganizerPanel extends HTMLElement {
     click('search-close', () => { this.isSearch = false; this.fetchData(); });
     bind('search-input', 'oninput', (e) => this.fetchData());
     click('btn-edit', () => { this.isEditMode = !this.isEditMode; this.isShopMode = false; this.render(); });
-    
     click('btn-paste', () => this.pasteItem());
-    
     click('btn-load-url', () => {
         const url = root.getElementById('icon-url-input').value;
         if(url) this.handleUrlIcon(url);
     });
     bind('icon-file-upload', 'onchange', (e) => this.handleIconUpload(e.target));
-    
     click('picker-prev', () => { if(this.pickerPage > 0) { this.pickerPage--; this.renderIconPickerGrid(); } });
     click('picker-next', () => { 
         const lib = this.getCurrentPickerLib();
         const maxPage = Math.ceil(Object.keys(lib).length / this.pickerPageSize) - 1;
         if(this.pickerPage < maxPage) { this.pickerPage++; this.renderIconPickerGrid(); } 
     });
-
     click('btn-ai-search', () => this.openCamera('search'));
     click('btn-cam-close', () => this.stopCamera());
     click('btn-cam-snap', () => this.snapPhoto());
     click('btn-cam-switch', () => this.switchCamera());
     click('btn-cam-wb', () => this.toggleWhiteBG());
-
-    // Placeholder for your User Menu logic
     click('btn-user-menu', () => {
-        // Here you can trigger your language dropdown or settings modal
-        alert("User Menu: Languages / Settings Placeholder");
+        // Dropdown/Menu logic placeholder
     });
   }
   
-  // (Rest of the helper functions remain exactly the same as ver 5.6.4)
   toggleWhiteBG() {
       this.useAiBg = !this.useAiBg;
       const btn = this.shadowRoot.getElementById('btn-cam-wb');
@@ -349,7 +324,7 @@ class HomeOrganizerPanel extends HTMLElement {
           this.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: this.facingMode || "environment" } });
           video.srcObject = this.stream;
       } catch (err) {
-          alert("Camera Error: " + err.message);
+          console.error("Camera Error", err);
           modal.style.display = 'none';
       }
   }
@@ -375,7 +350,6 @@ class HomeOrganizerPanel extends HTMLElement {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
       if (this.useAiBg) {
           let imageData = context.getImageData(0, 0, canvas.width, canvas.height);
           let data = imageData.data;
@@ -583,7 +557,7 @@ class HomeOrganizerPanel extends HTMLElement {
   getCurrentPickerLib() { if (this.pickerContext === 'room') return ICON_LIB_ROOM; if (this.pickerContext === 'location') return ICON_LIB_LOCATION; if (this.pickerContext === 'item') { return ICON_LIB_ITEM[this.pickerCategory] || {}; } return ICON_LIB; }
   renderIconPickerGrid() { const lib = this.getCurrentPickerLib(); const keys = Object.keys(lib); const totalPages = Math.ceil(keys.length / this.pickerPageSize); const grid = this.shadowRoot.getElementById('icon-lib-grid'); const categoryBar = this.shadowRoot.getElementById('picker-categories'); const pageInfo = this.shadowRoot.getElementById('picker-page-info'); const prevBtn = this.shadowRoot.getElementById('picker-prev'); const nextBtn = this.shadowRoot.getElementById('picker-next'); if (this.pickerContext === 'item') { categoryBar.style.display = 'flex'; categoryBar.innerHTML = ''; Object.keys(ICON_LIB_ITEM).forEach(cat => { const btn = document.createElement('button'); btn.className = `cat-btn ${this.pickerCategory === cat ? 'active' : ''}`; const firstIconKey = Object.keys(ICON_LIB_ITEM[cat])[0]; const sampleIcon = ICON_LIB_ITEM[cat][firstIconKey] || ''; btn.innerHTML = `${sampleIcon}<span>${cat}</span>`; btn.onclick = () => { this.pickerCategory = cat; this.pickerPage = 0; this.renderIconPickerGrid(); }; categoryBar.appendChild(btn); }); } else { categoryBar.style.display = 'none'; } grid.innerHTML = ''; const start = this.pickerPage * this.pickerPageSize; const end = Math.min(start + this.pickerPageSize, keys.length); const pageKeys = keys.slice(start, end); pageKeys.forEach(key => { const div = document.createElement('div'); div.className = 'lib-icon'; div.innerHTML = `${lib[key]}<span>${key}</span>`; div.onclick = () => this.selectLibraryIcon(lib[key]); grid.appendChild(div); }); pageInfo.innerText = `Page ${this.pickerPage + 1} of ${totalPages || 1}`; prevBtn.disabled = this.pickerPage === 0; nextBtn.disabled = this.pickerPage >= totalPages - 1; }
   selectLibraryIcon(svgHtml) { let source = svgHtml; const size = 140; if (!source.includes('xmlns')) source = source.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"'); if (source.includes('width=')) { source = source.replace(/width="[^"]*"/, `width="${size}"`).replace(/height="[^"]*"/, `height="${size}"`); } else { source = source.replace('<svg', `<svg width="${size}" height="${size}"`); } source = source.replace('<svg', '<svg fill="#4fc3f7"'); const img = new Image(); const blob = new Blob([source], {type: 'image/svg+xml;charset=utf-8'}); const url = URL.createObjectURL(blob); img.onload = () => { const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size; const ctx = canvas.getContext('2d'); if (this.pickerContext === 'item') { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, size, size); } ctx.drawImage(img, 0, 0, size, size); const dataUrl = canvas.toDataURL('image/png'); if(this.pendingFolderIcon) { const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location'); const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon; this.callHA('update_image', { item_name: markerName, image_data: dataUrl }); } this.shadowRoot.getElementById('icon-modal').style.display = 'none'; URL.revokeObjectURL(url); }; img.src = url; }
-  handleUrlIcon(url) { const img = new Image(); img.crossOrigin = "Anonymous"; img.onload = () => { const canvas = document.createElement('canvas'); canvas.width = img.width; canvas.height = img.height; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0); try { const dataUrl = canvas.toDataURL('image/jpeg'); if(this.pendingFolderIcon) { const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location'); const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon; this.callHA('update_image', { item_name: markerName, image_data: dataUrl }); } this.shadowRoot.getElementById('icon-modal').style.display = 'none'; this.shadowRoot.getElementById('icon-url-input').value = ''; } catch(e) { alert("CORS prevented saving this image. Try uploading the file directly."); } }; img.src = url; }
+  handleUrlIcon(url) { const img = new Image(); img.crossOrigin = "Anonymous"; img.onload = () => { const canvas = document.createElement('canvas'); canvas.width = img.width; canvas.height = img.height; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0); try { const dataUrl = canvas.toDataURL('image/jpeg'); if(this.pendingFolderIcon) { const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location'); const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon; this.callHA('update_image', { item_name: markerName, image_data: dataUrl }); } this.shadowRoot.getElementById('icon-modal').style.display = 'none'; this.shadowRoot.getElementById('icon-url-input').value = ''; } catch(e) { console.error("CORS Error", e); } }; img.src = url; }
   handleIconUpload(input) { const file = input.files[0]; if (!file) return; this.compressImage(file, (dataUrl) => { if(this.pendingFolderIcon) { const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location'); const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon; this.callHA('update_image', { item_name: markerName, image_data: dataUrl }); } this.shadowRoot.getElementById('icon-modal').style.display = 'none'; }); input.value = ''; }
   compressImage(file, callback) { const reader = new FileReader(); reader.onload = (e) => { const img = new Image(); img.onload = () => { const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d'); const MAX = 1024; let w = img.width, h = img.height; if (w > h) { if (w > MAX) { h *= MAX/w; w = MAX; } } else { if (h > MAX) { w *= MAX/h; h = MAX; } } canvas.width = w; canvas.height = h; ctx.drawImage(img, 0, 0, w, h); callback(canvas.toDataURL('image/jpeg', 0.5)); }; img.src = e.target.result; }; reader.readAsDataURL(file); }
   pasteItem() { this.callHA('paste_item', { target_path: this.currentPath }); }
