@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.6.8 (Restore 5.6.3 Design + Categorized Icon Picker)
+// Home Organizer Ultimate - Ver 5.6.4 (Categorized Icon Picker)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -22,9 +22,7 @@ class HomeOrganizerPanel extends HTMLElement {
       this.pickerContext = 'room'; 
       this.pickerPage = 0;
       this.pickerPageSize = 15;
-      
-      // Category State for Item Icons
-      this.selectedItemCategory = (ICON_LIB_ITEM && Object.keys(ICON_LIB_ITEM).length > 0) ? Object.keys(ICON_LIB_ITEM)[0] : "";
+      this.pickerCategory = Object.keys(ICON_LIB_ITEM)[0]; // Default to first category
 
       this.initUI();
     }
@@ -32,11 +30,6 @@ class HomeOrganizerPanel extends HTMLElement {
     if (this._hass && this._hass.connection && !this.subscribed) {
         this.subscribed = true;
         this._hass.connection.subscribeEvents((e) => this.fetchData(), 'home_organizer_db_update');
-        this._hass.connection.subscribeEvents((e) => {
-             if (e.data.mode === 'identify') {
-                 // AI logic
-             }
-        }, 'home_organizer_ai_result');
         this.fetchData();
     }
   }
@@ -91,73 +84,60 @@ class HomeOrganizerPanel extends HTMLElement {
         .folder-img-btn svg { width: 12px; height: 12px; }
 
         .item-list { display: flex; flex-direction: column; gap: 5px; }
-        .group-separator { color: #aaa; font-size: 14px; margin: 20px 0 10px 0; border-bottom: 1px solid #444; padding-bottom: 4px; text-transform: uppercase; font-weight: bold; display: flex; justify-content: space-between; align-items: center; min-height: 35px; cursor: pointer; }
+        
+        .group-separator { 
+            color: #aaa; font-size: 14px; margin: 20px 0 10px 0; 
+            border-bottom: 1px solid #444; padding-bottom: 4px; 
+            text-transform: uppercase; font-weight: bold; 
+            display: flex; justify-content: space-between; align-items: center;
+            min-height: 35px;
+            cursor: pointer; 
+        }
         .group-separator:hover { background: rgba(255,255,255,0.05); }
         .group-separator.drag-over { border-bottom: 2px solid var(--primary); color: var(--primary); background: rgba(3, 169, 244, 0.1); }
-        .oos-separator { color: var(--danger); border-color: var(--danger); }
         
-        .edit-subloc-btn { background: none; border: none; color: #aaa; cursor: pointer; padding: 4px; }
-        .delete-subloc-btn { background: none; border: none; color: var(--danger); cursor: pointer; padding: 4px; }
-
-        .item-row { background: #2c2c2e; margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid transparent; touch-action: pan-y; }
-        .item-row.expanded { background: #3a3a3c; flex-direction: column; align-items: stretch; cursor: default; }
+        .item-row { background: #2c2c2e; margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid transparent; }
+        .item-row.expanded { background: #3a3a3c; flex-direction: column; align-items: stretch; }
         .out-of-stock-frame { border: 2px solid var(--danger); }
-
-        .item-main { display: flex; align-items: center; justify-content: space-between; width: 100%; cursor: pointer; }
-        .item-left { display: flex; align-items: center; gap: 10px; }
-        .item-icon { color: var(--primary); display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; }
         .item-thumbnail { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: #000; display: block; border: 1px solid #444; }
 
         .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 4px; border-radius: 20px; }
         .qty-btn { background: #444; border: none; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         
-        .add-folder-card .android-folder-icon { border: 2px dashed #4caf50; background: rgba(76, 175, 80, 0.1); color: #4caf50; }
-        .add-folder-input { width: 100%; height: 100%; border: none; background: transparent; color: white; text-align: center; font-size: 12px; padding: 5px; outline: none; }
-        .text-add-btn { background: none; border: none; color: var(--primary); font-size: 14px; font-weight: bold; cursor: pointer; padding: 8px 0; display: flex; align-items: center; gap: 5px; opacity: 0.8; }
-        .add-item-btn { width: 100%; padding: 12px; background: rgba(76, 175, 80, 0.15); border: 1px dashed #4caf50; color: #4caf50; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; transition: background 0.2s; }
-
         .expanded-details { margin-top: 10px; padding-top: 10px; border-top: 1px solid #555; display: flex; flex-direction: column; gap: 10px; }
         .detail-row { display: flex; gap: 10px; align-items: center; }
+        
         .action-btn { width: 40px; height: 40px; border-radius: 8px; border: 1px solid #555; color: #ccc; background: var(--icon-btn-bg); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 8px; }
-        .btn-danger { color: #ff8a80; border-color: #d32f2f; }
-        .btn-text { width: auto; padding: 0 15px; font-weight: bold; color: white; background: var(--primary); border: none; height: 40px; border-radius: 8px; }
-        .move-container { display: flex; gap: 5px; align-items: center; flex: 1; }
-        .move-select { flex: 1; padding: 8px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; }
-
-        /* ICON PICKER POPUP */
-        #icon-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2500; display: none; align-items: center; justify-content: center; flex-direction: column; }
-        .modal-content { background: #242426; width: 95%; max-width: 480px; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 15px; max-height: 85vh; border: 1px solid #444; }
+        .btn-text { width: auto; padding: 0 15px; font-weight: bold; color: white; background: var(--primary); border: none; }
         
-        /* Categories row inside popup */
-        .category-scroll-area { width: 100%; overflow-x: auto; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #444; }
-        .category-row { display: flex; gap: 10px; min-width: max-content; padding: 5px; }
+        #icon-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2500; display: none; align-items: center; justify-content: center; }
+        .modal-content { background: #242426; width: 95%; max-width: 450px; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 10px; max-height: 90vh; overflow-y: auto; }
+        
+        /* Category Selector Styles */
+        .category-scroll { display: flex; gap: 8px; overflow-x: auto; padding: 5px 0 12px 0; margin-bottom: 5px; scrollbar-width: none; }
+        .category-scroll::-webkit-scrollbar { display: none; }
         .category-btn { 
-            width: 80px; height: 80px; 
-            background: #333; 
-            border: 3px solid var(--warning); /* Yellow Square Border */
-            border-radius: 8px; 
-            cursor: pointer; 
-            display: flex; flex-direction: column; align-items: center; justify-content: center; 
-            color: white; flex-shrink: 0; transition: transform 0.1s;
+          min-width: 85px; height: 45px; background: #333; color: #fff; 
+          border: 2px solid var(--warning); border-radius: 4px; 
+          cursor: pointer; font-size: 11px; font-weight: bold; 
+          display: flex; align-items: center; justify-content: center; 
+          white-space: nowrap; padding: 0 5px; flex-shrink: 0;
         }
-        .category-btn.active { background: #444; border-color: #fff; box-shadow: 0 0 10px var(--warning); transform: scale(1.05); }
-        .category-btn svg { width: 35px; height: 35px; margin-bottom: 4px; }
-        .category-btn span { font-size: 10px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; }
+        .category-btn.active { background: var(--warning); color: #000; }
 
-        .icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 12px; overflow-y: auto; flex: 1; padding: 5px; }
-        .lib-icon { background: #333; border-radius: 8px; padding: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-direction: column; border: 1px solid #444; }
-        .lib-icon svg { width: 34px; height: 34px; }
-        .lib-icon b { font-size: 9px; color: #888; margin-top: 5px; display: block; width: 100%; text-align: center; }
-
-        .pagination-ctrls { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding: 10px 0; border-top: 1px solid #444; }
-        .page-btn { background: #444; color: white; border: none; border-radius: 4px; padding: 8px 15px; cursor: pointer; }
+        .icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(65px, 1fr)); gap: 10px; min-height: 200px; }
+        .lib-icon { background: #333; border-radius: 8px; padding: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 5px; }
+        .lib-icon svg { width: 32px; height: 32px; fill: #ccc; }
+        .lib-icon span { font-size: 9px; color: #888; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; width: 55px; text-align: center; }
         
-        #camera-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: center; }
+        .pagination-ctrls { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid #444; }
+        .page-btn { background: #444; color: white; border: none; border-radius: 4px; padding: 5px 15px; cursor: pointer; }
+        .page-btn:disabled { opacity: 0.3; }
+
+        #camera-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; display: none; flex-direction: column; }
         #camera-video { width: 100%; height: 80%; object-fit: cover; }
-        .camera-controls { height: 20%; width: 100%; display: flex; align-items: center; justify-content: center; gap: 30px; background: rgba(0,0,0,0.5); position: absolute; bottom: 0; }
-        .snap-btn { width: 70px; height: 70px; border-radius: 50%; background: white; border: 5px solid #ccc; cursor: pointer; }
-        .wb-btn { color: #aaa; background: none; border: 2px solid #555; border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-direction: column; font-size: 10px; }
-        .wb-btn.active { color: #333; background: white; border-color: white; }
+        .camera-controls { height: 20%; width: 100%; display: flex; align-items: center; justify-content: center; gap: 30px; }
+        .snap-btn { width: 70px; height: 70px; border-radius: 50%; background: white; border: 5px solid #ccc; }
       </style>
       
       <div class="app-container" id="app">
@@ -177,57 +157,46 @@ class HomeOrganizerPanel extends HTMLElement {
             </div>
         </div>
         
-        <div class="search-box" id="search-box" style="display:none; padding:10px; background:#2a2a2a; gap: 5px; align-items: center;">
-            <div style="position:relative; flex:1;">
-                <input type="text" id="search-input" style="width:100%;padding:8px;padding-left:35px;border-radius:8px;background:#111;color:white;border:1px solid #333">
-                <button class="nav-btn ai-btn" id="btn-ai-search" style="position:absolute;left:0;top:0;height:100%;background:none;border:none;">${ICONS.camera}</button>
-            </div>
+        <div class="search-box" id="search-box" style="display:none; padding:10px; background:#2a2a2a; gap:5px;">
+            <input type="text" id="search-input" style="flex:1;padding:8px;border-radius:8px;background:#111;color:white;border:1px solid #333">
             <button class="nav-btn" id="search-close">${ICONS.close}</button>
         </div>
         
-        <div class="paste-bar" id="paste-bar" style="display:none;padding:10px;background:rgba(255,235,59,0.2);color:#ffeb3b;align-items:center;justify-content:space-between"><div>${ICONS.cut} Cut: <b id="clipboard-name"></b></div><button id="btn-paste" style="background:#4caf50;color:white;border:none;padding:5px 15px;border-radius:15px">Paste</button></div>
-        
-        <div class="content" id="content">
-            <div style="text-align:center;padding:20px;color:#888;">Loading...</div>
-        </div>
+        <div class="content" id="content"></div>
       </div>
       
       <div id="icon-modal" onclick="this.style.display='none'">
           <div class="modal-content" onclick="event.stopPropagation()">
-              <div class="modal-title">Change Icon</div>
+              <div style="font-weight:bold; text-align:center; margin-bottom:5px;">Select Icon</div>
               
-              <div class="category-scroll-area" id="cat-scroll" style="display:none">
-                 <div class="category-row" id="picker-categories"></div>
-              </div>
+              <div class="category-scroll" id="category-tabs" style="display:none"></div>
 
               <div class="icon-grid" id="icon-lib-grid"></div>
               
               <div class="pagination-ctrls">
                   <button class="page-btn" id="picker-prev">${ICONS.arrow_up}</button>
-                  <div id="picker-page-info" style="font-size:12px;color:#aaa">Page 1</div>
-                  <button class="page-btn" id="picker-next" style="transform: rotate(180deg)">${ICONS.arrow_up}</button>
+                  <div id="picker-page-info" style="font-size:12px; color:#aaa;">Page 1</div>
+                  <button class="page-btn" id="picker-next" style="transform:rotate(180deg)">${ICONS.arrow_up}</button>
               </div>
 
-              <div style="display:flex;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid #444">
-                  <input type="text" id="icon-url-input" placeholder="Paste Image URL..." style="flex:1;padding:8px;background:#111;color:white;border:1px solid #444;border-radius:4px">
+              <div style="display:flex; gap:10px; margin-top:10px;">
+                  <input type="text" id="icon-url-input" placeholder="Image URL..." style="flex:1;padding:8px;background:#111;color:white;border:1px solid #444;border-radius:4px">
                   <button class="action-btn" id="btn-load-url">${ICONS.check}</button>
               </div>
-              <button class="action-btn" style="width:100%;margin-top:10px;background:#444" onclick="this.closest('#icon-modal').style.display='none'">Cancel</button>
+              <button class="action-btn" style="width:100%;margin-top:10px;background:#444;color:white;border:none;" onclick="this.closest('#icon-modal').style.display='none'">Cancel</button>
           </div>
       </div>
       
       <div id="camera-modal">
           <video id="camera-video" autoplay playsinline muted></video>
           <div class="camera-controls">
-              <button class="close-cam-btn" id="btn-cam-switch">${ICONS.refresh}</button>
               <button class="snap-btn" id="btn-cam-snap"></button>
-              <button class="wb-btn active" id="btn-cam-wb" title="Toggle AI Background Removal">${ICONS.wand}<span>AI BG</span></button>
-              <button class="close-cam-btn" id="btn-cam-close" style="position:absolute;top:-50px;right:20px;background:rgba(0,0,0,0.5);border-radius:50%;width:40px;height:40px">✕</button>
+              <button class="nav-btn" id="btn-cam-close" style="color:white">✕</button>
           </div>
           <canvas id="camera-canvas" style="display:none"></canvas>
       </div>
 
-      <div class="overlay" id="img-overlay" onclick="this.style.display='none'" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:200;justify-content:center;align-items:center"><img id="overlay-img" style="max-width:90%;max-height:90%;border-radius:8px"></div>
+      <div class="overlay" id="img-overlay" onclick="this.style.display='none'" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:2000;justify-content:center;align-items:center"><img id="overlay-img" style="max-width:90%;max-height:90%;border-radius:8px"></div>
     `;
 
     this.bindEvents();
@@ -235,138 +204,19 @@ class HomeOrganizerPanel extends HTMLElement {
 
   bindEvents() {
     const root = this.shadowRoot;
-    const bind = (id, event, fn) => { const el = root.getElementById(id); if(el) el[event] = fn; };
-    const click = (id, fn) => bind(id, 'onclick', fn);
-
-    click('btn-up', () => this.navigate('up'));
-    click('btn-home', () => { this.currentPath = []; this.fetchData(); });
-    click('btn-shop', () => { this.isShopMode = !this.isShopMode; this.fetchData(); });
-    click('btn-search', () => { this.isSearch = !this.isSearch; this.render(); });
-    click('search-close', () => { this.isSearch = false; this.fetchData(); });
-    bind('search-input', 'oninput', () => this.fetchData());
-    click('btn-edit', () => { this.isEditMode = !this.isEditMode; this.render(); });
+    root.getElementById('btn-up').onclick = () => this.navigate('up');
+    root.getElementById('btn-home').onclick = () => { this.isShopMode = false; this.navigate('root'); };
+    root.getElementById('btn-shop').onclick = () => { this.isShopMode = !this.isShopMode; this.fetchData(); };
+    root.getElementById('btn-search').onclick = () => { root.getElementById('search-box').style.display = 'flex'; };
+    root.getElementById('search-close').onclick = () => { root.getElementById('search-box').style.display = 'none'; this.fetchData(); };
+    root.getElementById('btn-edit').onclick = () => { this.isEditMode = !this.isEditMode; this.render(); };
     
-    click('btn-load-url', () => {
-        const url = root.getElementById('icon-url-input').value;
-        if(url) this.handleUrlIcon(url);
-    });
-    
-    click('picker-prev', () => { if(this.pickerPage > 0) { this.pickerPage--; this.renderIconPickerGrid(); } });
-    click('picker-next', () => { 
-        const lib = this.getCurrentPickerLib();
-        const maxPage = Math.ceil(Object.keys(lib).length / this.pickerPageSize) - 1;
-        if(this.pickerPage < maxPage) { this.pickerPage++; this.renderIconPickerGrid(); } 
-    });
+    root.getElementById('picker-prev').onclick = () => { if(this.pickerPage > 0) { this.pickerPage--; this.renderIconPickerGrid(); } };
+    root.getElementById('picker-next').onclick = () => { this.pickerPage++; this.renderIconPickerGrid(); };
+    root.getElementById('btn-load-url').onclick = () => this.handleUrlIcon(root.getElementById('icon-url-input').value);
 
-    click('btn-ai-search', () => this.openCamera('search'));
-    click('btn-cam-close', () => this.stopCamera());
-    click('btn-cam-snap', () => this.snapPhoto());
-    click('btn-cam-switch', () => this.switchCamera());
-    click('btn-cam-wb', () => this.toggleWhiteBG());
-  }
-
-  openIconPicker(targetName, context) {
-      this.pendingFolderIcon = targetName;
-      this.pickerContext = context; 
-      this.pickerPage = 0; 
-
-      const scroll = this.shadowRoot.getElementById('cat-scroll');
-      if (context === 'item' && ICON_LIB_ITEM) {
-          scroll.style.display = 'block';
-          this.selectedItemCategory = Object.keys(ICON_LIB_ITEM)[0];
-      } else {
-          scroll.style.display = 'none';
-      }
-
-      this.renderIconPickerGrid();
-      this.shadowRoot.getElementById('icon-modal').style.display = 'flex';
-  }
-
-  getCurrentPickerLib() {
-      try {
-          if (this.pickerContext === 'room') return ICON_LIB_ROOM || {};
-          if (this.pickerContext === 'location') return ICON_LIB_LOCATION || {};
-          if (this.pickerContext === 'item') {
-              return (ICON_LIB_ITEM && ICON_LIB_ITEM[this.selectedItemCategory]) ? ICON_LIB_ITEM[this.selectedItemCategory] : {};
-          }
-          return ICON_LIB || {};
-      } catch (e) { return {}; }
-  }
-
-  renderIconPickerGrid() {
-      const root = this.shadowRoot;
-      const catContainer = root.getElementById('picker-categories');
-      const grid = root.getElementById('icon-lib-grid');
-      
-      if (this.pickerContext === 'item' && ICON_LIB_ITEM) {
-          catContainer.innerHTML = '';
-          Object.keys(ICON_LIB_ITEM).forEach(cat => {
-              const btn = document.createElement('button');
-              btn.className = `category-btn ${this.selectedItemCategory === cat ? 'active' : ''}`;
-              const firstKey = Object.keys(ICON_LIB_ITEM[cat])[0];
-              btn.innerHTML = `${ICON_LIB_ITEM[cat][firstKey]}<span>${cat}</span>`;
-              btn.onclick = () => {
-                  this.selectedItemCategory = cat;
-                  this.pickerPage = 0;
-                  this.renderIconPickerGrid();
-              };
-              catContainer.appendChild(btn);
-          });
-      }
-
-      const lib = this.getCurrentPickerLib();
-      const keys = Object.keys(lib);
-      const totalPages = Math.ceil(keys.length / this.pickerPageSize);
-      const start = this.pickerPage * this.pickerPageSize;
-      const pageKeys = keys.slice(start, start + this.pickerPageSize);
-
-      grid.innerHTML = '';
-      pageKeys.forEach(key => {
-          const div = document.createElement('div');
-          div.className = 'lib-icon';
-          div.innerHTML = `${lib[key]}<b>${key}</b>`;
-          div.onclick = () => this.selectLibraryIcon(lib[key]);
-          grid.appendChild(div);
-      });
-
-      root.getElementById('picker-page-info').innerText = `Page ${this.pickerPage + 1} of ${totalPages || 1}`;
-      root.getElementById('picker-prev').disabled = this.pickerPage === 0;
-      root.getElementById('picker-next').disabled = this.pickerPage >= totalPages - 1;
-  }
-
-  selectLibraryIcon(svgHtml) {
-      const size = 140; 
-      let source = svgHtml;
-      if (!source.includes('xmlns')) source = source.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
-      source = source.replace('<svg', `<svg width="${size}" height="${size}"`);
-
-      const img = new Image();
-      const blob = new Blob([source], {type: 'image/svg+xml;charset=utf-8'});
-      const url = URL.createObjectURL(blob);
-      
-      img.onload = () => {
-          const canvas = document.createElement('canvas');
-          canvas.width = size; canvas.height = size;
-          const ctx = canvas.getContext('2d');
-          if (this.pickerContext === 'item') {
-              ctx.fillStyle = '#000';
-              ctx.fillRect(0, 0, size, size);
-          }
-          ctx.drawImage(img, 0, 0, size, size);
-          const dataUrl = canvas.toDataURL('image/png');
-          const isFolder = (this.pickerContext === 'room' || this.pickerContext === 'location');
-          const markerName = isFolder ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
-          this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
-          this.shadowRoot.getElementById('icon-modal').style.display = 'none';
-          URL.revokeObjectURL(url);
-      };
-      img.src = url;
-  }
-
-  toggleWhiteBG() {
-      this.useAiBg = !this.useAiBg;
-      const btn = this.shadowRoot.getElementById('btn-cam-wb');
-      if (this.useAiBg) btn.classList.add('active'); else btn.classList.remove('active');
+    root.getElementById('btn-cam-snap').onclick = () => this.snapPhoto();
+    root.getElementById('btn-cam-close').onclick = () => this.stopCamera();
   }
 
   async openCamera(context) {
@@ -375,154 +225,213 @@ class HomeOrganizerPanel extends HTMLElement {
       const video = this.shadowRoot.getElementById('camera-video');
       modal.style.display = 'flex';
       try {
-          this.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: this.facingMode || "environment" } });
+          this.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
           video.srcObject = this.stream;
-      } catch (err) { modal.style.display = 'none'; }
+      } catch (err) { alert("Camera Error: " + err.message); modal.style.display = 'none'; }
   }
 
   stopCamera() {
+      const modal = this.shadowRoot.getElementById('camera-modal');
       if (this.stream) this.stream.getTracks().forEach(track => track.stop());
-      this.shadowRoot.getElementById('camera-modal').style.display = 'none';
-  }
-
-  async switchCamera() {
-      this.facingMode = (this.facingMode === "user") ? "environment" : "user";
-      this.stopCamera();
-      setTimeout(() => this.openCamera(this.cameraContext), 200);
+      modal.style.display = 'none';
   }
 
   snapPhoto() {
       const video = this.shadowRoot.getElementById('camera-video');
       const canvas = this.shadowRoot.getElementById('camera-canvas');
+      const context = canvas.getContext('2d');
       canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-      canvas.getContext('2d').drawImage(video, 0, 0);
+      context.drawImage(video, 0, 0);
       const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
       this.stopCamera();
-      if (this.cameraContext === 'search') this.callHA('ai_action', { mode: 'search', image_data: dataUrl });
-      else if (this.pendingItem) this.callHA('update_image', { item_name: this.pendingItem, image_data: dataUrl });
+      if (this.pendingItem) {
+          this.callHA('update_image', { item_name: this.pendingItem, image_data: dataUrl });
+          this.pendingItem = null;
+      }
   }
 
   updateUI() {
     if(!this.localData) return;
     const attrs = this.localData;
     const root = this.shadowRoot;
-    
     root.getElementById('display-title').innerText = attrs.path_display || "Organizer";
-    root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
-    root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
-    if(attrs.clipboard) root.getElementById('clipboard-name').innerText = attrs.clipboard;
+    root.getElementById('display-path').innerText = this.currentPath.join(' / ') || "Main";
     
-    const editBtn = root.getElementById('btn-edit');
-    if (this.isEditMode) editBtn.classList.add('edit-active'); else editBtn.classList.remove('edit-active');
-
     const content = root.getElementById('content');
     content.innerHTML = '';
 
-    // Folder Grid View
-    if (attrs.depth < 2) {
-        if (attrs.folders || this.isEditMode) {
-            const grid = document.createElement('div');
-            grid.className = 'folder-grid';
-            if (attrs.folders) {
-                attrs.folders.forEach(folder => {
-                    const el = document.createElement('div');
-                    el.className = 'folder-item';
-                    el.onclick = () => this.navigate('down', folder.name);
-                    const icon = folder.img ? `<img src="${folder.img}">` : ICONS.folder;
-                    const deleteBtn = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` : '';
-                    const editBtn = this.isEditMode ? `<div class="folder-edit-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'), '${folder.name}')">${ICONS.edit}</div>` : '';
-                    const imgBtn = this.isEditMode ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${folder.name}', '${attrs.depth === 0 ? 'room' : 'location'}')">${ICONS.image}</div>` : '';
-                    el.innerHTML = `<div class="android-folder-icon">${icon}${editBtn}${deleteBtn}${imgBtn}</div><div class="folder-label">${folder.name}</div>`;
-                    grid.appendChild(el);
-                });
-            }
-            if (this.isEditMode) {
-                const addBtn = document.createElement('div');
-                addBtn.className = 'folder-item add-folder-card';
-                addBtn.innerHTML = `<div class="android-folder-icon">${ICONS.plus}</div><div class="folder-label">Add</div>`;
-                addBtn.onclick = () => this.enableFolderInput(addBtn);
-                grid.appendChild(addBtn);
-            }
-            content.appendChild(grid);
-        }
+    if (attrs.shopping_list && this.isShopMode) {
+        const list = document.createElement('div');
+        list.className = 'item-list';
+        attrs.shopping_list.forEach(item => list.appendChild(this.createItemRow(item, true)));
+        content.appendChild(list);
+        return;
     }
-    
-    // Items View
+
+    if (attrs.depth < 2) {
+        const grid = document.createElement('div');
+        grid.className = 'folder-grid';
+        if (attrs.folders) {
+            attrs.folders.forEach(folder => {
+                const el = document.createElement('div');
+                el.className = 'folder-item';
+                el.onclick = () => this.navigate('down', folder.name);
+                const context = attrs.depth === 0 ? 'room' : 'location';
+                const imgBtn = this.isEditMode ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${folder.name}', '${context}')">${ICONS.image}</div>` : '';
+                el.innerHTML = `<div class="android-folder-icon">${folder.img ? `<img src="${folder.img}">` : ICONS.folder}${imgBtn}</div><div class="folder-label">${folder.name}</div>`;
+                grid.appendChild(el);
+            });
+        }
+        content.appendChild(grid);
+    } 
+
     if (attrs.items) {
         const list = document.createElement('div');
         list.className = 'item-list';
-        attrs.items.forEach(item => list.appendChild(this.createItemRow(item)));
+        attrs.items.forEach(item => list.appendChild(this.createItemRow(item, false)));
         content.appendChild(list);
-    }
-    
-    if (this.isEditMode && attrs.depth === 1) {
-         const row = document.createElement('div');
-         row.className = 'add-item-btn-row';
-         row.innerHTML = `<button class="add-item-btn" onclick="this.getRootNode().host.addQuickItem()">+ הוסף</button>`;
-         content.appendChild(row);
     }
   }
 
-  createItemRow(item) {
+  createItemRow(item, isShop) {
       const div = document.createElement('div');
       div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''}`;
-      const icon = item.img ? `<img src="${item.img}" class="item-thumbnail">` : `<div class="item-icon">${ICONS.item}</div>`;
+      const icon = item.img ? `<img src="${item.img}" class="item-thumbnail" onclick="event.stopPropagation(); this.getRootNode().host.showImg('${item.img}')">` : `<span style="color:var(--primary); width:40px; height:40px; display:flex; align-items:center; justify-content:center;">${ICONS.item}</span>`;
+      
       div.innerHTML = `
-        <div class="item-main" onclick="this.getRootNode().host.toggleRow('${item.name}')">
-            <div class="item-left">${icon}<div><div>${item.name}</div><div class="sub-title">${item.date || ''}</div></div></div>
+        <div style="display:flex; align-items:center; justify-content:space-between; width:100%; cursor:pointer;" onclick="this.getRootNode().host.toggleRow('${item.name}')">
+            <div style="display:flex; align-items:center; gap:10px;">
+                ${icon}
+                <div>
+                    <div>${item.name}</div>
+                    <div style="font-size:11px; color:#aaa;">${item.date || ''}</div>
+                </div>
+            </div>
             <div class="item-qty-ctrl">
-                <button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">-</button>
-                <span style="min-width:20px;text-align:center">${item.qty}</span>
-                <button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">+</button>
+                <button class="qty-btn" onclick="event.stopPropagation(); this.getRootNode().host.updateQty('${item.name}', 1)">${ICONS.plus}</button>
+                <span>${item.qty}</span>
+                <button class="qty-btn" onclick="event.stopPropagation(); this.getRootNode().host.updateQty('${item.name}', -1)">${ICONS.minus}</button>
             </div>
         </div>
       `;
+
       if (this.expandedIdx === item.name) {
-          const det = document.createElement('div');
-          det.className = 'expanded-details';
-          det.innerHTML = `
+          const details = document.createElement('div');
+          details.className = 'expanded-details';
+          details.innerHTML = `
             <div class="detail-row">
                 <input type="text" id="name-${item.name}" value="${item.name}" style="flex:1;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px">
-                <input type="date" id="date-${item.name}" value="${item.date}" style="width:110px;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px">
-                <button class="btn-text" onclick="this.getRootNode().host.saveDetails('${item.name}', '${item.name}')">Save</button>
+                <input type="date" value="${item.date || ''}" style="width:120px;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px">
+                <button class="btn-text" onclick="this.getRootNode().host.saveDetails('${item.name}')">Save</button>
             </div>
-            <div class="detail-row" style="justify-content:space-between">
-                <div style="display:flex;gap:10px">
-                    <button class="action-btn" title="Take Photo" onclick="this.getRootNode().host.triggerCameraEdit('${item.name}')">${ICONS.camera}</button>
-                    <button class="action-btn" title="Change Icon" onclick="this.getRootNode().host.openIconPicker('${item.name}', 'item')">${ICONS.image}</button>
-                </div>
-                <button class="action-btn btn-danger" onclick="this.getRootNode().host.del('${item.name}')">${ICONS.delete}</button>
+            <div class="detail-row" style="margin-top:10px;">
+                <button class="action-btn" onclick="this.getRootNode().host.triggerCameraEdit('${item.name}')">${ICONS.camera}</button>
+                <button class="action-btn" onclick="this.getRootNode().host.openIconPicker('${item.name}', 'item')">${ICONS.image}</button>
+                <button class="action-btn" style="color:var(--danger); border-color:var(--danger);" onclick="this.getRootNode().host.del('${item.name}')">${ICONS.delete}</button>
             </div>
           `;
-          div.appendChild(det);
+          div.appendChild(details);
       }
       return div;
   }
 
+  // --- ICON PICKER LOGIC ---
+  openIconPicker(targetName, context) {
+      this.pendingFolderIcon = targetName;
+      this.pickerContext = context;
+      this.pickerPage = 0;
+      if (context === 'item' && !this.pickerCategory) {
+          this.pickerCategory = Object.keys(ICON_LIB_ITEM)[0];
+      }
+      this.renderIconPickerGrid();
+      this.shadowRoot.getElementById('icon-modal').style.display = 'flex';
+  }
+
+  renderIconPickerGrid() {
+      const root = this.shadowRoot;
+      const grid = root.getElementById('icon-lib-grid');
+      const tabs = root.getElementById('category-tabs');
+      grid.innerHTML = '';
+      
+      let lib = {};
+      if (this.pickerContext === 'room') lib = ICON_LIB_ROOM;
+      else if (this.pickerContext === 'location') lib = ICON_LIB_LOCATION;
+      else if (this.pickerContext === 'item') {
+          tabs.style.display = 'flex';
+          tabs.innerHTML = '';
+          Object.keys(ICON_LIB_ITEM).forEach(cat => {
+              const btn = document.createElement('button');
+              btn.className = `category-btn ${this.pickerCategory === cat ? 'active' : ''}`;
+              btn.innerText = cat;
+              btn.onclick = (e) => {
+                  e.stopPropagation();
+                  this.pickerCategory = cat;
+                  this.pickerPage = 0;
+                  this.renderIconPickerGrid();
+              };
+              tabs.appendChild(btn);
+          });
+          lib = ICON_LIB_ITEM[this.pickerCategory] || {};
+      } else {
+          tabs.style.display = 'none';
+          lib = ICON_LIB;
+      }
+
+      const keys = Object.keys(lib);
+      const start = this.pickerPage * this.pickerPageSize;
+      const pageKeys = keys.slice(start, start + this.pickerPageSize);
+
+      pageKeys.forEach(key => {
+          const div = document.createElement('div');
+          div.className = 'lib-icon';
+          div.innerHTML = `${lib[key]}<span>${key}</span>`;
+          div.onclick = () => this.selectLibraryIcon(lib[key]);
+          grid.appendChild(div);
+      });
+
+      root.getElementById('picker-page-info').innerText = `Page ${this.pickerPage + 1} of ${Math.ceil(keys.length / this.pickerPageSize) || 1}`;
+      root.getElementById('picker-next').disabled = (start + this.pickerPageSize) >= keys.length;
+  }
+
+  selectLibraryIcon(svgHtml) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 140; canvas.height = 140;
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      let source = svgHtml.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg" width="140" height="140"');
+      const blob = new Blob([source], {type: 'image/svg+xml;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      img.onload = () => {
+          if (this.pickerContext === 'item') { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 140, 140); }
+          ctx.drawImage(img, 0, 0, 140, 140);
+          this.callHA('update_image', { 
+              item_name: (this.pickerContext !== 'item' ? `[Folder] ` : '') + this.pendingFolderIcon, 
+              image_data: canvas.toDataURL('image/png') 
+          });
+          this.shadowRoot.getElementById('icon-modal').style.display = 'none';
+          URL.revokeObjectURL(url);
+      };
+      img.src = url;
+  }
+
+  handleUrlIcon(url) {
+      if(!url) return;
+      this.callHA('update_image', { item_name: this.pendingFolderIcon, image_data: url });
+      this.shadowRoot.getElementById('icon-modal').style.display = 'none';
+  }
+
   navigate(dir, name) { 
-      if (dir === 'up') this.currentPath.pop(); 
-      else if (dir === 'down' && name) this.currentPath.push(name); 
+      if (dir === 'root') this.currentPath = []; 
+      else if (dir === 'up') this.currentPath.pop(); 
+      else if (dir === 'down') this.currentPath.push(name); 
       this.fetchData(); 
   }
   toggleRow(name) { this.expandedIdx = (this.expandedIdx === name) ? null : name; this.render(); }
-  render() { this.updateUI(); }
-  callHA(s, d) { return this._hass.callService('home_organizer', s, d); }
   updateQty(name, d) { this.callHA('update_qty', { item_name: name, change: d }); }
-  del(name) { this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath }); }
-  deleteFolder(name) { if(confirm(`Delete folder '${name}'?`)) this.callHA('delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); }
-  
-  saveDetails(idx, oldName) { 
-    const nEl = this.shadowRoot.getElementById(`name-${idx}`); 
-    const dEl = this.shadowRoot.getElementById(`date-${idx}`); 
-    if(nEl && dEl) {
-      this.callHA('update_item_details', { original_name: oldName, new_name: nEl.value, new_date: dEl.value, current_path: this.currentPath });
-    }
-    this.expandedIdx = null;
-  }
-  
-  triggerCameraEdit(itemName) { this.pendingItem = itemName; this.openCamera('update'); }
+  triggerCameraEdit(name) { this.pendingItem = name; this.openCamera('update'); }
+  showImg(src) { this.shadowRoot.getElementById('overlay-img').src = src; this.shadowRoot.getElementById('img-overlay').style.display = 'flex'; }
+  render() { this.updateUI(); }
+  callHA(service, data) { return this._hass.callService('home_organizer', service, data); }
 }
 
-if (!customElements.get('home-organizer-panel')) {
-    customElements.define('home-organizer-panel', HomeOrganizerPanel);
-}
+customElements.define('home-organizer-panel', HomeOrganizerPanel);
