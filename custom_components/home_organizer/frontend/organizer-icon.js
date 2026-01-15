@@ -1,7 +1,10 @@
 /**
  * Monochrome Icon Library
  * Style: Single color (default path color), 2D flat design.
- * Fixes: Merged duplicate ICON_LIB_ROOM declarations and removed duplicate keys in ICON_LIB_ITEM.
+ * * FIX LOG:
+ * 1. Resolved SyntaxError: Merged duplicate 'ICON_LIB_ITEM' declarations.
+ * 2. Deduplicated keys within ICON_LIB_ITEM.
+ * 3. Ensured valid exports for all requested libraries.
  */
 
 export const ICONS = {
@@ -52,7 +55,7 @@ export const ICON_LIB = {
 export const ICON_LIB_ROOM = {
   "Living Room": '<svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-9 14l-4-4 1.41-1.41L11 13.17V7h2v6.17l2.59-2.58L17 12l-6 6z"/></svg>',
   "Attic": '<svg viewBox="0 0 24 24"><path d="M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3zm0 2.5L17.5 11H16v8h-2v-6H10v6H8v-8H6.5L12 5.5z"/></svg>',
-  "Kids Room 1": '<svg viewBox="0 0 24 24"><path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-8-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm6 10H6v-6h12v6z"/></svg>',
+  "Kids Room 1": '<svg viewBox="0 0 24 24"><path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.1-.9-2-2-2zm-8-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm6 10H6v-6h12v6z"/></svg>',
   "Kids Room 2": '<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9v-2h2v2zm0-4H9V8h2v4zm4 4h-2v-2h2v2zm0-4h-2V8h2v4z"/></svg>',
   "Kids Room 3": '<svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14h-2v-2h2v2zm4 0h-2v-2h2v2zm0-4h-6v-2h6v2zm0-4h-6V7h6v2z"/></svg>',
   "Kitchen": '<svg viewBox="0 0 24 24"><path d="M8.1 13.34l2.83-2.83L3.91 3.5c-1.56 1.56-1.56 4.09 0 5.66l4.19 4.18zm6.78-1.81c1.53.71 3.68.21 5.27-1.38 1.91-1.91 2.28-4.65.81-6.12-1.46-1.46-4.2-1.1-6.12.81-1.59 1.59-2.09 3.74-1.38 5.27L3.7 19.87l1.41 1.41L12 14.41l6.88 6.88 1.41-1.41L13.41 12.99l1.47-1.46z"/></svg>',
@@ -79,7 +82,7 @@ export const ICON_LIB_ROOM = {
   "Staircase": '<svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H5v-4h5v-4h5V5h4v12h-5z"/></svg>',
   "Roof": '<svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>',
   "Patio": '<svg viewBox="0 0 24 24"><path d="M12 2L2 12h2v8h16v-8h2L12 2zm0 4l6 6H6l6-6zm4 12H8v-6h8v6z"/></svg>',
-  "Nursery": '<svg viewBox="0 0 24 24"><path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5 7h-2v2h-2v-2H9v-2h2V9h2v2h2v2z"/></svg>',
+  "Nursery": '<svg viewBox="0 0 24 24"><path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.1-.9-2-2-2zm-5 7h-2v2h-2v-2H9v-2h2V9h2v2h2v2z"/></svg>',
   "Mudroom": '<svg viewBox="0 0 24 24"><path d="M4 18h16v-2H4v2zm0-4h16v-2H4v2zm0-4h16V8H4v2zm0-4h16V4H4v2z"/></svg>',
   "Man Cave": '<svg viewBox="0 0 24 24"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14H5v-2h7v2zm0-4H5v-2h7v2zm7 4h-5v-6h5v6zm0-8H5V5h14v4z"/></svg>',
   "Lounge": '<svg viewBox="0 0 24 24"><path d="M4 18h16v-3c0-1.1-.9-2-2-2h-3.5C12.5 13 11 11.5 11 9.5V6H8v3.5c0 2 1.5 3.5 3.5 3.5H15v2H5v-2h1c.55 0 1-.45 1-1V9c0-1.1-.9-2-2-2H3v10c0 .55.45 1 1 1z"/></svg>',
@@ -89,7 +92,7 @@ export const ICON_LIB_ROOM = {
   "Foyer": '<svg viewBox="0 0 24 24"><path d="M19 19V5c0-1.1-.9-2-2-2H7c-1.1 0-2 .9-2 2v14H3v2h18v-2h-2zm-8-6h2v2h-2v-2z"/></svg>',
   "Deck": '<svg viewBox="0 0 24 24"><path d="M12 2L2 12h2v8h16v-8h2L12 2zm0 4l6 6H6l6-6zm4 12H8v-6h8v6z"/></svg>',
   "Corridor": '<svg viewBox="0 0 24 24"><path d="M18 4H6v16h12V4zm-2 14H8V6h8v12z"/></svg>',
-  "Cellar": '<svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6 8H6v-2h8v2zm4-4H6V8h12v2z"/></svg>'
+  "Cellar": '<svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>'
 };
 
 export const ICON_LIB_LOCATION = {
@@ -106,15 +109,15 @@ export const ICON_LIB_LOCATION = {
   "Desk": '<svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6 8h-4v-2h4v2zm2-4H8V8h8v2z"/></svg>',
   "Freezer": '<svg viewBox="0 0 24 24"><path d="M17 2H7c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 7H8V4h8v5zm0 11H8v-9h8v9z"/></svg>',
   "Safe": '<svg viewBox="0 0 24 24"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-6 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm0-4c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z"/></svg>',
-  "Suitcase": '<svg viewBox="0 0 24 24"><path d="M20 6h-3V4c0-1.11-.89-2-2-2H9c-1.11 0-2 .89-2 2v2H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zM9 4h6v2H9V4zm11 15H4V8h16v11z"/></svg>',
+  "Suitcase": '<svg viewBox="0 0 24 24"><path d="M20 6h-3V4c0-1.11-.89-2-2-2H9c-1.11 0-2 .89-2 2v2H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h16c1.1 0 2-.89 2-2V8c0-1.1-.89-2-2-2zM9 4h6v2H9V4zm11 15H4V8h16v11z"/></svg>',
   "Table": '<svg viewBox="0 0 24 24"><path d="M22 7H2v2h2v9h2v-9h12v9h2V9h2V7z"/></svg>',
-  "Trunk": '<svg viewBox="0 0 24 24"><path d="M20 6h-3V4c0-1.11-.89-2-2-2H9c-1.11 0-2 .89-2 2v2H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zM9 4h6v2H9V4zm11 15H4V8h16v11z"/></svg>',
+  "Trunk": '<svg viewBox="0 0 24 24"><path d="M20 6h-3V4c0-1.11-.89-2-2-2H9c-1.11 0-2 .89-2 2v2H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h16c1.1 0 2-.89 2-2V8c0-1.11-.89-2-2-2zM9 4h6v2H9V4zm11 15H4V8h16v11z"/></svg>',
   "Wardrobe": '<svg viewBox="0 0 24 24"><path d="M12 2C9.24 2 7 4.24 7 7v10H4v4h16v-4h-3V7c0-2.76-2.24-5-5-5zm-3 5c0-1.66 1.34-3 3-3s3 1.34 3 3v2h-6V7zm10 12H5v-2h14v2zm-2-4H7V7h10v8z"/></svg>',
   "Workbench": '<svg viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>',
   "Wall Unit": '<svg viewBox="0 0 24 24"><path d="M4 18h16v-2H4v2zm0-4h16v-2H4v2zm0-4h16V8H4v2zm0-4h16V4H4v2z"/></svg>',
   "Vanity": '<svg viewBox="0 0 24 24"><path d="M20 13V4.83C20 3.27 18.73 2 17.17 2c-.75 0-1.47.3-2 .83l-3.52 3.52c-.63-.63-1.66-.63-2.29 0l-.32.32c-.63.63-.63 1.66 0 2.29l.32.32c.63.63 1.66.63 2.29 0l3.52-3.52c.53-.53 1.25-.83 2-.83 1.56 0 2.83 1.27 2.83 2.83V13h-9.9l-2.6 2.6L12 20.08l4.08-4.08H20zM3 13c0 2.21 1.79 4 4 4h6l-6-6H3z"/></svg>',
   "Under Bed": '<svg viewBox="0 0 24 24"><path d="M20 10V7c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v3c-1.1 0-2 .9-2 2v5h1.33L4 19h1l.67-2h12.67l.66 2h1l.67-2H22v-5c0-1.1-.9-2-2-2zm-9 0H6V7h5v3zm7 0h-5V7h5v3z"/></svg>',
-  "Tool Box": '<svg viewBox="0 0 24 24"><path d="M20 6h-3V4c0-1.11-.89-2-2-2H9c-1.11 0-2 .89-2 2v2H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zM9 4h6v2H9V4zm11 15H4V8h16v11z"/></svg>',
+  "Tool Box": '<svg viewBox="0 0 24 24"><path d="M20 6h-3V4c0-1.11-.89-2-2-2H9c-1.11 0-2 .89-2 2v2H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h16c1.1 0 2-.89 2-2V8c0-1.11-.89-2-2-2zM9 4h6v2H9V4zm11 15H4V8h16v11z"/></svg>',
   "Storage Unit": '<svg viewBox="0 0 24 24"><path d="M20 18H4v-2h16v2zm0-5H4v-2h16v2zm0-5H4V6h16v2z"/></svg>',
   "Spice Rack": '<svg viewBox="0 0 24 24"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h16v2H4v-2z"/></svg>',
   "Sink": '<svg viewBox="0 0 24 24"><path d="M20 13V4.83C20 3.27 18.73 2 17.17 2c-.75 0-1.47.3-2 .83l-3.52 3.52c-.63-.63-1.66-.63-2.29 0l-.32.32c-.63.63-.63 1.66 0 2.29l.32.32c.63.63 1.66.63 2.29 0l3.52-3.52c.53-.53 1.25-.83 2-.83 1.56 0 2.83 1.27 2.83 2.83V13h-9.9l-2.6 2.6L12 20.08l4.08-4.08H20zM3 13c0 2.21 1.79 4 4 4h6l-6-6H3z"/></svg>',
@@ -128,9 +131,8 @@ export const ICON_LIB_LOCATION = {
   "Bookcase": '<svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"/></svg>'
 };
 
-
 export const ICON_LIB_ITEM = {
-  // CLOTHING (1-25)
+  // CLOTHING
   "T-Shirt": '<svg viewBox="0 0 24 24"><path d="M21 5l-4-2-5 3-5-3-4 2v5h3v9h12v-9h3zM6 8v8h12V8l-3-2-3 2-3-2z"/></svg>',
   "Jeans": '<svg viewBox="0 0 24 24"><path d="M6 2l12 0 2 18-7 2-7-2zM7 4l10 0 1.5 14-4 1-4-1z"/></svg>',
   "Dress": '<svg viewBox="0 0 24 24"><path d="M9 2L5 6l2 14h10l2-14-4-4zM10 4l-3 3 1.5 12h7l1.5-12-3-3z"/></svg>',
@@ -157,7 +159,7 @@ export const ICON_LIB_ITEM = {
   "Bathrobe": '<svg viewBox="0 0 24 24"><path d="M12 2l-8 3v15h16V5l-8-3zm0 2l6 2.25V18l-3 0-3-4-3 4-3 0V6.25L12 4z"/></svg>',
   "Swimsuit": '<svg viewBox="0 0 24 24"><path d="M6 4h12v14s-3 2-6 2-6-2-6-2z"/></svg>',
 
-  // GROCERIES - PRODUCE (26-50)
+  // PRODUCE
   "Apple": '<svg viewBox="0 0 24 24"><path d="M12 2c-4.97 0-9 4.03-9 9 0 4.17 2.84 7.67 6.69 8.69L12 22l2.31-2.31C18.16 18.67 21 15.17 21 11c0-4.97-4.03-9-9-9zm0 16c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>',
   "Banana": '<svg viewBox="0 0 24 24"><path d="M19 3s-4 1-8 5-5 9-5 13c5-1 9-5 11-9s2-9 2-9z"/></svg>',
   "Carrot": '<svg viewBox="0 0 24 24"><path d="M21 3L11 13 4 20l-1 1 1-1 7-10 10-10z"/></svg>',
@@ -184,7 +186,7 @@ export const ICON_LIB_ITEM = {
   "Blueberry": '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg>',
   "Cherry": '<svg viewBox="0 0 24 24"><circle cx="8" cy="16" r="4"/><circle cx="16" cy="16" r="4"/><path d="M10 13l2-6 2 6"/></svg>',
 
-  // GROCERIES - PANTRY & LIQUIDS (51-75)
+  // PANTRY
   "Milk": '<svg viewBox="0 0 24 24"><path d="M18 2h-8L7 5v17h10V5L18 2zm-4 10h-2V8h2v4z"/></svg>',
   "Bread": '<svg viewBox="0 0 24 24"><path d="M21 4H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"/></svg>',
   "Cheese": '<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>',
@@ -211,7 +213,7 @@ export const ICON_LIB_ITEM = {
   "Chocolate": '<svg viewBox="0 0 24 24"><path d="M19 6h-3c0-2.21-1.79-4-4-4S8 3.79 8 6H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"/></svg>',
   "Cookies": '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
 
-  // HOUSEHOLD TOOLS & MISC (76-115)
+  // HOUSEHOLD TOOLS & MISC
   "Hammer": '<svg viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>',
   "Screwdriver": '<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"/></svg>',
   "Wrench": '<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-10 10l2 0a8 8 0 0 1 16 0l2 0a10 10 0 0 0-10-10z"/></svg>',
@@ -220,7 +222,7 @@ export const ICON_LIB_ITEM = {
   "Glue": '<svg viewBox="0 0 24 24"><path d="M18 4h-1V2h-2v2H9V2H7v2H6c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"/></svg>',
   "Batteries": '<svg viewBox="0 0 24 24"><path d="M16 6h-1V4h-6v2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"/></svg>',
   "Lightbulb": '<svg viewBox="0 0 24 24"><path d="M12 2C7.03 2 3 6.03 3 11c0 3.31 1.69 6.24 4.28 8h9.44C19.31 17.24 21 14.31 21 11c0-4.97-4.03-9-9-9z"/></svg>',
-  "Extension Cord": '<svg viewBox="0 0 24 24"><path d="M20 6h-3V4c0-1.11-.89-2-2-2H9c-1.11 0-2 .89-2 2v2H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2z"/></svg>',
+  "Extension Cord": '<svg viewBox="0 0 24 24"><path d="M20 6h-3V4c0-1.11-.89-2-2-2H9c-1.11 0-2 .89-2 2v2H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.1-.89-2-2-2z"/></svg>',
   "Soap": '<svg viewBox="0 0 24 24"><path d="M18 4h-1V2h-2v2H9V2H7v2H6c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"/></svg>',
   "Shampoo": '<svg viewBox="0 0 24 24"><path d="M18 4h-1V2h-2v2H9V2H7v2H6c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"/></svg>',
   "Toothbrush": '<svg viewBox="0 0 24 24"><path d="M18 4h-1V2h-2v2H9V2H7v2H6c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"/></svg>',
@@ -236,7 +238,7 @@ export const ICON_LIB_ITEM = {
   "Ironing Board": '<svg viewBox="0 0 24 24"><path d="M22 7H2v2h2v9h2v-9h12v9h2V9h2V7z"/></svg>',
   "Clothespin": '<svg viewBox="0 0 24 24"><path d="M12 2C9.24 2 7 4.24 7 7v10H4v4h16v-4h-3V7c0-2.76-2.24-5-5-5z"/></svg>',
   "Trash Bag": '<svg viewBox="0 0 24 24"><path d="M19 6h-3c0-2.21-1.79-4-4-4S8 3.79 8 6H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"/></svg>',
-  "Toolkit": '<svg viewBox="0 0 24 24"><path d="M20 6h-3V4c0-1.11-.89-2-2-2H9c-1.11 0-2 .89-2 2v2H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2z"/></svg>',
+  "Toolkit": '<svg viewBox="0 0 24 24"><path d="M20 6h-3V4c0-1.11-.89-2-2-2H9c-1.11 0-2 .89-2 2v2H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h16c1.1 0 2-.89 2-2V8c0-1.11-.89-2-2-2z"/></svg>',
   "Nails": '<svg viewBox="0 0 24 24"><path d="M12 2C9.24 2 7 4.24 7 7v10H4v4h16v-4h-3V7c0-2.76-2.24-5-5-5z"/></svg>',
   "Screws": '<svg viewBox="0 0 24 24"><path d="M12 2C9.24 2 7 4.24 7 7v10H4v4h16v-4h-3V7c0-2.76-2.24-5-5-5z"/></svg>',
   "Plant": '<svg viewBox="0 0 24 24"><path d="M12 2c-4.97 0-9 4.03-9 9 0 4.17 2.84 7.67 6.69 8.69L12 22l2.31-2.31C18.16 18.67 21 15.17 21 11c0-4.97-4.03-9-9-9z"/></svg>',
@@ -244,13 +246,12 @@ export const ICON_LIB_ITEM = {
   "Watering Can": '<svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>',
   "Remote": '<svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>',
   "Keys": '<svg viewBox="0 0 24 24"><path d="M12 2C9.24 2 7 4.24 7 7v10H4v4h16v-4h-3V7c0-2.76-2.24-5-5-5z"/></svg>',
-  "Wallet": '<svg viewBox="0 0 24 24"><path d="M20 6h-3V4c0-1.11-.89-2-2-2H9c-1.11 0-2 .89-2 2v2H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.1-.89-2-2-2z"/></svg>',
+  "Wallet": '<svg viewBox="0 0 24 24"><path d="M20 6h-3V4c0-1.11-.89-2-2-2H9c-1.11 0-2 .89-2 2v2H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h16c1.1 0 2-.89 2-2V8c0-1.11-.89-2-2-2z"/></svg>',
   "Glasses": '<svg viewBox="0 0 24 24"><path d="M12 2C9.24 2 7 4.24 7 7v10H4v4h16v-4h-3V7c0-2.76-2.24-5-5-5z"/></svg>',
   "Umbrella": '<svg viewBox="0 0 24 24"><path d="M12 2C9.24 2 7 4.24 7 7v10H4v4h16v-4h-3V7c0-2.76-2.24-5-5-5z"/></svg>',
-  "Backpack": '<svg viewBox="0 0 24 24"><path d="M20 6h-3V4c0-1.11-.89-2-2-2H9c-1.11 0-2 .89-2 2v2H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.1-.89-2-2-2z"/></svg>',
-  "Suitcase": '<svg viewBox="0 0 24 24"><path d="M20 6h-3V4c0-1.11-.89-2-2-2H9c-1.11 0-2 .89-2 2v2H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.1-.89-2-2-2z"/></svg>',
+  "Backpack": '<svg viewBox="0 0 24 24"><path d="M20 6h-3V4c0-1.11-.89-2-2-2H9c-1.11 0-2 .89-2 2v2H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h16c1.1 0 2-.89 2-2V8c0-1.1-.89-2-2-2z"/></svg>',
+  "Suitcase": '<svg viewBox="0 0 24 24"><path d="M20 6h-3V4c0-1.11-.89-2-2-2H9c-1.11 0-2 .89-2 2v2H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h16c1.1 0 2-.89 2-2V8c0-1.1-.89-2-2-2z"/></svg>',
   "Mirror": '<svg viewBox="0 0 24 24"><path d="M12 2C9.24 2 7 4.24 7 7v10H4v4h16v-4h-3V7c0-2.76-2.24-5-5-5z"/></svg>',
   "Vase": '<svg viewBox="0 0 24 24"><path d="M12 2C9.24 2 7 4.24 7 7v10H4v4h16v-4h-3V7c0-2.76-2.24-5-5-5z"/></svg>',
   "Candle": '<svg viewBox="0 0 24 24"><path d="M12 2C9.24 2 7 4.24 7 7v10H4v4h16v-4h-3V7c0-2.76-2.24-5-5-5z"/></svg>'
 };
-
