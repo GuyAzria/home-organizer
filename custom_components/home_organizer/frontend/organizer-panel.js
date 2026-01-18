@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.6.9 (Grid Details View Update)
+// Home Organizer Ultimate - Ver 5.7.0 (Auto-Save & Date Layout)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -861,9 +861,19 @@ class HomeOrganizerPanel extends HTMLElement {
 
          details.innerHTML = `
             <div class="detail-row">
-                <input type="text" id="name-${item.name}" value="${item.name}" style="flex:1;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px">
-                <input type="date" id="date-${item.name}" value="${item.date}" style="width:110px;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px">
-                <button class="action-btn btn-text" onclick="this.getRootNode().host.saveDetails('${item.name}', '${item.name}')">Save</button>
+                <input type="text" id="name-${item.name}" value="${item.name}" 
+                    style="flex:1;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px;margin-left:5px"
+                    onblur="this.getRootNode().host.autoSaveItem('${item.name}', 'name')"
+                    onkeydown="if(event.key==='Enter') this.blur()">
+                
+                <button class="action-btn" style="width:30px;height:30px;padding:0;margin-right:5px" title="Set Today"
+                    onclick="this.getRootNode().host.setDateToday('${item.name}')">
+                    ${ICONS.refresh}
+                </button>
+
+                <input type="date" id="date-${item.name}" value="${item.date}" 
+                    style="width:110px;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px"
+                    onchange="this.getRootNode().host.autoSaveItem('${item.name}', 'date')">
             </div>
             <div class="detail-row" style="justify-content:space-between; margin-top:10px;">
                  <div style="display:flex;gap:10px;">
@@ -881,6 +891,33 @@ class HomeOrganizerPanel extends HTMLElement {
          div.appendChild(details);
      }
      return div;
+  }
+  
+  autoSaveItem(oldName, triggerType) {
+      const nameEl = this.shadowRoot.getElementById(`name-${oldName}`);
+      const dateEl = this.shadowRoot.getElementById(`date-${oldName}`);
+      if(!nameEl || !dateEl) return;
+      
+      const newName = nameEl.value.trim();
+      const newDate = dateEl.value;
+      
+      if(triggerType === 'name' && newName !== oldName) {
+           this.expandedIdx = newName; 
+      }
+      
+      this.callHA('update_item_details', { 
+          original_name: oldName, 
+          new_name: newName, 
+          new_date: newDate 
+      });
+  }
+
+  setDateToday(name) {
+      const el = this.shadowRoot.getElementById(`date-${name}`);
+      if(el) {
+          el.value = new Date().toISOString().split('T')[0];
+          this.autoSaveItem(name, 'date');
+      }
   }
   
   updateLocationDropdown(itemName, roomName) {
@@ -1139,7 +1176,9 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   pasteItem() { this.callHA('paste_item', { target_path: this.currentPath }); }
-  saveDetails(idx, oldName) { const nEl = this.shadowRoot.getElementById(`name-${idx}`); const dEl = this.shadowRoot.getElementById(`date-${idx}`); if(nEl && dEl) { this.callHA('update_item_details', { original_name: oldName, new_name: nEl.value, new_date: dEl.value }); this.expandedIdx = null; } }
+  
+  // saveDetails REMOVED in favor of autoSaveItem
+  
   cut(name) { this.callHA('clipboard_action', {action: 'cut', item_name: name}); }
   del(name) { this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: false }); }
   showImg(src) { const ov = this.shadowRoot.getElementById('overlay-img'); const ovc = this.shadowRoot.getElementById('img-overlay'); if(ov && ovc) { ov.src = src; ovc.style.display = 'flex'; } }
