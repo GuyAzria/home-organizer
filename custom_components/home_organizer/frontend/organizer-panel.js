@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.6.7 (Full Layout & Logic Restore)
+// Home Organizer Ultimate - Ver 5.6.8 (Grid View Update)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -11,6 +11,7 @@ class HomeOrganizerPanel extends HTMLElement {
       this.isEditMode = false;
       this.isSearch = false;
       this.isShopMode = false;
+      this.viewMode = 'list'; // New state: 'list' or 'grid'
       this.expandedIdx = null;
       this.lastAI = "";
       this.localData = null; 
@@ -66,20 +67,25 @@ class HomeOrganizerPanel extends HTMLElement {
         .app-container { background: var(--app-bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; font-family: sans-serif; direction: rtl; }
         svg { width: 24px; height: 24px; fill: currentColor; }
         
-        /* Bar Layouts */
+        /* --- Top Bar & Sub Bar Styles --- */
         .top-bar { background: #242426; padding: 10px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-shrink: 0; height: 60px; position: relative; }
-        .sub-bar { background: #2a2a2c; height: 30px; display: flex; align-items: center; padding: 0 10px; border-bottom: 1px solid var(--border); gap: 15px; flex-shrink: 0; }
         
+        /* Sub-bar: 50% smaller height (30px), Flex layout for Left/Right alignment */
+        .sub-bar { background: #2a2a2c; height: 30px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+        
+        .sub-bar-left { display: flex; align-items: center; }
+        .sub-bar-right { display: flex; align-items: center; gap: 10px; }
+
         .nav-btn { background: none; border: none; color: var(--primary); cursor: pointer; padding: 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
         .nav-btn:hover { background: rgba(255,255,255,0.1); }
         .nav-btn.active { color: var(--warning); }
         .nav-btn.edit-active { color: var(--accent); } 
+        
+        /* Smaller buttons for sub-bar */
+        .sub-bar .nav-btn { padding: 4px; }
+        .sub-bar .nav-btn svg { width: 20px; height: 20px; }
 
-        /* Sub-bar specific button sizing */
-        .sub-bar .nav-btn { padding: 2px; }
-        .sub-bar .nav-btn svg { width: 18px; height: 18px; }
-
-        /* Setup Dropdown Styles */
+        /* Setup Dropdown */
         .setup-wrapper { position: relative; display: flex; align-items: center; }
         .setup-dropdown { 
             position: absolute; top: 50px; right: 0; background: #2c2c2e; border: 1px solid var(--border); 
@@ -96,6 +102,7 @@ class HomeOrganizerPanel extends HTMLElement {
         .sub-title { font-size: 11px; color: #aaa; direction: ltr; }
         .content { flex: 1; padding: 15px; overflow-y: auto; }
         
+        /* --- Folders & Grid --- */
         .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 20px; }
         .folder-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; position: relative; }
         
@@ -103,12 +110,14 @@ class HomeOrganizerPanel extends HTMLElement {
         .android-folder-icon svg { width: 34px; height: 34px; }
         .android-folder-icon img { width: 38px; height: 38px; object-fit: contain; border-radius: 4px; }
         
+        /* Folder Action Buttons */
         .folder-delete-btn { position: absolute; top: -5px; right: -5px; background: var(--danger); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
         .folder-edit-btn { position: absolute; top: -5px; left: -5px; background: var(--primary); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
         .folder-edit-btn svg { width: 12px; height: 12px; }
         .folder-img-btn { position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%); background: #ff9800; color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
         .folder-img-btn svg { width: 12px; height: 12px; }
 
+        /* --- List View Styles --- */
         .item-list { display: flex; flex-direction: column; gap: 5px; }
         
         .group-separator { 
@@ -140,6 +149,28 @@ class HomeOrganizerPanel extends HTMLElement {
         .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 4px; border-radius: 20px; }
         .qty-btn { background: #444; border: none; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         
+        /* --- NEW XL GRID STYLES --- */
+        .xl-grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 10px; }
+        .xl-card { 
+            background: #2c2c2e; border-radius: 12px; padding: 10px; 
+            display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+            aspect-ratio: 1; position: relative; border: 1px solid transparent;
+        }
+        .xl-card:hover { background: #3a3a3c; }
+        .xl-icon-area { flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; overflow: hidden; }
+        .xl-icon-area svg { width: 48px; height: 48px; color: var(--primary); }
+        .xl-icon-area img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
+        .xl-badge { 
+            position: absolute; top: 8px; right: 8px; 
+            background: rgba(0,0,0,0.6); color: white; border: 1px solid #555;
+            min-width: 24px; height: 24px; border-radius: 12px; 
+            display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; 
+        }
+        .xl-info { width: 100%; text-align: center; margin-top: 8px; }
+        .xl-name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+        .xl-date { font-size: 10px; color: #888; margin-top: 2px; }
+
+        /* --- Editing & Inputs --- */
         .add-folder-card .android-folder-icon { border: 2px dashed #4caf50; background: rgba(76, 175, 80, 0.1); color: #4caf50; }
         .add-folder-card:hover .android-folder-icon { background: rgba(76, 175, 80, 0.2); }
         .add-folder-input { width: 100%; height: 100%; border: none; background: transparent; color: white; text-align: center; font-size: 12px; padding: 5px; outline: none; }
@@ -163,6 +194,7 @@ class HomeOrganizerPanel extends HTMLElement {
         .move-select { flex: 1; padding: 8px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; }
         .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
         
+        /* --- Modals --- */
         #icon-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2500; display: none; align-items: center; justify-content: center; flex-direction: column; }
         .modal-content { background: #242426; width: 95%; max-width: 450px; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 15px; max-height: 90vh; overflow-y: auto; }
         .modal-title { font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 5px; }
@@ -201,6 +233,7 @@ class HomeOrganizerPanel extends HTMLElement {
       </style>
       
       <div class="app-container" id="app">
+        <!-- Main Top Bar (60px) -->
         <div class="top-bar">
             <div class="setup-wrapper">
                 <button class="nav-btn" id="btn-user-setup">
@@ -223,9 +256,19 @@ class HomeOrganizerPanel extends HTMLElement {
             </div>
         </div>
 
+        <!-- Sub-Bar (30px) -->
         <div class="sub-bar">
-            <button class="nav-btn" id="btn-home">${ICONS.home}</button>
-            <button class="nav-btn" id="btn-up">${ICONS.arrow_up}</button>
+            <div class="sub-bar-left">
+                <!-- View Toggle Button (Hidden unless depth >= 2) -->
+                <button class="nav-btn" id="btn-view-toggle" style="display:none;">
+                   <svg id="icon-view-grid" viewBox="0 0 24 24" style="display:block"><path d="M3,11H11V3H3M3,21H11V13H3M13,21H21V13H13M13,3V11H21V3"/></svg>
+                   <svg id="icon-view-list" viewBox="0 0 24 24" style="display:none"><path d="M3,4H21V6H3M3,8H21V10H3M3,12H21V14H3M3,16H21V18H3M3,20H21V22H3"/></svg>
+                </button>
+            </div>
+            <div class="sub-bar-right">
+                <button class="nav-btn" id="btn-home">${ICONS.home}</button>
+                <button class="nav-btn" id="btn-up">${ICONS.arrow_up}</button>
+            </div>
         </div>
         
         <div class="search-box" id="search-box">
@@ -245,6 +288,7 @@ class HomeOrganizerPanel extends HTMLElement {
         </div>
       </div>
       
+      <!-- Icon Modal -->
       <div id="icon-modal" onclick="this.style.display='none'">
           <div class="modal-content" onclick="event.stopPropagation()">
               <div class="modal-title">Change Icon</div>
@@ -269,6 +313,7 @@ class HomeOrganizerPanel extends HTMLElement {
           </div>
       </div>
       
+      <!-- Camera Modal -->
       <div id="camera-modal">
           <video id="camera-video" autoplay playsinline muted></video>
           <div class="camera-controls">
@@ -315,6 +360,21 @@ class HomeOrganizerPanel extends HTMLElement {
     bind('search-input', 'oninput', (e) => this.fetchData());
     click('btn-edit', () => { this.isEditMode = !this.isEditMode; this.isShopMode = false; this.render(); });
     
+    // View Toggle
+    click('btn-view-toggle', () => {
+        this.viewMode = (this.viewMode === 'list') ? 'grid' : 'list';
+        const gridIcon = root.getElementById('icon-view-grid');
+        const listIcon = root.getElementById('icon-view-list');
+        if (this.viewMode === 'grid') {
+            gridIcon.style.display = 'none';
+            listIcon.style.display = 'block';
+        } else {
+            gridIcon.style.display = 'block';
+            listIcon.style.display = 'none';
+        }
+        this.render();
+    });
+
     click('btn-paste', () => this.pasteItem());
     click('btn-load-url', () => {
         const url = root.getElementById('icon-url-input').value;
@@ -339,7 +399,6 @@ class HomeOrganizerPanel extends HTMLElement {
   changeLanguage(lang) {
       console.log("Language change requested:", lang);
       this.shadowRoot.getElementById('setup-dropdown-menu').classList.remove('show');
-      // Logic for actual language swap would go here if defined in backend
   }
   
   toggleWhiteBG() {
@@ -425,6 +484,10 @@ class HomeOrganizerPanel extends HTMLElement {
     const content = root.getElementById('content');
     content.innerHTML = '';
 
+    // SHOW/HIDE VIEW BUTTON based on depth
+    const viewBtn = root.getElementById('btn-view-toggle');
+    if (attrs.depth >= 2) viewBtn.style.display = 'block'; else viewBtn.style.display = 'none';
+
     if (attrs.shopping_list && attrs.shopping_list.length > 0) {
         const listContainer = document.createElement('div');
         listContainer.className = 'item-list';
@@ -501,6 +564,7 @@ class HomeOrganizerPanel extends HTMLElement {
              content.appendChild(addBtn);
         }
     } else {
+        // LOCATION LEVEL (Depth 2+)
         const listContainer = document.createElement('div');
         listContainer.className = 'item-list';
         const inStock = [], outOfStock = [];
@@ -513,16 +577,19 @@ class HomeOrganizerPanel extends HTMLElement {
             if(!grouped[sub]) grouped[sub] = [];
             grouped[sub].push(item);
         });
+        
         Object.keys(grouped).sort().forEach(subName => {
             if (subName === "General" && grouped[subName].length === 0 && !this.isEditMode) return;
             const isExpanded = this.expandedSublocs.has(subName);
             const count = grouped[subName].length;
             const icon = isExpanded ? ICONS.chevron_down : ICONS.chevron_right;
             const countBadge = `<span style="font-size:12px; background:#444; padding:2px 6px; border-radius:10px; margin-left:8px;">${count}</span>`;
+            
             const header = document.createElement('div');
             header.className = 'group-separator';
             this.setupDropTarget(header, subName);
             header.onclick = () => this.toggleSubloc(subName);
+            
             if (this.isEditMode && subName !== "General") {
                 header.innerHTML = `
                     <div style="display:flex;align-items:center;">
@@ -538,8 +605,40 @@ class HomeOrganizerPanel extends HTMLElement {
                 header.innerHTML = `<div style="display:flex;align-items:center;"><span style="margin-right:5px;display:flex;align-items:center">${icon}</span><span>${subName}</span>${countBadge}</div>`;
             }
             listContainer.appendChild(header);
+
             if (isExpanded) {
-                grouped[subName].forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
+                // RENDER GRID OR LIST BASED ON VIEW MODE
+                if (this.viewMode === 'grid' && grouped[subName].length > 0) {
+                     const gridDiv = document.createElement('div');
+                     gridDiv.className = 'xl-grid-container';
+                     grouped[subName].forEach(item => {
+                         const card = document.createElement('div');
+                         card.className = 'xl-card';
+                         card.onclick = () => { 
+                             // Clicking grid item returns to list view and expands item
+                             this.viewMode = 'list';
+                             this.expandedIdx = item.name;
+                             this.render();
+                         };
+                         
+                         let iconHtml = ICONS.item;
+                         if (item.img) iconHtml = `<img src="${item.img}">`;
+                         
+                         card.innerHTML = `
+                             <div class="xl-icon-area">${iconHtml}</div>
+                             <div class="xl-badge">${item.qty}</div>
+                             <div class="xl-info">
+                                 <div class="xl-name">${item.name}</div>
+                                 <div class="xl-date">${item.date || ''}</div>
+                             </div>
+                         `;
+                         gridDiv.appendChild(card);
+                     });
+                     listContainer.appendChild(gridDiv);
+                } else {
+                    grouped[subName].forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
+                }
+
                 if (this.isEditMode) {
                      const addRow = document.createElement('div');
                      addRow.className = "group-add-row";
@@ -758,7 +857,7 @@ class HomeOrganizerPanel extends HTMLElement {
   navigate(dir, name) { 
       if (dir === 'root') this.currentPath = []; 
       else if (dir === 'up') this.currentPath.pop(); 
-      else if (dir === 'down' && name) this.currentPath.push(name); 
+      else if (dir === 'down') this.currentPath.push(name); 
       this.expandedSublocs.clear();
       this.fetchData(); 
   }
