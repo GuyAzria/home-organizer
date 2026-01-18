@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.6.8 (Grid View Update)
+// Home Organizer Ultimate - Ver 5.6.9 (Grid Details View Update)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -157,7 +157,7 @@ class HomeOrganizerPanel extends HTMLElement {
             aspect-ratio: 1; position: relative; border: 1px solid transparent;
         }
         .xl-card:hover { background: #3a3a3c; }
-        .xl-icon-area { flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; overflow: hidden; }
+        .xl-icon-area { flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; overflow: hidden; cursor: zoom-in; }
         .xl-icon-area svg { width: 48px; height: 48px; color: var(--primary); }
         .xl-icon-area img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
         .xl-badge { 
@@ -166,7 +166,7 @@ class HomeOrganizerPanel extends HTMLElement {
             min-width: 24px; height: 24px; border-radius: 12px; 
             display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; 
         }
-        .xl-info { width: 100%; text-align: center; margin-top: 8px; }
+        .xl-info { width: 100%; text-align: center; margin-top: 8px; cursor: pointer; }
         .xl-name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
         .xl-date { font-size: 10px; color: #888; margin-top: 2px; }
 
@@ -229,7 +229,7 @@ class HomeOrganizerPanel extends HTMLElement {
         .wb-btn.active { color: #333; background: white; border-color: white; }
         .wb-btn svg { width: 24px; height: 24px; margin-bottom: 2px; }
         #camera-canvas { display: none; }
-        .overlay { display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:200;justify-content:center;align-items:center }
+        .overlay { display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:2500;justify-content:center;align-items:center }
       </style>
       
       <div class="app-container" id="app">
@@ -325,7 +325,14 @@ class HomeOrganizerPanel extends HTMLElement {
           <canvas id="camera-canvas"></canvas>
       </div>
 
-      <div class="overlay" id="img-overlay" onclick="this.style.display='none'"><img id="overlay-img" style="max-width:90%;max-height:90%;border-radius:8px"></div>
+      <!-- Detail/Image Overlay -->
+      <div class="overlay" id="img-overlay" onclick="this.style.display='none'">
+          <div style="display:flex;flex-direction:column;align-items:center;max-width:90%;max-height:90%;width:100%">
+              <img id="overlay-img" style="max-width:100%;max-height:60vh;border-radius:8px;object-fit:contain;margin-bottom:15px;display:none;border:1px solid #444">
+              <div id="overlay-icon-big" style="display:none;margin-bottom:15px;color:white;transform:scale(3)">${ICONS.item}</div>
+              <div id="overlay-details" style="color:white;text-align:center;background:#2a2a2a;padding:20px;border-radius:12px;width:100%;max-width:300px;box-shadow:0 4px 15px rgba(0,0,0,0.7);display:none;border:1px solid #444"></div>
+          </div>
+      </div>
     `;
 
     if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
@@ -583,10 +590,10 @@ class HomeOrganizerPanel extends HTMLElement {
             const count = items.length;
 
             if (subName === "General" && count === 0 && !this.isEditMode) return;
-            // Requirement: Hide empty in grid
+            // Requirement: Hide empty sublocations in grid mode
             if (this.viewMode === 'grid' && count === 0) return;
 
-            // Requirement: Show all open in grid
+            // Requirement: Force expand all in grid mode
             const isExpanded = (this.viewMode === 'grid') ? true : this.expandedSublocs.has(subName);
             
             const icon = isExpanded ? ICONS.chevron_down : ICONS.chevron_right;
@@ -627,12 +634,6 @@ class HomeOrganizerPanel extends HTMLElement {
                      items.forEach(item => {
                          const card = document.createElement('div');
                          card.className = 'xl-card';
-                         card.onclick = () => { 
-                             // Clicking grid item returns to list view and expands item
-                             this.viewMode = 'list';
-                             this.expandedIdx = item.name;
-                             this.render();
-                         };
                          
                          let iconHtml = ICONS.item;
                          if (item.img) iconHtml = `<img src="${item.img}">`;
@@ -645,6 +646,23 @@ class HomeOrganizerPanel extends HTMLElement {
                                  <div class="xl-date">${item.date || ''}</div>
                              </div>
                          `;
+                         
+                         // CLICK ICON/IMG -> FULL SCREEN DETAIL
+                         const iconArea = card.querySelector('.xl-icon-area');
+                         if(iconArea) {
+                             iconArea.onclick = (e) => {
+                                 e.stopPropagation();
+                                 this.showItemDetails(item);
+                             };
+                         }
+
+                         // CLICK TEXT/CARD -> LIST VIEW (EDIT)
+                         card.onclick = () => { 
+                             this.viewMode = 'list';
+                             this.expandedIdx = item.name;
+                             this.render();
+                         };
+                         
                          gridDiv.appendChild(card);
                      });
                      listContainer.appendChild(gridDiv);
@@ -682,6 +700,45 @@ class HomeOrganizerPanel extends HTMLElement {
     }
   }
   
+  showItemDetails(item) {
+      const ov = this.shadowRoot.getElementById('img-overlay');
+      const img = this.shadowRoot.getElementById('overlay-img');
+      const det = this.shadowRoot.getElementById('overlay-details');
+      const iconBig = this.shadowRoot.getElementById('overlay-icon-big');
+      
+      ov.style.display = 'flex';
+      det.style.display = 'block';
+      
+      if(item.img) {
+          img.src = item.img;
+          img.style.display = 'block';
+          iconBig.style.display = 'none';
+      } else {
+          img.style.display = 'none';
+          iconBig.style.display = 'block';
+      }
+      
+      det.innerHTML = `
+          <div style="font-size:20px;font-weight:bold;margin-bottom:8px">${item.name}</div>
+          <div style="font-size:16px;color:#aaa;margin-bottom:15px">${item.date || 'No Date'}</div>
+          <div style="font-size:18px;font-weight:bold;color:var(--accent);background:#333;padding:8px 20px;border-radius:20px;display:inline-block">Quantity: ${item.qty}</div>
+      `;
+  }
+
+  showImg(src) { 
+      const ov = this.shadowRoot.getElementById('img-overlay'); 
+      const img = this.shadowRoot.getElementById('overlay-img'); 
+      const det = this.shadowRoot.getElementById('overlay-details');
+      const iconBig = this.shadowRoot.getElementById('overlay-icon-big');
+      if(ov && img) { 
+          img.src = src; 
+          img.style.display = 'block';
+          if(det) det.style.display = 'none'; 
+          if(iconBig) iconBig.style.display = 'none';
+          ov.style.display = 'flex'; 
+      } 
+  }
+
   toggleSubloc(name) {
       if (this.expandedSublocs.has(name)) this.expandedSublocs.delete(name); else this.expandedSublocs.add(name);
       this.render();
