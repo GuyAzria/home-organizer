@@ -579,16 +579,29 @@ class HomeOrganizerPanel extends HTMLElement {
         });
         
         Object.keys(grouped).sort().forEach(subName => {
-            if (subName === "General" && grouped[subName].length === 0 && !this.isEditMode) return;
-            const isExpanded = this.expandedSublocs.has(subName);
-            const count = grouped[subName].length;
+            const items = grouped[subName];
+            const count = items.length;
+
+            if (subName === "General" && count === 0 && !this.isEditMode) return;
+            // Requirement: Hide empty in grid
+            if (this.viewMode === 'grid' && count === 0) return;
+
+            // Requirement: Show all open in grid
+            const isExpanded = (this.viewMode === 'grid') ? true : this.expandedSublocs.has(subName);
+            
             const icon = isExpanded ? ICONS.chevron_down : ICONS.chevron_right;
             const countBadge = `<span style="font-size:12px; background:#444; padding:2px 6px; border-radius:10px; margin-left:8px;">${count}</span>`;
             
             const header = document.createElement('div');
             header.className = 'group-separator';
             this.setupDropTarget(header, subName);
-            header.onclick = () => this.toggleSubloc(subName);
+            
+            // Only toggle in list mode
+            if (this.viewMode === 'list') {
+                header.onclick = () => this.toggleSubloc(subName);
+            } else {
+                header.style.cursor = 'default';
+            }
             
             if (this.isEditMode && subName !== "General") {
                 header.innerHTML = `
@@ -608,10 +621,10 @@ class HomeOrganizerPanel extends HTMLElement {
 
             if (isExpanded) {
                 // RENDER GRID OR LIST BASED ON VIEW MODE
-                if (this.viewMode === 'grid' && grouped[subName].length > 0) {
+                if (this.viewMode === 'grid' && count > 0) {
                      const gridDiv = document.createElement('div');
                      gridDiv.className = 'xl-grid-container';
-                     grouped[subName].forEach(item => {
+                     items.forEach(item => {
                          const card = document.createElement('div');
                          card.className = 'xl-card';
                          card.onclick = () => { 
@@ -636,7 +649,7 @@ class HomeOrganizerPanel extends HTMLElement {
                      });
                      listContainer.appendChild(gridDiv);
                 } else {
-                    grouped[subName].forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
+                    items.forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
                 }
 
                 if (this.isEditMode) {
