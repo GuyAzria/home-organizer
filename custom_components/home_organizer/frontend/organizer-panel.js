@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.7.0 (Auto-Save & Date Layout)
+// Home Organizer Ultimate - Ver 5.7.1 (Date Button Update)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -866,14 +866,15 @@ class HomeOrganizerPanel extends HTMLElement {
                     onblur="this.getRootNode().host.autoSaveItem('${item.name}', 'name')"
                     onkeydown="if(event.key==='Enter') this.blur()">
                 
-                <button class="action-btn" style="width:30px;height:30px;padding:0;margin-right:5px" title="Set Today"
-                    onclick="this.getRootNode().host.setDateToday('${item.name}')">
-                    ${ICONS.refresh}
-                </button>
-
-                <input type="date" id="date-${item.name}" value="${item.date}" 
-                    style="width:110px;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px"
-                    onchange="this.getRootNode().host.autoSaveItem('${item.name}', 'date')">
+                <div style="position:relative; width:120px; height:36px; margin-left:5px;">
+                    <button class="action-btn" style="width:100%; height:100%; text-align:center; padding:0; display:flex; align-items:center; justify-content:center; background:#222; color:white; border:1px solid #444;"
+                        onclick="this.nextElementSibling.showPicker()">
+                        ${item.date || 'Set Date'}
+                    </button>
+                    <input type="date" id="date-${item.name}" value="${item.date}" 
+                        style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;"
+                        onchange="this.previousElementSibling.innerText = this.value || 'Set Date'; this.getRootNode().host.autoSaveItem('${item.name}', 'date')">
+                </div>
             </div>
             <div class="detail-row" style="justify-content:space-between; margin-top:10px;">
                  <div style="display:flex;gap:10px;">
@@ -912,13 +913,7 @@ class HomeOrganizerPanel extends HTMLElement {
       });
   }
 
-  setDateToday(name) {
-      const el = this.shadowRoot.getElementById(`date-${name}`);
-      if(el) {
-          el.value = new Date().toISOString().split('T')[0];
-          this.autoSaveItem(name, 'date');
-      }
-  }
+  // Removed setDateToday as requested
   
   updateLocationDropdown(itemName, roomName) {
       const locContainer = this.shadowRoot.getElementById(`loc-container-${itemName}`);
@@ -1176,8 +1171,6 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   pasteItem() { this.callHA('paste_item', { target_path: this.currentPath }); }
-  
-  // saveDetails REMOVED in favor of autoSaveItem
   
   cut(name) { this.callHA('clipboard_action', {action: 'cut', item_name: name}); }
   del(name) { this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: false }); }
