@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.8.3 (Light Theme Contrast Fix)
+// Home Organizer Ultimate - Ver 5.8.4 (Persistence Fix)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -466,6 +466,12 @@ class HomeOrganizerPanel extends HTMLElement {
           console.warn("Camera access requires HTTPS.");
     }
 
+    // Load persisted settings
+    const savedTheme = localStorage.getItem('home_organizer_theme');
+    if (savedTheme === 'light') {
+        this.shadowRoot.getElementById('app').classList.add('light-mode');
+    }
+
     this.bindEvents();
   }
 
@@ -552,11 +558,13 @@ class HomeOrganizerPanel extends HTMLElement {
       } else {
           app.classList.remove('light-mode');
       }
+      localStorage.setItem('home_organizer_theme', mode);
       this.shadowRoot.getElementById('setup-dropdown-menu').classList.remove('show');
   }
 
   changeLanguage(lang) {
       console.log("Language change requested:", lang);
+      localStorage.setItem('home_organizer_lang', lang);
       this.shadowRoot.getElementById('setup-dropdown-menu').classList.remove('show');
   }
   
