@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.8.0 (Submenus & Theme Support)
+// Home Organizer Ultimate - Ver 5.8.1 (Menu Fix & Icons)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -133,14 +133,21 @@ class HomeOrganizerPanel extends HTMLElement {
         .setup-dropdown { 
             position: absolute; top: 50px; right: 0; 
             background: var(--bg-dropdown); border: 1px solid var(--border-color); 
-            border-radius: 8px; display: none; flex-direction: column; min-width: 160px; z-index: 3000;
+            border-radius: 8px; display: none; flex-direction: column; min-width: 180px; z-index: 3000;
             box-shadow: 0 8px 16px rgba(0,0,0,0.3); overflow: hidden;
         }
         .setup-dropdown.show { display: flex; }
-        .dropdown-item { padding: 12px 15px; cursor: pointer; color: var(--text-main); font-size: 14px; text-align: right; border-bottom: 1px solid var(--border-color); }
+        .dropdown-item { 
+            padding: 12px 15px; cursor: pointer; color: var(--text-main); font-size: 14px; 
+            text-align: right; border-bottom: 1px solid var(--border-color); 
+            display: flex; align-items: center; justify-content: flex-start; gap: 10px; direction: ltr; /* Ensure icon is left of text */
+        }
         .dropdown-item:hover { background: var(--primary); color: white; }
         .dropdown-item:last-child { border-bottom: none; }
-        .back-btn { font-weight: bold; color: var(--primary); text-align: left; direction: ltr; }
+        .dropdown-item svg { width: 18px; height: 18px; opacity: 0.8; }
+        
+        .back-btn { font-weight: bold; color: var(--primary); }
+        .back-btn:hover { color: white; }
 
         .title-box { flex: 1; text-align: center; }
         .main-title { font-weight: bold; font-size: 16px; }
@@ -312,18 +319,30 @@ class HomeOrganizerPanel extends HTMLElement {
                 <div class="setup-dropdown" id="setup-dropdown-menu">
                     <!-- Main Menu -->
                     <div id="menu-main">
-                        <div class="dropdown-item" onclick="this.getRootNode().host.showMenu('lang')">Language ></div>
-                        <div class="dropdown-item" onclick="this.getRootNode().host.showMenu('theme')">Theme ></div>
+                        <div class="dropdown-item" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('lang')">
+                            <svg viewBox="0 0 24 24"><path d="M12.87,15.07L10.33,12.56L10.36,12.53C12.1,10.59 13.34,8.36 14.07,6H17V4H11V2H9V4H2V6H4.18C4.87,8.8 6.13,11.23 7.82,13.23L4.25,16.8L5.66,18.21L9.24,14.65L12.87,18.73L12.87,15.07M18.5,10H16.5L12,22H14L15.12,19H19.87L20.98,22H22.97L18.5,10M15.88,17L17.5,12.67L19.12,17H15.88Z" /></svg>
+                            Language
+                        </div>
+                        <div class="dropdown-item" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('theme')">
+                            <svg viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20M12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18M12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16Z" /></svg>
+                            Theme
+                        </div>
                     </div>
                     <!-- Language Submenu -->
                     <div id="menu-lang" style="display:none">
-                        <div class="dropdown-item back-btn" onclick="this.getRootNode().host.showMenu('main')">&lt; Back</div>
+                        <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
+                           <svg viewBox="0 0 24 24"><path d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z" /></svg>
+                           Back
+                        </div>
                         <div class="dropdown-item" onclick="this.getRootNode().host.changeLanguage('en')">English</div>
                         <div class="dropdown-item" onclick="this.getRootNode().host.changeLanguage('he')">Hebrew</div>
                     </div>
                     <!-- Theme Submenu -->
                     <div id="menu-theme" style="display:none">
-                        <div class="dropdown-item back-btn" onclick="this.getRootNode().host.showMenu('main')">&lt; Back</div>
+                        <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
+                           <svg viewBox="0 0 24 24"><path d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z" /></svg>
+                           Back
+                        </div>
                         <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('light')">Light</div>
                         <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('dark')">Dark</div>
                     </div>
@@ -445,6 +464,10 @@ class HomeOrganizerPanel extends HTMLElement {
     window.addEventListener('click', () => {
         root.getElementById('setup-dropdown-menu')?.classList.remove('show');
     });
+    
+    // STOP PROPAGATION on menu clicks so it doesn't close immediately
+    const menu = root.getElementById('setup-dropdown-menu');
+    if(menu) menu.onclick = (e) => e.stopPropagation();
 
     click('btn-up', () => this.navigate('up'));
     click('btn-home', () => { this.isShopMode = false; this.isSearch = false; this.navigate('root'); });
