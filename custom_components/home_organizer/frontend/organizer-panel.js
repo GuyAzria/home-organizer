@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.7.1 (Date Button Update)
+// Home Organizer Ultimate - Ver 5.7.2 (Nav Position & Hiding Up Arrow)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -258,16 +258,17 @@ class HomeOrganizerPanel extends HTMLElement {
 
         <!-- Sub-Bar (30px) -->
         <div class="sub-bar">
+            <!-- Right side in RTL (Home/Up) -->
+            <div class="sub-bar-right">
+                <button class="nav-btn" id="btn-home">${ICONS.home}</button>
+                <button class="nav-btn" id="btn-up" style="display:none;">${ICONS.arrow_up}</button>
+            </div>
+            <!-- Left side in RTL (View Toggle) -->
             <div class="sub-bar-left">
-                <!-- View Toggle Button (Hidden unless depth >= 2) -->
                 <button class="nav-btn" id="btn-view-toggle" style="display:none;">
                    <svg id="icon-view-grid" viewBox="0 0 24 24" style="display:block"><path d="M3,11H11V3H3M3,21H11V13H3M13,21H21V13H13M13,3V11H21V3"/></svg>
                    <svg id="icon-view-list" viewBox="0 0 24 24" style="display:none"><path d="M3,4H21V6H3M3,8H21V10H3M3,12H21V14H3M3,16H21V18H3M3,20H21V22H3"/></svg>
                 </button>
-            </div>
-            <div class="sub-bar-right">
-                <button class="nav-btn" id="btn-home">${ICONS.home}</button>
-                <button class="nav-btn" id="btn-up">${ICONS.arrow_up}</button>
             </div>
         </div>
         
@@ -490,6 +491,17 @@ class HomeOrganizerPanel extends HTMLElement {
 
     const content = root.getElementById('content');
     content.innerHTML = '';
+
+    // Up Arrow Visibility Logic
+    const upBtn = root.getElementById('btn-up');
+    if (upBtn) {
+        // If depth is 0 (Root/Home), hide the up button
+        if (attrs.depth === 0) {
+            upBtn.style.display = 'none';
+        } else {
+            upBtn.style.display = 'flex'; // Restore flex display
+        }
+    }
 
     // SHOW/HIDE VIEW BUTTON based on depth
     const viewBtn = root.getElementById('btn-view-toggle');
