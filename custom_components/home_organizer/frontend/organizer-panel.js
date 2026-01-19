@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.8.2 (Light Theme Contrast Fix)
+// Home Organizer Ultimate - Ver 5.8.3 (Light Theme Contrast Fix)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -78,6 +78,7 @@ class HomeOrganizerPanel extends HTMLElement {
             --bg-input: #111;
             --bg-input-edit: #222;
             --bg-dropdown: #2c2c2e;
+            --bg-qty-ctrl: #222; /* Default Dark for Qty Control */
             
             --text-main: #fff;
             --text-sub: #aaa;
@@ -103,6 +104,7 @@ class HomeOrganizerPanel extends HTMLElement {
             --bg-input: #ffffff;
             --bg-input-edit: #ffffff;
             --bg-dropdown: #ffffff;
+            --bg-qty-ctrl: #e0e0e0; /* Gray for Qty Control in Light Mode */
             
             --text-main: #333;
             --text-sub: #666;
@@ -217,7 +219,7 @@ class HomeOrganizerPanel extends HTMLElement {
         
         .item-thumbnail { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: #000; display: block; border: 1px solid var(--border-light); }
 
-        .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: var(--bg-input-edit); padding: 4px; border-radius: 20px; }
+        .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: var(--bg-qty-ctrl); color: var(--text-main); padding: 4px; border-radius: 20px; }
         .qty-btn { background: var(--icon-btn-bg); border: none; color: var(--text-main); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         
         /* --- NEW XL GRID STYLES --- */
@@ -309,7 +311,7 @@ class HomeOrganizerPanel extends HTMLElement {
         
         /* --- Preview Overlay Styles --- */
         #overlay-img { 
-            max-width: 50% !important;   
+            max-width: 50% !important;    
             max-height: 35vh !important;
             border-radius: 8px; 
             object-fit: contain; 
@@ -791,52 +793,52 @@ class HomeOrganizerPanel extends HTMLElement {
             if (isExpanded) {
                 // RENDER GRID OR LIST BASED ON VIEW MODE
                 if (this.viewMode === 'grid' && count > 0) {
-                     const gridDiv = document.createElement('div');
-                     gridDiv.className = 'xl-grid-container';
-                     items.forEach(item => {
-                         const card = document.createElement('div');
-                         card.className = 'xl-card';
-                         
-                         let iconHtml = ICONS.item;
-                         if (item.img) iconHtml = `<img src="${item.img}">`;
-                         
-                         card.innerHTML = `
-                             <div class="xl-icon-area">${iconHtml}</div>
-                             <div class="xl-badge">${item.qty}</div>
-                             <div class="xl-info">
-                                 <div class="xl-name">${item.name}</div>
-                                 <div class="xl-date">${item.date || ''}</div>
-                             </div>
-                         `;
-                         
-                         // CLICK ICON/IMG -> FULL SCREEN DETAIL
-                         const iconArea = card.querySelector('.xl-icon-area');
-                         if(iconArea) {
-                             iconArea.onclick = (e) => {
-                                 e.stopPropagation();
-                                 this.showItemDetails(item);
-                             };
-                         }
+                      const gridDiv = document.createElement('div');
+                      gridDiv.className = 'xl-grid-container';
+                      items.forEach(item => {
+                          const card = document.createElement('div');
+                          card.className = 'xl-card';
+                          
+                          let iconHtml = ICONS.item;
+                          if (item.img) iconHtml = `<img src="${item.img}">`;
+                          
+                          card.innerHTML = `
+                              <div class="xl-icon-area">${iconHtml}</div>
+                              <div class="xl-badge">${item.qty}</div>
+                              <div class="xl-info">
+                                  <div class="xl-name">${item.name}</div>
+                                  <div class="xl-date">${item.date || ''}</div>
+                              </div>
+                          `;
+                          
+                          // CLICK ICON/IMG -> FULL SCREEN DETAIL
+                          const iconArea = card.querySelector('.xl-icon-area');
+                          if(iconArea) {
+                              iconArea.onclick = (e) => {
+                                  e.stopPropagation();
+                                  this.showItemDetails(item);
+                              };
+                          }
 
-                         // CLICK TEXT/CARD -> LIST VIEW (EDIT)
-                         card.onclick = () => { 
-                             this.viewMode = 'list';
-                             this.expandedIdx = item.name;
-                             this.render();
-                         };
-                         
-                         gridDiv.appendChild(card);
-                     });
-                     listContainer.appendChild(gridDiv);
+                          // CLICK TEXT/CARD -> LIST VIEW (EDIT)
+                          card.onclick = () => { 
+                              this.viewMode = 'list';
+                              this.expandedIdx = item.name;
+                              this.render();
+                          };
+                          
+                          gridDiv.appendChild(card);
+                      });
+                      listContainer.appendChild(gridDiv);
                 } else {
                     items.forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
                 }
 
                 if (this.isEditMode) {
-                     const addRow = document.createElement('div');
-                     addRow.className = "group-add-row";
-                     addRow.innerHTML = `<button class="text-add-btn" onclick="this.getRootNode().host.addQuickItem('${subName}')">${ICONS.plus} הוסף</button>`;
-                     listContainer.appendChild(addRow);
+                      const addRow = document.createElement('div');
+                      addRow.className = "group-add-row";
+                      addRow.innerHTML = `<button class="text-add-btn" onclick="this.getRootNode().host.addQuickItem('${subName}')">${ICONS.plus} הוסף</button>`;
+                      listContainer.appendChild(addRow);
                 }
             }
         });
@@ -923,8 +925,8 @@ class HomeOrganizerPanel extends HTMLElement {
       const input = document.createElement('input');
       input.value = oldName;
       input.style.width = '100%';
-      input.style.background = '#222';
-      input.style.color = 'white';
+      input.style.background = 'var(--bg-input-edit)';
+      input.style.color = 'var(--text-main)';
       input.style.border = '1px solid var(--primary)';
       input.style.borderRadius = '4px';
       input.style.textAlign = 'center';
@@ -1024,12 +1026,12 @@ class HomeOrganizerPanel extends HTMLElement {
          details.innerHTML = `
             <div class="detail-row">
                 <input type="text" id="name-${item.name}" value="${item.name}" 
-                    style="flex:1;padding:8px;background:#222;color:white;border:1px solid #444;border-radius:4px;margin-left:5px"
+                    style="flex:1;padding:8px;background:var(--bg-input-edit);color:var(--text-main);border:1px solid var(--border-light);border-radius:4px;margin-left:5px"
                     onblur="this.getRootNode().host.autoSaveItem('${item.name}', 'name')"
                     onkeydown="if(event.key==='Enter') this.blur()">
                 
                 <div style="position:relative; width:120px; height:36px; margin-left:5px;">
-                    <button class="action-btn" style="width:100%; height:100%; text-align:center; padding:0; display:flex; align-items:center; justify-content:center; background:#222; color:white; border:1px solid #444;"
+                    <button class="action-btn" style="width:100%; height:100%; text-align:center; padding:0; display:flex; align-items:center; justify-content:center; background:var(--bg-input-edit); color:var(--text-main); border:1px solid var(--border-light);"
                         onclick="this.nextElementSibling.showPicker()">
                         ${item.date || 'Set Date'}
                     </button>
@@ -1140,8 +1142,8 @@ class HomeOrganizerPanel extends HTMLElement {
       if(!titleSpan) return;
       const input = document.createElement('input');
       input.value = oldName;
-      input.style.background = '#222';
-      input.style.color = 'white';
+      input.style.background = 'var(--bg-input-edit)';
+      input.style.color = 'var(--text-main)';
       input.style.border = '1px solid var(--primary)';
       input.style.borderRadius = '4px';
       input.style.padding = '4px';
