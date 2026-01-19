@@ -230,6 +230,23 @@ class HomeOrganizerPanel extends HTMLElement {
         .wb-btn svg { width: 24px; height: 24px; margin-bottom: 2px; }
         #camera-canvas { display: none; }
         .overlay { display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:2500;justify-content:center;align-items:center }
+        
+        /* --- Preview Overlay Styles (Reduced Sizes) --- */
+        #overlay-img { 
+            max-width: 80%;        /* Reduced from 100% */
+            max-height: 50vh;      /* Reduced from 60vh */
+            border-radius: 8px; 
+            object-fit: contain; 
+            margin-bottom: 15px; 
+            display: none; 
+            border: 1px solid #444; 
+        }
+        #overlay-icon-big { 
+            display: none; 
+            margin-bottom: 15px; 
+            color: white; 
+            transform: scale(2.4); /* Reduced from scale(3) by 20% */
+        }
       </style>
       
       <div class="app-container" id="app">
@@ -329,8 +346,8 @@ class HomeOrganizerPanel extends HTMLElement {
       <!-- Detail/Image Overlay -->
       <div class="overlay" id="img-overlay" onclick="this.style.display='none'">
           <div style="display:flex;flex-direction:column;align-items:center;max-width:90%;max-height:90%;width:100%">
-              <img id="overlay-img" style="max-width:100%;max-height:60vh;border-radius:8px;object-fit:contain;margin-bottom:15px;display:none;border:1px solid #444">
-              <div id="overlay-icon-big" style="display:none;margin-bottom:15px;color:white;transform:scale(3)">${ICONS.item}</div>
+              <img id="overlay-img">
+              <div id="overlay-icon-big">${ICONS.item}</div>
               <div id="overlay-details" style="color:white;text-align:center;background:#2a2a2a;padding:20px;border-radius:12px;width:100%;max-width:300px;box-shadow:0 4px 15px rgba(0,0,0,0.7);display:none;border:1px solid #444"></div>
           </div>
       </div>
