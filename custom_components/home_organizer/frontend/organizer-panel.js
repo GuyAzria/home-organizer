@@ -234,10 +234,10 @@ class HomeOrganizerPanel extends HTMLElement {
         #camera-canvas { display: none; }
         .overlay { display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:2500;justify-content:center;align-items:center }
         
-        /* --- Preview Overlay Styles (Reduced Sizes) --- */
+        /* --- Preview Overlay Styles (Significantly Reduced) --- */
         #overlay-img { 
-            max-width: 80%;        
-            max-height: 50vh;      
+            max-width: 50% !important;   /* Reduced to 50% width */
+            max-height: 35vh !important; /* Reduced to 35% height to prevent cutting */
             border-radius: 8px; 
             object-fit: contain; 
             margin-bottom: 15px; 
@@ -248,11 +248,11 @@ class HomeOrganizerPanel extends HTMLElement {
             display: none; 
             margin-bottom: 15px; 
             color: white; 
+            transform: scale(1.5);       /* Reduced scale */
         }
-        /* Specific sizing for the Preview Overlay Icon */
         #overlay-icon-big svg {
-            width: 40px; 
-            height: 40px;
+            width: 48px; 
+            height: 48px;
         }
       </style>
       
