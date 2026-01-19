@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.7.7 (Preview Icon Size Fix)
+// Home Organizer Ultimate - Ver 5.7.8 (Preview Icon Fixed & Reduced)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -248,11 +248,12 @@ class HomeOrganizerPanel extends HTMLElement {
             display: none; 
             margin-bottom: 15px; 
             color: white; 
-            transform: scale(1.5);       /* Reduced scale */
+            /* Removed transform to prevent clipping issues */
         }
+        /* Fixed explicit size for the Preview Icon (60px = ~30% smaller than previous effective size) */
         #overlay-icon-big svg {
-            width: 48px; 
-            height: 48px;
+            width: 60px; 
+            height: 60px;
         }
       </style>
       
