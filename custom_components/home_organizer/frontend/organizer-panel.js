@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.7.3 (Reduced Grid Size)
+// Home Organizer Ultimate - Ver 5.7.4 (Grid Size Restore & Icon Reduction)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -149,26 +149,29 @@ class HomeOrganizerPanel extends HTMLElement {
         .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 4px; border-radius: 20px; }
         .qty-btn { background: #444; border: none; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         
-        /* --- NEW XL GRID STYLES (Reduced size by ~30%) --- */
-        .xl-grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 10px; padding: 5px; margin-bottom: 10px; }
+        /* --- NEW XL GRID STYLES (Cards Restored Larger, Icons Reduced) --- */
+        .xl-grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 10px; }
         .xl-card { 
-            background: #2c2c2e; border-radius: 10px; padding: 6px; 
+            background: #2c2c2e; border-radius: 12px; padding: 10px; 
             display: flex; flex-direction: column; align-items: center; justify-content: space-between;
             aspect-ratio: 1; position: relative; border: 1px solid transparent;
         }
         .xl-card:hover { background: #3a3a3c; }
         .xl-icon-area { flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; overflow: hidden; cursor: zoom-in; }
-        .xl-icon-area svg { width: 34px; height: 34px; color: var(--primary); }
-        .xl-icon-area img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; }
+        
+        /* Reduced Icon/Image Size Inside Grid */
+        .xl-icon-area svg { width: 36px; height: 36px; color: var(--primary); }
+        .xl-icon-area img { width: 70%; height: 70%; object-fit: cover; border-radius: 8px; }
+        
         .xl-badge { 
-            position: absolute; top: 4px; right: 4px; 
+            position: absolute; top: 8px; right: 8px; 
             background: rgba(0,0,0,0.6); color: white; border: 1px solid #555;
-            min-width: 20px; height: 20px; border-radius: 10px; 
-            display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; 
+            min-width: 24px; height: 24px; border-radius: 12px; 
+            display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; 
         }
-        .xl-info { width: 100%; text-align: center; margin-top: 4px; cursor: pointer; }
-        .xl-name { font-size: 10px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
-        .xl-date { font-size: 9px; color: #888; margin-top: 1px; }
+        .xl-info { width: 100%; text-align: center; margin-top: 8px; cursor: pointer; }
+        .xl-name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+        .xl-date { font-size: 10px; color: #888; margin-top: 2px; }
 
         /* --- Editing & Inputs --- */
         .add-folder-card .android-folder-icon { border: 2px dashed #4caf50; background: rgba(76, 175, 80, 0.1); color: #4caf50; }
@@ -233,8 +236,8 @@ class HomeOrganizerPanel extends HTMLElement {
         
         /* --- Preview Overlay Styles (Reduced Sizes) --- */
         #overlay-img { 
-            max-width: 80%;        /* Reduced from 100% */
-            max-height: 50vh;      /* Reduced from 60vh */
+            max-width: 80%;        
+            max-height: 50vh;      
             border-radius: 8px; 
             object-fit: contain; 
             margin-bottom: 15px; 
@@ -245,7 +248,7 @@ class HomeOrganizerPanel extends HTMLElement {
             display: none; 
             margin-bottom: 15px; 
             color: white; 
-            transform: scale(2.4); /* Reduced from scale(3) by 20% */
+            transform: scale(2.4); 
         }
       </style>
       
