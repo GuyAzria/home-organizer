@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.8.1 (Menu Fix & Icons)
+// Home Organizer Ultimate - Ver 5.8.2 (Light Theme Contrast Fix)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -85,6 +85,12 @@ class HomeOrganizerPanel extends HTMLElement {
             --border-color: #333;
             --border-light: #444;
             --border-input: #333;
+
+            /* Badge & Icon specific */
+            --bg-badge: #444;
+            --text-badge: #fff;
+            --bg-icon-box: #3c4043;
+            --text-icon-box: #8ab4f8;
         }
 
         /* -- Light Theme Overrides -- */
@@ -105,6 +111,12 @@ class HomeOrganizerPanel extends HTMLElement {
             --border-light: #ccc;
             --border-input: #ccc;
             --icon-btn-bg: #e0e0e0;
+
+            /* High contrast for Light Mode numbers/icons */
+            --bg-badge: #e0e0e0;      /* White Gray */
+            --text-badge: #000000;    /* Black Text */
+            --bg-icon-box: #e0e0e0;   /* White Gray */
+            --text-icon-box: #03a9f4; /* Primary Blue */
         }
 
         * { box-sizing: border-box; }
@@ -158,7 +170,14 @@ class HomeOrganizerPanel extends HTMLElement {
         .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 20px; }
         .folder-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; position: relative; }
         
-        .android-folder-icon { width: 56px; height: 56px; background: #3c4043; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #8ab4f8; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); position: relative; overflow: visible; }
+        /* Updated Folder Icon to use variables for Light/Dark mode */
+        .android-folder-icon { 
+            width: 56px; height: 56px; 
+            background: var(--bg-icon-box); 
+            color: var(--text-icon-box); 
+            border-radius: 16px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2); position: relative; overflow: visible; 
+        }
         .android-folder-icon svg { width: 34px; height: 34px; }
         .android-folder-icon img { width: 38px; height: 38px; object-fit: contain; border-radius: 4px; }
         
@@ -201,7 +220,7 @@ class HomeOrganizerPanel extends HTMLElement {
         .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: var(--bg-input-edit); padding: 4px; border-radius: 20px; }
         .qty-btn { background: var(--icon-btn-bg); border: none; color: var(--text-main); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         
-        /* --- NEW XL GRID STYLES (Restored Full Size Images & Icons) --- */
+        /* --- NEW XL GRID STYLES --- */
         .xl-grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 10px; }
         .xl-card { 
             background: var(--bg-card); border-radius: 12px; padding: 10px; 
@@ -216,9 +235,10 @@ class HomeOrganizerPanel extends HTMLElement {
         .xl-icon-area svg { width: 48px; height: 48px; color: var(--primary); }
         .xl-icon-area img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
         
+        /* Updated Grid Badge to use variables */
         .xl-badge { 
             position: absolute; top: 8px; right: 8px; 
-            background: rgba(0,0,0,0.6); color: white; border: 1px solid #555;
+            background: var(--bg-badge); color: var(--text-badge); border: 1px solid var(--border-light);
             min-width: 24px; height: 24px; border-radius: 12px; 
             display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; 
         }
@@ -738,7 +758,8 @@ class HomeOrganizerPanel extends HTMLElement {
             const isExpanded = (this.viewMode === 'grid') ? true : this.expandedSublocs.has(subName);
             
             const icon = isExpanded ? ICONS.chevron_down : ICONS.chevron_right;
-            const countBadge = `<span style="font-size:12px; background:#444; padding:2px 6px; border-radius:10px; margin-left:8px;">${count}</span>`;
+            // Updated to use CSS variable for badge background
+            const countBadge = `<span style="font-size:12px; background:var(--bg-badge); color:var(--text-badge); padding:2px 6px; border-radius:10px; margin-left:8px;">${count}</span>`;
             
             const header = document.createElement('div');
             header.className = 'group-separator';
