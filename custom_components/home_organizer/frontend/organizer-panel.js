@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.7.4 (Grid Size Restore & Icon Reduction)
+// Home Organizer Ultimate - Ver 5.7.5 (Restored Grid & Reduced Preview)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -149,7 +149,7 @@ class HomeOrganizerPanel extends HTMLElement {
         .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 4px; border-radius: 20px; }
         .qty-btn { background: #444; border: none; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         
-        /* --- NEW XL GRID STYLES (Cards Restored Larger, Icons Reduced) --- */
+        /* --- NEW XL GRID STYLES (Restored Full Size Images) --- */
         .xl-grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 10px; }
         .xl-card { 
             background: #2c2c2e; border-radius: 12px; padding: 10px; 
@@ -159,9 +159,9 @@ class HomeOrganizerPanel extends HTMLElement {
         .xl-card:hover { background: #3a3a3c; }
         .xl-icon-area { flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; overflow: hidden; cursor: zoom-in; }
         
-        /* Reduced Icon/Image Size Inside Grid */
-        .xl-icon-area svg { width: 36px; height: 36px; color: var(--primary); }
-        .xl-icon-area img { width: 70%; height: 70%; object-fit: cover; border-radius: 8px; }
+        /* Restored Icon/Image Size */
+        .xl-icon-area svg { width: 48px; height: 48px; color: var(--primary); }
+        .xl-icon-area img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
         
         .xl-badge { 
             position: absolute; top: 8px; right: 8px; 
@@ -248,7 +248,7 @@ class HomeOrganizerPanel extends HTMLElement {
             display: none; 
             margin-bottom: 15px; 
             color: white; 
-            transform: scale(2.4); 
+            transform: scale(2.0); /* Reduced from original 3.0 */
         }
       </style>
       
