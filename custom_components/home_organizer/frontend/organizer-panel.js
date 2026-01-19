@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.7.9 (Grid Icon Size Fixed)
+// Home Organizer Ultimate - Ver 5.8.0 (Submenus & Theme Support)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -11,7 +11,7 @@ class HomeOrganizerPanel extends HTMLElement {
       this.isEditMode = false;
       this.isSearch = false;
       this.isShopMode = false;
-      this.viewMode = 'list'; // New state: 'list' or 'grid'
+      this.viewMode = 'list'; // 'list' or 'grid'
       this.expandedIdx = null;
       this.lastAI = "";
       this.localData = null; 
@@ -62,44 +62,89 @@ class HomeOrganizerPanel extends HTMLElement {
     this.attachShadow({mode: 'open'});
     this.shadowRoot.innerHTML = `
       <style>
-        :host { --app-bg: #1c1c1e; --primary: #03a9f4; --accent: #4caf50; --danger: #f44336; --text: #fff; --border: #333; --warning: #ffeb3b; --icon-btn-bg: #444; }
+        :host { 
+            /* -- Dark Theme Variables (Default) -- */
+            --primary: #03a9f4; 
+            --accent: #4caf50; 
+            --danger: #f44336; 
+            --warning: #ffeb3b;
+            --icon-btn-bg: #444;
+            
+            --bg-body: #1c1c1e;
+            --bg-bar: #242426;
+            --bg-sub-bar: #2a2a2c;
+            --bg-card: #2c2c2e;
+            --bg-card-hover: #3a3a3c;
+            --bg-input: #111;
+            --bg-input-edit: #222;
+            --bg-dropdown: #2c2c2e;
+            
+            --text-main: #fff;
+            --text-sub: #aaa;
+            
+            --border-color: #333;
+            --border-light: #444;
+            --border-input: #333;
+        }
+
+        /* -- Light Theme Overrides -- */
+        .light-mode {
+            --bg-body: #f5f5f5;
+            --bg-bar: #ffffff;
+            --bg-sub-bar: #f0f0f0;
+            --bg-card: #ffffff;
+            --bg-card-hover: #f9f9f9;
+            --bg-input: #ffffff;
+            --bg-input-edit: #ffffff;
+            --bg-dropdown: #ffffff;
+            
+            --text-main: #333;
+            --text-sub: #666;
+            
+            --border-color: #ddd;
+            --border-light: #ccc;
+            --border-input: #ccc;
+            --icon-btn-bg: #e0e0e0;
+        }
+
         * { box-sizing: border-box; }
-        .app-container { background: var(--app-bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; font-family: sans-serif; direction: rtl; }
+        .app-container { background: var(--bg-body); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; font-family: sans-serif; direction: rtl; }
         svg { width: 24px; height: 24px; fill: currentColor; }
         
         /* --- Top Bar & Sub Bar Styles --- */
-        .top-bar { background: #242426; padding: 10px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-shrink: 0; height: 60px; position: relative; }
+        .top-bar { background: var(--bg-bar); padding: 10px; border-bottom: 1px solid var(--border-color); display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-shrink: 0; height: 60px; position: relative; }
         
-        /* Sub-bar: 50% smaller height (30px), Flex layout for Left/Right alignment */
-        .sub-bar { background: #2a2a2c; height: 30px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+        /* Sub-bar */
+        .sub-bar { background: var(--bg-sub-bar); height: 30px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
         
         .sub-bar-left { display: flex; align-items: center; }
         .sub-bar-right { display: flex; align-items: center; gap: 10px; }
 
         .nav-btn { background: none; border: none; color: var(--primary); cursor: pointer; padding: 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-        .nav-btn:hover { background: rgba(255,255,255,0.1); }
+        .nav-btn:hover { background: rgba(125,125,125,0.1); }
         .nav-btn.active { color: var(--warning); }
         .nav-btn.edit-active { color: var(--accent); } 
         
-        /* Smaller buttons for sub-bar */
         .sub-bar .nav-btn { padding: 4px; }
         .sub-bar .nav-btn svg { width: 20px; height: 20px; }
 
         /* Setup Dropdown */
         .setup-wrapper { position: relative; display: flex; align-items: center; }
         .setup-dropdown { 
-            position: absolute; top: 50px; right: 0; background: #2c2c2e; border: 1px solid var(--border); 
+            position: absolute; top: 50px; right: 0; 
+            background: var(--bg-dropdown); border: 1px solid var(--border-color); 
             border-radius: 8px; display: none; flex-direction: column; min-width: 160px; z-index: 3000;
-            box-shadow: 0 8px 16px rgba(0,0,0,0.5); overflow: hidden;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.3); overflow: hidden;
         }
         .setup-dropdown.show { display: flex; }
-        .dropdown-item { padding: 12px 15px; cursor: pointer; color: white; font-size: 14px; text-align: right; border-bottom: 1px solid #333; }
-        .dropdown-item:hover { background: var(--primary); }
+        .dropdown-item { padding: 12px 15px; cursor: pointer; color: var(--text-main); font-size: 14px; text-align: right; border-bottom: 1px solid var(--border-color); }
+        .dropdown-item:hover { background: var(--primary); color: white; }
         .dropdown-item:last-child { border-bottom: none; }
+        .back-btn { font-weight: bold; color: var(--primary); text-align: left; direction: ltr; }
 
         .title-box { flex: 1; text-align: center; }
         .main-title { font-weight: bold; font-size: 16px; }
-        .sub-title { font-size: 11px; color: #aaa; direction: ltr; }
+        .sub-title { font-size: 11px; color: var(--text-sub); direction: ltr; }
         .content { flex: 1; padding: 15px; overflow-y: auto; }
         
         /* --- Folders & Grid --- */
@@ -121,46 +166,47 @@ class HomeOrganizerPanel extends HTMLElement {
         .item-list { display: flex; flex-direction: column; gap: 5px; }
         
         .group-separator { 
-            color: #aaa; font-size: 14px; margin: 20px 0 10px 0; 
-            border-bottom: 1px solid #444; padding-bottom: 4px; 
+            color: var(--text-sub); font-size: 14px; margin: 20px 0 10px 0; 
+            border-bottom: 1px solid var(--border-light); padding-bottom: 4px; 
             text-transform: uppercase; font-weight: bold; 
             display: flex; justify-content: space-between; align-items: center;
             min-height: 35px;
             cursor: pointer; 
         }
-        .group-separator:hover { background: rgba(255,255,255,0.05); }
+        .group-separator:hover { background: rgba(125,125,125,0.05); }
         .group-separator.drag-over { border-bottom: 2px solid var(--primary); color: var(--primary); background: rgba(3, 169, 244, 0.1); }
         .oos-separator { color: var(--danger); border-color: var(--danger); }
         
-        .edit-subloc-btn { background: none; border: none; color: #aaa; cursor: pointer; padding: 4px; }
+        .edit-subloc-btn { background: none; border: none; color: var(--text-sub); cursor: pointer; padding: 4px; }
         .edit-subloc-btn:hover { color: var(--primary); }
         .delete-subloc-btn { background: none; border: none; color: var(--danger); cursor: pointer; padding: 4px; }
 
-        .item-row { background: #2c2c2e; margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid transparent; touch-action: pan-y; }
-        .item-row.expanded { background: #3a3a3c; flex-direction: column; align-items: stretch; cursor: default; }
+        .item-row { background: var(--bg-card); margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid transparent; touch-action: pan-y; }
+        .item-row.expanded { background: var(--bg-card-hover); flex-direction: column; align-items: stretch; cursor: default; }
         .out-of-stock-frame { border: 2px solid var(--danger); }
 
         .item-main { display: flex; align-items: center; justify-content: space-between; width: 100%; cursor: pointer; }
         .item-left { display: flex; align-items: center; gap: 10px; }
         .item-icon { color: var(--primary); display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; }
         
-        .item-thumbnail { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: #000; display: block; border: 1px solid #444; }
+        .item-thumbnail { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: #000; display: block; border: 1px solid var(--border-light); }
 
-        .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: #222; padding: 4px; border-radius: 20px; }
-        .qty-btn { background: #444; border: none; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: var(--bg-input-edit); padding: 4px; border-radius: 20px; }
+        .qty-btn { background: var(--icon-btn-bg); border: none; color: var(--text-main); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         
-        /* --- NEW XL GRID STYLES (Cards Restored Larger, Icons Reduced) --- */
+        /* --- NEW XL GRID STYLES (Restored Full Size Images & Icons) --- */
         .xl-grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 10px; }
         .xl-card { 
-            background: #2c2c2e; border-radius: 12px; padding: 10px; 
+            background: var(--bg-card); border-radius: 12px; padding: 10px; 
             display: flex; flex-direction: column; align-items: center; justify-content: space-between;
             aspect-ratio: 1; position: relative; border: 1px solid transparent;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
-        .xl-card:hover { background: #3a3a3c; }
+        .xl-card:hover { background: var(--bg-card-hover); }
         .xl-icon-area { flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; overflow: hidden; cursor: zoom-in; }
         
-        /* Reduced Icon Size Inside Grid to prevent cutting */
-        .xl-icon-area svg { width: 32px; height: 32px; color: var(--primary); }
+        /* Restored Icon/Image Size to Full */
+        .xl-icon-area svg { width: 48px; height: 48px; color: var(--primary); }
         .xl-icon-area img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
         
         .xl-badge { 
@@ -170,8 +216,8 @@ class HomeOrganizerPanel extends HTMLElement {
             display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; 
         }
         .xl-info { width: 100%; text-align: center; margin-top: 8px; cursor: pointer; }
-        .xl-name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
-        .xl-date { font-size: 10px; color: #888; margin-top: 2px; }
+        .xl-name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; color: var(--text-main); }
+        .xl-date { font-size: 10px; color: var(--text-sub); margin-top: 2px; }
 
         /* --- Editing & Inputs --- */
         .add-folder-card .android-folder-icon { border: 2px dashed #4caf50; background: rgba(76, 175, 80, 0.1); color: #4caf50; }
@@ -186,20 +232,20 @@ class HomeOrganizerPanel extends HTMLElement {
         .add-item-btn { width: 100%; padding: 12px; background: rgba(76, 175, 80, 0.15); border: 1px dashed #4caf50; color: #4caf50; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; transition: background 0.2s; }
         .add-item-btn:hover { background: rgba(76, 175, 80, 0.3); }
 
-        .expanded-details { margin-top: 10px; padding-top: 10px; border-top: 1px solid #555; display: flex; flex-direction: column; gap: 10px; }
+        .expanded-details { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-light); display: flex; flex-direction: column; gap: 10px; }
         .detail-row { display: flex; gap: 10px; align-items: center; }
         
-        .action-btn { width: 40px; height: 40px; border-radius: 8px; border: 1px solid #555; color: #ccc; background: var(--icon-btn-bg); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 8px; }
-        .action-btn:hover { background: #555; color: white; }
+        .action-btn { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--border-light); color: var(--text-sub); background: var(--icon-btn-bg); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 8px; }
+        .action-btn:hover { background: var(--border-light); color: var(--text-main); }
         .btn-danger { color: #ff8a80; border-color: #d32f2f; }
         .btn-text { width: auto; padding: 0 15px; font-weight: bold; color: white; background: var(--primary); border: none; }
         .move-container { display: flex; gap: 5px; align-items: center; flex: 1; }
-        .move-select { flex: 1; padding: 8px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; }
-        .search-box { display:none; padding:10px; background:#2a2a2a; display:flex; gap: 5px; align-items: center; }
+        .move-select { flex: 1; padding: 8px; background: var(--bg-input-edit); color: var(--text-main); border: 1px solid var(--border-light); border-radius: 6px; }
+        .search-box { display:none; padding:10px; background:var(--bg-sub-bar); display:flex; gap: 5px; align-items: center; }
         
         /* --- Modals --- */
         #icon-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2500; display: none; align-items: center; justify-content: center; flex-direction: column; }
-        .modal-content { background: #242426; width: 95%; max-width: 450px; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 15px; max-height: 90vh; overflow-y: auto; }
+        .modal-content { background: var(--bg-card); color:var(--text-main); width: 95%; max-width: 450px; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 15px; max-height: 90vh; overflow-y: auto; }
         .modal-title { font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 5px; }
         
         .category-bar { display: none; gap: 10px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 10px; scrollbar-width: thin; scrollbar-color: var(--warning) transparent; }
@@ -234,10 +280,10 @@ class HomeOrganizerPanel extends HTMLElement {
         #camera-canvas { display: none; }
         .overlay { display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:2500;justify-content:center;align-items:center }
         
-        /* --- Preview Overlay Styles (Significantly Reduced) --- */
+        /* --- Preview Overlay Styles --- */
         #overlay-img { 
-            max-width: 50% !important;   /* Reduced to 50% width */
-            max-height: 35vh !important; /* Reduced to 35% height to prevent cutting */
+            max-width: 50% !important;   
+            max-height: 35vh !important;
             border-radius: 8px; 
             object-fit: contain; 
             margin-bottom: 15px; 
@@ -248,9 +294,8 @@ class HomeOrganizerPanel extends HTMLElement {
             display: none; 
             margin-bottom: 15px; 
             color: white; 
-            /* Removed transform to prevent clipping issues */
         }
-        /* Fixed explicit size for the Preview Icon (60px = ~30% smaller than previous effective size) */
+        /* Fixed explicit size for the Preview Icon (60px) */
         #overlay-icon-big svg {
             width: 60px; 
             height: 60px;
@@ -265,8 +310,23 @@ class HomeOrganizerPanel extends HTMLElement {
                     <svg viewBox="0 0 24 24"><path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.35 19.43,11.03L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.47,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.53,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.22,8.95 2.27,9.22 2.46,9.37L4.57,11.03C4.53,11.35 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.22,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.53,18.67 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.47,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z" /></svg>
                 </button>
                 <div class="setup-dropdown" id="setup-dropdown-menu">
-                    <div class="dropdown-item" onclick="this.getRootNode().host.changeLanguage('he')">עברית (Hebrew)</div>
-                    <div class="dropdown-item" onclick="this.getRootNode().host.changeLanguage('en')">English</div>
+                    <!-- Main Menu -->
+                    <div id="menu-main">
+                        <div class="dropdown-item" onclick="this.getRootNode().host.showMenu('lang')">Language ></div>
+                        <div class="dropdown-item" onclick="this.getRootNode().host.showMenu('theme')">Theme ></div>
+                    </div>
+                    <!-- Language Submenu -->
+                    <div id="menu-lang" style="display:none">
+                        <div class="dropdown-item back-btn" onclick="this.getRootNode().host.showMenu('main')">&lt; Back</div>
+                        <div class="dropdown-item" onclick="this.getRootNode().host.changeLanguage('en')">English</div>
+                        <div class="dropdown-item" onclick="this.getRootNode().host.changeLanguage('he')">Hebrew</div>
+                    </div>
+                    <!-- Theme Submenu -->
+                    <div id="menu-theme" style="display:none">
+                        <div class="dropdown-item back-btn" onclick="this.getRootNode().host.showMenu('main')">&lt; Back</div>
+                        <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('light')">Light</div>
+                        <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('dark')">Dark</div>
+                    </div>
                 </div>
             </div>
             
@@ -299,7 +359,7 @@ class HomeOrganizerPanel extends HTMLElement {
         
         <div class="search-box" id="search-box">
             <div style="position:relative; flex:1;">
-                <input type="text" id="search-input" style="width:100%;padding:8px;padding-left:35px;border-radius:8px;background:#111;color:white;border:1px solid #333">
+                <input type="text" id="search-input" style="width:100%;padding:8px;padding-left:35px;border-radius:8px;background:var(--bg-input);color:var(--text-main);border:1px solid var(--border-input)">
                 <button class="nav-btn ai-btn" id="btn-ai-search" style="position:absolute;left:0;top:0;height:100%;background:none;border:none;">
                    ${ICONS.camera}
                 </button>
@@ -377,6 +437,7 @@ class HomeOrganizerPanel extends HTMLElement {
     click('btn-user-setup', (e) => {
         e.stopPropagation();
         const menu = root.getElementById('setup-dropdown-menu');
+        this.showMenu('main'); // Always reset to main menu on open
         menu.classList.toggle('show');
     });
 
@@ -427,6 +488,26 @@ class HomeOrganizerPanel extends HTMLElement {
     click('btn-cam-snap', () => this.snapPhoto());
     click('btn-cam-switch', () => this.switchCamera());
     click('btn-cam-wb', () => this.toggleWhiteBG());
+  }
+
+  showMenu(menuId) {
+      const root = this.shadowRoot;
+      root.getElementById('menu-main').style.display = 'none';
+      root.getElementById('menu-lang').style.display = 'none';
+      root.getElementById('menu-theme').style.display = 'none';
+      
+      const target = root.getElementById(`menu-${menuId}`);
+      if(target) target.style.display = 'block';
+  }
+
+  setTheme(mode) {
+      const app = this.shadowRoot.getElementById('app');
+      if(mode === 'light') {
+          app.classList.add('light-mode');
+      } else {
+          app.classList.remove('light-mode');
+      }
+      this.shadowRoot.getElementById('setup-dropdown-menu').classList.remove('show');
   }
 
   changeLanguage(lang) {
