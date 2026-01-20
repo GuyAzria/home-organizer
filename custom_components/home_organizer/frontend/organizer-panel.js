@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.8.9 (Code Verification & Label Fix)
+// Home Organizer Ultimate - Ver 5.8.8 (Room Sublocations & Edit Fix)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -908,7 +908,7 @@ class HomeOrganizerPanel extends HTMLElement {
             const addBtn = document.createElement('div');
             addBtn.className = 'folder-item add-folder-card';
             // Logic to label the button based on depth (Location vs SubLocation)
-            const addLabel = (attrs.depth === 1) ? 'Add Location' : 'Add Sub';
+            const addLabel = (attrs.depth === 1) ? 'Add Room' : 'Add Sub';
             addBtn.innerHTML = `<div class="android-folder-icon" id="add-subloc-icon">${ICONS.plus}</div><div class="folder-label">${addLabel}</div>`;
             addBtn.onclick = (e) => this.enableFolderInput(e.currentTarget);
             gridContainer.appendChild(addBtn);
