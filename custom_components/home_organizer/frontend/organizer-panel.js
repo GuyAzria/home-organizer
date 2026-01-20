@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.8.5 (LTR/RTL Dynamic Support)
+// Home Organizer Ultimate - Ver 5.8.7 (Auto-Detect HA Settings)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -481,16 +481,37 @@ class HomeOrganizerPanel extends HTMLElement {
           console.warn("Camera access requires HTTPS.");
     }
 
-    // Load persisted settings
-    const savedTheme = localStorage.getItem('home_organizer_theme');
-    if (savedTheme === 'light') {
-        this.shadowRoot.getElementById('app').classList.add('light-mode');
+    // --- AUTO-DETECT SETTINGS (First Time Only) ---
+    
+    // 1. Language Auto-Detect
+    let currentLang = localStorage.getItem('home_organizer_lang');
+    if (!currentLang && this._hass) {
+        // If no preference saved, use Home Assistant language
+        if (this._hass.language === 'he') {
+            currentLang = 'he';
+        } else {
+            currentLang = 'en'; // Default to English for all other langs
+        }
+        localStorage.setItem('home_organizer_lang', currentLang);
     }
     
-    // Load persisted language settings
-    const savedLang = localStorage.getItem('home_organizer_lang');
-    if (savedLang === 'en') {
+    // Apply Language Class
+    if (currentLang === 'en') {
         this.shadowRoot.getElementById('app').classList.add('ltr');
+    }
+
+    // 2. Theme Auto-Detect
+    let currentTheme = localStorage.getItem('home_organizer_theme');
+    if (!currentTheme && this._hass) {
+        // If no preference saved, use Home Assistant theme mode
+        // this._hass.themes.darkMode is a boolean provided by HA
+        currentTheme = (this._hass.themes && this._hass.themes.darkMode) ? 'dark' : 'light';
+        localStorage.setItem('home_organizer_theme', currentTheme);
+    }
+
+    // Apply Theme Class
+    if (currentTheme === 'light') {
+        this.shadowRoot.getElementById('app').classList.add('light-mode');
     }
 
     this.bindEvents();
@@ -1031,12 +1052,28 @@ class HomeOrganizerPanel extends HTMLElement {
      div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''} ${oosClass}`;
      this.setupDragSource(div, item.name);
      
+     // Detect direction
+     const appEl = this.shadowRoot.getElementById('app');
+     const isRTL = appEl && !appEl.classList.contains('ltr');
+
      let controls = '';
      if (isShopMode) {
          const localQty = (this.shopQuantities[item.name] !== undefined) ? this.shopQuantities[item.name] : 0;
          const checkStyle = (localQty === 0) ? "background:#555;color:#888;cursor:not-allowed;width:40px;height:40px;margin-inline-start:8px;" : "background:var(--accent);width:40px;height:40px;margin-inline-start:8px;";
          const checkDisabled = (localQty === 0) ? "disabled" : "";
-         controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', -1)">${ICONS.minus}</button><span class="qty-val" style="margin:0 8px">${localQty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', 1)">${ICONS.plus}</button><button class="qty-btn" style="${checkStyle}" ${checkDisabled} title="Complete" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.name}')">${ICONS.check}</button>`;
+         
+         const minusBtn = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', -1)">${ICONS.minus}</button>`;
+         const plusBtn = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', 1)">${ICONS.plus}</button>`;
+         const qtySpan = `<span class="qty-val" style="margin:0 8px">${localQty}</span>`;
+         const checkBtn = `<button class="qty-btn" style="${checkStyle}" ${checkDisabled} title="Complete" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.name}')">${ICONS.check}</button>`;
+
+         if (isRTL) {
+             // Hebrew: Plus on Right (Start), Minus on Left
+             controls = `${plusBtn}${qtySpan}${minusBtn}${checkBtn}`;
+         } else {
+             // English: Minus on Left (Start), Plus on Right
+             controls = `${minusBtn}${qtySpan}${plusBtn}${checkBtn}`;
+         }
      } else {
          controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${ICONS.plus}</button><span class="qty-val">${item.qty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${ICONS.minus}</button>`;
      }
