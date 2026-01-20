@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.8.8 (Room Sublocations & Edit Fix)
+// Home Organizer Ultimate - Ver 5.8.7 (Auto-Detect HA Settings)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -741,8 +741,7 @@ class HomeOrganizerPanel extends HTMLElement {
         return;
     }
 
-    // ONLY SHOW FOLDER GRID FOR ROOT LEVEL (Depth 0)
-    if (attrs.depth === 0) {
+    if (attrs.depth < 2) {
         if (attrs.folders && attrs.folders.length > 0 || this.isEditMode) {
             const grid = document.createElement('div');
             grid.className = 'folder-grid';
@@ -756,7 +755,7 @@ class HomeOrganizerPanel extends HTMLElement {
 
                     const deleteBtnHtml = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` : '';
                     const editBtnHtml = this.isEditMode ? `<div class="folder-edit-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'), '${folder.name}')">${ICONS.edit}</div>` : '';
-                    const context = 'room';
+                    const context = attrs.depth === 0 ? 'room' : 'location';
                     const imgBtnHtml = this.isEditMode ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${folder.name}', '${context}')">${ICONS.image}</div>` : '';
 
                     el.innerHTML = `
@@ -776,15 +775,21 @@ class HomeOrganizerPanel extends HTMLElement {
             content.appendChild(grid);
         }
         
-        // This likely won't happen at Depth 0 but keeping for safety
         if (attrs.items && attrs.items.length > 0) {
             const list = document.createElement('div');
             list.className = 'item-list';
             attrs.items.forEach(item => list.appendChild(this.createItemRow(item, false)));
             content.appendChild(list);
         }
+        
+        if (this.isEditMode && attrs.depth === 1) {
+             const addBtn = document.createElement('div');
+             addBtn.className = 'add-item-btn-row';
+             addBtn.innerHTML = `<button class="add-item-btn" onclick="this.getRootNode().host.addQuickItem()">+ הוסף</button>`;
+             content.appendChild(addBtn);
+        }
     } else {
-        // FOR DEPTH >= 1 (Inside a Room or deeper) - Show Grouped List
+        // LOCATION LEVEL (Depth 2+)
         const listContainer = document.createElement('div');
         listContainer.className = 'item-list';
         const inStock = [], outOfStock = [];
@@ -793,8 +798,6 @@ class HomeOrganizerPanel extends HTMLElement {
         if (attrs.folders) attrs.folders.forEach(f => grouped[f.name] = []);
         if (!grouped["General"]) grouped["General"] = [];
         inStock.forEach(item => {
-            // At depth 1, 'folder' names are the Locations inside the room
-            // At depth 2, items are grouped by sub_location
             const sub = item.sub_location || "General";
             if(!grouped[sub]) grouped[sub] = [];
             grouped[sub].push(item);
@@ -907,9 +910,7 @@ class HomeOrganizerPanel extends HTMLElement {
             gridContainer.style.marginTop = '20px';
             const addBtn = document.createElement('div');
             addBtn.className = 'folder-item add-folder-card';
-            // Logic to label the button based on depth (Location vs SubLocation)
-            const addLabel = (attrs.depth === 1) ? 'Add Room' : 'Add Sub';
-            addBtn.innerHTML = `<div class="android-folder-icon" id="add-subloc-icon">${ICONS.plus}</div><div class="folder-label">${addLabel}</div>`;
+            addBtn.innerHTML = `<div class="android-folder-icon" id="add-subloc-icon">${ICONS.plus}</div><div class="folder-label">Add Sub</div>`;
             addBtn.onclick = (e) => this.enableFolderInput(e.currentTarget);
             gridContainer.appendChild(addBtn);
             listContainer.appendChild(gridContainer);
