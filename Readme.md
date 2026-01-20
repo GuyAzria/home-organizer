@@ -35,13 +35,6 @@ This integration adds a dedicated **Full-Screen App** to your Home Assistant sid
 
 ## **🛠️ Prerequisites**
 
-To allow the system to save images taken by your camera to the local storage, you **must** add the following to your configuration.yaml file:
-
-homeassistant:  
-  allowlist\_external\_dirs:  
-    \- "/config/www"
-
-*Restart Home Assistant after adding this line.*
 
 ## **📥 Installation**
 
