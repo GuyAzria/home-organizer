@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.8.4 (Persistence Fix)
+// Home Organizer Ultimate - Ver 5.8.5 (LTR/RTL Dynamic Support)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -122,7 +122,13 @@ class HomeOrganizerPanel extends HTMLElement {
         }
 
         * { box-sizing: border-box; }
+        
+        /* Default RTL (Hebrew) */
         .app-container { background: var(--bg-body); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; font-family: sans-serif; direction: rtl; }
+        
+        /* LTR Override (English) */
+        .app-container.ltr { direction: ltr; }
+
         svg { width: 24px; height: 24px; fill: currentColor; }
         
         /* --- Top Bar & Sub Bar Styles --- */
@@ -145,7 +151,10 @@ class HomeOrganizerPanel extends HTMLElement {
         /* Setup Dropdown */
         .setup-wrapper { position: relative; display: flex; align-items: center; }
         .setup-dropdown { 
-            position: absolute; top: 50px; right: 0; 
+            position: absolute; top: 50px; 
+            /* Logical positioning: Start = Right in RTL, Left in LTR */
+            inset-inline-start: 0;
+            
             background: var(--bg-dropdown); border: 1px solid var(--border-color); 
             border-radius: 8px; display: none; flex-direction: column; min-width: 180px; z-index: 3000;
             box-shadow: 0 8px 16px rgba(0,0,0,0.3); overflow: hidden;
@@ -153,8 +162,12 @@ class HomeOrganizerPanel extends HTMLElement {
         .setup-dropdown.show { display: flex; }
         .dropdown-item { 
             padding: 12px 15px; cursor: pointer; color: var(--text-main); font-size: 14px; 
-            text-align: right; border-bottom: 1px solid var(--border-color); 
-            display: flex; align-items: center; justify-content: flex-start; gap: 10px; direction: ltr; /* Ensure icon is left of text */
+            /* Logical alignment: Start = Right in RTL, Left in LTR */
+            text-align: start; 
+            border-bottom: 1px solid var(--border-color); 
+            display: flex; align-items: center; justify-content: flex-start; gap: 10px; 
+            /* Force LTR for icon/text relationship inside the item if needed, but flex gap usually handles it well. 
+               We will use 'inherit' or just let flex flow natural to the container direction */
         }
         .dropdown-item:hover { background: var(--primary); color: white; }
         .dropdown-item:last-child { border-bottom: none; }
@@ -165,7 +178,7 @@ class HomeOrganizerPanel extends HTMLElement {
 
         .title-box { flex: 1; text-align: center; }
         .main-title { font-weight: bold; font-size: 16px; }
-        .sub-title { font-size: 11px; color: var(--text-sub); direction: ltr; }
+        .sub-title { font-size: 11px; color: var(--text-sub); direction: ltr; } /* Paths are usually LTR like /home/kitchen */
         .content { flex: 1; padding: 15px; overflow-y: auto; }
         
         /* --- Folders & Grid --- */
@@ -183,9 +196,9 @@ class HomeOrganizerPanel extends HTMLElement {
         .android-folder-icon svg { width: 34px; height: 34px; }
         .android-folder-icon img { width: 38px; height: 38px; object-fit: contain; border-radius: 4px; }
         
-        /* Folder Action Buttons */
-        .folder-delete-btn { position: absolute; top: -5px; right: -5px; background: var(--danger); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
-        .folder-edit-btn { position: absolute; top: -5px; left: -5px; background: var(--primary); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
+        /* Folder Action Buttons - Kept absolute for corners, but using logical properties ensures standard flip */
+        .folder-delete-btn { position: absolute; top: -5px; inset-inline-end: -5px; background: var(--danger); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
+        .folder-edit-btn { position: absolute; top: -5px; inset-inline-start: -5px; background: var(--primary); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
         .folder-edit-btn svg { width: 12px; height: 12px; }
         .folder-img-btn { position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%); background: #ff9800; color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
         .folder-img-btn svg { width: 12px; height: 12px; }
@@ -239,7 +252,9 @@ class HomeOrganizerPanel extends HTMLElement {
         
         /* Updated Grid Badge to use variables */
         .xl-badge { 
-            position: absolute; top: 8px; right: 8px; 
+            position: absolute; top: 8px; 
+            inset-inline-end: 8px; /* Logical End (Right in LTR, Left in RTL - usually standard corners flip in OS) */
+            
             background: var(--bg-badge); color: var(--text-badge); border: 1px solid var(--border-light);
             min-width: 24px; height: 24px; border-radius: 12px; 
             display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; 
@@ -400,8 +415,8 @@ class HomeOrganizerPanel extends HTMLElement {
         
         <div class="search-box" id="search-box">
             <div style="position:relative; flex:1;">
-                <input type="text" id="search-input" style="width:100%;padding:8px;padding-left:35px;border-radius:8px;background:var(--bg-input);color:var(--text-main);border:1px solid var(--border-input)">
-                <button class="nav-btn ai-btn" id="btn-ai-search" style="position:absolute;left:0;top:0;height:100%;background:none;border:none;">
+                <input type="text" id="search-input" style="width:100%;padding:8px;padding-inline-start:35px;border-radius:8px;background:var(--bg-input);color:var(--text-main);border:1px solid var(--border-input)">
+                <button class="nav-btn ai-btn" id="btn-ai-search" style="position:absolute;inset-inline-start:0;top:0;height:100%;background:none;border:none;">
                    ${ICONS.camera}
                 </button>
             </div>
@@ -470,6 +485,12 @@ class HomeOrganizerPanel extends HTMLElement {
     const savedTheme = localStorage.getItem('home_organizer_theme');
     if (savedTheme === 'light') {
         this.shadowRoot.getElementById('app').classList.add('light-mode');
+    }
+    
+    // Load persisted language settings
+    const savedLang = localStorage.getItem('home_organizer_lang');
+    if (savedLang === 'en') {
+        this.shadowRoot.getElementById('app').classList.add('ltr');
     }
 
     this.bindEvents();
@@ -563,7 +584,12 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   changeLanguage(lang) {
-      console.log("Language change requested:", lang);
+      const app = this.shadowRoot.getElementById('app');
+      if (lang === 'en') {
+          app.classList.add('ltr');
+      } else {
+          app.classList.remove('ltr');
+      }
       localStorage.setItem('home_organizer_lang', lang);
       this.shadowRoot.getElementById('setup-dropdown-menu').classList.remove('show');
   }
@@ -769,7 +795,7 @@ class HomeOrganizerPanel extends HTMLElement {
             
             const icon = isExpanded ? ICONS.chevron_down : ICONS.chevron_right;
             // Updated to use CSS variable for badge background
-            const countBadge = `<span style="font-size:12px; background:var(--bg-badge); color:var(--text-badge); padding:2px 6px; border-radius:10px; margin-left:8px;">${count}</span>`;
+            const countBadge = `<span style="font-size:12px; background:var(--bg-badge); color:var(--text-badge); padding:2px 6px; border-radius:10px; margin-inline-start:8px;">${count}</span>`;
             
             const header = document.createElement('div');
             header.className = 'group-separator';
@@ -785,7 +811,7 @@ class HomeOrganizerPanel extends HTMLElement {
             if (this.isEditMode && subName !== "General") {
                 header.innerHTML = `
                     <div style="display:flex;align-items:center;">
-                        <span style="margin-right:5px;display:flex;align-items:center">${icon}</span>
+                        <span style="margin-inline-end:5px;display:flex;align-items:center">${icon}</span>
                         <span class="subloc-title">${subName}</span>
                         ${countBadge}
                     </div>
@@ -794,7 +820,7 @@ class HomeOrganizerPanel extends HTMLElement {
                         <button class="delete-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button>
                     </div>`;
             } else {
-                header.innerHTML = `<div style="display:flex;align-items:center;"><span style="margin-right:5px;display:flex;align-items:center">${icon}</span><span>${subName}</span>${countBadge}</div>`;
+                header.innerHTML = `<div style="display:flex;align-items:center;"><span style="margin-inline-end:5px;display:flex;align-items:center">${icon}</span><span>${subName}</span>${countBadge}</div>`;
             }
             listContainer.appendChild(header);
 
@@ -1008,7 +1034,7 @@ class HomeOrganizerPanel extends HTMLElement {
      let controls = '';
      if (isShopMode) {
          const localQty = (this.shopQuantities[item.name] !== undefined) ? this.shopQuantities[item.name] : 0;
-         const checkStyle = (localQty === 0) ? "background:#555;color:#888;cursor:not-allowed;width:40px;height:40px;margin-left:8px;" : "background:var(--accent);width:40px;height:40px;margin-left:8px;";
+         const checkStyle = (localQty === 0) ? "background:#555;color:#888;cursor:not-allowed;width:40px;height:40px;margin-inline-start:8px;" : "background:var(--accent);width:40px;height:40px;margin-inline-start:8px;";
          const checkDisabled = (localQty === 0) ? "disabled" : "";
          controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', -1)">${ICONS.minus}</button><span class="qty-val" style="margin:0 8px">${localQty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', 1)">${ICONS.plus}</button><button class="qty-btn" style="${checkStyle}" ${checkDisabled} title="Complete" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.name}')">${ICONS.check}</button>`;
      } else {
@@ -1034,11 +1060,11 @@ class HomeOrganizerPanel extends HTMLElement {
          details.innerHTML = `
             <div class="detail-row">
                 <input type="text" id="name-${item.name}" value="${item.name}" 
-                    style="flex:1;padding:8px;background:var(--bg-input-edit);color:var(--text-main);border:1px solid var(--border-light);border-radius:4px;margin-left:5px"
+                    style="flex:1;padding:8px;background:var(--bg-input-edit);color:var(--text-main);border:1px solid var(--border-light);border-radius:4px;margin-inline-start:5px"
                     onblur="this.getRootNode().host.autoSaveItem('${item.name}', 'name')"
                     onkeydown="if(event.key==='Enter') this.blur()">
                 
-                <div style="position:relative; width:120px; height:36px; margin-left:5px;">
+                <div style="position:relative; width:120px; height:36px; margin-inline-start:5px;">
                     <button class="action-btn" style="width:100%; height:100%; text-align:center; padding:0; display:flex; align-items:center; justify-content:center; background:var(--bg-input-edit); color:var(--text-main); border:1px solid var(--border-light);"
                         onclick="this.nextElementSibling.showPicker()">
                         ${item.date || 'Set Date'}
