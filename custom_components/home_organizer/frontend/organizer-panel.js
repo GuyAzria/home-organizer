@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.9.0 (Zone & Floor Management)
+// Home Organizer Ultimate - Ver 5.9.1 (Zone Marker Fix)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -743,6 +743,11 @@ class HomeOrganizerPanel extends HTMLElement {
             attrs.folders.forEach(f => {
                 const zone = f.zone || "General Rooms";
                 if (!groupedRooms[zone]) groupedRooms[zone] = [];
+                
+                // Filter out the zone markers from the visible list
+                // We identify them by the "ZONE_MARKER_" prefix or item_type
+                if (f.name.startsWith("ZONE_MARKER_") || f.item_type === 'zone_marker') return;
+                
                 groupedRooms[zone].push(f);
             });
         }
@@ -977,8 +982,10 @@ class HomeOrganizerPanel extends HTMLElement {
   promptNewZone() {
       const name = prompt("Enter Zone / Floor Name:");
       if (name && name.trim()) {
-          // Creating a "Zone Marker" (essentially a folder at root or specific metadata)
-          this.callHA('add_item', { item_name: name.trim(), item_type: 'folder', zone: name.trim(), current_path: [] });
+          // FIX: Create a marker item with a unique name so it doesn't show up as a "Room"
+          // The updateUI logic filters out items starting with "ZONE_MARKER_"
+          const markerName = "ZONE_MARKER_" + name.trim();
+          this.callHA('add_item', { item_name: markerName, item_type: 'zone_marker', zone: name.trim(), current_path: [] });
       }
   }
 
