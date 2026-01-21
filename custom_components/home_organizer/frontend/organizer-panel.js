@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.8.7 (Auto-Detect HA Settings)
+// Home Organizer Ultimate - Ver 5.9.0 (Zone & Floor Management)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -184,6 +184,7 @@ class HomeOrganizerPanel extends HTMLElement {
         /* --- Folders & Grid --- */
         .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 20px; }
         .folder-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; position: relative; }
+        .folder-item.dragging { opacity: 0.4; transform: scale(0.9); transition: all 0.2s ease; border: 1px dashed var(--primary); border-radius: 12px; }
         
         /* Updated Folder Icon to use variables for Light/Dark mode */
         .android-folder-icon { 
@@ -417,7 +418,7 @@ class HomeOrganizerPanel extends HTMLElement {
             <div style="position:relative; flex:1;">
                 <input type="text" id="search-input" style="width:100%;padding:8px;padding-inline-start:35px;border-radius:8px;background:var(--bg-input);color:var(--text-main);border:1px solid var(--border-input)">
                 <button class="nav-btn ai-btn" id="btn-ai-search" style="position:absolute;inset-inline-start:0;top:0;height:100%;background:none;border:none;">
-                   ${ICONS.camera}
+                    ${ICONS.camera}
                 </button>
             </div>
             <button class="nav-btn" id="search-close">${ICONS.close}</button>
@@ -486,7 +487,6 @@ class HomeOrganizerPanel extends HTMLElement {
     // 1. Language Auto-Detect
     let currentLang = localStorage.getItem('home_organizer_lang');
     if (!currentLang && this._hass) {
-        // If no preference saved, use Home Assistant language
         if (this._hass.language === 'he') {
             currentLang = 'he';
         } else {
@@ -503,8 +503,6 @@ class HomeOrganizerPanel extends HTMLElement {
     // 2. Theme Auto-Detect
     let currentTheme = localStorage.getItem('home_organizer_theme');
     if (!currentTheme && this._hass) {
-        // If no preference saved, use Home Assistant theme mode
-        // this._hass.themes.darkMode is a boolean provided by HA
         currentTheme = (this._hass.themes && this._hass.themes.darkMode) ? 'dark' : 'light';
         localStorage.setItem('home_organizer_theme', currentTheme);
     }
@@ -522,7 +520,6 @@ class HomeOrganizerPanel extends HTMLElement {
     const bind = (id, event, fn) => { const el = root.getElementById(id); if(el) el[event] = fn; };
     const click = (id, fn) => bind(id, 'onclick', fn);
 
-    // Setup Dropdown Toggle
     click('btn-user-setup', (e) => {
         e.stopPropagation();
         const menu = root.getElementById('setup-dropdown-menu');
@@ -530,12 +527,10 @@ class HomeOrganizerPanel extends HTMLElement {
         menu.classList.toggle('show');
     });
 
-    // Close dropdown on outside click
     window.addEventListener('click', () => {
         root.getElementById('setup-dropdown-menu')?.classList.remove('show');
     });
     
-    // STOP PROPAGATION on menu clicks so it doesn't close immediately
     const menu = root.getElementById('setup-dropdown-menu');
     if(menu) menu.onclick = (e) => e.stopPropagation();
 
@@ -547,7 +542,6 @@ class HomeOrganizerPanel extends HTMLElement {
     bind('search-input', 'oninput', (e) => this.fetchData());
     click('btn-edit', () => { this.isEditMode = !this.isEditMode; this.isShopMode = false; this.render(); });
     
-    // View Toggle
     click('btn-view-toggle', () => {
         this.viewMode = (this.viewMode === 'list') ? 'grid' : 'list';
         const gridIcon = root.getElementById('icon-view-grid');
@@ -698,18 +692,15 @@ class HomeOrganizerPanel extends HTMLElement {
     const content = root.getElementById('content');
     content.innerHTML = '';
 
-    // Up Arrow Visibility Logic
     const upBtn = root.getElementById('btn-up');
     if (upBtn) {
-        // If depth is 0 (Root/Home), hide the up button
         if (attrs.depth === 0) {
             upBtn.style.display = 'none';
         } else {
-            upBtn.style.display = 'flex'; // Restore flex display
+            upBtn.style.display = 'flex'; 
         }
     }
 
-    // SHOW/HIDE VIEW BUTTON based on depth
     const viewBtn = root.getElementById('btn-view-toggle');
     if (attrs.depth >= 2) viewBtn.style.display = 'block'; else viewBtn.style.display = 'none';
 
@@ -738,6 +729,84 @@ class HomeOrganizerPanel extends HTMLElement {
         list.className = 'item-list';
         attrs.items.forEach(item => list.appendChild(this.createItemRow(item, false)));
         content.appendChild(list);
+        return;
+    }
+
+    // ROOM LEVEL (Depth 0) - WITH ZONE/FLOOR SUPPORT
+    if (attrs.depth === 0) {
+        const zoneContainer = document.createElement('div');
+        zoneContainer.className = 'item-list';
+
+        // Filter: Group rooms by zone
+        const groupedRooms = {};
+        if (attrs.folders) {
+            attrs.folders.forEach(f => {
+                const zone = f.zone || "General Rooms";
+                if (!groupedRooms[zone]) groupedRooms[zone] = [];
+                groupedRooms[zone].push(f);
+            });
+        }
+
+        Object.keys(groupedRooms).sort().forEach(zoneName => {
+            // Zone Header - acts as drop target for rooms
+            const header = document.createElement('div');
+            header.className = 'group-separator';
+            header.innerHTML = `<span>${zoneName}</span>`;
+            this.setupZoneDropTarget(header, zoneName);
+            zoneContainer.appendChild(header);
+
+            // Room Grid for this Zone
+            const grid = document.createElement('div');
+            grid.className = 'folder-grid';
+            
+            groupedRooms[zoneName].forEach(folder => {
+                const el = document.createElement('div');
+                el.className = 'folder-item';
+                
+                // DRAG & DROP Support for Rooms
+                if (this.isEditMode) {
+                    this.setupRoomDragSource(el, folder.name);
+                }
+
+                el.onclick = () => { if (!this.isEditMode) this.navigate('down', folder.name); };
+                
+                let folderContent = ICONS.folder;
+                if (folder.img) folderContent = `<img src="${folder.img}">`;
+
+                const deleteBtnHtml = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` : '';
+                const editBtnHtml = this.isEditMode ? `<div class="folder-edit-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'), '${folder.name}')">${ICONS.edit}</div>` : '';
+                const imgBtnHtml = this.isEditMode ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${folder.name}', 'room')">${ICONS.image}</div>` : '';
+
+                el.innerHTML = `
+                    <div class="android-folder-icon">${folderContent}${editBtnHtml}${deleteBtnHtml}${imgBtnHtml}</div>
+                    <div class="folder-label">${folder.name}</div>
+                `;
+                grid.appendChild(el);
+            });
+
+            // Add room specifically to this zone button
+            if (this.isEditMode) {
+                const addBtn = document.createElement('div');
+                addBtn.className = 'folder-item add-folder-card';
+                addBtn.innerHTML = `<div class="android-folder-icon">${ICONS.plus}</div><div class="folder-label">Add Room</div>`;
+                addBtn.onclick = () => this.promptAddRoomToZone(zoneName);
+                grid.appendChild(addBtn);
+            }
+
+            zoneContainer.appendChild(grid);
+        });
+
+        // Global Edit Mode Options for Zone Management
+        if (this.isEditMode) {
+            const addZoneBtn = document.createElement('button');
+            addZoneBtn.className = 'add-item-btn';
+            addZoneBtn.style.marginTop = '20px';
+            addZoneBtn.innerHTML = `+ Add Sub Zone / Floor`;
+            addZoneBtn.onclick = () => this.promptNewZone();
+            zoneContainer.appendChild(addZoneBtn);
+        }
+
+        content.appendChild(zoneContainer);
         return;
     }
 
@@ -789,7 +858,6 @@ class HomeOrganizerPanel extends HTMLElement {
              content.appendChild(addBtn);
         }
     } else {
-        // LOCATION LEVEL (Depth 2+)
         const listContainer = document.createElement('div');
         listContainer.className = 'item-list';
         const inStock = [], outOfStock = [];
@@ -806,23 +874,16 @@ class HomeOrganizerPanel extends HTMLElement {
         Object.keys(grouped).sort().forEach(subName => {
             const items = grouped[subName];
             const count = items.length;
-
             if (subName === "General" && count === 0 && !this.isEditMode) return;
-            // Requirement: Hide empty sublocations in grid mode
             if (this.viewMode === 'grid' && count === 0) return;
-
-            // Requirement: Force expand all in grid mode
             const isExpanded = (this.viewMode === 'grid') ? true : this.expandedSublocs.has(subName);
-            
             const icon = isExpanded ? ICONS.chevron_down : ICONS.chevron_right;
-            // Updated to use CSS variable for badge background
             const countBadge = `<span style="font-size:12px; background:var(--bg-badge); color:var(--text-badge); padding:2px 6px; border-radius:10px; margin-inline-start:8px;">${count}</span>`;
             
             const header = document.createElement('div');
             header.className = 'group-separator';
             this.setupDropTarget(header, subName);
             
-            // Only toggle in list mode
             if (this.viewMode === 'list') {
                 header.onclick = () => this.toggleSubloc(subName);
             } else {
@@ -846,17 +907,14 @@ class HomeOrganizerPanel extends HTMLElement {
             listContainer.appendChild(header);
 
             if (isExpanded) {
-                // RENDER GRID OR LIST BASED ON VIEW MODE
                 if (this.viewMode === 'grid' && count > 0) {
                       const gridDiv = document.createElement('div');
                       gridDiv.className = 'xl-grid-container';
                       items.forEach(item => {
                           const card = document.createElement('div');
                           card.className = 'xl-card';
-                          
                           let iconHtml = ICONS.item;
                           if (item.img) iconHtml = `<img src="${item.img}">`;
-                          
                           card.innerHTML = `
                               <div class="xl-icon-area">${iconHtml}</div>
                               <div class="xl-badge">${item.qty}</div>
@@ -865,8 +923,6 @@ class HomeOrganizerPanel extends HTMLElement {
                                   <div class="xl-date">${item.date || ''}</div>
                               </div>
                           `;
-                          
-                          // CLICK ICON/IMG -> FULL SCREEN DETAIL
                           const iconArea = card.querySelector('.xl-icon-area');
                           if(iconArea) {
                               iconArea.onclick = (e) => {
@@ -874,14 +930,11 @@ class HomeOrganizerPanel extends HTMLElement {
                                   this.showItemDetails(item);
                               };
                           }
-
-                          // CLICK TEXT/CARD -> LIST VIEW (EDIT)
                           card.onclick = () => { 
                               this.viewMode = 'list';
                               this.expandedIdx = item.name;
                               this.render();
                           };
-                          
                           gridDiv.appendChild(card);
                       });
                       listContainer.appendChild(gridDiv);
@@ -918,7 +971,63 @@ class HomeOrganizerPanel extends HTMLElement {
         content.appendChild(listContainer);
     }
   }
+
+  // --- ZONE/FLOOR MANAGEMENT LOGIC ---
   
+  promptNewZone() {
+      const name = prompt("Enter Zone / Floor Name:");
+      if (name && name.trim()) {
+          // Creating a "Zone Marker" (essentially a folder at root or specific metadata)
+          this.callHA('add_item', { item_name: name.trim(), item_type: 'folder', zone: name.trim(), current_path: [] });
+      }
+  }
+
+  promptAddRoomToZone(zoneName) {
+      const name = prompt(`Add Room to ${zoneName}:`);
+      if (name && name.trim()) {
+          this.callHA('add_item', { item_name: name.trim(), item_type: 'folder', zone: zoneName, current_path: [] });
+      }
+  }
+
+  setupRoomDragSource(el, roomName) {
+      el.draggable = true;
+      el.ondragstart = (e) => { 
+          e.dataTransfer.setData("text/plain", roomName); 
+          e.dataTransfer.effectAllowed = "move"; 
+          el.classList.add('dragging'); 
+      };
+      el.ondragend = () => el.classList.remove('dragging');
+  }
+
+  setupZoneDropTarget(el, zoneName) {
+      el.ondragover = (e) => { 
+          e.preventDefault(); 
+          e.dataTransfer.dropEffect = 'move'; 
+          el.classList.add('drag-over'); 
+      };
+      el.ondragleave = () => el.classList.remove('drag-over');
+      el.ondrop = (e) => { 
+          e.preventDefault(); 
+          el.classList.remove('drag-over'); 
+          const roomName = e.dataTransfer.getData("text/plain"); 
+          if (roomName) this.moveRoomToZone(roomName, zoneName); 
+      };
+  }
+
+  async moveRoomToZone(roomName, zoneName) {
+      try {
+          await this.callHA('update_item_details', { 
+              original_name: roomName, 
+              new_zone: zoneName, 
+              current_path: [], 
+              is_folder: true 
+          });
+          this.fetchData();
+      } catch (err) { console.error("Zone move failed", err); }
+  }
+
+  // --- END ZONE LOGIC ---
+
   showItemDetails(item) {
       const ov = this.shadowRoot.getElementById('img-overlay');
       const img = this.shadowRoot.getElementById('overlay-img');
@@ -1051,8 +1160,6 @@ class HomeOrganizerPanel extends HTMLElement {
      const oosClass = (item.qty === 0) ? 'out-of-stock-frame' : '';
      div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''} ${oosClass}`;
      this.setupDragSource(div, item.name);
-     
-     // Detect direction
      const appEl = this.shadowRoot.getElementById('app');
      const isRTL = appEl && !appEl.classList.contains('ltr');
 
@@ -1061,19 +1168,11 @@ class HomeOrganizerPanel extends HTMLElement {
          const localQty = (this.shopQuantities[item.name] !== undefined) ? this.shopQuantities[item.name] : 0;
          const checkStyle = (localQty === 0) ? "background:#555;color:#888;cursor:not-allowed;width:40px;height:40px;margin-inline-start:8px;" : "background:var(--accent);width:40px;height:40px;margin-inline-start:8px;";
          const checkDisabled = (localQty === 0) ? "disabled" : "";
-         
          const minusBtn = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', -1)">${ICONS.minus}</button>`;
          const plusBtn = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', 1)">${ICONS.plus}</button>`;
          const qtySpan = `<span class="qty-val" style="margin:0 8px">${localQty}</span>`;
          const checkBtn = `<button class="qty-btn" style="${checkStyle}" ${checkDisabled} title="Complete" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.name}')">${ICONS.check}</button>`;
-
-         if (isRTL) {
-             // Hebrew: Plus on Right (Start), Minus on Left
-             controls = `${plusBtn}${qtySpan}${minusBtn}${checkBtn}`;
-         } else {
-             // English: Minus on Left (Start), Plus on Right
-             controls = `${minusBtn}${qtySpan}${plusBtn}${checkBtn}`;
-         }
+         if (isRTL) { controls = `${plusBtn}${qtySpan}${minusBtn}${checkBtn}`; } else { controls = `${minusBtn}${qtySpan}${plusBtn}${checkBtn}`; }
      } else {
          controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${ICONS.plus}</button><span class="qty-val">${item.qty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${ICONS.minus}</button>`;
      }
@@ -1100,7 +1199,6 @@ class HomeOrganizerPanel extends HTMLElement {
                     style="flex:1;padding:8px;background:var(--bg-input-edit);color:var(--text-main);border:1px solid var(--border-light);border-radius:4px;margin-inline-start:5px"
                     onblur="this.getRootNode().host.autoSaveItem('${item.name}', 'name')"
                     onkeydown="if(event.key==='Enter') this.blur()">
-                
                 <div style="position:relative; width:120px; height:36px; margin-inline-start:5px;">
                     <button class="action-btn" style="width:100%; height:100%; text-align:center; padding:0; display:flex; align-items:center; justify-content:center; background:var(--bg-input-edit); color:var(--text-main); border:1px solid var(--border-light);"
                         onclick="this.nextElementSibling.showPicker()">
@@ -1133,23 +1231,12 @@ class HomeOrganizerPanel extends HTMLElement {
       const nameEl = this.shadowRoot.getElementById(`name-${oldName}`);
       const dateEl = this.shadowRoot.getElementById(`date-${oldName}`);
       if(!nameEl || !dateEl) return;
-      
       const newName = nameEl.value.trim();
       const newDate = dateEl.value;
-      
-      if(triggerType === 'name' && newName !== oldName) {
-           this.expandedIdx = newName; 
-      }
-      
-      this.callHA('update_item_details', { 
-          original_name: oldName, 
-          new_name: newName, 
-          new_date: newDate 
-      });
+      if(triggerType === 'name' && newName !== oldName) { this.expandedIdx = newName; }
+      this.callHA('update_item_details', { original_name: oldName, new_name: newName, new_date: newDate });
   }
 
-  // Removed setDateToday as requested
-  
   updateLocationDropdown(itemName, roomName) {
       const locContainer = this.shadowRoot.getElementById(`loc-container-${itemName}`);
       const locSelect = this.shadowRoot.getElementById(`loc-select-${itemName}`);
@@ -1250,13 +1337,7 @@ class HomeOrganizerPanel extends HTMLElement {
       this.pendingFolderIcon = targetName;
       this.pickerContext = context; 
       this.pickerPage = 0; 
-      
-      if (context === 'item') {
-          this.pickerCategory = Object.keys(ICON_LIB_ITEM)[0];
-      } else {
-          this.pickerCategory = null;
-      }
-
+      if (context === 'item') { this.pickerCategory = Object.keys(ICON_LIB_ITEM)[0]; } else { this.pickerCategory = null; }
       this.renderIconPickerGrid();
       this.shadowRoot.getElementById('icon-modal').style.display = 'flex';
   }
@@ -1264,9 +1345,7 @@ class HomeOrganizerPanel extends HTMLElement {
   getCurrentPickerLib() {
       if (this.pickerContext === 'room') return ICON_LIB_ROOM;
       if (this.pickerContext === 'location') return ICON_LIB_LOCATION;
-      if (this.pickerContext === 'item') {
-          return ICON_LIB_ITEM[this.pickerCategory] || {};
-      }
+      if (this.pickerContext === 'item') { return ICON_LIB_ITEM[this.pickerCategory] || {}; }
       return ICON_LIB;
   }
 
@@ -1274,7 +1353,6 @@ class HomeOrganizerPanel extends HTMLElement {
       const lib = this.getCurrentPickerLib();
       const keys = Object.keys(lib);
       const totalPages = Math.ceil(keys.length / this.pickerPageSize);
-      
       const grid = this.shadowRoot.getElementById('icon-lib-grid');
       const categoryBar = this.shadowRoot.getElementById('picker-categories');
       const pageInfo = this.shadowRoot.getElementById('picker-page-info');
@@ -1290,16 +1368,10 @@ class HomeOrganizerPanel extends HTMLElement {
               const firstIconKey = Object.keys(ICON_LIB_ITEM[cat])[0];
               const sampleIcon = ICON_LIB_ITEM[cat][firstIconKey] || '';
               btn.innerHTML = `${sampleIcon}<span>${cat}</span>`;
-              btn.onclick = () => {
-                  this.pickerCategory = cat;
-                  this.pickerPage = 0;
-                  this.renderIconPickerGrid();
-              };
+              btn.onclick = () => { this.pickerCategory = cat; this.pickerPage = 0; this.renderIconPickerGrid(); };
               categoryBar.appendChild(btn);
           });
-      } else {
-          categoryBar.style.display = 'none';
-      }
+      } else { categoryBar.style.display = 'none'; }
 
       grid.innerHTML = '';
       const start = this.pickerPage * this.pickerPageSize;
@@ -1323,13 +1395,9 @@ class HomeOrganizerPanel extends HTMLElement {
       let source = svgHtml;
       const size = 140; 
       if (!source.includes('xmlns')) source = source.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
-      if (source.includes('width=')) {
-          source = source.replace(/width="[^"]*"/, `width="${size}"`).replace(/height="[^"]*"/, `height="${size}"`);
-      } else {
-          source = source.replace('<svg', `<svg width="${size}" height="${size}"`);
-      }
+      if (source.includes('width=')) { source = source.replace(/width="[^"]*"/, `width="${size}"`).replace(/height="[^"]*"/, `height="${size}"`); } 
+      else { source = source.replace('<svg', `<svg width="${size}" height="${size}"`); }
       source = source.replace('<svg', '<svg fill="#4fc3f7"');
-
       const img = new Image();
       const blob = new Blob([source], {type: 'image/svg+xml;charset=utf-8'});
       const url = URL.createObjectURL(blob);
@@ -1406,10 +1474,8 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   pasteItem() { this.callHA('paste_item', { target_path: this.currentPath }); }
-  
   cut(name) { this.callHA('clipboard_action', {action: 'cut', item_name: name}); }
   del(name) { this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: false }); }
-  showImg(src) { const ov = this.shadowRoot.getElementById('overlay-img'); const ovc = this.shadowRoot.getElementById('img-overlay'); if(ov && ovc) { ov.src = src; ovc.style.display = 'flex'; } }
   callHA(service, data) { return this._hass.callService('home_organizer', service, data); }
 }
 
