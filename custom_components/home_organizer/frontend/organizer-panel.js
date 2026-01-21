@@ -1,10 +1,5 @@
-// Home Organizer Ultimate - Ver 6.8.0 (Full 1418+ Line Logic Restore)
-// Comprehensive implementation including:
-// 1. High-Density CSS Variables (Dual Themes, Mobile/Desktop logic)
-// 2. High-Resolution Camera API (Ideal buffer scaling, Facing Mode auto-detection)
-// 3. Symbolic Icon Repository (15+ Categories, Paginated navigation, SVG-to-Canvas logic)
-// 4. Gemini AI Vision Integration (Visual item search, identification)
-// 5. Zone & Floor Organization Engine (Main grouping, Drag-and-Drop Move logic)
+// Home Organizer Ultimate - Ver 5.8.7 (Auto-Detect HA Settings)
+// License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
 
@@ -12,42 +7,35 @@ class HomeOrganizerPanel extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this.content) {
-      // --- CORE ARCHITECTURAL STATE ---
       this.currentPath = [];
       this.isEditMode = false;
       this.isSearch = false;
       this.isShopMode = false;
-      this.viewMode = localStorage.getItem('ho_view_mode') || 'list'; 
+      this.viewMode = 'list'; // 'list' or 'grid'
       this.expandedIdx = null;
+      this.lastAI = "";
       this.localData = null; 
+      this.pendingItem = null;
       this.useAiBg = true; 
       this.shopQuantities = {};
       this.expandedSublocs = new Set(); 
       this.subscribed = false;
-      this.pickerPageSize = 24; // High-density grid for tablets
+      this.pickerContext = 'room'; 
+      this.pickerCategory = null; 
       this.pickerPage = 0;
-      this.pickerContext = 'item'; 
-      this.pickerCategory = 'Kitchen'; 
-      this.facingMode = "environment";
-      this.searchTimer = null;
-      this.draggedRoomName = null;
+      this.pickerPageSize = 15;
 
       this.initUI();
     }
 
     if (this._hass && this._hass.connection && !this.subscribed) {
         this.subscribed = true;
-        // Listen for global DB updates to sync multiple browsers
-        this._hass.connection.subscribeEvents(() => this.fetchData(), 'home_organizer_db_update');
-        
-        // Listen for AI results and update search input if applicable
+        this._hass.connection.subscribeEvents((e) => this.fetchData(), 'home_organizer_db_update');
         this._hass.connection.subscribeEvents((e) => {
-             if (e.data.mode === 'search') {
-                 const searchInp = this.shadowRoot.getElementById('search-input');
-                 if(searchInp) { searchInp.value = e.data.result; this.fetchData(); }
+             if (e.data.mode === 'identify') {
+                 // AI logic
              }
         }, 'home_organizer_ai_result');
-        
         this.fetchData();
     }
   }
@@ -55,758 +43,1374 @@ class HomeOrganizerPanel extends HTMLElement {
   async fetchData() {
       if (!this._hass) return;
       try {
-          const response = await this._hass.callWS({
+          const data = await this._hass.callWS({
               type: 'home_organizer/get_data',
               path: this.currentPath,
               search_query: this.shadowRoot.getElementById('search-input')?.value || "",
               date_filter: "All",
               shopping_mode: this.isShopMode
           });
-          this.localData = response;
+          this.localData = data;
           this.updateUI();
-      } catch (e) { console.error("Communication Protocol Error", e); }
+      } catch (e) {
+          console.error("Fetch error", e);
+      }
   }
 
   initUI() {
     this.content = true;
     this.attachShadow({mode: 'open'});
-    
-    // --- MASSIVE HIGH-FIDELITY CSS ENGINE (Expanded to full 200+ lines) ---
     this.shadowRoot.innerHTML = `
       <style>
         :host { 
-            --primary: #03a9f4; --accent: #4caf50; --danger: #f44336; --warning: #ffeb3b;
-            --bg-body: #1c1c1e; --bg-bar: #242426; --bg-sub-bar: #2a2a2c; --bg-card: #2c2c2e; --text-main: #fff; --text-sub: #aaa; --border: #333;
-            --bg-input: #111; --bg-icon-box: #3c4043; --text-icon-box: #8ab4f8;
-            --shadow-soft: 0 4px 20px rgba(0,0,0,0.3);
-            --shadow-deep: 0 15px 45px rgba(0,0,0,0.7);
-            --radius-main: 22px;
-            --transition-fast: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            --transition-med: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            /* -- Dark Theme Variables (Default) -- */
+            --primary: #03a9f4; 
+            --accent: #4caf50; 
+            --danger: #f44336; 
+            --warning: #ffeb3b;
+            --icon-btn-bg: #444;
+            
+            --bg-body: #1c1c1e;
+            --bg-bar: #242426;
+            --bg-sub-bar: #2a2a2c;
+            --bg-card: #2c2c2e;
+            --bg-card-hover: #3a3a3c;
+            --bg-input: #111;
+            --bg-input-edit: #222;
+            --bg-dropdown: #2c2c2e;
+            --bg-qty-ctrl: #222; /* Default Dark for Qty Control */
+            
+            --text-main: #fff;
+            --text-sub: #aaa;
+            
+            --border-color: #333;
+            --border-light: #444;
+            --border-input: #333;
+
+            /* Badge & Icon specific */
+            --bg-badge: #444;
+            --text-badge: #fff;
+            --bg-icon-box: #3c4043;
+            --text-icon-box: #8ab4f8;
         }
 
+        /* -- Light Theme Overrides -- */
         .light-mode {
-            --bg-body: #f1f5f9; --bg-bar: #ffffff; --bg-sub-bar: #f8fafc; --bg-card: #ffffff; --text-main: #0f172a; --text-sub: #64748b; --border: #e2e8f0;
-            --bg-input: #f1f5f9; --bg-icon-box: #f1f5f9; --text-icon-box: #03a9f4;
-            --shadow-soft: 0 2px 10px rgba(0,0,0,0.04);
-            --shadow-deep: 0 10px 30px rgba(0,0,0,0.1);
+            --bg-body: #f5f5f5;
+            --bg-bar: #ffffff;
+            --bg-sub-bar: #f0f0f0;
+            --bg-card: #ffffff;
+            --bg-card-hover: #f9f9f9;
+            --bg-input: #ffffff;
+            --bg-input-edit: #ffffff;
+            --bg-dropdown: #ffffff;
+            --bg-qty-ctrl: #e0e0e0; /* Gray for Qty Control in Light Mode */
+            
+            --text-main: #333;
+            --text-sub: #666;
+            
+            --border-color: #ddd;
+            --border-light: #ccc;
+            --border-input: #ccc;
+            --icon-btn-bg: #e0e0e0;
+
+            /* High contrast for Light Mode numbers/icons */
+            --bg-badge: #e0e0e0;      /* White Gray */
+            --text-badge: #000000;    /* Black Text */
+            --bg-icon-box: #e0e0e0;   /* White Gray */
+            --text-icon-box: #03a9f4; /* Primary Blue */
         }
 
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        * { box-sizing: border-box; }
         
-        .app-container { 
-            background: var(--bg-body); color: var(--text-main); height: 100vh; 
-            display: flex; flex-direction: column; direction: rtl; font-family: 'Inter', -apple-system, sans-serif; 
-            overflow: hidden; transition: background 0.4s;
-        }
+        /* Default RTL (Hebrew) */
+        .app-container { background: var(--bg-body); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; font-family: sans-serif; direction: rtl; }
+        
+        /* LTR Override (English) */
         .app-container.ltr { direction: ltr; }
 
-        /* NAVIGATION ARCHITECTURE */
-        .top-bar { 
-            background: var(--bg-bar); padding: 0 30px; display: flex; justify-content: space-between; 
-            align-items: center; border-bottom: 1px solid var(--border); height: 75px; flex-shrink: 0; 
-            box-shadow: var(--shadow-soft); z-index: 2500;
-        }
-        .breadcrumb-bar { 
-            background: var(--bg-bar); height: 50px; border-bottom: 1px solid var(--border); 
-            display: flex; align-items: center; justify-content: space-between; padding: 0 30px; 
-            font-size: 13px; color: var(--text-sub); flex-shrink: 0;
-        }
+        svg { width: 24px; height: 24px; fill: currentColor; }
+        
+        /* --- Top Bar & Sub Bar Styles --- */
+        .top-bar { background: var(--bg-bar); padding: 10px; border-bottom: 1px solid var(--border-color); display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-shrink: 0; height: 60px; position: relative; }
+        
+        /* Sub-bar */
+        .sub-bar { background: var(--bg-sub-bar); height: 30px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
+        
+        .sub-bar-left { display: flex; align-items: center; }
+        .sub-bar-right { display: flex; align-items: center; gap: 10px; }
 
-        .action-button { 
-            background: none; border: none; color: var(--primary); cursor: pointer; padding: 14px; 
-            border-radius: 50%; display: flex; align-items: center; justify-content: center; 
-            transition: var(--transition-fast); position: relative; 
-        }
-        .action-button:hover { background: rgba(125,125,125,0.18); transform: scale(1.1); }
-        .action-button:active { transform: scale(0.9); }
-        .action-button.active { color: var(--warning); background: rgba(255, 235, 59, 0.15); }
-        .action-button.edit-active { color: var(--accent); background: rgba(76, 175, 80, 0.15); }
+        .nav-btn { background: none; border: none; color: var(--primary); cursor: pointer; padding: 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+        .nav-btn:hover { background: rgba(125,125,125,0.1); }
+        .nav-btn.active { color: var(--warning); }
+        .nav-btn.edit-active { color: var(--accent); } 
+        
+        .sub-bar .nav-btn { padding: 4px; }
+        .sub-bar .nav-btn svg { width: 20px; height: 20px; }
 
-        /* SETTINGS DROPDOWN */
-        .settings-root { position: relative; display: flex; align-items: center; }
-        .dropdown-panel { 
-            position: absolute; top: 65px; inset-inline-start: 0; background: var(--bg-card); 
-            border: 1px solid var(--border); border-radius: 24px; display: none; flex-direction: column; 
-            min-width: 260px; z-index: 8500; box-shadow: var(--shadow-deep); overflow: hidden;
-            animation: bounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        /* Setup Dropdown */
+        .setup-wrapper { position: relative; display: flex; align-items: center; }
+        .setup-dropdown { 
+            position: absolute; top: 50px; 
+            /* Logical positioning: Start = Right in RTL, Left in LTR */
+            inset-inline-start: 0;
+            
+            background: var(--bg-dropdown); border: 1px solid var(--border-color); 
+            border-radius: 8px; display: none; flex-direction: column; min-width: 180px; z-index: 3000;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.3); overflow: hidden;
         }
-        @keyframes bounceIn { from { opacity: 0; transform: translateY(40px) scale(0.8); } to { opacity: 1; transform: translateY(0) scale(1); } }
-        .dropdown-panel.show { display: flex; }
-        .menu-row { 
-            padding: 20px 25px; cursor: pointer; color: var(--text-main); font-size: 15px; 
-            text-align: start; border-bottom: 1px solid var(--border); display: flex; align-items: center; 
-            gap: 20px; transition: background 0.3s; 
+        .setup-dropdown.show { display: flex; }
+        .dropdown-item { 
+            padding: 12px 15px; cursor: pointer; color: var(--text-main); font-size: 14px; 
+            /* Logical alignment: Start = Right in RTL, Left in LTR */
+            text-align: start; 
+            border-bottom: 1px solid var(--border-color); 
+            display: flex; align-items: center; justify-content: flex-start; gap: 10px; 
+            /* Force LTR for icon/text relationship inside the item if needed, but flex gap usually handles it well. 
+               We will use 'inherit' or just let flex flow natural to the container direction */
         }
-        .menu-row:hover { background: var(--primary); color: white; }
-        .menu-row:last-child { border-bottom: none; }
+        .dropdown-item:hover { background: var(--primary); color: white; }
+        .dropdown-item:last-child { border-bottom: none; }
+        .dropdown-item svg { width: 18px; height: 18px; opacity: 0.8; }
+        
+        .back-btn { font-weight: bold; color: var(--primary); }
+        .back-btn:hover { color: white; }
 
-        .viewport-scroll { flex: 1; padding: 30px; overflow-y: auto; scrollbar-width: thin; scroll-behavior: smooth; }
+        .title-box { flex: 1; text-align: center; }
+        .main-title { font-weight: bold; font-size: 16px; }
+        .sub-title { font-size: 11px; color: var(--text-sub); direction: ltr; } /* Paths are usually LTR like /home/kitchen */
+        .content { flex: 1; padding: 15px; overflow-y: auto; }
+        
+        /* --- Folders & Grid --- */
+        .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 20px; }
+        .folder-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; position: relative; }
+        
+        /* Updated Folder Icon to use variables for Light/Dark mode */
+        .android-folder-icon { 
+            width: 56px; height: 56px; 
+            background: var(--bg-icon-box); 
+            color: var(--text-icon-box); 
+            border-radius: 16px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2); position: relative; overflow: visible; 
+        }
+        .android-folder-icon svg { width: 34px; height: 34px; }
+        .android-folder-icon img { width: 38px; height: 38px; object-fit: contain; border-radius: 4px; }
+        
+        /* Folder Action Buttons - Kept absolute for corners, but using logical properties ensures standard flip */
+        .folder-delete-btn { position: absolute; top: -5px; inset-inline-end: -5px; background: var(--danger); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
+        .folder-edit-btn { position: absolute; top: -5px; inset-inline-start: -5px; background: var(--primary); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
+        .folder-edit-btn svg { width: 12px; height: 12px; }
+        .folder-img-btn { position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%); background: #ff9800; color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
+        .folder-img-btn svg { width: 12px; height: 12px; }
 
-        /* ZONE & FLOOR GRID SYSTEM */
-        .zone-wrapper { margin-bottom: 50px; border-radius: 30px; border: 3px solid transparent; padding: 15px; transition: var(--transition-med); }
-        .zone-wrapper.drop-target-active { border-color: var(--primary); background: rgba(3, 169, 244, 0.1); transform: scale(1.03); }
-        .zone-header-label { 
-            display: flex; justify-content: space-between; align-items: center; padding: 18px 30px; 
-            border-bottom: 3px solid var(--border); color: var(--primary); font-weight: 900; font-size: 18px; 
-            text-transform: uppercase; letter-spacing: 3px; margin-bottom: 30px;
+        /* --- List View Styles --- */
+        .item-list { display: flex; flex-direction: column; gap: 5px; }
+        
+        .group-separator { 
+            color: var(--text-sub); font-size: 14px; margin: 20px 0 10px 0; 
+            border-bottom: 1px solid var(--border-light); padding-bottom: 4px; 
+            text-transform: uppercase; font-weight: bold; 
+            display: flex; justify-content: space-between; align-items: center;
+            min-height: 35px;
+            cursor: pointer; 
         }
+        .group-separator:hover { background: rgba(125,125,125,0.05); }
+        .group-separator.drag-over { border-bottom: 2px solid var(--primary); color: var(--primary); background: rgba(3, 169, 244, 0.1); }
+        .oos-separator { color: var(--danger); border-color: var(--danger); }
+        
+        .edit-subloc-btn { background: none; border: none; color: var(--text-sub); cursor: pointer; padding: 4px; }
+        .edit-subloc-btn:hover { color: var(--primary); }
+        .delete-subloc-btn { background: none; border: none; color: var(--danger); cursor: pointer; padding: 4px; }
 
-        /* GRID ANIMATION ARCHITECTURE */
-        .icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(115px, 1fr)); gap: 35px; padding: 10px; }
-        .icon-card { 
-            display: flex; flex-direction: column; align-items: center; cursor: pointer; 
-            text-align: center; position: relative; transition: var(--transition-med); 
-        }
-        .icon-visual { 
-            width: 88px; height: 88px; background: var(--bg-icon-box); color: var(--text-icon-box); 
-            border-radius: 30px; display: flex; align-items: center; justify-content: center; 
-            margin-bottom: 18px; box-shadow: var(--shadow-soft); position: relative; 
-        }
-        .icon-card:hover .icon-visual { transform: translateY(-10px); box-shadow: var(--shadow-deep); }
-        .icon-visual img { width: 62px; height: 62px; object-fit: contain; border-radius: 12px; }
-        .icon-visual svg { width: 52px; height: 52px; }
-        .card-title { font-size: 15px; font-weight: 800; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 110px; }
+        .item-row { background: var(--bg-card); margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid transparent; touch-action: pan-y; }
+        .item-row.expanded { background: var(--bg-card-hover); flex-direction: column; align-items: stretch; cursor: default; }
+        .out-of-stock-frame { border: 2px solid var(--danger); }
 
-        /* EDIT MODE BADGES */
-        .badge-bin { position: absolute; top: -16px; inset-inline-end: -16px; background: var(--danger); color: white; width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; border: 5px solid var(--bg-body); z-index: 150; box-shadow: 0 6px 15px rgba(0,0,0,0.6); cursor: pointer; }
-        .badge-pen { position: absolute; top: -16px; inset-inline-start: -16px; background: var(--primary); color: white; width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 5px solid var(--bg-body); z-index: 150; box-shadow: 0 6px 15px rgba(0,0,0,0.6); cursor: pointer; }
-        .badge-cam { position: absolute; bottom: -16px; left: 50%; transform: translateX(-50%); background: #ff9100; color: white; width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 5px solid var(--bg-body); z-index: 150; box-shadow: 0 6px 15px rgba(0,0,0,0.6); cursor: pointer; }
+        .item-main { display: flex; align-items: center; justify-content: space-between; width: 100%; cursor: pointer; }
+        .item-left { display: flex; align-items: center; gap: 10px; }
+        .item-icon { color: var(--primary); display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; }
+        
+        .item-thumbnail { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: #000; display: block; border: 1px solid var(--border-light); }
 
-        /* DATA LIST PRESENTATION */
-        .list-stack { display: flex; flex-direction: column; gap: 20px; }
-        .list-row { 
-            background: var(--bg-card); border-radius: 28px; padding: 25px; display: flex; 
-            align-items: center; justify-content: space-between; border: 2px solid transparent; 
-            transition: var(--transition-med); box-shadow: var(--shadow-soft);
+        .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: var(--bg-qty-ctrl); color: var(--text-main); padding: 4px; border-radius: 20px; }
+        .qty-btn { background: var(--icon-btn-bg); border: none; color: var(--text-main); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        
+        /* --- NEW XL GRID STYLES --- */
+        .xl-grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 10px; }
+        .xl-card { 
+            background: var(--bg-card); border-radius: 12px; padding: 10px; 
+            display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+            aspect-ratio: 1; position: relative; border: 1px solid transparent;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
-        .list-row.active-state { background: var(--bg-bar); flex-direction: column; align-items: stretch; border-color: var(--primary); }
-        .oos-indicator { border-inline-start: 10px solid var(--danger) !important; }
+        .xl-card:hover { background: var(--bg-card-hover); }
+        .xl-icon-area { flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; overflow: hidden; cursor: zoom-in; }
+        
+        /* Restored Icon/Image Size to Full */
+        .xl-icon-area svg { width: 48px; height: 48px; color: var(--primary); }
+        .xl-icon-area img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
+        
+        /* Updated Grid Badge to use variables */
+        .xl-badge { 
+            position: absolute; top: 8px; 
+            inset-inline-end: 8px; /* Logical End (Right in LTR, Left in RTL - usually standard corners flip in OS) */
+            
+            background: var(--bg-badge); color: var(--text-badge); border: 1px solid var(--border-light);
+            min-width: 24px; height: 24px; border-radius: 12px; 
+            display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; 
+        }
+        .xl-info { width: 100%; text-align: center; margin-top: 8px; cursor: pointer; }
+        .xl-name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; color: var(--text-main); }
+        .xl-date { font-size: 10px; color: var(--text-sub); margin-top: 2px; }
 
-        .qty-control-panel { 
-            display: flex; align-items: center; gap: 25px; background: var(--bg-input); 
-            padding: 15px 30px; border-radius: 45px; box-shadow: inset 0 4px 10px rgba(0,0,0,0.5);
-        }
-        .qty-btn-circle { 
-            background: #444; border: none; color: white; width: 40px; height: 40px; 
-            border-radius: 50%; cursor: pointer; display: flex; align-items: center; 
-            justify-content: center; font-size: 24px; font-weight: bold; 
-        }
+        /* --- Editing & Inputs --- */
+        .add-folder-card .android-folder-icon { border: 2px dashed #4caf50; background: rgba(76, 175, 80, 0.1); color: #4caf50; }
+        .add-folder-card:hover .android-folder-icon { background: rgba(76, 175, 80, 0.2); }
+        .add-folder-input { width: 100%; height: 100%; border: none; background: transparent; color: white; text-align: center; font-size: 12px; padding: 5px; outline: none; }
+        
+        .text-add-btn { background: none; border: none; color: var(--primary); font-size: 14px; font-weight: bold; cursor: pointer; padding: 8px 0; display: flex; align-items: center; gap: 5px; opacity: 0.8; }
+        .text-add-btn:hover { opacity: 1; text-decoration: underline; }
+        .group-add-row { padding: 0 10px; margin-bottom: 15px; }
 
-        /* MODAL INFRASTRUCTURE (Expanded) */
-        .global-overlay { 
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.96); 
-            z-index: 9500; display: none; align-items: center; justify-content: center; backdrop-filter: blur(20px); 
-        }
-        .modal-body-container { 
-            background: var(--bg-card); width: 95%; max-width: 650px; padding: 40px; 
-            border-radius: 40px; max-height: 92vh; overflow-y: auto; position: relative; box-shadow: var(--shadow-deep);
-        }
+        .add-item-btn-row { width: 100%; margin-top: 10px; }
+        .add-item-btn { width: 100%; padding: 12px; background: rgba(76, 175, 80, 0.15); border: 1px dashed #4caf50; color: #4caf50; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; transition: background 0.2s; }
+        .add-item-btn:hover { background: rgba(76, 175, 80, 0.3); }
 
-        /* SYMBOL REPOSITORY SYSTEM */
-        .cat-selection-bar { display: flex; gap: 20px; overflow-x: auto; padding: 10px 10px 25px; margin-bottom: 35px; scrollbar-width: none; }
-        .cat-selection-bar::-webkit-scrollbar { display: none; }
-        .pill-button { 
-            padding: 16px 28px; background: #333; color: white; border-radius: 40px; 
-            border: none; font-size: 15px; font-weight: 900; white-space: nowrap; cursor: pointer; transition: 0.3s; 
-        }
-        .pill-button.selected { background: var(--primary); box-shadow: 0 8px 25px var(--primary); }
+        .expanded-details { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-light); display: flex; flex-direction: column; gap: 10px; }
+        .detail-row { display: flex; gap: 10px; align-items: center; }
+        
+        .action-btn { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--border-light); color: var(--text-sub); background: var(--icon-btn-bg); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 8px; }
+        .action-btn:hover { background: var(--border-light); color: var(--text-main); }
+        .btn-danger { color: #ff8a80; border-color: #d32f2f; }
+        .btn-text { width: auto; padding: 0 15px; font-weight: bold; color: white; background: var(--primary); border: none; }
+        .move-container { display: flex; gap: 5px; align-items: center; flex: 1; }
+        .move-select { flex: 1; padding: 8px; background: var(--bg-input-edit); color: var(--text-main); border: 1px solid var(--border-light); border-radius: 6px; }
+        .search-box { display:none; padding:10px; background:var(--bg-sub-bar); display:flex; gap: 5px; align-items: center; }
+        
+        /* --- Modals --- */
+        #icon-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2500; display: none; align-items: center; justify-content: center; flex-direction: column; }
+        .modal-content { background: var(--bg-card); color:var(--text-main); width: 95%; max-width: 450px; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 15px; max-height: 90vh; overflow-y: auto; }
+        .modal-title { font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 5px; }
+        
+        .category-bar { display: none; gap: 10px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 10px; scrollbar-width: thin; scrollbar-color: var(--warning) transparent; }
+        .category-bar::-webkit-scrollbar { height: 4px; }
+        .category-bar::-webkit-scrollbar-thumb { background: var(--warning); border-radius: 2px; }
+        .cat-btn { min-width: 65px; height: 65px; background: #333; border: 2px solid var(--warning); border-radius: 8px; color: white; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; text-align: center; padding: 5px; flex-shrink: 0; transition: all 0.2s; }
+        .cat-btn.active { background: var(--warning); color: #000; font-weight: bold; }
+        .cat-btn svg { width: 24px; height: 24px; margin-bottom: 4px; }
 
-        /* SEARCH DRAWER LOGIC */
-        .search-drawer-root { 
-            display: none; padding: 25px 35px; background: var(--bg-bar); gap: 20px; 
-            align-items: center; border-bottom: 1px solid var(--border); animation: slideInFromTop 0.5s cubic-bezier(0.19, 1, 0.22, 1);
-        }
-        @keyframes slideInFromTop { from { transform: translateY(-100%); } to { transform: translateY(0); } }
-        .search-main-input { 
-            flex: 1; padding: 20px 28px; background: var(--bg-input); border: 3px solid var(--border); 
-            border-radius: 24px; color: var(--text-main); font-size: 20px; transition: border-color 0.4s;
-        }
-        .search-main-input:focus { border-color: var(--primary); }
+        .icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 10px; min-height: 200px; }
+        .lib-icon { background: #333; border-radius: 8px; padding: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 5px; }
+        .lib-icon:hover { background: #444; }
+        .lib-icon svg { width: 32px; height: 32px; fill: #ccc; }
+        .lib-icon span { font-size: 10px; color: #888; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; width: 50px; text-align: center; }
+        
+        .pagination-ctrls { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding: 10px 0; border-top: 1px solid #444; }
+        .page-btn { background: #444; color: white; border: none; border-radius: 4px; padding: 5px 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .page-info { font-size: 12px; color: #aaa; }
 
-        /* XL Card Architecture */
-        .xl-grid-root { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 30px; }
-        .xl-visual-card { 
-            background: var(--bg-card); border-radius: 35px; padding: 25px; display: flex; 
-            flex-direction: column; align-items: center; position: relative; box-shadow: var(--shadow-soft); 
+        .url-input-row { display: flex; gap: 10px; margin-top: 10px; border-top: 1px solid #444; padding-top: 10px; }
+        
+        #camera-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: center; }
+        #camera-video { width: 100%; height: 80%; object-fit: cover; }
+        .camera-controls { height: 20%; width: 100%; display: flex; align-items: center; justify-content: center; gap: 30px; background: rgba(0,0,0,0.5); position: absolute; bottom: 0; }
+        .snap-btn { width: 70px; height: 70px; border-radius: 50%; background: white; border: 5px solid #ccc; cursor: pointer; }
+        .snap-btn.white-bg-active { background: #e3f2fd; border-color: var(--primary); }
+        .close-cam-btn { color: white; background: none; border: none; font-size: 16px; cursor: pointer; }
+        .wb-btn { color: #aaa; background: none; border: 2px solid #555; border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-direction: column; font-size: 10px; }
+        .wb-btn.active { color: #333; background: white; border-color: white; }
+        .wb-btn svg { width: 24px; height: 24px; margin-bottom: 2px; }
+        #camera-canvas { display: none; }
+        .overlay { display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:2500;justify-content:center;align-items:center }
+        
+        /* --- Preview Overlay Styles --- */
+        #overlay-img { 
+            max-width: 50% !important;    
+            max-height: 35vh !important;
+            border-radius: 8px; 
+            object-fit: contain; 
+            margin-bottom: 15px; 
+            display: none; 
+            border: 1px solid #444; 
         }
-        .xl-visual-frame { 
-            width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; 
-            margin-bottom: 18px; overflow: hidden; border-radius: 28px; background: #000; border: 2px solid var(--border);
+        #overlay-icon-big { 
+            display: none; 
+            margin-bottom: 15px; 
+            color: white; 
         }
-        .xl-visual-frame img { width: 100%; height: 100%; object-fit: cover; }
-        .xl-badge-qty { 
-            position: absolute; top: 18px; right: 18px; background: var(--primary); color: white; 
-            min-width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; 
-            justify-content: center; font-size: 16px; font-weight: 900; border: 4px solid white; box-shadow: 0 6px 15px rgba(0,0,0,0.5);
+        /* Fixed explicit size for the Preview Icon (60px) */
+        #overlay-icon-big svg {
+            width: 60px; 
+            height: 60px;
         }
       </style>
       
       <div class="app-container" id="app">
-        <!-- GLOBAL APP HEADER -->
+        <!-- Main Top Bar (60px) -->
         <div class="top-bar">
-            <div class="settings-root">
-                <button class="action-button" id="btn-sys-config" title="Settings">${ICONS.settings}</button>
-                <div class="dropdown-panel" id="ui-sys-menu">
-                    <div id="pane-main">
-                        <div class="menu-row" onclick="event.stopPropagation(); this.getRootNode().host.navMenu('lang')">${ICONS.translate} System Languages</div>
-                        <div class="menu-row" onclick="event.stopPropagation(); this.getRootNode().host.navMenu('theme')">${ICONS.theme} UI Color Palette</div>
-                        <div class="menu-row" onclick="this.getRootNode().host.fullReset()">${ICONS.history} Clear Local Database Cache</div>
+            <div class="setup-wrapper">
+                <button class="nav-btn" id="btn-user-setup">
+                    <svg viewBox="0 0 24 24"><path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.35 19.43,11.03L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.47,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.53,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.22,8.95 2.27,9.22 2.46,9.37L4.57,11.03C4.53,11.35 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.22,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.53,18.67 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.47,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z" /></svg>
+                </button>
+                <div class="setup-dropdown" id="setup-dropdown-menu">
+                    <!-- Main Menu -->
+                    <div id="menu-main">
+                        <div class="dropdown-item" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('lang')">
+                            <svg viewBox="0 0 24 24"><path d="M12.87,15.07L10.33,12.56L10.36,12.53C12.1,10.59 13.34,8.36 14.07,6H17V4H11V2H9V4H2V6H4.18C4.87,8.8 6.13,11.23 7.82,13.23L4.25,16.8L5.66,18.21L9.24,14.65L12.87,18.73L12.87,15.07M18.5,10H16.5L12,22H14L15.12,19H19.87L20.98,22H22.97L18.5,10M15.88,17L17.5,12.67L19.12,17H15.88Z" /></svg>
+                            Language
+                        </div>
+                        <div class="dropdown-item" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('theme')">
+                            <svg viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20M12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18M12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16Z" /></svg>
+                            Theme
+                        </div>
                     </div>
-                    <div id="pane-lang" style="display:none">
-                        <div class="menu-row" style="color:var(--primary)" onclick="event.stopPropagation(); this.getRootNode().host.navMenu('main')">${ICONS.arrow_right} Go Back</div>
-                        <div class="menu-row" onclick="this.getRootNode().host.commitLang('en')">English (Left-to-Right)</div>
-                        <div class="menu-row" onclick="this.getRootNode().host.commitLang('he')">Hebrew (Right-to-Left)</div>
+                    <!-- Language Submenu -->
+                    <div id="menu-lang" style="display:none">
+                        <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
+                           <svg viewBox="0 0 24 24"><path d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z" /></svg>
+                           Back
+                        </div>
+                        <div class="dropdown-item" onclick="this.getRootNode().host.changeLanguage('en')">English</div>
+                        <div class="dropdown-item" onclick="this.getRootNode().host.changeLanguage('he')">Hebrew</div>
                     </div>
-                    <div id="pane-theme" style="display:none">
-                        <div class="menu-row" style="color:var(--primary)" onclick="event.stopPropagation(); this.getRootNode().host.navMenu('main')">${ICONS.arrow_right} Go Back</div>
-                        <div class="menu-row" onclick="this.getRootNode().host.commitTheme('light')">Bright Light Mode</div>
-                        <div class="menu-row" onclick="this.getRootNode().host.commitTheme('dark')">Midnight Dark Mode</div>
+                    <!-- Theme Submenu -->
+                    <div id="menu-theme" style="display:none">
+                        <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
+                           <svg viewBox="0 0 24 24"><path d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z" /></svg>
+                           Back
+                        </div>
+                        <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('light')">Light</div>
+                        <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('dark')">Dark</div>
                     </div>
                 </div>
             </div>
             
             <div class="title-box">
-                <div class="main-title" id="ui-main-header-txt">HOME ORGANIZER</div>
-                <div class="sub-title" id="ui-path-display-txt">/root/system</div>
+                <div class="main-title" id="display-title">Organizer</div>
+                <div class="sub-title" id="display-path">Main</div>
             </div>
-            
-            <div style="display:flex; gap:15px">
-                <button class="action-button" id="btn-market-access" title="Shopping List">${ICONS.cart}</button>
-                <button class="action-button" id="btn-search-access" title="Smart Search">${ICONS.search}</button>
-                <button class="action-button" id="btn-edit-access" title="Design Layout">${ICONS.edit}</button>
-            </div>
-        </div>
-
-        <!-- BREADCRUMB NAVIGATION -->
-        <div class="breadcrumb-bar">
-            <div id="ui-active-crumb" style="font-weight: 900; color: var(--primary); font-size: 15px">Root Level Dashboard</div>
-            <div style="display:flex; gap:20px; align-items:center">
-                <button class="action-button" id="btn-nav-up" style="padding:0; width:28px; height:28px">${ICONS.arrow_up}</button>
-                <button class="action-button" id="btn-nav-home" style="padding:0; width:28px; height:28px">${ICONS.home}</button>
-                <button class="action-button" id="btn-nav-view" style="padding:0; width:28px; height:28px">${ICONS.grid}</button>
+            <div style="display:flex;gap:5px">
+                <button class="nav-btn" id="btn-shop">${ICONS.cart}</button>
+                <button class="nav-btn" id="btn-search">${ICONS.search}</button>
+                <button class="nav-btn" id="btn-edit">${ICONS.edit}</button>
             </div>
         </div>
 
-        <!-- SEARCH ENGINE DRAWER -->
-        <div class="search-drawer-root" id="ui-search-drawer">
-            <input type="text" id="search-input" class="search-main-input" placeholder="Type name or use AI identification...">
-            <button class="action-button" id="btn-ai-lens-trigger" title="AI Symbol Recognition">${ICONS.camera}</button>
-            <button class="action-button" id="btn-close-search-drawer">${ICONS.close}</button>
-        </div>
-
-        <!-- PRIMARY SCROLLABLE INTERFACE -->
-        <div class="viewport-scroll" id="ui-main-viewport">
-            <div style="text-align:center; padding:120px; color:#888; display:flex; flex-direction:column; align-items:center; gap:30px">
-                <div style="width:70px; height:70px; border:8px solid var(--border); border-top-color:var(--primary); border-radius:50%; animation: spin 0.8s infinite linear"></div>
-                <div style="font-weight:900; letter-spacing:3px; font-size:14px">SYNCHRONIZING REPOSITORY...</div>
+        <!-- Sub-Bar (30px) -->
+        <div class="sub-bar">
+            <!-- Right side in RTL (Home/Up) -->
+            <div class="sub-bar-right">
+                <button class="nav-btn" id="btn-home">${ICONS.home}</button>
+                <button class="nav-btn" id="btn-up" style="display:none;">${ICONS.arrow_up}</button>
             </div>
+            <!-- Left side in RTL (View Toggle) -->
+            <div class="sub-bar-left">
+                <button class="nav-btn" id="btn-view-toggle" style="display:none;">
+                   <svg id="icon-view-grid" viewBox="0 0 24 24" style="display:block"><path d="M3,11H11V3H3M3,21H11V13H3M13,21H21V13H13M13,3V11H21V3"/></svg>
+                   <svg id="icon-view-list" viewBox="0 0 24 24" style="display:none"><path d="M3,4H21V6H3M3,8H21V10H3M3,12H21V14H3M3,16H21V18H3M3,20H21V22H3"/></svg>
+                </button>
+            </div>
+        </div>
+        
+        <div class="search-box" id="search-box">
+            <div style="position:relative; flex:1;">
+                <input type="text" id="search-input" style="width:100%;padding:8px;padding-inline-start:35px;border-radius:8px;background:var(--bg-input);color:var(--text-main);border:1px solid var(--border-input)">
+                <button class="nav-btn ai-btn" id="btn-ai-search" style="position:absolute;inset-inline-start:0;top:0;height:100%;background:none;border:none;">
+                   ${ICONS.camera}
+                </button>
+            </div>
+            <button class="nav-btn" id="search-close">${ICONS.close}</button>
+        </div>
+        
+        <div class="paste-bar" id="paste-bar" style="display:none;padding:10px;background:rgba(255,235,59,0.2);color:#ffeb3b;align-items:center;justify-content:space-between"><div>${ICONS.cut} Cut: <b id="clipboard-name"></b></div><button id="btn-paste" style="background:#4caf50;color:white;border:none;padding:5px 15px;border-radius:15px">Paste</button></div>
+        
+        <div class="content" id="content">
+            <div style="text-align:center;padding:20px;color:#888;">Loading...</div>
         </div>
       </div>
-
-      <!-- SYMBOL PICKER OVERLAY -->
-      <div class="global-overlay" id="overlay-icon-picker">
-          <div class="modal-body-container">
-              <h2 style="margin-top:0; color:var(--primary); display:flex; align-items:center; gap:20px; font-size:24px">${ICONS.image} Asset Repository</h2>
-              <div class="category-tab-bar" id="ui-picker-tabs"></div>
-              <div class="icon-grid" id="ui-picker-grid" style="grid-template-columns: repeat(4, 1fr); gap:20px; min-height:350px"></div>
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-top:45px">
-                  <button class="action-button" id="ctrl-page-prev" style="background:var(--bg-input); padding:20px">${ICONS.arrow_up}</button>
-                  <div style="font-weight:900; font-size:16px; letter-spacing:2px" id="ui-page-status">PAGE 1 / 1</div>
-                  <button class="action-button" id="ctrl-page-next" style="transform:rotate(180deg); background:var(--bg-input); padding:20px">${ICONS.arrow_up}</button>
+      
+      <!-- Icon Modal -->
+      <div id="icon-modal" onclick="this.style.display='none'">
+          <div class="modal-content" onclick="event.stopPropagation()">
+              <div class="modal-title">Change Icon</div>
+              <div class="category-bar" id="picker-categories"></div>
+              <div class="icon-grid" id="icon-lib-grid"></div>
+              <div class="pagination-ctrls">
+                  <button class="page-btn" id="picker-prev">${ICONS.arrow_up}</button>
+                  <div class="page-info" id="picker-page-info">Page 1 of 1</div>
+                  <button class="page-btn" id="picker-next" style="transform: rotate(180deg)">${ICONS.arrow_up}</button>
               </div>
-              <button class="add-action-btn" style="border:none; background:var(--danger); color:white; margin-top:35px; width:100%; height:65px; font-weight:900" onclick="this.getRootNode().host.closeOverlay('overlay-icon-picker')">Exit Library</button>
-          </div>
-      </div>
-
-      <!-- CAMERA OPTICAL OVERLAY -->
-      <div class="global-overlay" id="overlay-camera" style="padding:0; background:black">
-          <div class="modal-body-container" style="padding:0; width:100%; height:100%; max-width:100%; border-radius:0; background:black; display:flex; flex-direction:column">
-              <video id="ui-video-feed" autoplay playsinline muted style="width:100%; height:82%; object-fit:cover"></video>
-              <div class="camera-controls" style="height:18%; display:flex; align-items:center; justify-content:space-around; background:linear-gradient(0deg, rgba(0,0,0,1) 0%, transparent 100%)">
-                  <button class="action-button" style="color:white; background:rgba(255,255,255,0.22); width:70px; height:70px" onclick="this.getRootNode().host.flipLens()">${ICONS.refresh}</button>
-                  <div class="capture-trigger" id="ctrl-snap-capture" style="width:100px; height:100px; border-radius:50%; background:white; border:12px solid #555; cursor:pointer"></div>
-                  <button class="action-button" style="color:white; background:rgba(255,255,255,0.22); width:70px; height:70px" id="ctrl-aibg-toggle">${ICONS.wand}</button>
+              <div class="url-input-row">
+                  <input type="text" id="icon-url-input" placeholder="Paste Image URL..." style="flex:1;padding:8px;background:#111;color:white;border:1px solid #444;border-radius:4px">
+                  <button class="action-btn" id="btn-load-url">${ICONS.check}</button>
               </div>
-              <button class="action-button" style="position:absolute; top:40px; right:40px; color:white; background:rgba(0,0,0,0.7); width:60px; height:60px; font-size:28px" onclick="this.getRootNode().host.killCamera()">✕</button>
-              <canvas id="ui-buffer-canvas" style="display:none"></canvas>
-          </div>
-      </div>
-
-      <!-- FULL PREVIEW LIGHTBOX -->
-      <div class="global-overlay" id="overlay-lightbox" onclick="this.style.display='none'">
-          <div style="max-width:98%; max-height:98%; position:relative">
-              <img id="ui-lightbox-target" style="width:100%; height:100%; object-fit:contain; border-radius:30px; box-shadow: 0 0 70px #000; border: 4px solid #777">
+              <div style="text-align:center; margin-top:10px;">
+                  <label class="action-btn" style="width:100%; display:flex; gap:10px; justify-content:center;">
+                      ${ICONS.image} Upload File
+                      <input type="file" id="icon-file-upload" accept="image/*" style="display:none">
+                  </label>
+              </div>
+              <button class="action-btn" style="width:100%;margin-top:10px;background:#444" onclick="this.closest('#icon-modal').style.display='none'">Cancel</button>
           </div>
       </div>
       
-      <style> @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } } </style>
+      <!-- Camera Modal -->
+      <div id="camera-modal">
+          <video id="camera-video" autoplay playsinline muted></video>
+          <div class="camera-controls">
+              <button class="close-cam-btn" id="btn-cam-switch">${ICONS.refresh}</button>
+              <button class="snap-btn" id="btn-cam-snap"></button>
+              <button class="wb-btn active" id="btn-cam-wb" title="Toggle AI Background Removal">${ICONS.wand}<span>AI BG</span></button>
+              <button class="close-cam-btn" id="btn-cam-close" style="position:absolute;top:-50px;right:20px;background:rgba(0,0,0,0.5);border-radius:50%;width:40px;height:40px">✕</button>
+          </div>
+          <canvas id="camera-canvas"></canvas>
+      </div>
+
+      <!-- Detail/Image Overlay -->
+      <div class="overlay" id="img-overlay" onclick="this.style.display='none'">
+          <div style="display:flex;flex-direction:column;align-items:center;max-width:90%;max-height:90%;width:100%">
+              <img id="overlay-img">
+              <div id="overlay-icon-big">${ICONS.item}</div>
+              <div id="overlay-details" style="color:white;text-align:center;background:#2a2a2a;padding:20px;border-radius:12px;width:100%;max-width:300px;box-shadow:0 4px 15px rgba(0,0,0,0.7);display:none;border:1px solid #444"></div>
+          </div>
+      </div>
     `;
 
-    this.runHardwareDetect();
-    this.initEventListeners();
+    if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+          console.warn("Camera access requires HTTPS.");
+    }
+
+    // --- AUTO-DETECT SETTINGS (First Time Only) ---
+    
+    // 1. Language Auto-Detect
+    let currentLang = localStorage.getItem('home_organizer_lang');
+    if (!currentLang && this._hass) {
+        // If no preference saved, use Home Assistant language
+        if (this._hass.language === 'he') {
+            currentLang = 'he';
+        } else {
+            currentLang = 'en'; // Default to English for all other langs
+        }
+        localStorage.setItem('home_organizer_lang', currentLang);
+    }
+    
+    // Apply Language Class
+    if (currentLang === 'en') {
+        this.shadowRoot.getElementById('app').classList.add('ltr');
+    }
+
+    // 2. Theme Auto-Detect
+    let currentTheme = localStorage.getItem('home_organizer_theme');
+    if (!currentTheme && this._hass) {
+        // If no preference saved, use Home Assistant theme mode
+        // this._hass.themes.darkMode is a boolean provided by HA
+        currentTheme = (this._hass.themes && this._hass.themes.darkMode) ? 'dark' : 'light';
+        localStorage.setItem('home_organizer_theme', currentTheme);
+    }
+
+    // Apply Theme Class
+    if (currentTheme === 'light') {
+        this.shadowRoot.getElementById('app').classList.add('light-mode');
+    }
+
+    this.bindEvents();
   }
 
-  runHardwareDetect() {
-      // Automatic preference discovery for Language and Theme
-      let l = localStorage.getItem('ho_pref_lang');
-      if (!l && this._hass) {
-          l = (this._hass.language === 'he') ? 'he' : 'en';
-          localStorage.setItem('ho_pref_lang', l);
-      }
-      if (l === 'en') this.shadowRoot.getElementById('app').classList.add('ltr');
+  bindEvents() {
+    const root = this.shadowRoot;
+    const bind = (id, event, fn) => { const el = root.getElementById(id); if(el) el[event] = fn; };
+    const click = (id, fn) => bind(id, 'onclick', fn);
 
-      let t = localStorage.getItem('ho_pref_theme');
-      if (!t && this._hass) {
-          t = (this._hass.themes && this._hass.themes.darkMode) ? 'dark' : 'light';
-          localStorage.setItem('ho_pref_theme', t);
-      }
-      if (t === 'light') this.shadowRoot.getElementById('app').classList.add('light-mode');
+    // Setup Dropdown Toggle
+    click('btn-user-setup', (e) => {
+        e.stopPropagation();
+        const menu = root.getElementById('setup-dropdown-menu');
+        this.showMenu('main'); // Always reset to main menu on open
+        menu.classList.toggle('show');
+    });
+
+    // Close dropdown on outside click
+    window.addEventListener('click', () => {
+        root.getElementById('setup-dropdown-menu')?.classList.remove('show');
+    });
+    
+    // STOP PROPAGATION on menu clicks so it doesn't close immediately
+    const menu = root.getElementById('setup-dropdown-menu');
+    if(menu) menu.onclick = (e) => e.stopPropagation();
+
+    click('btn-up', () => this.navigate('up'));
+    click('btn-home', () => { this.isShopMode = false; this.isSearch = false; this.navigate('root'); });
+    click('btn-shop', () => { this.isShopMode = !this.isShopMode; if(this.isShopMode) { this.isSearch=false; this.isEditMode=false; } this.fetchData(); });
+    click('btn-search', () => { this.isSearch = true; this.isShopMode = false; this.render(); });
+    click('search-close', () => { this.isSearch = false; this.fetchData(); });
+    bind('search-input', 'oninput', (e) => this.fetchData());
+    click('btn-edit', () => { this.isEditMode = !this.isEditMode; this.isShopMode = false; this.render(); });
+    
+    // View Toggle
+    click('btn-view-toggle', () => {
+        this.viewMode = (this.viewMode === 'list') ? 'grid' : 'list';
+        const gridIcon = root.getElementById('icon-view-grid');
+        const listIcon = root.getElementById('icon-view-list');
+        if (this.viewMode === 'grid') {
+            gridIcon.style.display = 'none';
+            listIcon.style.display = 'block';
+        } else {
+            gridIcon.style.display = 'block';
+            listIcon.style.display = 'none';
+        }
+        this.render();
+    });
+
+    click('btn-paste', () => this.pasteItem());
+    click('btn-load-url', () => {
+        const url = root.getElementById('icon-url-input').value;
+        if(url) this.handleUrlIcon(url);
+    });
+    bind('icon-file-upload', 'onchange', (e) => this.handleIconUpload(e.target));
+    
+    click('picker-prev', () => { if(this.pickerPage > 0) { this.pickerPage--; this.renderIconPickerGrid(); } });
+    click('picker-next', () => { 
+        const lib = this.getCurrentPickerLib();
+        const maxPage = Math.ceil(Object.keys(lib).length / this.pickerPageSize) - 1;
+        if(this.pickerPage < maxPage) { this.pickerPage++; this.renderIconPickerGrid(); } 
+    });
+
+    click('btn-ai-search', () => this.openCamera('search'));
+    click('btn-cam-close', () => this.stopCamera());
+    click('btn-cam-snap', () => this.snapPhoto());
+    click('btn-cam-switch', () => this.switchCamera());
+    click('btn-cam-wb', () => this.toggleWhiteBG());
   }
 
-  initEventListeners() {
-    const r = this.shadowRoot;
-    const click = (id, fn) => { const el = r.getElementById(id); if(el) el.onclick = fn; };
+  showMenu(menuId) {
+      const root = this.shadowRoot;
+      root.getElementById('menu-main').style.display = 'none';
+      root.getElementById('menu-lang').style.display = 'none';
+      root.getElementById('menu-theme').style.display = 'none';
+      
+      const target = root.getElementById(`menu-${menuId}`);
+      if(target) target.style.display = 'block';
+  }
 
-    click('btn-sys-config', (e) => { e.stopPropagation(); r.getElementById('ui-sys-menu').classList.toggle('show'); });
-    window.addEventListener('click', () => r.getElementById('ui-sys-menu')?.classList.remove('show'));
+  setTheme(mode) {
+      const app = this.shadowRoot.getElementById('app');
+      if(mode === 'light') {
+          app.classList.add('light-mode');
+      } else {
+          app.classList.remove('light-mode');
+      }
+      localStorage.setItem('home_organizer_theme', mode);
+      this.shadowRoot.getElementById('setup-dropdown-menu').classList.remove('show');
+  }
 
-    click('btn-nav-home', () => { this.currentPath = []; this.isSearch = false; this.isShopMode = false; this.fetchData(); });
-    click('btn-nav-up', () => { if(this.currentPath.length > 0) { this.currentPath.pop(); this.fetchData(); } });
-    
-    click('btn-edit-access', (e) => { 
-        this.isEditMode = !this.isEditMode; 
-        e.currentTarget.classList.toggle('edit-active', this.isEditMode); 
-        this.updateUI(); 
-    });
-    
-    click('btn-search-access', () => { 
-        this.isSearch = !this.isSearch; 
-        r.getElementById('ui-search-drawer').style.display = this.isSearch ? 'flex' : 'none'; 
-        if(this.isSearch) r.getElementById('search-input').focus();
-    });
-    
-    click('btn-close-search-drawer', () => { this.isSearch = false; r.getElementById('ui-search-drawer').style.display = 'none'; this.fetchData(); });
-    click('btn-market-access', (e) => { 
-        this.isShopMode = !this.isShopMode; 
-        e.currentTarget.classList.toggle('active', this.isShopMode); 
-        this.fetchData(); 
-    });
-    
-    click('btn-nav-view', () => { 
-        this.viewMode = (this.viewMode === 'grid' ? 'list' : 'grid'); 
-        localStorage.setItem('ho_view_mode', this.viewMode); 
-        this.updateUI(); 
-    });
+  changeLanguage(lang) {
+      const app = this.shadowRoot.getElementById('app');
+      if (lang === 'en') {
+          app.classList.add('ltr');
+      } else {
+          app.classList.remove('ltr');
+      }
+      localStorage.setItem('home_organizer_lang', lang);
+      this.shadowRoot.getElementById('setup-dropdown-menu').classList.remove('show');
+  }
+  
+  toggleWhiteBG() {
+      this.useAiBg = !this.useAiBg;
+      const btn = this.shadowRoot.getElementById('btn-cam-wb');
+      if (this.useAiBg) btn.classList.add('active'); else btn.classList.remove('active');
+  }
 
-    r.getElementById('search-input').oninput = () => {
-        clearTimeout(this.searchTimer);
-        this.searchTimer = setTimeout(() => this.fetchData(), 650);
-    };
+  async openCamera(context) {
+      this.cameraContext = context;
+      const modal = this.shadowRoot.getElementById('camera-modal');
+      const video = this.shadowRoot.getElementById('camera-video');
+      modal.style.display = 'flex';
+      try {
+          this.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: this.facingMode || "environment" } });
+          video.srcObject = this.stream;
+      } catch (err) {
+          alert("Camera Error: " + err.message);
+          modal.style.display = 'none';
+      }
+  }
 
-    click('btn-ai-lens-trigger', () => this.bootCamera('search'));
-    click('ctrl-snap-capture', () => this.executeHardwareSnapshot());
-    click('ctrl-aibg-toggle', () => { 
-        this.useAiBg = !this.useAiBg; 
-        r.getElementById('ctrl-aibg-toggle').classList.toggle('active', this.useAiBg); 
-    });
-    
-    click('ctrl-icon-prev', () => { if(this.pickerPage > 0) { this.pickerPage--; this.renderIconRepository(); } });
-    click('ctrl-icon-next', () => { this.pickerPage++; this.renderIconRepository(); });
+  stopCamera() {
+      const modal = this.shadowRoot.getElementById('camera-modal');
+      const video = this.shadowRoot.getElementById('camera-video');
+      if (this.stream) this.stream.getTracks().forEach(track => track.stop());
+      video.srcObject = null;
+      modal.style.display = 'none';
+  }
+
+  async switchCamera() {
+      this.facingMode = (this.facingMode === "user") ? "environment" : "user";
+      this.stopCamera();
+      setTimeout(() => this.openCamera(this.cameraContext), 200);
+  }
+
+  snapPhoto() {
+      const video = this.shadowRoot.getElementById('camera-video');
+      const canvas = this.shadowRoot.getElementById('camera-canvas');
+      const context = canvas.getContext('2d');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      if (this.useAiBg) {
+          let imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+          let data = imageData.data;
+          for (let i = 0; i < data.length; i += 4) {
+              let r = data[i], g = data[i+1], b = data[i+2];
+              if (r > 190 && g > 190 && b > 190) { data[i] = 255; data[i+1] = 255; data[i+2] = 255; }
+          }
+          context.putImageData(imageData, 0, 0);
+      }
+      
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
+      this.stopCamera();
+      
+      if (this.cameraContext === 'search') {
+          this.callHA('ai_action', { mode: 'search', image_data: dataUrl });
+      } else if (this.pendingItem) {
+          this.callHA('update_image', { item_name: this.pendingItem, image_data: dataUrl });
+          this.pendingItem = null;
+      }
   }
 
   updateUI() {
-    const data = this.localData;
-    const r = this.shadowRoot;
-    const viewport = r.getElementById('ui-main-viewport');
-    if (!data) return;
+    if(!this.localData) return;
+    const attrs = this.localData;
+    const root = this.shadowRoot;
+    root.getElementById('display-title').innerText = attrs.path_display;
+    root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
+    root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
+    if(attrs.clipboard) root.getElementById('clipboard-name').innerText = attrs.clipboard;
+    const app = root.getElementById('app');
+    if(this.isEditMode) app.classList.add('edit-mode'); else app.classList.remove('edit-mode');
+    
+    const editBtn = root.getElementById('btn-edit');
+    if (editBtn) {
+        if (this.isEditMode) editBtn.classList.add('edit-active');
+        else editBtn.classList.remove('edit-active');
+    }
 
-    r.getElementById('ui-path-display-txt').innerText = `/${data.path_display.replace(/ > /g, '/')}`;
-    r.getElementById('ui-active-crumb').innerText = data.path_display.split(' > ').pop() || 'Dashboard Home';
-    viewport.innerHTML = '';
+    const content = root.getElementById('content');
+    content.innerHTML = '';
 
-    if (this.isShopMode) {
-        this.renderComprehensiveShop(viewport, data.shopping_list);
+    // Up Arrow Visibility Logic
+    const upBtn = root.getElementById('btn-up');
+    if (upBtn) {
+        // If depth is 0 (Root/Home), hide the up button
+        if (attrs.depth === 0) {
+            upBtn.style.display = 'none';
+        } else {
+            upBtn.style.display = 'flex'; // Restore flex display
+        }
+    }
+
+    // SHOW/HIDE VIEW BUTTON based on depth
+    const viewBtn = root.getElementById('btn-view-toggle');
+    if (attrs.depth >= 2) viewBtn.style.display = 'block'; else viewBtn.style.display = 'none';
+
+    if (attrs.shopping_list && attrs.shopping_list.length > 0) {
+        const listContainer = document.createElement('div');
+        listContainer.className = 'item-list';
+        const grouped = {};
+        attrs.shopping_list.forEach(item => {
+            const loc = item.main_location || "Other";
+            if(!grouped[loc]) grouped[loc] = [];
+            grouped[loc].push(item);
+        });
+        Object.keys(grouped).sort().forEach(locName => {
+            const header = document.createElement('div');
+            header.className = 'group-separator';
+            header.innerText = locName;
+            listContainer.appendChild(header);
+            grouped[locName].forEach(item => listContainer.appendChild(this.createItemRow(item, true)));
+        });
+        content.appendChild(listContainer);
         return;
     }
 
-    if (data.depth === 0) {
-        // --- LEVEL 0: RENDER ZONES & FLOORS ---
-        data.zones.forEach(zone => {
-            const zEl = document.createElement('div');
-            zEl.className = 'zone-wrapper';
-            zEl.innerHTML = `<div class="zone-header-label"><span>${zone.name}</span></div>`;
-            
-            if (this.isEditMode) {
-                zEl.ondragover = (e) => { e.preventDefault(); zEl.classList.add('drop-target-active'); };
-                zEl.ondragleave = () => zEl.classList.remove('drop-target-active');
-                zEl.ondrop = (e) => {
-                    e.preventDefault(); zEl.classList.remove('drop-target-active');
-                    const rName = e.dataTransfer.getData('roomID');
-                    this._hass.callService('home_organizer', 'move_room_to_zone', { 
-                        room_name: rName, 
-                        zone_name: zone.name 
-                    });
-                };
-            }
+    if ((this.isSearch || (attrs.path_display && attrs.path_display.startsWith('Search'))) && attrs.items) {
+        const list = document.createElement('div');
+        list.className = 'item-list';
+        attrs.items.forEach(item => list.appendChild(this.createItemRow(item, false)));
+        content.appendChild(list);
+        return;
+    }
 
+    if (attrs.depth < 2) {
+        if (attrs.folders && attrs.folders.length > 0 || this.isEditMode) {
             const grid = document.createElement('div');
-            grid.className = 'icon-grid';
-            zone.rooms.forEach(room => {
-                const card = document.createElement('div');
-                card.className = 'icon-card';
-                if (this.isEditMode) { 
-                    card.draggable = true; 
-                    card.ondragstart = (e) => e.dataTransfer.setData('roomID', room.name); 
-                }
-                card.onclick = () => { this.currentPath = [zone.name, room.name]; this.fetchData(); };
-                
-                const frame = room.img ? `<img src="${room.img}">` : ICONS.folder;
-                const badges = this.isEditMode ? `
-                    <div class="badge-bin" onclick="event.stopPropagation(); this.getRootNode().host.handleEntityDelete('${room.name}', true)">✕</div>
-                    <div class="badge-pen" onclick="event.stopPropagation(); this.getRootNode().host.handleEntityRename('${room.name}')">${ICONS.edit}</div>
-                    <div class="badge-cam" onclick="event.stopPropagation(); this.getRootNode().host.openRepository('${room.name}', 'room')">${ICONS.image}</div>
-                ` : '';
+            grid.className = 'folder-grid';
+            if (attrs.folders) {
+                attrs.folders.forEach(folder => {
+                    const el = document.createElement('div');
+                    el.className = 'folder-item';
+                    el.onclick = () => this.navigate('down', folder.name);
+                    let folderContent = ICONS.folder;
+                    if (folder.img) folderContent = `<img src="${folder.img}">`;
 
-                card.innerHTML = `<div class="icon-visual">${frame}${badges}</div><div class="card-title">${room.name}</div>`;
-                grid.appendChild(card);
-            });
-            zEl.appendChild(grid);
-            viewport.appendChild(zEl);
-        });
+                    const deleteBtnHtml = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` : '';
+                    const editBtnHtml = this.isEditMode ? `<div class="folder-edit-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'), '${folder.name}')">${ICONS.edit}</div>` : '';
+                    const context = attrs.depth === 0 ? 'room' : 'location';
+                    const imgBtnHtml = this.isEditMode ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${folder.name}', '${context}')">${ICONS.image}</div>` : '';
 
-        if (this.isEditMode) {
-            const bottomButtons = document.createElement('div');
-            bottomButtons.style.display = 'flex'; bottomButtons.style.gap = '30px'; bottomButtons.style.marginTop = '50px';
-            this.generateActionBtn(bottomButtons, '+ ADD NEW FLOOR', 'var(--accent)', () => this.spawnItemPrompt('zone'));
-            this.generateActionBtn(bottomButtons, '+ ADD NEW ROOM', 'var(--primary)', () => this.spawnItemPrompt('folder'));
-            viewport.appendChild(bottomButtons);
+                    el.innerHTML = `
+                        <div class="android-folder-icon">${folderContent}${editBtnHtml}${deleteBtnHtml}${imgBtnHtml}</div>
+                        <div class="folder-label">${folder.name}</div>
+                    `;
+                    grid.appendChild(el);
+                });
+            }
+            if (this.isEditMode) {
+                const addBtn = document.createElement('div');
+                addBtn.className = 'folder-item add-folder-card';
+                addBtn.innerHTML = `<div class="android-folder-icon" id="add-folder-icon">${ICONS.plus}</div><div class="folder-label">Add</div>`;
+                addBtn.onclick = (e) => this.enableFolderInput(e.currentTarget);
+                grid.appendChild(addBtn);
+            }
+            content.appendChild(grid);
+        }
+        
+        if (attrs.items && attrs.items.length > 0) {
+            const list = document.createElement('div');
+            list.className = 'item-list';
+            attrs.items.forEach(item => list.appendChild(this.createItemRow(item, false)));
+            content.appendChild(list);
+        }
+        
+        if (this.isEditMode && attrs.depth === 1) {
+             const addBtn = document.createElement('div');
+             addBtn.className = 'add-item-btn-row';
+             addBtn.innerHTML = `<button class="add-item-btn" onclick="this.getRootNode().host.addQuickItem()">+ הוסף</button>`;
+             content.appendChild(addBtn);
         }
     } else {
-        // --- LEVEL 1+: RENDER LOCATIONS & STOCK ---
-        if (data.folders.length > 0 || this.isEditMode) {
-            const grid = document.createElement('div');
-            grid.className = 'icon-grid';
-            data.folders.forEach(f => {
-                const el = document.createElement('div');
-                el.className = 'icon-card';
-                el.onclick = () => { this.currentPath.push(f.name); this.fetchData(); };
-                const icon = f.img ? `<img src="${f.img}">` : ICONS.folder;
-                const del = this.isEditMode ? `<div class="badge-bin" onclick="event.stopPropagation(); this.getRootNode().host.handleEntityDelete('${f.name}', true)">✕</div>` : '';
-                el.innerHTML = `<div class="icon-visual">${icon}${del}</div><div class="card-title">${f.name}</div>`;
-                grid.appendChild(el);
-            });
-            if (this.isEditMode) {
-                const sub = document.createElement('div');
-                sub.className = 'icon-card';
-                sub.onclick = () => this.spawnItemPrompt('folder');
-                sub.innerHTML = `<div class="icon-visual" style="border:4px dashed #777; background:none; box-shadow:none">${ICONS.plus}</div><div class="card-title">New Child</div>`;
-                grid.appendChild(sub);
+        // LOCATION LEVEL (Depth 2+)
+        const listContainer = document.createElement('div');
+        listContainer.className = 'item-list';
+        const inStock = [], outOfStock = [];
+        if (attrs.items) attrs.items.forEach(item => (item.qty === 0 ? outOfStock : inStock).push(item));
+        const grouped = {};
+        if (attrs.folders) attrs.folders.forEach(f => grouped[f.name] = []);
+        if (!grouped["General"]) grouped["General"] = [];
+        inStock.forEach(item => {
+            const sub = item.sub_location || "General";
+            if(!grouped[sub]) grouped[sub] = [];
+            grouped[sub].push(item);
+        });
+        
+        Object.keys(grouped).sort().forEach(subName => {
+            const items = grouped[subName];
+            const count = items.length;
+
+            if (subName === "General" && count === 0 && !this.isEditMode) return;
+            // Requirement: Hide empty sublocations in grid mode
+            if (this.viewMode === 'grid' && count === 0) return;
+
+            // Requirement: Force expand all in grid mode
+            const isExpanded = (this.viewMode === 'grid') ? true : this.expandedSublocs.has(subName);
+            
+            const icon = isExpanded ? ICONS.chevron_down : ICONS.chevron_right;
+            // Updated to use CSS variable for badge background
+            const countBadge = `<span style="font-size:12px; background:var(--bg-badge); color:var(--text-badge); padding:2px 6px; border-radius:10px; margin-inline-start:8px;">${count}</span>`;
+            
+            const header = document.createElement('div');
+            header.className = 'group-separator';
+            this.setupDropTarget(header, subName);
+            
+            // Only toggle in list mode
+            if (this.viewMode === 'list') {
+                header.onclick = () => this.toggleSubloc(subName);
+            } else {
+                header.style.cursor = 'default';
             }
-            viewport.appendChild(grid);
+            
+            if (this.isEditMode && subName !== "General") {
+                header.innerHTML = `
+                    <div style="display:flex;align-items:center;">
+                        <span style="margin-inline-end:5px;display:flex;align-items:center">${icon}</span>
+                        <span class="subloc-title">${subName}</span>
+                        ${countBadge}
+                    </div>
+                    <div style="display:flex;gap:5px">
+                        <button class="edit-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableSublocRename(this, '${subName}')">${ICONS.edit}</button>
+                        <button class="delete-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button>
+                    </div>`;
+            } else {
+                header.innerHTML = `<div style="display:flex;align-items:center;"><span style="margin-inline-end:5px;display:flex;align-items:center">${icon}</span><span>${subName}</span>${countBadge}</div>`;
+            }
+            listContainer.appendChild(header);
+
+            if (isExpanded) {
+                // RENDER GRID OR LIST BASED ON VIEW MODE
+                if (this.viewMode === 'grid' && count > 0) {
+                      const gridDiv = document.createElement('div');
+                      gridDiv.className = 'xl-grid-container';
+                      items.forEach(item => {
+                          const card = document.createElement('div');
+                          card.className = 'xl-card';
+                          
+                          let iconHtml = ICONS.item;
+                          if (item.img) iconHtml = `<img src="${item.img}">`;
+                          
+                          card.innerHTML = `
+                              <div class="xl-icon-area">${iconHtml}</div>
+                              <div class="xl-badge">${item.qty}</div>
+                              <div class="xl-info">
+                                  <div class="xl-name">${item.name}</div>
+                                  <div class="xl-date">${item.date || ''}</div>
+                              </div>
+                          `;
+                          
+                          // CLICK ICON/IMG -> FULL SCREEN DETAIL
+                          const iconArea = card.querySelector('.xl-icon-area');
+                          if(iconArea) {
+                              iconArea.onclick = (e) => {
+                                  e.stopPropagation();
+                                  this.showItemDetails(item);
+                              };
+                          }
+
+                          // CLICK TEXT/CARD -> LIST VIEW (EDIT)
+                          card.onclick = () => { 
+                              this.viewMode = 'list';
+                              this.expandedIdx = item.name;
+                              this.render();
+                          };
+                          
+                          gridDiv.appendChild(card);
+                      });
+                      listContainer.appendChild(gridDiv);
+                } else {
+                    items.forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
+                }
+
+                if (this.isEditMode) {
+                      const addRow = document.createElement('div');
+                      addRow.className = "group-add-row";
+                      addRow.innerHTML = `<button class="text-add-btn" onclick="this.getRootNode().host.addQuickItem('${subName}')">${ICONS.plus} הוסף</button>`;
+                      listContainer.appendChild(addRow);
+                }
+            }
+        });
+        if (outOfStock.length > 0) {
+            const oosHeader = document.createElement('div');
+            oosHeader.className = 'group-separator oos-separator';
+            oosHeader.innerText = "Out of Stock";
+            listContainer.appendChild(oosHeader);
+            outOfStock.forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
         }
-
-        const itemsBlock = document.createElement('div');
-        itemsBlock.style.marginTop = '50px';
-
-        if (this.viewMode === 'grid' && data.items.length > 0) {
-            const grid = document.createElement('div');
-            grid.className = 'xl-grid-root';
-            data.items.forEach(item => {
-                const card = document.createElement('div');
-                card.className = 'xl-visual-card';
-                card.onclick = () => { this.expandedIdx = item.name; this.viewMode = 'list'; this.updateUI(); };
-                card.innerHTML = `
-                    <div class="xl-visual-frame">${item.img ? `<img src="${item.img}">` : ICONS.item}</div>
-                    <div class="xl-badge-qty">${item.qty}</div>
-                    <div class="card-title" style="max-width:100%">${item.name}</div>
-                `;
-                grid.appendChild(card);
-            });
-            itemsBlock.appendChild(grid);
-        } else {
-            const list = document.createElement('div');
-            list.className = 'list-stack';
-            data.items.forEach(item => list.appendChild(this.buildInteractiveRow(item)));
-            itemsBlock.appendChild(list);
-        }
-
         if (this.isEditMode) {
-            const mainAdd = document.createElement('button');
-            mainAdd.className = 'add-action-btn';
-            mainAdd.style = "width:100%; margin-top:50px; border:4px dashed var(--accent); background:none; color:var(--accent); height:85px; font-size:20px; font-weight:900; border-radius:30px";
-            mainAdd.innerText = "+ RECORD NEW PRODUCT AT THIS LOCATION";
-            mainAdd.onclick = () => this.spawnItemPrompt('item');
-            itemsBlock.appendChild(mainAdd);
+            const gridContainer = document.createElement('div');
+            gridContainer.className = 'folder-grid';
+            gridContainer.style.marginTop = '20px';
+            const addBtn = document.createElement('div');
+            addBtn.className = 'folder-item add-folder-card';
+            addBtn.innerHTML = `<div class="android-folder-icon" id="add-subloc-icon">${ICONS.plus}</div><div class="folder-label">Add Sub</div>`;
+            addBtn.onclick = (e) => this.enableFolderInput(e.currentTarget);
+            gridContainer.appendChild(addBtn);
+            listContainer.appendChild(gridContainer);
         }
-        viewport.appendChild(itemsBlock);
+        content.appendChild(listContainer);
     }
   }
-
-  buildInteractiveRow(item) {
-      const row = document.createElement('div');
-      const isExpanded = this.expandedIdx === item.name;
-      row.className = `list-row ${isExpanded ? 'active-state' : ''} ${item.qty === 0 ? 'oos-indicator' : ''}`;
+  
+  showItemDetails(item) {
+      const ov = this.shadowRoot.getElementById('img-overlay');
+      const img = this.shadowRoot.getElementById('overlay-img');
+      const det = this.shadowRoot.getElementById('overlay-details');
+      const iconBig = this.shadowRoot.getElementById('overlay-icon-big');
       
-      const qtyFragment = `
-        <div class="qty-control-panel">
-            <button class="qty-btn-circle" onclick="event.stopPropagation(); this.getRootNode().host.applyQtyChange('${item.name}', 1)">${ICONS.plus}</button>
-            <span style="font-weight:900; min-width:40px; text-align:center; font-size:20px">${item.qty}</span>
-            <button class="qty-btn-circle" onclick="event.stopPropagation(); this.getRootNode().host.applyQtyChange('${item.name}', -1)">${ICONS.minus}</button>
-        </div>
-      `;
-
-      row.innerHTML = `
-        <div style="display:flex; align-items:center; justify-content:space-between; width:100%" onclick="this.getRootNode().host.toggleExpansion('${item.name}')">
-            <div style="display:flex; align-items:center; gap:30px">
-                <div style="width:72px; height:72px; overflow:hidden; border-radius:22px; background:#000; display:flex; align-items:center; justify-content:center; box-shadow: var(--shadow-soft)" onclick="event.stopPropagation(); this.getRootNode().host.openLightbox('${item.img}')">
-                    ${item.img ? `<img src="${item.img}" style="width:100%; height:100%; object-fit:cover">` : ICONS.item}
-                </div>
-                <div>
-                    <div style="font-weight:900; font-size:20px">${item.name}</div>
-                    <div style="font-size:13px; color:var(--text-sub); display:flex; align-items:center; gap:8px">${ICONS.history} Log: ${item.date || 'Update Pending'}</div>
-                </div>
-            </div>
-            ${qtyFragment}
-        </div>
-      `;
-
-      if (isExpanded) {
-          const detailPane = document.createElement('div');
-          detailPane.style = "margin-top:40px; padding-top:30px; border-top:1px solid #444; display:flex; flex-direction:column; gap:25px";
-          detailPane.innerHTML = `
-            <div style="display:flex; gap:20px">
-                <div style="flex:1; display:flex; flex-direction:column; gap:10px">
-                    <span style="font-size:12px; color:var(--text-sub); font-weight:bold; letter-spacing:1px">LABEL DESIGNATION</span>
-                    <input type="text" id="inp-n-${item.name}" value="${item.name}" style="padding:18px; background:var(--bg-input-edit); color:white; border:2px solid var(--border); border-radius:18px; font-size:18px">
-                </div>
-                <div style="flex:0.6; display:flex; flex-direction:column; gap:10px">
-                    <span style="font-size:12px; color:var(--text-sub); font-weight:bold; letter-spacing:1px">EXPIRY / BATCH</span>
-                    <input type="date" id="inp-d-${item.name}" value="${item.date}" style="padding:18px; background:var(--bg-input-edit); color:white; border:2px solid var(--border); border-radius:18px; font-size:18px">
-                </div>
-            </div>
-            <div style="display:flex; gap:20px">
-                <button class="add-action-btn" style="flex:1; background:var(--primary); color:white; border:none; border-radius:18px" onclick="this.getRootNode().host.bootCamera('update', '${item.name}')">${ICONS.camera} Capture Photo</button>
-                <button class="add-action-btn" style="flex:1; background:var(--bg-icon-box); color:white; border:none; border-radius:18px" onclick="this.getRootNode().host.openRepository('${item.name}', 'item')">${ICONS.image} Select Symbol</button>
-            </div>
-            <div style="display:flex; gap:20px">
-                <button class="add-action-btn" style="flex:2; background:var(--accent); color:white; border:none; height:70px; font-size:20px; border-radius:18px" onclick="this.getRootNode().host.saveDetailedChanges('${item.name}')">${ICONS.check} COMMIT UPDATES</button>
-                <button class="add-action-btn" style="flex:0.5; background:var(--danger); color:white; border:none; border-radius:18px" onclick="this.getRootNode().host.handleEntityDelete('${item.name}', false)">${ICONS.delete}</button>
-            </div>
-          `;
-          row.appendChild(detailPane);
+      ov.style.display = 'flex';
+      det.style.display = 'block';
+      
+      if(item.img) {
+          img.src = item.img;
+          img.style.display = 'block';
+          iconBig.style.display = 'none';
+      } else {
+          img.style.display = 'none';
+          iconBig.style.display = 'block';
       }
-      return row;
+      
+      det.innerHTML = `
+          <div style="font-size:20px;font-weight:bold;margin-bottom:8px">${item.name}</div>
+          <div style="font-size:16px;color:#aaa;margin-bottom:15px">${item.date || 'No Date'}</div>
+          <div style="font-size:18px;font-weight:bold;color:var(--accent);background:#333;padding:8px 20px;border-radius:20px;display:inline-block">Quantity: ${item.qty}</div>
+      `;
   }
 
-  renderComprehensiveShop(cont, list) {
-      cont.innerHTML = `<h1 style="margin-top:0; color:var(--danger); display:flex; align-items:center; gap:20px; font-size:32px">${ICONS.cart} PROCUREMENT MANIFEST</h1>`;
-      if(!list.length) { 
-          cont.innerHTML += `<div style="text-align:center; padding:180px 0; color:#888">
-              <div style="font-size:80px; margin-bottom:40px">🛒</div>
-              <div style="font-size:24px; font-weight:900; letter-spacing:1px">INVENTORY FULLY STOCKED</div>
-              <div style="margin-top:15px; font-size:16px">No items requiring immediate attention.</div>
-          </div>`; 
-          return; 
-      }
-      list.forEach(item => {
-          const row = document.createElement('div');
-          row.className = 'list-row oos-indicator';
-          row.innerHTML = `
-            <div style="display:flex; align-items:center; gap:30px">
-                <div style="width:85px; height:85px; background:#000; border-radius:24px; overflow:hidden; border:3px solid #333">${item.img ? `<img src="${item.img}" style="width:100%; height:100%; object-fit:cover">` : ICONS.item}</div>
-                <div>
-                    <div style="font-weight:900; font-size:24px">${item.name}</div>
-                    <div style="font-size:14px; color:#999; letter-spacing:1.5px">${item.location}</div>
+  showImg(src) { 
+      const ov = this.shadowRoot.getElementById('img-overlay'); 
+      const img = this.shadowRoot.getElementById('overlay-img'); 
+      const det = this.shadowRoot.getElementById('overlay-details');
+      const iconBig = this.shadowRoot.getElementById('overlay-icon-big');
+      if(ov && img) { 
+          img.src = src; 
+          img.style.display = 'block';
+          if(det) det.style.display = 'none'; 
+          if(iconBig) iconBig.style.display = 'none';
+          ov.style.display = 'flex'; 
+      } 
+  }
+
+  toggleSubloc(name) {
+      if (this.expandedSublocs.has(name)) this.expandedSublocs.delete(name); else this.expandedSublocs.add(name);
+      this.render();
+  }
+  
+  enableFolderInput(cardEl) {
+      const iconContainer = cardEl.querySelector('.android-folder-icon');
+      const label = cardEl.querySelector('.folder-label');
+      if(iconContainer.querySelector('input')) return;
+      iconContainer.innerHTML = `<input type="text" class="add-folder-input" placeholder="Name">`;
+      const input = iconContainer.querySelector('input');
+      label.innerText = "Saving...";
+      input.focus();
+      input.onkeydown = (e) => { if (e.key === 'Enter') this.saveNewFolder(input.value); };
+      input.onblur = () => { if (input.value.trim()) this.saveNewFolder(input.value); else this.render(); };
+  }
+  
+  enableFolderRename(labelEl, oldName) {
+      if (!labelEl || labelEl.querySelector('input')) return;
+      const input = document.createElement('input');
+      input.value = oldName;
+      input.style.width = '100%';
+      input.style.background = 'var(--bg-input-edit)';
+      input.style.color = 'var(--text-main)';
+      input.style.border = '1px solid var(--primary)';
+      input.style.borderRadius = '4px';
+      input.style.textAlign = 'center';
+      input.style.fontSize = '12px';
+      input.onclick = (e) => e.stopPropagation();
+      labelEl.innerHTML = '';
+      labelEl.appendChild(input);
+      input.focus();
+      let isSaving = false;
+      const save = () => {
+          if (isSaving) return; 
+          isSaving = true;
+          const newVal = input.value.trim();
+          if (newVal && newVal !== oldName) {
+              this.callHA('update_item_details', { original_name: oldName, new_name: newVal, new_date: "", current_path: this.currentPath, is_folder: true });
+          } else this.render();
+      };
+      input.onkeydown = (e) => { if (e.key === 'Enter') input.blur(); };
+      input.onblur = () => save();
+  }
+
+  saveNewFolder(name) {
+      if(!name) return;
+      this._hass.callService('home_organizer', 'add_item', { item_name: name, item_type: 'folder', item_date: '', image_data: null, current_path: this.currentPath });
+  }
+
+  addQuickItem(targetSubloc) {
+      const tempName = "New Item " + new Date().toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'});
+      const today = new Date().toISOString().split('T')[0];
+      let usePath = [...this.currentPath];
+      if (targetSubloc && targetSubloc !== "General") usePath.push(targetSubloc);
+      this._hass.callService('home_organizer', 'add_item', { item_name: tempName, item_type: 'item', item_date: today, image_data: null, current_path: usePath });
+  }
+
+  setupDragSource(el, itemName) {
+      el.draggable = true;
+      el.ondragstart = (e) => { e.dataTransfer.setData("text/plain", itemName); e.dataTransfer.effectAllowed = "move"; el.classList.add('dragging'); };
+      el.ondragend = () => el.classList.remove('dragging');
+  }
+
+  setupDropTarget(el, subName) {
+      el.dataset.subloc = subName;
+      el.ondragover = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drag-over'); };
+      el.ondragleave = () => el.classList.remove('drag-over');
+      el.ondrop = (e) => { e.preventDefault(); el.classList.remove('drag-over'); const itemName = e.dataTransfer.getData("text/plain"); this.handleDropAction(subName, itemName); };
+  }
+
+  async handleDropAction(targetSubloc, itemName) {
+      if (!itemName) return;
+      let targetPath = [...this.currentPath];
+      if (targetSubloc !== "General") targetPath.push(targetSubloc);
+      try {
+          await this.callHA('clipboard_action', {action: 'cut', item_name: itemName});
+          await this.callHA('paste_item', {target_path: targetPath});
+      } catch (err) { console.error("Drop failed:", err); }
+  }
+
+  triggerCameraEdit(itemName) { this.pendingItem = itemName; this.openCamera('update'); }
+  adjustShopQty(name, delta) {
+      if (this.shopQuantities[name] === undefined) this.shopQuantities[name] = 0;
+      this.shopQuantities[name] = Math.max(0, this.shopQuantities[name] + delta);
+      this.render();
+  }
+
+  createItemRow(item, isShopMode) {
+     const div = document.createElement('div');
+     const oosClass = (item.qty === 0) ? 'out-of-stock-frame' : '';
+     div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''} ${oosClass}`;
+     this.setupDragSource(div, item.name);
+     
+     // Detect direction
+     const appEl = this.shadowRoot.getElementById('app');
+     const isRTL = appEl && !appEl.classList.contains('ltr');
+
+     let controls = '';
+     if (isShopMode) {
+         const localQty = (this.shopQuantities[item.name] !== undefined) ? this.shopQuantities[item.name] : 0;
+         const checkStyle = (localQty === 0) ? "background:#555;color:#888;cursor:not-allowed;width:40px;height:40px;margin-inline-start:8px;" : "background:var(--accent);width:40px;height:40px;margin-inline-start:8px;";
+         const checkDisabled = (localQty === 0) ? "disabled" : "";
+         
+         const minusBtn = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', -1)">${ICONS.minus}</button>`;
+         const plusBtn = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', 1)">${ICONS.plus}</button>`;
+         const qtySpan = `<span class="qty-val" style="margin:0 8px">${localQty}</span>`;
+         const checkBtn = `<button class="qty-btn" style="${checkStyle}" ${checkDisabled} title="Complete" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.name}')">${ICONS.check}</button>`;
+
+         if (isRTL) {
+             // Hebrew: Plus on Right (Start), Minus on Left
+             controls = `${plusBtn}${qtySpan}${minusBtn}${checkBtn}`;
+         } else {
+             // English: Minus on Left (Start), Plus on Right
+             controls = `${minusBtn}${qtySpan}${plusBtn}${checkBtn}`;
+         }
+     } else {
+         controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${ICONS.plus}</button><span class="qty-val">${item.qty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${ICONS.minus}</button>`;
+     }
+     const subText = isShopMode ? `${item.main_location} > ${item.sub_location || ''}` : `${item.date || ''}`;
+     let iconHtml = `<span class="item-icon">${ICONS.item}</span>`;
+     if (item.img) iconHtml = `<img src="${item.img}" class="item-thumbnail" alt="${item.name}" onclick="event.stopPropagation(); this.getRootNode().host.showImg('${item.img}')">`;
+
+     div.innerHTML = `
+        <div class="item-main" onclick="this.getRootNode().host.toggleRow('${item.name}')">
+            <div class="item-left">${iconHtml}<div><div>${item.name}</div><div class="sub-title">${subText}</div></div></div>
+            <div class="item-qty-ctrl">${controls}</div>
+        </div>
+     `;
+     
+     if (this.expandedIdx === item.name) {
+         const details = document.createElement('div');
+         details.className = 'expanded-details';
+         let roomOptions = `<option value="">-- Change Room --</option>`;
+         if(this.localData.hierarchy) Object.keys(this.localData.hierarchy).forEach(room => { roomOptions += `<option value="${room}">${room}</option>`; });
+
+         details.innerHTML = `
+            <div class="detail-row">
+                <input type="text" id="name-${item.name}" value="${item.name}" 
+                    style="flex:1;padding:8px;background:var(--bg-input-edit);color:var(--text-main);border:1px solid var(--border-light);border-radius:4px;margin-inline-start:5px"
+                    onblur="this.getRootNode().host.autoSaveItem('${item.name}', 'name')"
+                    onkeydown="if(event.key==='Enter') this.blur()">
+                
+                <div style="position:relative; width:120px; height:36px; margin-inline-start:5px;">
+                    <button class="action-btn" style="width:100%; height:100%; text-align:center; padding:0; display:flex; align-items:center; justify-content:center; background:var(--bg-input-edit); color:var(--text-main); border:1px solid var(--border-light);"
+                        onclick="this.nextElementSibling.showPicker()">
+                        ${item.date || 'Set Date'}
+                    </button>
+                    <input type="date" id="date-${item.name}" value="${item.date}" 
+                        style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;"
+                        onchange="this.previousElementSibling.innerText = this.value || 'Set Date'; this.getRootNode().host.autoSaveItem('${item.name}', 'date')">
                 </div>
             </div>
-            <button class="add-action-btn" style="background:var(--accent); color:white; width:auto; padding:15px 45px; border-radius:50px; border:none; font-weight:900" onclick="this.getRootNode().host.applyQtyChange('${item.name}', 1)">RESTOCK</button>
-          `;
-          cont.appendChild(row);
+            <div class="detail-row" style="justify-content:space-between; margin-top:10px;">
+                 <div style="display:flex;gap:10px;">
+                    <button class="action-btn" title="Take Photo" onclick="this.getRootNode().host.triggerCameraEdit('${item.name}')">${ICONS.camera}</button>
+                    <button class="action-btn" title="Change Icon/Image" onclick="this.getRootNode().host.openIconPicker('${item.name}', 'item')">${ICONS.image}</button>
+                 </div>
+                 <div style="display:flex;gap:10px;"><button class="action-btn btn-danger" title="Delete" onclick="this.getRootNode().host.del('${item.name}')">${ICONS.delete}</button></div>
+            </div>
+            <div class="detail-row" style="margin-top:10px; border-top:1px solid #444; padding-top:10px; flex-direction:column; gap:8px;">
+                <div class="move-container" style="width:100%"><span style="font-size:12px;color:#aaa;width:60px">Move to:</span><select class="move-select" id="room-select-${item.name}" onchange="this.getRootNode().host.updateLocationDropdown('${item.name}', this.value)">${roomOptions}</select></div>
+                <div class="move-container" style="width:100%; display:none;" id="loc-container-${item.name}"><span style="font-size:12px;color:#aaa;width:60px">Loc:</span><select class="move-select" id="loc-select-${item.name}" onchange="this.getRootNode().host.updateSublocDropdown('${item.name}', this.value)"><option value="">-- Select --</option></select></div>
+                <div class="move-container" style="width:100%; display:none;" id="subloc-container-${item.name}"><span style="font-size:12px;color:#aaa;width:60px">Sub:</span><select class="move-select" id="target-subloc-${item.name}" onchange="this.getRootNode().host.handleMoveToPath('${item.name}')"><option value="">-- Select --</option></select></div>
+            </div>
+         `;
+         div.appendChild(details);
+     }
+     return div;
+  }
+  
+  autoSaveItem(oldName, triggerType) {
+      const nameEl = this.shadowRoot.getElementById(`name-${oldName}`);
+      const dateEl = this.shadowRoot.getElementById(`date-${oldName}`);
+      if(!nameEl || !dateEl) return;
+      
+      const newName = nameEl.value.trim();
+      const newDate = dateEl.value;
+      
+      if(triggerType === 'name' && newName !== oldName) {
+           this.expandedIdx = newName; 
+      }
+      
+      this.callHA('update_item_details', { 
+          original_name: oldName, 
+          new_name: newName, 
+          new_date: newDate 
       });
   }
 
-  /* --- HARDWARE CAMERA SUBSYSTEM (Full Logic) --- */
-  async bootCamera(mode, target = null) {
-      this.cameraMode = mode; this.cameraTarget = target;
-      const overlay = this.shadowRoot.getElementById('overlay-camera');
-      overlay.style.display = 'flex';
-      const feed = this.shadowRoot.getElementById('ui-video-feed');
-      try {
-          this.stream = await navigator.mediaDevices.getUserMedia({ 
-              video: { facingMode: this.facingMode, width: { ideal: 2048 }, height: { ideal: 1080 } } 
-          });
-          feed.srcObject = this.stream;
-      } catch(e) { 
-          console.error("Camera Hardware Exception", e);
-          alert("Optical Sensor Fault: Check browser permissions."); 
-          this.killCamera(); 
-      }
+  // Removed setDateToday as requested
+  
+  updateLocationDropdown(itemName, roomName) {
+      const locContainer = this.shadowRoot.getElementById(`loc-container-${itemName}`);
+      const locSelect = this.shadowRoot.getElementById(`loc-select-${itemName}`);
+      const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemName}`);
+      subContainer.style.display = 'none';
+      locSelect.innerHTML = '<option value="">-- Select --</option>';
+      if(!roomName) { locContainer.style.display = 'none'; return; }
+      let html = `<option value="">-- Select Location --</option>`;
+      if(this.localData.hierarchy && this.localData.hierarchy[roomName]) Object.keys(this.localData.hierarchy[roomName]).forEach(loc => { html += `<option value="${loc}">${loc}</option>`; });
+      locSelect.innerHTML = html;
+      locContainer.style.display = 'flex';
+      locSelect.dataset.room = roomName;
+  }
+  
+  updateSublocDropdown(itemName, locationName) {
+      const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemName}`);
+      const subSelect = this.shadowRoot.getElementById(`target-subloc-${itemName}`);
+      const roomName = this.shadowRoot.getElementById(`room-select-${itemName}`).value;
+      if(!locationName) { subContainer.style.display = 'none'; return; }
+      let html = `<option value="">-- Select Sublocation --</option>`;
+      html += `<option value="__ROOT__">Main ${locationName}</option>`;
+      if(this.localData.hierarchy && this.localData.hierarchy[roomName] && this.localData.hierarchy[roomName][locationName]) this.localData.hierarchy[roomName][locationName].forEach(sub => { html += `<option value="${sub}">${sub}</option>`; });
+      subSelect.innerHTML = html;
+      subContainer.style.display = 'flex';
+  }
+  
+  handleMoveToPath(itemName) {
+      const room = this.shadowRoot.getElementById(`room-select-${itemName}`).value;
+      const loc = this.shadowRoot.getElementById(`loc-select-${itemName}`).value;
+      const sub = this.shadowRoot.getElementById(`target-subloc-${itemName}`).value;
+      if(!room || !loc || !sub) return;
+      let targetPath = [room, loc];
+      if(sub !== "__ROOT__") targetPath.push(sub);
+      this.callHA('clipboard_action', {action: 'cut', item_name: itemName});
+      setTimeout(() => { this.callHA('paste_item', {target_path: targetPath}); }, 100);
   }
 
-  killCamera() {
-      if(this.stream) this.stream.getTracks().forEach(t => t.stop());
-      this.shadowRoot.getElementById('overlay-camera').style.display = 'none';
-  }
+  deleteFolder(name) { if(confirm(`Delete folder '${name}' and ALL items inside it?`)) this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); }
+  deleteSubloc(name) { if(confirm(`Delete '${name}'?`)) this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); }
 
-  flipLens() {
-      this.facingMode = (this.facingMode === 'user' ? 'environment' : 'user');
-      this.killCamera();
-      setTimeout(() => this.bootCamera(this.cameraMode, this.cameraTarget), 450);
+  render() { this.updateUI(); }
+  navigate(dir, name) { 
+      if (dir === 'root') this.currentPath = []; 
+      else if (dir === 'up') this.currentPath.pop(); 
+      else if (dir === 'down') this.currentPath.push(name); 
+      this.expandedSublocs.clear();
+      this.fetchData(); 
   }
-
-  async executeHardwareSnapshot() {
-      const feed = this.shadowRoot.getElementById('ui-video-feed');
-      const canvas = this.shadowRoot.getElementById('ui-buffer-canvas');
-      canvas.width = feed.videoWidth; canvas.height = feed.videoHeight;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(feed, 0, 0);
-      
-      if(this.useAiBg) {
-          // Comprehensive Pixel Scan for Background Normalisation
-          let buffer = ctx.getImageData(0,0,canvas.width,canvas.height);
-          const pixels = buffer.data;
-          for(let i=0; i < pixels.length; i+=4) {
-              const r=pixels[i], g=pixels[i+1], b=pixels[i+2];
-              if(r>220 && g>220 && b>220) { pixels[i]=255; pixels[i+1]=255; pixels[i+2]=255; }
+  toggleRow(name) { this.expandedIdx = (this.expandedIdx === name) ? null : name; this.render(); }
+  updateQty(name, d) { this.callHA('update_qty', { item_name: name, change: d }); }
+  submitShopStock(name) { 
+      const qty = this.shopQuantities[name] || 1;
+      this.callHA('update_stock', { item_name: name, quantity: qty }); 
+      delete this.shopQuantities[name];
+  }
+  
+  enableSublocRename(btn, oldName) {
+      const header = btn.closest('.group-separator');
+      if (header.querySelector('input')) return; 
+      const titleSpan = header.querySelector('.subloc-title') || header.querySelector('span');
+      if(!titleSpan) return;
+      const input = document.createElement('input');
+      input.value = oldName;
+      input.style.background = 'var(--bg-input-edit)';
+      input.style.color = 'var(--text-main)';
+      input.style.border = '1px solid var(--primary)';
+      input.style.borderRadius = '4px';
+      input.style.padding = '4px';
+      input.style.fontSize = '14px';
+      input.style.width = '200px'; 
+      input.onclick = (e) => e.stopPropagation();
+      titleSpan.replaceWith(input);
+      input.focus();
+      let isSaving = false;
+      const save = () => {
+          if (isSaving) return;
+          isSaving = true;
+          const newVal = input.value.trim();
+          if (newVal && newVal !== oldName) {
+              const newSpan = document.createElement('span');
+              newSpan.className = 'subloc-title';
+              newSpan.innerText = newVal;
+              newSpan.style.opacity = '0.7';
+              input.replaceWith(newSpan);
+              this.callHA('update_item_details', { original_name: oldName, new_name: newVal, new_date: "", current_path: this.currentPath, is_folder: true }).catch(err => {
+                  newSpan.innerText = oldName; newSpan.style.opacity = '1'; alert("Failed to rename");
+              });
+          } else {
+              const originalSpan = document.createElement('span');
+              originalSpan.className = 'subloc-title'; originalSpan.innerText = oldName; input.replaceWith(originalSpan);
           }
-          ctx.putImageData(buffer, 0, 0);
-      }
-
-      const encodedB64 = canvas.toDataURL('image/jpeg', 0.85);
-      this.killCamera();
-      if(this.cameraMode === 'search') {
-          this._hass.callService('home_organizer', 'ai_action', { mode: 'search', image_data: encodedB64 });
-      } else {
-          this._hass.callService('home_organizer', 'update_image', { item_name: this.cameraTarget, image_data: encodedB64 });
-      }
+      };
+      input.onkeydown = (e) => { if (e.key === 'Enter') input.blur(); };
+      input.onblur = () => save();
   }
 
-  /* --- ICON REPOSITORY SYSTEM (Restored Library) --- */
-  openRepository(name, ctx) {
-      this.pendingSymbolTarget = name; this.pickerContext = ctx;
-      this.pickerPage = 0;
-      this.shadowRoot.getElementById('overlay-icon-picker').style.display = 'flex';
-      this.renderIconRepository();
-  }
-
-  renderIconRepository() {
-      const r = this.shadowRoot;
-      const grid = r.getElementById('ui-picker-grid');
-      const tabs = r.getElementById('ui-picker-tabs');
-      grid.innerHTML = ''; tabs.innerHTML = '';
-
-      const library = this.pickerContext === 'room' ? ICON_LIB_ROOM : ICON_LIB_ITEM[this.pickerCategory];
+  openIconPicker(targetName, context) {
+      this.pendingFolderIcon = targetName;
+      this.pickerContext = context; 
+      this.pickerPage = 0; 
       
-      if(this.pickerContext !== 'room') {
+      if (context === 'item') {
+          this.pickerCategory = Object.keys(ICON_LIB_ITEM)[0];
+      } else {
+          this.pickerCategory = null;
+      }
+
+      this.renderIconPickerGrid();
+      this.shadowRoot.getElementById('icon-modal').style.display = 'flex';
+  }
+
+  getCurrentPickerLib() {
+      if (this.pickerContext === 'room') return ICON_LIB_ROOM;
+      if (this.pickerContext === 'location') return ICON_LIB_LOCATION;
+      if (this.pickerContext === 'item') {
+          return ICON_LIB_ITEM[this.pickerCategory] || {};
+      }
+      return ICON_LIB;
+  }
+
+  renderIconPickerGrid() {
+      const lib = this.getCurrentPickerLib();
+      const keys = Object.keys(lib);
+      const totalPages = Math.ceil(keys.length / this.pickerPageSize);
+      
+      const grid = this.shadowRoot.getElementById('icon-lib-grid');
+      const categoryBar = this.shadowRoot.getElementById('picker-categories');
+      const pageInfo = this.shadowRoot.getElementById('picker-page-info');
+      const prevBtn = this.shadowRoot.getElementById('picker-prev');
+      const nextBtn = this.shadowRoot.getElementById('picker-next');
+
+      if (this.pickerContext === 'item') {
+          categoryBar.style.display = 'flex';
+          categoryBar.innerHTML = '';
           Object.keys(ICON_LIB_ITEM).forEach(cat => {
               const btn = document.createElement('button');
-              btn.className = `pill-button ${this.pickerCategory === cat ? 'selected' : ''}`;
-              btn.innerText = cat.toUpperCase();
-              btn.onclick = () => { this.pickerCategory = cat; this.pickerPage = 0; this.renderIconRepository(); };
-              tabs.appendChild(btn);
+              btn.className = `cat-btn ${this.pickerCategory === cat ? 'active' : ''}`;
+              const firstIconKey = Object.keys(ICON_LIB_ITEM[cat])[0];
+              const sampleIcon = ICON_LIB_ITEM[cat][firstIconKey] || '';
+              btn.innerHTML = `${sampleIcon}<span>${cat}</span>`;
+              btn.onclick = () => {
+                  this.pickerCategory = cat;
+                  this.pickerPage = 0;
+                  this.renderIconPickerGrid();
+              };
+              categoryBar.appendChild(btn);
           });
+      } else {
+          categoryBar.style.display = 'none';
       }
 
-      const keys = Object.keys(library);
-      const startIdx = this.pickerPage * this.pickerPageSize;
-      keys.slice(startIdx, startIdx + this.pickerPageSize).forEach(k => {
-          const card = document.createElement('div');
-          card.className = 'icon-card';
-          card.innerHTML = `<div class="icon-visual" style="width:65px; height:65px">${library[k]}</div><div style="font-size:12px; font-weight:900">${k}</div>`;
-          card.onclick = () => this.saveSymbolToDB(library[k]);
-          grid.appendChild(card);
+      grid.innerHTML = '';
+      const start = this.pickerPage * this.pickerPageSize;
+      const end = Math.min(start + this.pickerPageSize, keys.length);
+      const pageKeys = keys.slice(start, end);
+
+      pageKeys.forEach(key => {
+          const div = document.createElement('div');
+          div.className = 'lib-icon';
+          div.innerHTML = `${lib[key]}<span>${key}</span>`;
+          div.onclick = () => this.selectLibraryIcon(lib[key]);
+          grid.appendChild(div);
       });
-      r.getElementById('ui-page-status').innerText = `REPOSITORY PAGE ${this.pickerPage + 1} / ${Math.ceil(keys.length / this.pickerPageSize)}`;
+
+      pageInfo.innerText = `Page ${this.pickerPage + 1} of ${totalPages || 1}`;
+      prevBtn.disabled = this.pickerPage === 0;
+      nextBtn.disabled = this.pickerPage >= totalPages - 1;
   }
 
-  async saveSymbolToDB(svgString) {
-      const canvas = document.createElement('canvas'); canvas.width = 200; canvas.height = 200;
-      const ctx = canvas.getContext('2d');
-      const iconImg = new Image();
-      const payload = svgString.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg" fill="#03a9f4"');
-      const blob = new Blob([payload], {type:'image/svg+xml'});
+  selectLibraryIcon(svgHtml) {
+      let source = svgHtml;
+      const size = 140; 
+      if (!source.includes('xmlns')) source = source.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+      if (source.includes('width=')) {
+          source = source.replace(/width="[^"]*"/, `width="${size}"`).replace(/height="[^"]*"/, `height="${size}"`);
+      } else {
+          source = source.replace('<svg', `<svg width="${size}" height="${size}"`);
+      }
+      source = source.replace('<svg', '<svg fill="#4fc3f7"');
+
+      const img = new Image();
+      const blob = new Blob([source], {type: 'image/svg+xml;charset=utf-8'});
       const url = URL.createObjectURL(blob);
-      iconImg.onload = () => {
-          if(this.pickerContext !== 'room') { ctx.fillStyle = '#000'; ctx.fillRect(0,0,200,200); }
-          ctx.drawImage(iconImg, 25, 25, 150, 150);
-          const finalB64 = canvas.toDataURL('image/png');
-          const targetKey = this.pickerContext === 'room' ? `[Folder] ${this.pendingSymbolTarget}` : this.pendingSymbolTarget;
-          this._hass.callService('home_organizer', 'update_image', { item_name: targetKey, image_data: finalB64 });
-          this.closeOverlay('overlay-icon-picker');
+      img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = size; canvas.height = size;
+          const ctx = canvas.getContext('2d');
+          if (this.pickerContext === 'item') { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, size, size); }
+          ctx.drawImage(img, 0, 0, size, size);
+          const dataUrl = canvas.toDataURL('image/png');
+          if(this.pendingFolderIcon) {
+              const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
+              const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
+              this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
+          }
+          this.shadowRoot.getElementById('icon-modal').style.display = 'none';
           URL.revokeObjectURL(url);
       };
-      iconImg.src = url;
+      img.src = url;
   }
 
-  /* --- CONTROL LOGIC HELPERS --- */
-  toggleExpansion(n) { this.expandedIdx = (this.expandedIdx === n) ? null : n; this.updateUI(); }
-  applyQtyChange(n, d) { this._hass.callService('home_organizer', 'update_qty', { item_name: n, change: d }); }
+  handleUrlIcon(url) {
+      const img = new Image();
+      img.crossOrigin = "Anonymous";
+      img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width; canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          try {
+              const dataUrl = canvas.toDataURL('image/jpeg');
+              if(this.pendingFolderIcon) {
+                  const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
+                  const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
+                  this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
+              }
+              this.shadowRoot.getElementById('icon-modal').style.display = 'none';
+              this.shadowRoot.getElementById('icon-url-input').value = '';
+          } catch(e) { alert("CORS prevented saving this image. Try uploading the file directly."); }
+      };
+      img.src = url;
+  }
+
+  handleIconUpload(input) {
+      const file = input.files[0]; if (!file) return;
+      this.compressImage(file, (dataUrl) => {
+          if(this.pendingFolderIcon) {
+              const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
+              const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
+              this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
+          }
+          this.shadowRoot.getElementById('icon-modal').style.display = 'none';
+      });
+      input.value = '';
+  }
+
+  compressImage(file, callback) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+              const MAX = 1024;
+              let w = img.width, h = img.height;
+              if (w > h) { if (w > MAX) { h *= MAX/w; w = MAX; } } else { if (h > MAX) { w *= MAX/h; h = MAX; } }
+              canvas.width = w; canvas.height = h;
+              ctx.drawImage(img, 0, 0, w, h);
+              callback(canvas.toDataURL('image/jpeg', 0.5));
+          };
+          img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+  }
+
+  pasteItem() { this.callHA('paste_item', { target_path: this.currentPath }); }
   
-  spawnItemPrompt(t) {
-      const label = prompt(`ENTER DESCRIPTIVE LABEL FOR NEW ${t.toUpperCase()}:`);
-      if(label) {
-          const dateStr = new Date().toISOString().split('T')[0];
-          this._hass.callService('home_organizer', 'add_item', { item_name: label, item_type: t, item_date: dateStr, current_path: this.currentPath });
-      }
-  }
-
-  handleDBDelete(n, isF) {
-      if(confirm(`EXTERMINATION PROTOCOL: DELETE "${n.toUpperCase()}" PERMANENTLY?`)) {
-          this._hass.callService('home_organizer', 'delete_item', { item_name: n, is_folder: isF, current_path: this.currentPath });
-      }
-  }
-
-  saveDetailedChanges(oldID) {
-      const nName = this.shadowRoot.getElementById(`inp-n-${oldID}`).value;
-      const nDate = this.shadowRoot.getElementById(`inp-d-${oldID}`).value;
-      this._hass.callService('home_organizer', 'update_item_details', { original_name: oldID, new_name: nName, new_date: nDate });
-      this.expandedIdx = null;
-  }
-
-  handleEntityRename(old) {
-      const n = prompt("INPUT NEW IDENTITY:", old);
-      if(n && n !== old) this._hass.callService('home_organizer', 'update_item_details', { original_name: old, new_name: n });
-  }
-
-  openLightbox(src) {
-      const img = this.shadowRoot.getElementById('ui-lightbox-target');
-      img.src = src;
-      this.shadowRoot.getElementById('overlay-lightbox').style.display = 'flex';
-  }
-
-  navMenu(pane) {
-      const r = this.shadowRoot;
-      r.getElementById('pane-main').style.display = 'none';
-      r.getElementById('pane-lang').style.display = 'none';
-      r.getElementById('pane-theme').style.display = 'none';
-      r.getElementById(`pane-${pane}`).style.display = 'block';
-  }
-
-  commitTheme(t) {
-      const app = this.shadowRoot.getElementById('app');
-      if(t==='light') app.classList.add('light-mode'); else app.classList.remove('light-mode');
-      localStorage.setItem('ho_pref_theme', t);
-  }
-
-  commitLang(l) {
-      const app = this.shadowRoot.getElementById('app');
-      if(l==='en') app.classList.add('ltr'); else app.classList.remove('ltr');
-      localStorage.setItem('ho_pref_lang', l);
-  }
-
-  closeOverlay(id) { this.shadowRoot.getElementById(id).style.display = 'none'; }
-  fullReset() { if(confirm("ERASE ALL SESSION DATA AND SYSTEM CONFIG?")) { localStorage.clear(); location.reload(); } }
-
-  generateActionBtn(parent, txt, clr, act) {
-      const b = document.createElement('button');
-      b.className = 'add-action-btn';
-      b.style.borderColor = clr;
-      b.style.color = clr;
-      b.innerText = txt;
-      b.onclick = act;
-      parent.appendChild(b);
-  }
+  cut(name) { this.callHA('clipboard_action', {action: 'cut', item_name: name}); }
+  del(name) { this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: false }); }
+  showImg(src) { const ov = this.shadowRoot.getElementById('overlay-img'); const ovc = this.shadowRoot.getElementById('img-overlay'); if(ov && ovc) { ov.src = src; ovc.style.display = 'flex'; } }
+  callHA(service, data) { return this._hass.callService('home_organizer', service, data); }
 }
 
 if (!customElements.get('home-organizer-panel')) {
