@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.9.3 (Zone Backend Compatibility Fix)
+// Home Organizer Ultimate - Ver 5.9.4 (Inline Add & Persistent Drag)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -796,6 +796,7 @@ class HomeOrganizerPanel extends HTMLElement {
             }
             header.innerHTML = headerContent;
             
+            // Allow Drop ALWAYS (Requirement: drag and drop not in edit mode)
             this.setupZoneDropTarget(header, zoneName);
             zoneContainer.appendChild(header);
 
@@ -807,10 +808,8 @@ class HomeOrganizerPanel extends HTMLElement {
                 const el = document.createElement('div');
                 el.className = 'folder-item';
                 
-                // DRAG & DROP Support for Rooms
-                if (this.isEditMode) {
-                    this.setupRoomDragSource(el, folder.name);
-                }
+                // DRAG & DROP Support for Rooms - ENABLED ALWAYS for Zone Moving
+                this.setupRoomDragSource(el, folder.name);
 
                 el.onclick = () => { if (!this.isEditMode) this.navigate('down', folder.name); };
                 
@@ -828,12 +827,13 @@ class HomeOrganizerPanel extends HTMLElement {
                 grid.appendChild(el);
             });
 
-            // Add room specifically to this zone button
+            // Add room specifically to this zone button (INLINE INPUT)
             if (this.isEditMode) {
                 const addBtn = document.createElement('div');
                 addBtn.className = 'folder-item add-folder-card';
                 addBtn.innerHTML = `<div class="android-folder-icon">${ICONS.plus}</div><div class="folder-label">Add Room</div>`;
-                addBtn.onclick = () => this.promptAddRoomToZone(zoneName);
+                // CHANGED: No Prompt, use Inline Input
+                addBtn.onclick = (e) => this.enableZoneRoomInput(e.currentTarget, zoneName);
                 grid.appendChild(addBtn);
             }
 
@@ -1040,11 +1040,41 @@ class HomeOrganizerPanel extends HTMLElement {
       this.callHA('add_item', { item_name: markerName, item_type: 'folder', zone: name, current_path: [] });
   }
 
-  promptAddRoomToZone(zoneName) {
-      const name = prompt(`Add Room to ${zoneName}:`);
-      if (name && name.trim()) {
-          this.callHA('add_item', { item_name: name.trim(), item_type: 'folder', zone: zoneName, current_path: [] });
-      }
+  // NEW: Inline Input for adding room to a specific zone
+  enableZoneRoomInput(cardEl, zoneName) {
+      const iconContainer = cardEl.querySelector('.android-folder-icon');
+      const label = cardEl.querySelector('.folder-label');
+      if(iconContainer.querySelector('input')) return;
+      
+      iconContainer.innerHTML = `<input type="text" class="add-folder-input" placeholder="Name">`;
+      const input = iconContainer.querySelector('input');
+      label.innerText = "Saving to " + zoneName;
+      
+      input.focus();
+      input.onkeydown = (e) => { 
+          if (e.key === 'Enter') this.saveNewRoomInZone(input.value, zoneName); 
+      };
+      input.onblur = () => { 
+          if (input.value.trim()) this.saveNewRoomInZone(input.value, zoneName); 
+          else this.render(); 
+      };
+  }
+
+  // NEW: Save room and immediately force zone update
+  saveNewRoomInZone(name, zoneName) {
+      if(!name) return;
+      // 1. Create Room (might default to General if backend ignores zone param)
+      this.callHA('add_item', { item_name: name, item_type: 'folder', zone: zoneName, current_path: [] });
+      
+      // 2. Force update zone immediately to fix "Add to General" bug
+      setTimeout(() => {
+           this.callHA('update_item_details', { 
+               original_name: name, 
+               new_zone: zoneName, 
+               current_path: [], 
+               is_folder: true 
+           });
+      }, 300); // Slight delay to ensure creation first
   }
 
   setupRoomDragSource(el, roomName) {
