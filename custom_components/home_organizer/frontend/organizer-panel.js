@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.9.1 (Zone Marker Fix)
+// Home Organizer Ultimate - Ver 5.9.2 (Zone Edit/Delete & Instant Add)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -744,8 +744,7 @@ class HomeOrganizerPanel extends HTMLElement {
                 const zone = f.zone || "General Rooms";
                 if (!groupedRooms[zone]) groupedRooms[zone] = [];
                 
-                // Filter out the zone markers from the visible list
-                // We identify them by the "ZONE_MARKER_" prefix or item_type
+                // IMPORTANT: Filter out the zone markers from the visible list
                 if (f.name.startsWith("ZONE_MARKER_") || f.item_type === 'zone_marker') return;
                 
                 groupedRooms[zone].push(f);
@@ -756,7 +755,21 @@ class HomeOrganizerPanel extends HTMLElement {
             // Zone Header - acts as drop target for rooms
             const header = document.createElement('div');
             header.className = 'group-separator';
-            header.innerHTML = `<span>${zoneName}</span>`;
+            
+            // Build Header Content with Edit/Delete if in Edit Mode
+            let headerContent = `<span>${zoneName}</span>`;
+            if (this.isEditMode && zoneName !== "General Rooms") {
+                headerContent = `
+                    <div style="display:flex;align-items:center;">
+                        <span class="subloc-title">${zoneName}</span>
+                    </div>
+                    <div style="display:flex;gap:5px">
+                        <button class="edit-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableZoneRename(this, '${zoneName}')">${ICONS.edit}</button>
+                        <button class="delete-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteZone('${zoneName}')">${ICONS.delete}</button>
+                    </div>`;
+            }
+            header.innerHTML = headerContent;
+            
             this.setupZoneDropTarget(header, zoneName);
             zoneContainer.appendChild(header);
 
@@ -801,13 +814,13 @@ class HomeOrganizerPanel extends HTMLElement {
             zoneContainer.appendChild(grid);
         });
 
-        // Global Edit Mode Options for Zone Management
+        // Global Edit Mode Options for Zone Management (No Popup - Instant Add)
         if (this.isEditMode) {
             const addZoneBtn = document.createElement('button');
             addZoneBtn.className = 'add-item-btn';
             addZoneBtn.style.marginTop = '20px';
             addZoneBtn.innerHTML = `+ Add Sub Zone / Floor`;
-            addZoneBtn.onclick = () => this.promptNewZone();
+            addZoneBtn.onclick = () => this.createNewZone();
             zoneContainer.appendChild(addZoneBtn);
         }
 
@@ -979,14 +992,21 @@ class HomeOrganizerPanel extends HTMLElement {
 
   // --- ZONE/FLOOR MANAGEMENT LOGIC ---
   
-  promptNewZone() {
-      const name = prompt("Enter Zone / Floor Name:");
-      if (name && name.trim()) {
-          // FIX: Create a marker item with a unique name so it doesn't show up as a "Room"
-          // The updateUI logic filters out items starting with "ZONE_MARKER_"
-          const markerName = "ZONE_MARKER_" + name.trim();
-          this.callHA('add_item', { item_name: markerName, item_type: 'zone_marker', zone: name.trim(), current_path: [] });
+  // Instant creation of zone without popup
+  createNewZone() {
+      let base = "New Zone";
+      let name = base;
+      let count = 1;
+      const existingZones = new Set();
+      if (this.localData && this.localData.folders) {
+          this.localData.folders.forEach(f => { if(f.zone) existingZones.add(f.zone); });
       }
+      while (existingZones.has(name)) {
+          name = `${base} ${count++}`;
+      }
+      
+      const markerName = "ZONE_MARKER_" + name;
+      this.callHA('add_item', { item_name: markerName, item_type: 'zone_marker', zone: name, current_path: [] });
   }
 
   promptAddRoomToZone(zoneName) {
@@ -1031,6 +1051,101 @@ class HomeOrganizerPanel extends HTMLElement {
           });
           this.fetchData();
       } catch (err) { console.error("Zone move failed", err); }
+  }
+
+  // Handle Zone Rename
+  enableZoneRename(btn, oldName) {
+      const header = btn.closest('.group-separator');
+      if (header.querySelector('input')) return; 
+      const titleSpan = header.querySelector('.subloc-title') || header.querySelector('span');
+      if(!titleSpan) return;
+      
+      const input = document.createElement('input');
+      input.value = oldName;
+      input.style.background = 'var(--bg-input-edit)';
+      input.style.color = 'var(--text-main)';
+      input.style.border = '1px solid var(--primary)';
+      input.style.borderRadius = '4px';
+      input.style.padding = '4px';
+      input.style.fontSize = '14px';
+      input.style.width = '200px'; 
+      input.onclick = (e) => e.stopPropagation();
+      titleSpan.replaceWith(input);
+      input.focus();
+      
+      let isSaving = false;
+      const save = () => {
+          if (isSaving) return;
+          isSaving = true;
+          const newVal = input.value.trim();
+          if (newVal && newVal !== oldName) {
+              const newSpan = document.createElement('span');
+              newSpan.className = 'subloc-title';
+              newSpan.innerText = newVal;
+              input.replaceWith(newSpan);
+              // We need to update ALL folders in this zone
+              this.batchUpdateZone(oldName, newVal);
+          } else {
+              const originalSpan = document.createElement('span');
+              originalSpan.className = 'subloc-title'; 
+              originalSpan.innerText = oldName; 
+              input.replaceWith(originalSpan);
+          }
+      };
+      input.onkeydown = (e) => { if (e.key === 'Enter') input.blur(); };
+      input.onblur = () => save();
+  }
+
+  batchUpdateZone(oldZone, newZone) {
+      // Find all folders with this zone and update them one by one
+      if (this.localData && this.localData.folders) {
+          this.localData.folders.forEach(f => {
+              if (f.zone === oldZone) {
+                  // For the marker, we also rename the item name to keep consistency
+                  if (f.name.startsWith("ZONE_MARKER_")) {
+                       this.callHA('update_item_details', { 
+                           original_name: f.name, 
+                           new_name: "ZONE_MARKER_" + newZone,
+                           new_zone: newZone, 
+                           current_path: [], 
+                           is_folder: true 
+                       });
+                  } else {
+                       this.callHA('update_item_details', { 
+                           original_name: f.name, 
+                           new_zone: newZone, 
+                           current_path: [], 
+                           is_folder: true 
+                       });
+                  }
+              }
+          });
+      }
+  }
+
+  deleteZone(zoneName) {
+      if(confirm(`Delete Zone "${zoneName}"? Rooms inside will move to General.`)) {
+          // 1. Move all rooms to "General Rooms" (or just clear zone)
+          if (this.localData && this.localData.folders) {
+              this.localData.folders.forEach(f => {
+                  if (f.zone === zoneName) {
+                      if (f.name.startsWith("ZONE_MARKER_")) {
+                          // Delete the marker
+                          this.callHA('delete_item', { item_name: f.name, current_path: [], is_folder: true });
+                      } else {
+                          // Move normal room to empty zone
+                          this.callHA('update_item_details', { 
+                              original_name: f.name, 
+                              new_zone: "General Rooms", 
+                              current_path: [], 
+                              is_folder: true 
+                          });
+                      }
+                  }
+              });
+          }
+          setTimeout(() => this.fetchData(), 500);
+      }
   }
 
   // --- END ZONE LOGIC ---
