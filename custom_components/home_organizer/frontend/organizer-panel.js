@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.9.5 (Prefix-Based Zones & Inline Add)
+// Home Organizer Ultimate - Ver 5.9.6 (Zone Reordering)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -222,6 +222,8 @@ class HomeOrganizerPanel extends HTMLElement {
         .edit-subloc-btn { background: none; border: none; color: var(--text-sub); cursor: pointer; padding: 4px; }
         .edit-subloc-btn:hover { color: var(--primary); }
         .delete-subloc-btn { background: none; border: none; color: var(--danger); cursor: pointer; padding: 4px; }
+        .arrow-btn { background: none; border: none; color: var(--text-sub); cursor: pointer; padding: 4px; }
+        .arrow-btn:hover { color: var(--warning); }
 
         .item-row { background: var(--bg-card); margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid transparent; touch-action: pan-y; }
         .item-row.expanded { background: var(--bg-card-hover); flex-direction: column; align-items: stretch; cursor: default; }
@@ -743,6 +745,10 @@ class HomeOrganizerPanel extends HTMLElement {
         
         // Regex to extract [Zone] Name
         const zoneRegex = /^\[(.*?)\] (.*)$/;
+        // Regex for Zone Marker with Order: ZONE_MARKER_010_Floor1
+        const markerRegex = /^ZONE_MARKER_(\d+)_+(.*)$/;
+
+        const zonesList = []; // Array to store { name, order, markerName }
 
         if (attrs.folders) {
             attrs.folders.forEach(f => {
@@ -751,8 +757,19 @@ class HomeOrganizerPanel extends HTMLElement {
 
                 // Check for explicit Zone Marker first
                 if (f.name.startsWith("ZONE_MARKER_")) {
-                    const zName = f.name.replace("ZONE_MARKER_", "").trim();
-                    if (zName) knownZones.add(zName);
+                    let zOrder = 9999;
+                    let zName = f.name.replace("ZONE_MARKER_", "").trim();
+                    
+                    const match = f.name.match(markerRegex);
+                    if (match) {
+                        zOrder = parseInt(match[1]);
+                        zName = match[2];
+                    }
+                    
+                    if (zName) {
+                        knownZones.add(zName);
+                        zonesList.push({ name: zName, order: zOrder, markerName: f.name });
+                    }
                     return; // Don't show marker as room
                 }
 
@@ -781,26 +798,46 @@ class HomeOrganizerPanel extends HTMLElement {
         knownZones.forEach(z => { if (!groupedRooms[z]) groupedRooms[z] = []; });
         if (!groupedRooms["General Rooms"]) groupedRooms["General Rooms"] = [];
 
-        // 3. Render Zones
-        const sortedZones = Object.keys(groupedRooms).sort((a,b) => {
-            if (a === "General Rooms") return -1;
-            if (b === "General Rooms") return 1;
-            return a.localeCompare(b);
+        // 2. Sort Zones based on Marker Order
+        // First, add "General Rooms" if not in zonesList (it usually isn't)
+        const hasGeneral = zonesList.find(z => z.name === "General Rooms");
+        if (!hasGeneral && groupedRooms["General Rooms"].length > 0) {
+            zonesList.push({ name: "General Rooms", order: -1, markerName: null }); // Always top
+        }
+
+        // Add any discovered zones from rooms that didn't have markers
+        Object.keys(groupedRooms).forEach(z => {
+            if (!zonesList.find(i => i.name === z)) {
+                zonesList.push({ name: z, order: 9999, markerName: null });
+            }
         });
 
-        sortedZones.forEach(zoneName => {
+        // Sort the list
+        zonesList.sort((a, b) => a.order - b.order);
+
+        // 3. Render Zones
+        zonesList.forEach(zoneObj => {
+            const zoneName = zoneObj.name;
+            const rooms = groupedRooms[zoneName] || [];
+            
+            // Skip empty General Rooms if not editing
+            if (zoneName === "General Rooms" && rooms.length === 0 && !this.isEditMode) return;
+
             // Zone Header - acts as drop target for rooms
             const header = document.createElement('div');
             header.className = 'group-separator';
             
-            // Build Header Content with Edit/Delete if in Edit Mode
+            // Build Header Content with Edit/Delete/Reorder if in Edit Mode
             let headerContent = `<span>${zoneName}</span>`;
             if (this.isEditMode && zoneName !== "General Rooms") {
                 headerContent = `
                     <div style="display:flex;align-items:center;">
                         <span class="subloc-title">${zoneName}</span>
                     </div>
-                    <div style="display:flex;gap:5px">
+                    <div style="display:flex;gap:5px;align-items:center">
+                        <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveZone('${zoneName}', -1)" title="Move Up">${ICONS.arrow_up}</button>
+                        <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveZone('${zoneName}', 1)" style="transform:rotate(180deg)" title="Move Down">${ICONS.arrow_up}</button>
+                        <div style="width:1px;height:15px;background:#444;margin:0 5px"></div>
                         <button class="edit-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableZoneRename(this, '${zoneName}')">${ICONS.edit}</button>
                         <button class="delete-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteZone('${zoneName}')">${ICONS.delete}</button>
                     </div>`;
@@ -815,7 +852,7 @@ class HomeOrganizerPanel extends HTMLElement {
             const grid = document.createElement('div');
             grid.className = 'folder-grid';
             
-            groupedRooms[zoneName].forEach(folder => {
+            rooms.forEach(folder => {
                 const el = document.createElement('div');
                 el.className = 'folder-item';
                 
@@ -1039,14 +1076,14 @@ class HomeOrganizerPanel extends HTMLElement {
           // Check both f.zone and ZONE_MARKERs
           this.localData.folders.forEach(f => { 
               if(f.zone) existingZones.add(f.zone);
-              if(f.name.startsWith("ZONE_MARKER_")) existingZones.add(f.name.replace("ZONE_MARKER_", ""));
+              if(f.name.startsWith("ZONE_MARKER_")) existingZones.add(f.name.replace(/^ZONE_MARKER_\d+_/, "").trim());
           });
       }
       while (existingZones.has(name)) {
           name = `${base} ${count++}`;
       }
       
-      const markerName = "ZONE_MARKER_" + name;
+      const markerName = "ZONE_MARKER_999_" + name;
       // CHANGED TO 'folder' so backend accepts it properly
       this.callHA('add_item', { item_name: markerName, item_type: 'folder', zone: name, current_path: [] });
   }
@@ -1129,6 +1166,71 @@ class HomeOrganizerPanel extends HTMLElement {
       } catch (err) { console.error("Zone move failed", err); }
   }
 
+  // --- REORDERING LOGIC ---
+  
+  moveZone(zoneName, direction) {
+      // 1. Reconstruct current sorted list from DOM/Data
+      // We need to parse all markers to get current order
+      const zones = [];
+      const markerRegex = /^ZONE_MARKER_(\d+)_+(.*)$/;
+      const seen = new Set();
+
+      if (this.localData && this.localData.folders) {
+          this.localData.folders.forEach(f => {
+              if (f.name.startsWith("ZONE_MARKER_")) {
+                  const match = f.name.match(markerRegex);
+                  let zOrder = 9999;
+                  let zName = f.name.replace("ZONE_MARKER_", "");
+                  if (match) {
+                      zOrder = parseInt(match[1]);
+                      zName = match[2];
+                  } else {
+                      // Handle unindexed legacy markers if any
+                      zName = f.name.replace("ZONE_MARKER_", "").trim();
+                  }
+                  if (!seen.has(zName)) {
+                      zones.push({ name: zName, order: zOrder, markerName: f.name });
+                      seen.add(zName);
+                  }
+              }
+          });
+      }
+      
+      // Sort by current order
+      zones.sort((a,b) => a.order - b.order);
+      
+      // Find current index
+      const idx = zones.findIndex(z => z.name === zoneName);
+      if (idx === -1) return; // Should not happen
+      
+      const newIdx = idx + direction;
+      if (newIdx < 0 || newIdx >= zones.length) return; // Out of bounds
+      
+      // Swap
+      const temp = zones[idx];
+      zones[idx] = zones[newIdx];
+      zones[newIdx] = temp;
+      
+      // Re-assign indices (10, 20, 30...) and Rename Markers
+      zones.forEach((z, index) => {
+          const newOrder = (index + 1) * 10;
+          const paddedOrder = String(newOrder).padStart(3, '0');
+          const newMarkerName = `ZONE_MARKER_${paddedOrder}_${z.name}`;
+          
+          if (z.markerName !== newMarkerName) {
+              this.callHA('update_item_details', { 
+                  original_name: z.markerName, 
+                  new_name: newMarkerName,
+                  current_path: [], 
+                  is_folder: true 
+              });
+          }
+      });
+      
+      // Refresh UI after short delay to allow DB writes
+      setTimeout(() => this.fetchData(), 600);
+  }
+
   // Handle Zone Rename
   enableZoneRename(btn, oldName) {
       const header = btn.closest('.group-separator');
@@ -1173,12 +1275,15 @@ class HomeOrganizerPanel extends HTMLElement {
 
   batchUpdateZone(oldZone, newZone) {
       if (this.localData && this.localData.folders) {
+          const markerRegex = new RegExp(`^ZONE_MARKER_\\d+_${oldZone}$`); // Match specific zone marker
+          
           this.localData.folders.forEach(f => {
-              // Update Marker
-              if (f.name === `ZONE_MARKER_${oldZone}`) {
+              // Update Marker (Preserve Order)
+              if (f.name.startsWith("ZONE_MARKER_") && f.name.endsWith(`_${oldZone}`)) {
+                   const prefix = f.name.substring(0, f.name.lastIndexOf(`_${oldZone}`)); // Extract 'ZONE_MARKER_010'
                    this.callHA('update_item_details', { 
                        original_name: f.name, 
-                       new_name: `ZONE_MARKER_${newZone}`,
+                       new_name: `${prefix}_${newZone}`,
                        current_path: [], 
                        is_folder: true 
                    });
@@ -1204,7 +1309,7 @@ class HomeOrganizerPanel extends HTMLElement {
       if(confirm(`Delete Zone "${zoneName}"? Rooms inside will move to General.`)) {
           if (this.localData && this.localData.folders) {
               this.localData.folders.forEach(f => {
-                  if (f.name === `ZONE_MARKER_${zoneName}`) {
+                  if (f.name.startsWith("ZONE_MARKER_") && f.name.endsWith(`_${zoneName}`)) {
                       this.callHA('delete_item', { item_name: f.name, current_path: [], is_folder: true });
                   } else if (f.name.startsWith(`[${zoneName}] `)) {
                       // Move to General (strip prefix)
