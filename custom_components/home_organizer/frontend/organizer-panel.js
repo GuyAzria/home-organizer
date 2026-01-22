@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.9.8 (Fix Sub-Location Reordering Stability)
+// Home Organizer Ultimate - Ver 5.9.9 (Fix Sub-Location Delete/Rename/Order)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -1010,7 +1010,10 @@ class HomeOrganizerPanel extends HTMLElement {
         });
 
         // 3. Sort
-        orderedGroups.sort((a,b) => a.order - b.order);
+        orderedGroups.sort((a,b) => {
+            if (a.order !== b.order) return a.order - b.order;
+            return a.name.localeCompare(b.name);
+        });
 
         // 4. Populate grouped items
         orderedGroups.forEach(g => grouped[g.name] = []);
@@ -1133,6 +1136,28 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   // --- SUB-LOCATION REORDERING ---
+  
+  // Helper to find the actual database name if it's hidden behind a marker
+  resolveRealName(displayName) {
+      if (!this.localData) return displayName;
+      
+      // Check folders
+      if (this.localData.folders) {
+          const markerRegex = new RegExp(`^ORDER_MARKER_\\d+_${displayName}$`);
+          const found = this.localData.folders.find(f => f.name.match(markerRegex));
+          if (found) return found.name;
+      }
+      
+      // Check items (sub-location markers)
+      if (this.localData.items) {
+          const markerRegex = new RegExp(`^ORDER_MARKER_\\d+_${displayName}$`);
+          const found = this.localData.items.find(i => i.sub_location && i.sub_location.match(markerRegex));
+          if (found) return found.sub_location;
+      }
+      
+      return displayName;
+  }
+
   async moveSubLoc(subName, direction) {
       // 1. Reconstruct list from items/folders data to ensure current state
       const subGroups = [];
@@ -1733,7 +1758,11 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   deleteFolder(name) { if(confirm(`Delete folder '${name}' and ALL items inside it?`)) this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); }
-  deleteSubloc(name) { if(confirm(`Delete '${name}'?`)) this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); }
+  deleteSubloc(name) { 
+      // FIX: Ensure we are deleting the real item name (if it's a marker group)
+      const realName = this.resolveRealName(name);
+      if(confirm(`Delete '${name}'?`)) this._hass.callService('home_organizer', 'delete_item', { item_name: realName, current_path: this.currentPath, is_folder: true }); 
+  }
 
   render() { this.updateUI(); }
   navigate(dir, name) { 
@@ -1769,6 +1798,7 @@ class HomeOrganizerPanel extends HTMLElement {
       titleSpan.replaceWith(input);
       input.focus();
       let isSaving = false;
+      
       const save = () => {
           if (isSaving) return;
           isSaving = true;
@@ -1779,7 +1809,25 @@ class HomeOrganizerPanel extends HTMLElement {
               newSpan.innerText = newVal;
               newSpan.style.opacity = '0.7';
               input.replaceWith(newSpan);
-              this.callHA('update_item_details', { original_name: oldName, new_name: newVal, new_date: "", current_path: this.currentPath, is_folder: true }).catch(err => {
+              
+              // FIX: Resolve real name (which might include ORDER_MARKER_010_...)
+              const realOldName = this.resolveRealName(oldName);
+              
+              // Calculate new name preserving marker prefix if it exists
+              let finalNewName = newVal;
+              const markerRegex = /^(ORDER_MARKER_\d+_)(.*)$/;
+              const match = realOldName.match(markerRegex);
+              if (match) {
+                  finalNewName = match[1] + newVal; // Keep prefix, change name
+              }
+
+              this.callHA('update_item_details', { 
+                  original_name: realOldName, 
+                  new_name: finalNewName, 
+                  new_date: "", 
+                  current_path: this.currentPath, 
+                  is_folder: true 
+              }).catch(err => {
                   newSpan.innerText = oldName; newSpan.style.opacity = '1'; alert("Failed to rename");
               });
           } else {
