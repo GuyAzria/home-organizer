@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.9.7 (Sub-Location Reordering)
+// Home Organizer Ultimate - Ver 5.9.8 (Fix Sub-Location Reordering Stability)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -1133,8 +1133,8 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   // --- SUB-LOCATION REORDERING ---
-  moveSubLoc(subName, direction) {
-      // Reconstruct list from items/folders data to ensure current state
+  async moveSubLoc(subName, direction) {
+      // 1. Reconstruct list from items/folders data to ensure current state
       const subGroups = [];
       const markerRegex = /^ORDER_MARKER_(\d+)_(.*)$/;
       const seen = new Set();
@@ -1177,7 +1177,11 @@ class HomeOrganizerPanel extends HTMLElement {
           }
       });
 
-      subGroups.sort((a,b) => a.order - b.order);
+      // Stable Sort
+      subGroups.sort((a,b) => {
+          if (a.order !== b.order) return a.order - b.order;
+          return a.name.localeCompare(b.name);
+      });
       
       const idx = subGroups.findIndex(g => g.name === subName);
       if (idx === -1) return;
@@ -1185,13 +1189,12 @@ class HomeOrganizerPanel extends HTMLElement {
       if (newIdx < 0 || newIdx >= subGroups.length) return;
 
       // Swap
-      const temp = subGroups[idx];
-      subGroups[idx] = subGroups[newIdx];
-      subGroups[newIdx] = temp;
+      [subGroups[idx], subGroups[newIdx]] = [subGroups[newIdx], subGroups[idx]];
 
-      // Apply new orders
-      subGroups.forEach((g, index) => {
-          const newOrder = (index + 1) * 10;
+      // Apply new orders sequentially
+      for (let i = 0; i < subGroups.length; i++) {
+          const g = subGroups[i];
+          const newOrder = (i + 1) * 10;
           const padded = String(newOrder).padStart(3, '0');
           const newMarkerName = `ORDER_MARKER_${padded}_${g.name}`;
           const oldMarkerName = currentMarkers[g.name];
@@ -1199,7 +1202,7 @@ class HomeOrganizerPanel extends HTMLElement {
           if (g.name !== "General") {
               if (oldMarkerName && oldMarkerName !== newMarkerName) {
                   // Rename existing marker group (this moves the marker item to new sub_location)
-                  this.callHA('update_item_details', { 
+                  await this.callHA('update_item_details', { 
                       original_name: oldMarkerName, // treating sub_loc as folder name for update
                       new_name: newMarkerName,
                       current_path: this.currentPath, 
@@ -1207,15 +1210,15 @@ class HomeOrganizerPanel extends HTMLElement {
                   });
               } else if (!oldMarkerName) {
                   // Create new marker item to establish order
-                  this.callHA('add_item', { 
+                  await this.callHA('add_item', { 
                       item_name: "OrderMarker", 
                       item_type: 'item', 
                       current_path: [...this.currentPath, newMarkerName] // putting it into the marker sub-loc
                   });
               }
           }
-      });
-      setTimeout(() => this.fetchData(), 600);
+      }
+      this.fetchData();
   }
 
   // --- ZONE/FLOOR MANAGEMENT LOGIC ---
