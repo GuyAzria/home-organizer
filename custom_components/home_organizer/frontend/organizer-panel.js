@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.9.4 (Inline Add & Persistent Drag)
+// Home Organizer Ultimate - Ver 5.9.5 (Prefix-Based Zones & Inline Add)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -737,38 +737,49 @@ class HomeOrganizerPanel extends HTMLElement {
         const zoneContainer = document.createElement('div');
         zoneContainer.className = 'item-list';
 
-        // 1. Identify Zones from Markers
+        // 1. Identify Zones (Group rooms by prefix [ZoneName])
         const groupedRooms = {};
         const knownZones = new Set();
         
+        // Regex to extract [Zone] Name
+        const zoneRegex = /^\[(.*?)\] (.*)$/;
+
         if (attrs.folders) {
             attrs.folders.forEach(f => {
+                let zone = "General Rooms";
+                let displayName = f.name;
+
+                // Check for explicit Zone Marker first
                 if (f.name.startsWith("ZONE_MARKER_")) {
                     const zName = f.name.replace("ZONE_MARKER_", "").trim();
                     if (zName) knownZones.add(zName);
+                    return; // Don't show marker as room
                 }
-                if (f.zone) knownZones.add(f.zone);
+
+                // Check for Prefix "[Zone] Name"
+                const match = f.name.match(zoneRegex);
+                if (match) {
+                    zone = match[1];
+                    displayName = match[2];
+                } else if (f.zone) {
+                    // Fallback to legacy zone property if available
+                    zone = f.zone;
+                }
+
+                if (!groupedRooms[zone]) groupedRooms[zone] = [];
+                
+                // Store processed folder info
+                groupedRooms[zone].push({
+                    originalName: f.name,
+                    displayName: displayName,
+                    img: f.img
+                });
             });
         }
         
-        // Always ensure we have "General Rooms" if there are any orphan rooms
-        knownZones.forEach(z => groupedRooms[z] = []);
+        // Ensure empty zones (from markers) exist in list
+        knownZones.forEach(z => { if (!groupedRooms[z]) groupedRooms[z] = []; });
         if (!groupedRooms["General Rooms"]) groupedRooms["General Rooms"] = [];
-
-        // 2. Distribute folders to zones
-        if (attrs.folders) {
-            attrs.folders.forEach(f => {
-                // Skip markers in the visual grid
-                if (f.name.startsWith("ZONE_MARKER_")) return;
-                if (f.item_type === 'zone_marker') return; // Just in case backend supports it later
-                
-                // Fallback to "General Rooms" if zone property is missing/empty
-                const zone = f.zone || "General Rooms";
-                
-                if (!groupedRooms[zone]) groupedRooms[zone] = [];
-                groupedRooms[zone].push(f);
-            });
-        }
 
         // 3. Render Zones
         const sortedZones = Object.keys(groupedRooms).sort((a,b) => {
@@ -809,20 +820,20 @@ class HomeOrganizerPanel extends HTMLElement {
                 el.className = 'folder-item';
                 
                 // DRAG & DROP Support for Rooms - ENABLED ALWAYS for Zone Moving
-                this.setupRoomDragSource(el, folder.name);
+                this.setupRoomDragSource(el, folder.originalName);
 
-                el.onclick = () => { if (!this.isEditMode) this.navigate('down', folder.name); };
+                el.onclick = () => { if (!this.isEditMode) this.navigate('down', folder.originalName); };
                 
                 let folderContent = ICONS.folder;
                 if (folder.img) folderContent = `<img src="${folder.img}">`;
 
-                const deleteBtnHtml = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` : '';
-                const editBtnHtml = this.isEditMode ? `<div class="folder-edit-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'), '${folder.name}')">${ICONS.edit}</div>` : '';
-                const imgBtnHtml = this.isEditMode ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${folder.name}', 'room')">${ICONS.image}</div>` : '';
+                const deleteBtnHtml = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.originalName}')">✕</div>` : '';
+                const editBtnHtml = this.isEditMode ? `<div class="folder-edit-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'), '${folder.originalName}')">${ICONS.edit}</div>` : '';
+                const imgBtnHtml = this.isEditMode ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${folder.originalName}', 'room')">${ICONS.image}</div>` : '';
 
                 el.innerHTML = `
                     <div class="android-folder-icon">${folderContent}${editBtnHtml}${deleteBtnHtml}${imgBtnHtml}</div>
-                    <div class="folder-label">${folder.name}</div>
+                    <div class="folder-label">${folder.displayName}</div>
                 `;
                 grid.appendChild(el);
             });
@@ -1060,21 +1071,16 @@ class HomeOrganizerPanel extends HTMLElement {
       };
   }
 
-  // NEW: Save room and immediately force zone update
+  // NEW: Save room and immediately force zone update using PREFIX hack since DB has no zone column
   saveNewRoomInZone(name, zoneName) {
       if(!name) return;
-      // 1. Create Room (might default to General if backend ignores zone param)
-      this.callHA('add_item', { item_name: name, item_type: 'folder', zone: zoneName, current_path: [] });
       
-      // 2. Force update zone immediately to fix "Add to General" bug
-      setTimeout(() => {
-           this.callHA('update_item_details', { 
-               original_name: name, 
-               new_zone: zoneName, 
-               current_path: [], 
-               is_folder: true 
-           });
-      }, 300); // Slight delay to ensure creation first
+      let finalName = name;
+      if (zoneName !== "General Rooms") {
+          finalName = `[${zoneName}] ${name}`;
+      }
+      
+      this.callHA('add_item', { item_name: finalName, item_type: 'folder', current_path: [] });
   }
 
   setupRoomDragSource(el, roomName) {
@@ -1104,13 +1110,22 @@ class HomeOrganizerPanel extends HTMLElement {
 
   async moveRoomToZone(roomName, zoneName) {
       try {
-          await this.callHA('update_item_details', { 
-              original_name: roomName, 
-              new_zone: zoneName, 
-              current_path: [], 
-              is_folder: true 
-          });
-          this.fetchData();
+          // Calculate new name with prefix
+          const cleanName = roomName.replace(/^\[(.*?)\]\s*/, "");
+          let newName = cleanName;
+          if (zoneName !== "General Rooms") {
+              newName = `[${zoneName}] ${cleanName}`;
+          }
+          
+          if (newName !== roomName) {
+              await this.callHA('update_item_details', { 
+                  original_name: roomName, 
+                  new_name: newName,
+                  current_path: [], 
+                  is_folder: true 
+              });
+              this.fetchData();
+          }
       } catch (err) { console.error("Zone move failed", err); }
   }
 
@@ -1144,7 +1159,6 @@ class HomeOrganizerPanel extends HTMLElement {
               newSpan.className = 'subloc-title';
               newSpan.innerText = newVal;
               input.replaceWith(newSpan);
-              // We need to update ALL folders in this zone
               this.batchUpdateZone(oldName, newVal);
           } else {
               const originalSpan = document.createElement('span');
@@ -1158,59 +1172,53 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   batchUpdateZone(oldZone, newZone) {
-      // Find all folders with this zone and update them one by one
       if (this.localData && this.localData.folders) {
           this.localData.folders.forEach(f => {
-              const isMarker = f.name.startsWith("ZONE_MARKER_");
-              const currentZone = isMarker ? f.name.replace("ZONE_MARKER_", "") : f.zone;
-              
-              if (currentZone === oldZone) {
-                  if (isMarker) {
-                       this.callHA('update_item_details', { 
-                           original_name: f.name, 
-                           new_name: "ZONE_MARKER_" + newZone,
-                           new_zone: newZone, 
-                           current_path: [], 
-                           is_folder: true 
-                       });
-                  } else {
-                       this.callHA('update_item_details', { 
-                           original_name: f.name, 
-                           new_zone: newZone, 
-                           current_path: [], 
-                           is_folder: true 
-                       });
-                  }
+              // Update Marker
+              if (f.name === `ZONE_MARKER_${oldZone}`) {
+                   this.callHA('update_item_details', { 
+                       original_name: f.name, 
+                       new_name: `ZONE_MARKER_${newZone}`,
+                       current_path: [], 
+                       is_folder: true 
+                   });
+              } 
+              // Update prefixed rooms
+              else if (f.name.startsWith(`[${oldZone}] `)) {
+                   const cleanName = f.name.replace(`[${oldZone}] `, "");
+                   const newName = `[${newZone}] ${cleanName}`;
+                   this.callHA('update_item_details', { 
+                       original_name: f.name, 
+                       new_name: newName,
+                       current_path: [], 
+                       is_folder: true 
+                   });
               }
           });
+          // Refresh after slight delay for batch updates
+          setTimeout(() => this.fetchData(), 800);
       }
   }
 
   deleteZone(zoneName) {
       if(confirm(`Delete Zone "${zoneName}"? Rooms inside will move to General.`)) {
-          // 1. Move all rooms to "General Rooms" (or just clear zone)
           if (this.localData && this.localData.folders) {
               this.localData.folders.forEach(f => {
-                  const isMarker = f.name.startsWith("ZONE_MARKER_");
-                  const currentZone = isMarker ? f.name.replace("ZONE_MARKER_", "") : f.zone;
-                  
-                  if (currentZone === zoneName) {
-                      if (isMarker) {
-                          // Delete the marker
-                          this.callHA('delete_item', { item_name: f.name, current_path: [], is_folder: true });
-                      } else {
-                          // Move normal room to empty zone
-                          this.callHA('update_item_details', { 
-                              original_name: f.name, 
-                              new_zone: "General Rooms", 
-                              current_path: [], 
-                              is_folder: true 
-                          });
-                      }
+                  if (f.name === `ZONE_MARKER_${zoneName}`) {
+                      this.callHA('delete_item', { item_name: f.name, current_path: [], is_folder: true });
+                  } else if (f.name.startsWith(`[${zoneName}] `)) {
+                      // Move to General (strip prefix)
+                      const cleanName = f.name.replace(`[${zoneName}] `, "");
+                      this.callHA('update_item_details', { 
+                          original_name: f.name, 
+                          new_name: cleanName,
+                          current_path: [], 
+                          is_folder: true 
+                      });
                   }
               });
           }
-          setTimeout(() => this.fetchData(), 500);
+          setTimeout(() => this.fetchData(), 800);
       }
   }
 
