@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.9.6 (Zone Reordering)
+// Home Organizer Ultimate - Ver 5.9.7 (Sub-Location Reordering)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -880,7 +880,6 @@ class HomeOrganizerPanel extends HTMLElement {
                 const addBtn = document.createElement('div');
                 addBtn.className = 'folder-item add-folder-card';
                 addBtn.innerHTML = `<div class="android-folder-icon">${ICONS.plus}</div><div class="folder-label">Add Room</div>`;
-                // CHANGED: No Prompt, use Inline Input
                 addBtn.onclick = (e) => this.enableZoneRoomInput(e.currentTarget, zoneName);
                 grid.appendChild(addBtn);
             }
@@ -955,19 +954,85 @@ class HomeOrganizerPanel extends HTMLElement {
         const inStock = [], outOfStock = [];
         if (attrs.items) attrs.items.forEach(item => (item.qty === 0 ? outOfStock : inStock).push(item));
         const grouped = {};
-        if (attrs.folders) attrs.folders.forEach(f => grouped[f.name] = []);
-        if (!grouped["General"]) grouped["General"] = [];
-        inStock.forEach(item => {
-            const sub = item.sub_location || "General";
-            if(!grouped[sub]) grouped[sub] = [];
-            grouped[sub].push(item);
+        
+        // SUB-LOCATION ORDERING LOGIC
+        const markerRegex = /^ORDER_MARKER_(\d+)_(.*)$/;
+        const orderedGroups = []; // { name: 'Fridge', order: 10, markerKey: 'ORDER_MARKER_010_Fridge' }
+        const foundMarkers = new Set();
+
+        // 1. Identify groups and markers
+        // Scan folders or implicit sub-locations from items
+        const rawGroups = new Set();
+        if (attrs.folders) attrs.folders.forEach(f => {
+             // If this folder is a marker
+             if (f.name.startsWith("ORDER_MARKER_")) {
+                 const match = f.name.match(markerRegex);
+                 if (match) {
+                     const order = parseInt(match[1]);
+                     const realName = match[2];
+                     orderedGroups.push({ name: realName, order: order, markerKey: f.name });
+                     foundMarkers.add(realName);
+                 }
+             } else {
+                 rawGroups.add(f.name);
+             }
         });
         
-        Object.keys(grouped).sort().forEach(subName => {
-            const items = grouped[subName];
+        // Scan items for sub_location groupings
+        // Note: Marker items themselves will appear here if backend returns them as items.
+        // We filter out marker items from visible groups.
+        inStock.forEach(item => {
+            const sub = item.sub_location || "General";
+            if (sub.startsWith("ORDER_MARKER_")) {
+                 // It's a marker item, parse it
+                 const match = sub.match(markerRegex);
+                 if (match) {
+                     const order = parseInt(match[1]);
+                     const realName = match[2];
+                     // Only add if not already added via folders loop
+                     if (!orderedGroups.find(g => g.markerKey === sub)) {
+                         orderedGroups.push({ name: realName, order: order, markerKey: sub });
+                         foundMarkers.add(realName);
+                     }
+                 }
+            } else {
+                rawGroups.add(sub);
+            }
+        });
+
+        // 2. Add non-marked groups with default order
+        rawGroups.forEach(g => {
+            if (!foundMarkers.has(g)) {
+                let order = 9999;
+                if (g === "General") order = -1; 
+                orderedGroups.push({ name: g, order: order, markerKey: null });
+            }
+        });
+
+        // 3. Sort
+        orderedGroups.sort((a,b) => a.order - b.order);
+
+        // 4. Populate grouped items
+        orderedGroups.forEach(g => grouped[g.name] = []);
+        
+        // Fill items into groups
+        inStock.forEach(item => {
+            const sub = item.sub_location || "General";
+            if (!sub.startsWith("ORDER_MARKER_")) {
+                if(!grouped[sub]) grouped[sub] = []; // Just in case
+                grouped[sub].push(item);
+            }
+        });
+
+        // 5. Render
+        orderedGroups.forEach(groupObj => {
+            const subName = groupObj.name;
+            const items = grouped[subName] || [];
             const count = items.length;
+            
             if (subName === "General" && count === 0 && !this.isEditMode) return;
             if (this.viewMode === 'grid' && count === 0) return;
+            
             const isExpanded = (this.viewMode === 'grid') ? true : this.expandedSublocs.has(subName);
             const icon = isExpanded ? ICONS.chevron_down : ICONS.chevron_right;
             const countBadge = `<span style="font-size:12px; background:var(--bg-badge); color:var(--text-badge); padding:2px 6px; border-radius:10px; margin-inline-start:8px;">${count}</span>`;
@@ -989,7 +1054,10 @@ class HomeOrganizerPanel extends HTMLElement {
                         <span class="subloc-title">${subName}</span>
                         ${countBadge}
                     </div>
-                    <div style="display:flex;gap:5px">
+                    <div style="display:flex;gap:5px;align-items:center">
+                        <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveSubLoc('${subName}', -1)" title="Move Up">${ICONS.arrow_up}</button>
+                        <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveSubLoc('${subName}', 1)" style="transform:rotate(180deg)" title="Move Down">${ICONS.arrow_up}</button>
+                        <div style="width:1px;height:15px;background:#444;margin:0 5px"></div>
                         <button class="edit-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableSublocRename(this, '${subName}')">${ICONS.edit}</button>
                         <button class="delete-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button>
                     </div>`;
@@ -1062,6 +1130,92 @@ class HomeOrganizerPanel extends HTMLElement {
         }
         content.appendChild(listContainer);
     }
+  }
+
+  // --- SUB-LOCATION REORDERING ---
+  moveSubLoc(subName, direction) {
+      // Reconstruct list from items/folders data to ensure current state
+      const subGroups = [];
+      const markerRegex = /^ORDER_MARKER_(\d+)_(.*)$/;
+      const seen = new Set();
+      const currentMarkers = {}; // Map RealName -> MarkerItemName
+
+      // Check folders
+      if (this.localData.folders) this.localData.folders.forEach(f => {
+          if (f.name.startsWith("ORDER_MARKER_")) {
+              const match = f.name.match(markerRegex);
+              if (match) {
+                  const realName = match[2];
+                  if (!seen.has(realName)) {
+                      subGroups.push({ name: realName, order: parseInt(match[1]) });
+                      seen.add(realName);
+                      currentMarkers[realName] = f.name;
+                  }
+              }
+          } else {
+              if (!seen.has(f.name)) { subGroups.push({ name: f.name, order: 9999 }); seen.add(f.name); }
+          }
+      });
+      // Check items
+      if (this.localData.items) this.localData.items.forEach(i => {
+          const s = i.sub_location || "General";
+          if (s.startsWith("ORDER_MARKER_")) {
+              const match = s.match(markerRegex);
+              if (match) {
+                  const realName = match[2];
+                  if (!seen.has(realName)) {
+                      subGroups.push({ name: realName, order: parseInt(match[1]) });
+                      seen.add(realName);
+                      currentMarkers[realName] = s;
+                  }
+              }
+          } else {
+              if (!seen.has(s)) { 
+                  let ord = 9999; if(s==="General") ord = -1;
+                  subGroups.push({ name: s, order: ord }); seen.add(s); 
+              }
+          }
+      });
+
+      subGroups.sort((a,b) => a.order - b.order);
+      
+      const idx = subGroups.findIndex(g => g.name === subName);
+      if (idx === -1) return;
+      const newIdx = idx + direction;
+      if (newIdx < 0 || newIdx >= subGroups.length) return;
+
+      // Swap
+      const temp = subGroups[idx];
+      subGroups[idx] = subGroups[newIdx];
+      subGroups[newIdx] = temp;
+
+      // Apply new orders
+      subGroups.forEach((g, index) => {
+          const newOrder = (index + 1) * 10;
+          const padded = String(newOrder).padStart(3, '0');
+          const newMarkerName = `ORDER_MARKER_${padded}_${g.name}`;
+          const oldMarkerName = currentMarkers[g.name];
+
+          if (g.name !== "General") {
+              if (oldMarkerName && oldMarkerName !== newMarkerName) {
+                  // Rename existing marker group (this moves the marker item to new sub_location)
+                  this.callHA('update_item_details', { 
+                      original_name: oldMarkerName, // treating sub_loc as folder name for update
+                      new_name: newMarkerName,
+                      current_path: this.currentPath, 
+                      is_folder: true 
+                  });
+              } else if (!oldMarkerName) {
+                  // Create new marker item to establish order
+                  this.callHA('add_item', { 
+                      item_name: "OrderMarker", 
+                      item_type: 'item', 
+                      current_path: [...this.currentPath, newMarkerName] // putting it into the marker sub-loc
+                  });
+              }
+          }
+      });
+      setTimeout(() => this.fetchData(), 600);
   }
 
   // --- ZONE/FLOOR MANAGEMENT LOGIC ---
