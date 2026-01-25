@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.0.3 (Persistent IDs & Fix Badge Pos)
+// Home Organizer Ultimate - Ver 6.0.4 (ID Toggle & Expanded CSS)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -26,9 +26,15 @@ class HomeOrganizerPanel extends HTMLElement {
       this.pickerPage = 0;
       this.pickerPageSize = 15;
       
-      // Load Persistent IDs
-      try { this.persistentIds = JSON.parse(localStorage.getItem('home_organizer_ids')) || {}; } 
-      catch { this.persistentIds = {}; }
+      // Load Persistent Settings
+      try { 
+          this.persistentIds = JSON.parse(localStorage.getItem('home_organizer_ids')) || {}; 
+          this.showIds = localStorage.getItem('home_organizer_show_ids') !== 'false'; // Default true
+      } 
+      catch { 
+          this.persistentIds = {}; 
+          this.showIds = true;
+      }
 
       this.initUI();
     }
@@ -62,9 +68,6 @@ class HomeOrganizerPanel extends HTMLElement {
   
   // Helper to convert 1->A, 2->B...
   toAlphaId(num) {
-      // Simple A-Z mapping, then A1-Z9 could be added but sticking to simple chars for now
-      // If num > 26, it loops or could use double letters. 
-      // For simplicity: 1=A, ... 26=Z, 27=AA...
       let s = "";
       while (num > 0) {
           let rem = (num - 1) % 26;
@@ -95,62 +98,175 @@ class HomeOrganizerPanel extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
         :host { 
-            --primary: #03a9f4; --accent: #4caf50; --danger: #f44336; --warning: #ffeb3b;
+            /* -- Dark Theme Variables (Default) -- */
+            --primary: #03a9f4; 
+            --accent: #4caf50; 
+            --danger: #f44336; 
+            --warning: #ffeb3b;
             --icon-btn-bg: #444;
-            --bg-body: #1c1c1e; --bg-bar: #242426; --bg-sub-bar: #2a2a2c;
-            --bg-card: #2c2c2e; --bg-card-hover: #3a3a3c;
-            --bg-input: #111; --bg-input-edit: #222;
-            --bg-dropdown: #2c2c2e; --bg-qty-ctrl: #222;
-            --text-main: #fff; --text-sub: #aaa;
-            --border-color: #333; --border-light: #444; --border-input: #333;
-            --bg-badge: #444; --text-badge: #fff;
-            --bg-icon-box: #3c4043; --text-icon-box: #8ab4f8;
-            --catalog-bg: #ff9800; --catalog-text: #fff;
+            
+            --bg-body: #1c1c1e;
+            --bg-bar: #242426;
+            --bg-sub-bar: #2a2a2c;
+            --bg-card: #2c2c2e;
+            --bg-card-hover: #3a3a3c;
+            --bg-input: #111;
+            --bg-input-edit: #222;
+            --bg-dropdown: #2c2c2e;
+            --bg-qty-ctrl: #222;
+            
+            --text-main: #fff;
+            --text-sub: #aaa;
+            
+            --border-color: #333;
+            --border-light: #444;
+            --border-input: #333;
+
+            /* Badge & Icon specific */
+            --bg-badge: #444;
+            --text-badge: #fff;
+            --bg-icon-box: #3c4043;
+            --text-icon-box: #8ab4f8;
+
+            /* Catalog ID Colors */
+            --catalog-bg: #ff9800;
+            --catalog-text: #fff;
         }
+
+        /* -- Light Theme Overrides -- */
         .light-mode {
-            --bg-body: #f5f5f5; --bg-bar: #ffffff; --bg-sub-bar: #f0f0f0;
-            --bg-card: #ffffff; --bg-card-hover: #f9f9f9;
-            --bg-input: #ffffff; --bg-input-edit: #ffffff;
-            --bg-dropdown: #ffffff; --bg-qty-ctrl: #e0e0e0;
-            --text-main: #333; --text-sub: #666;
-            --border-color: #ddd; --border-light: #ccc; --border-input: #ccc;
+            --bg-body: #f5f5f5;
+            --bg-bar: #ffffff;
+            --bg-sub-bar: #f0f0f0;
+            --bg-card: #ffffff;
+            --bg-card-hover: #f9f9f9;
+            --bg-input: #ffffff;
+            --bg-input-edit: #ffffff;
+            --bg-dropdown: #ffffff;
+            --bg-qty-ctrl: #e0e0e0;
+            
+            --text-main: #333;
+            --text-sub: #666;
+            
+            --border-color: #ddd;
+            --border-light: #ccc;
+            --border-input: #ccc;
             --icon-btn-bg: #e0e0e0;
-            --bg-badge: #e0e0e0; --text-badge: #000;
-            --bg-icon-box: #e0e0e0; --text-icon-box: #03a9f4;
+
+            --bg-badge: #e0e0e0;
+            --text-badge: #000000;
+            --bg-icon-box: #e0e0e0;
+            --text-icon-box: #03a9f4;
         }
+
         * { box-sizing: border-box; }
-        .app-container { background: var(--bg-body); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; font-family: sans-serif; direction: rtl; }
+        
+        /* Default RTL (Hebrew) */
+        .app-container { 
+            background: var(--bg-body); 
+            color: var(--text-main); 
+            height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+            font-family: sans-serif; 
+            direction: rtl; 
+        }
+        
+        /* LTR Override (English) */
         .app-container.ltr { direction: ltr; }
+
         svg { width: 24px; height: 24px; fill: currentColor; }
-        .top-bar { background: var(--bg-bar); padding: 10px; border-bottom: 1px solid var(--border-color); display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-shrink: 0; height: 60px; position: relative; }
-        .sub-bar { background: var(--bg-sub-bar); height: 30px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
-        .sub-bar-left { display: flex; align-items: center; }
+        
+        /* --- Top Bar & Sub Bar Styles --- */
+        .top-bar { 
+            background: var(--bg-bar); 
+            padding: 10px; 
+            border-bottom: 1px solid var(--border-color); 
+            display: flex; 
+            gap: 10px; 
+            align-items: center; 
+            justify-content: space-between; 
+            flex-shrink: 0; 
+            height: 60px; 
+            position: relative; 
+        }
+        
+        /* Sub-bar */
+        .sub-bar { 
+            background: var(--bg-sub-bar); 
+            height: 30px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            padding: 0 10px; 
+            border-bottom: 1px solid var(--border-color); 
+            flex-shrink: 0; 
+        }
+        
+        .sub-bar-left { display: flex; align-items: center; gap: 10px; }
         .sub-bar-right { display: flex; align-items: center; gap: 10px; }
-        .nav-btn { background: none; border: none; color: var(--primary); cursor: pointer; padding: 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+
+        .nav-btn { 
+            background: none; 
+            border: none; 
+            color: var(--primary); 
+            cursor: pointer; 
+            padding: 8px; 
+            border-radius: 50%; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+        }
         .nav-btn:hover { background: rgba(125,125,125,0.1); }
         .nav-btn.active { color: var(--warning); }
         .nav-btn.edit-active { color: var(--accent); } 
+        
         .sub-bar .nav-btn { padding: 4px; }
         .sub-bar .nav-btn svg { width: 20px; height: 20px; }
+
+        /* Setup Dropdown */
         .setup-wrapper { position: relative; display: flex; align-items: center; }
-        .setup-dropdown { position: absolute; top: 50px; inset-inline-start: 0; background: var(--bg-dropdown); border: 1px solid var(--border-color); border-radius: 8px; display: none; flex-direction: column; min-width: 180px; z-index: 3000; box-shadow: 0 8px 16px rgba(0,0,0,0.3); overflow: hidden; }
+        .setup-dropdown { 
+            position: absolute; top: 50px; 
+            inset-inline-start: 0;
+            background: var(--bg-dropdown); border: 1px solid var(--border-color); 
+            border-radius: 8px; display: none; flex-direction: column; min-width: 180px; z-index: 3000;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.3); overflow: hidden;
+        }
         .setup-dropdown.show { display: flex; }
-        .dropdown-item { padding: 12px 15px; cursor: pointer; color: var(--text-main); font-size: 14px; text-align: start; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: flex-start; gap: 10px; }
+        .dropdown-item { 
+            padding: 12px 15px; cursor: pointer; color: var(--text-main); font-size: 14px; 
+            text-align: start; 
+            border-bottom: 1px solid var(--border-color); 
+            display: flex; align-items: center; justify-content: flex-start; gap: 10px; 
+        }
         .dropdown-item:hover { background: var(--primary); color: white; }
         .dropdown-item:last-child { border-bottom: none; }
         .dropdown-item svg { width: 18px; height: 18px; opacity: 0.8; }
+        
         .back-btn { font-weight: bold; color: var(--primary); }
         .back-btn:hover { color: white; }
+
         .title-box { flex: 1; text-align: center; }
         .main-title { font-weight: bold; font-size: 16px; }
         .sub-title { font-size: 11px; color: var(--text-sub); direction: ltr; } 
         .content { flex: 1; padding: 15px; overflow-y: auto; }
+        
+        /* --- Folders & Grid --- */
         .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 20px; }
         .folder-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; position: relative; }
         .folder-item.dragging { opacity: 0.4; transform: scale(0.9); transition: all 0.2s ease; border: 1px dashed var(--primary); border-radius: 12px; }
-        .android-folder-icon { width: 56px; height: 56px; background: var(--bg-icon-box); color: var(--text-icon-box); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); position: relative; overflow: visible; }
+        
+        .android-folder-icon { 
+            width: 56px; height: 56px; 
+            background: var(--bg-icon-box); 
+            color: var(--text-icon-box); 
+            border-radius: 16px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2); position: relative; overflow: visible; 
+        }
         .android-folder-icon svg { width: 34px; height: 34px; }
         .android-folder-icon img { width: 38px; height: 38px; object-fit: contain; border-radius: 4px; }
+        
         .folder-delete-btn { position: absolute; top: -5px; inset-inline-end: -5px; background: var(--danger); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
         .folder-edit-btn { position: absolute; top: -5px; inset-inline-start: -5px; background: var(--primary); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
         .folder-edit-btn svg { width: 12px; height: 12px; }
@@ -175,6 +291,12 @@ class HomeOrganizerPanel extends HTMLElement {
             unicode-bidi: isolate;
             pointer-events: none;
         }
+        
+        /* This class hides badges when toggle is off */
+        .hide-catalog-ids .catalog-badge { 
+            display: none !important; 
+        }
+
         .catalog-id-text {
             font-size: 13px;
             color: var(--catalog-bg);
@@ -184,48 +306,84 @@ class HomeOrganizerPanel extends HTMLElement {
             white-space: nowrap;
         }
 
+        /* --- List View Styles --- */
         .item-list { display: flex; flex-direction: column; gap: 5px; }
-        .group-separator { color: var(--text-sub); font-size: 14px; margin: 20px 0 10px 0; border-bottom: 1px solid var(--border-light); padding-bottom: 4px; text-transform: uppercase; font-weight: bold; display: flex; justify-content: space-between; align-items: center; min-height: 35px; cursor: pointer; }
+        
+        .group-separator { 
+            color: var(--text-sub); font-size: 14px; margin: 20px 0 10px 0; 
+            border-bottom: 1px solid var(--border-light); padding-bottom: 4px; 
+            text-transform: uppercase; font-weight: bold; 
+            display: flex; justify-content: space-between; align-items: center;
+            min-height: 35px;
+            cursor: pointer; 
+        }
         .group-separator:hover { background: rgba(125,125,125,0.05); }
         .group-separator.drag-over { border-bottom: 2px solid var(--primary); color: var(--primary); background: rgba(3, 169, 244, 0.1); }
         .oos-separator { color: var(--danger); border-color: var(--danger); }
+        
         .edit-subloc-btn { background: none; border: none; color: var(--text-sub); cursor: pointer; padding: 4px; }
         .edit-subloc-btn:hover { color: var(--primary); }
         .delete-subloc-btn { background: none; border: none; color: var(--danger); cursor: pointer; padding: 4px; }
         .arrow-btn { background: none; border: none; color: var(--text-sub); cursor: pointer; padding: 4px; }
         .arrow-btn:hover { color: var(--warning); }
+
         .item-row { background: var(--bg-card); margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid transparent; touch-action: pan-y; }
         .item-row.expanded { background: var(--bg-card-hover); flex-direction: column; align-items: stretch; cursor: default; }
         .out-of-stock-frame { border: 2px solid var(--danger); }
+
         .item-main { display: flex; align-items: center; justify-content: space-between; width: 100%; cursor: pointer; }
         .item-left { display: flex; align-items: center; gap: 10px; }
         .item-icon { color: var(--primary); display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; }
+        
         .item-thumbnail { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: #000; display: block; border: 1px solid var(--border-light); }
+
         .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: var(--bg-qty-ctrl); color: var(--text-main); padding: 4px; border-radius: 20px; }
         .qty-btn { background: var(--icon-btn-bg); border: none; color: var(--text-main); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         
+        /* --- NEW XL GRID STYLES --- */
         .xl-grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 10px; }
-        .xl-card { background: var(--bg-card); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; aspect-ratio: 1; position: relative; border: 1px solid transparent; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .xl-card { 
+            background: var(--bg-card); border-radius: 12px; padding: 10px; 
+            display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+            aspect-ratio: 1; position: relative; border: 1px solid transparent;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
         .xl-card:hover { background: var(--bg-card-hover); }
         .xl-icon-area { flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; overflow: hidden; cursor: zoom-in; }
+        
+        /* Restored Icon/Image Size to Full */
         .xl-icon-area svg { width: 48px; height: 48px; color: var(--primary); }
         .xl-icon-area img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
-        .xl-badge { position: absolute; top: 8px; inset-inline-end: 8px; background: var(--bg-badge); color: var(--text-badge); border: 1px solid var(--border-light); min-width: 24px; height: 24px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; }
+        
+        /* Updated Grid Badge to use variables */
+        .xl-badge { 
+            position: absolute; top: 8px; 
+            inset-inline-end: 8px; /* Logical End (Right in LTR, Left in RTL - usually standard corners flip in OS) */
+            
+            background: var(--bg-badge); color: var(--text-badge); border: 1px solid var(--border-light);
+            min-width: 24px; height: 24px; border-radius: 12px; 
+            display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; 
+        }
         .xl-info { width: 100%; text-align: center; margin-top: 8px; cursor: pointer; }
         .xl-name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; color: var(--text-main); }
         .xl-date { font-size: 10px; color: var(--text-sub); margin-top: 2px; }
 
+        /* --- Editing & Inputs --- */
         .add-folder-card .android-folder-icon { border: 2px dashed #4caf50; background: rgba(76, 175, 80, 0.1); color: #4caf50; }
         .add-folder-card:hover .android-folder-icon { background: rgba(76, 175, 80, 0.2); }
         .add-folder-input { width: 100%; height: 100%; border: none; background: transparent; color: white; text-align: center; font-size: 12px; padding: 5px; outline: none; }
+        
         .text-add-btn { background: none; border: none; color: var(--primary); font-size: 14px; font-weight: bold; cursor: pointer; padding: 8px 0; display: flex; align-items: center; gap: 5px; opacity: 0.8; }
         .text-add-btn:hover { opacity: 1; text-decoration: underline; }
         .group-add-row { padding: 0 10px; margin-bottom: 15px; }
+
         .add-item-btn-row { width: 100%; margin-top: 10px; }
         .add-item-btn { width: 100%; padding: 12px; background: rgba(76, 175, 80, 0.15); border: 1px dashed #4caf50; color: #4caf50; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; transition: background 0.2s; }
         .add-item-btn:hover { background: rgba(76, 175, 80, 0.3); }
+
         .expanded-details { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-light); display: flex; flex-direction: column; gap: 10px; }
         .detail-row { display: flex; gap: 10px; align-items: center; }
+        
         .action-btn { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--border-light); color: var(--text-sub); background: var(--icon-btn-bg); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 8px; }
         .action-btn:hover { background: var(--border-light); color: var(--text-main); }
         .btn-danger { color: #ff8a80; border-color: #d32f2f; }
@@ -233,25 +391,32 @@ class HomeOrganizerPanel extends HTMLElement {
         .move-container { display: flex; gap: 5px; align-items: center; flex: 1; }
         .move-select { flex: 1; padding: 8px; background: var(--bg-input-edit); color: var(--text-main); border: 1px solid var(--border-light); border-radius: 6px; }
         .search-box { display:none; padding:10px; background:var(--bg-sub-bar); display:flex; gap: 5px; align-items: center; }
+        
+        /* --- Modals --- */
         #icon-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2500; display: none; align-items: center; justify-content: center; flex-direction: column; }
         .modal-content { background: var(--bg-card); color:var(--text-main); width: 95%; max-width: 450px; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 15px; max-height: 90vh; overflow-y: auto; }
         .modal-title { font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 5px; }
+        
         .category-bar { display: none; gap: 10px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 10px; scrollbar-width: thin; scrollbar-color: var(--warning) transparent; }
         .category-bar::-webkit-scrollbar { height: 4px; }
         .category-bar::-webkit-scrollbar-thumb { background: var(--warning); border-radius: 2px; }
         .cat-btn { min-width: 65px; height: 65px; background: #333; border: 2px solid var(--warning); border-radius: 8px; color: white; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; text-align: center; padding: 5px; flex-shrink: 0; transition: all 0.2s; }
         .cat-btn.active { background: var(--warning); color: #000; font-weight: bold; }
         .cat-btn svg { width: 24px; height: 24px; margin-bottom: 4px; }
+
         .icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 10px; min-height: 200px; }
         .lib-icon { background: #333; border-radius: 8px; padding: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 5px; }
         .lib-icon:hover { background: #444; }
         .lib-icon svg { width: 32px; height: 32px; fill: #ccc; }
         .lib-icon span { font-size: 10px; color: #888; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; width: 50px; text-align: center; }
+        
         .pagination-ctrls { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding: 10px 0; border-top: 1px solid #444; }
         .page-btn { background: #444; color: white; border: none; border-radius: 4px; padding: 5px 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
         .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
         .page-info { font-size: 12px; color: #aaa; }
+
         .url-input-row { display: flex; gap: 10px; margin-top: 10px; border-top: 1px solid #444; padding-top: 10px; }
+        
         #camera-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: center; }
         #camera-video { width: 100%; height: 80%; object-fit: cover; }
         .camera-controls { height: 20%; width: 100%; display: flex; align-items: center; justify-content: center; gap: 30px; background: rgba(0,0,0,0.5); position: absolute; bottom: 0; }
@@ -263,9 +428,27 @@ class HomeOrganizerPanel extends HTMLElement {
         .wb-btn svg { width: 24px; height: 24px; margin-bottom: 2px; }
         #camera-canvas { display: none; }
         .overlay { display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:2500;justify-content:center;align-items:center }
-        #overlay-img { max-width: 50% !important; max-height: 35vh !important; border-radius: 8px; object-fit: contain; margin-bottom: 15px; display: none; border: 1px solid #444; }
-        #overlay-icon-big { display: none; margin-bottom: 15px; color: white; }
-        #overlay-icon-big svg { width: 60px; height: 60px; }
+        
+        /* --- Preview Overlay Styles --- */
+        #overlay-img { 
+            max-width: 50% !important;     
+            max-height: 35vh !important;
+            border-radius: 8px; 
+            object-fit: contain; 
+            margin-bottom: 15px; 
+            display: none; 
+            border: 1px solid #444; 
+        }
+        #overlay-icon-big { 
+            display: none; 
+            margin-bottom: 15px; 
+            color: white; 
+        }
+        /* Fixed explicit size for the Preview Icon (60px) */
+        #overlay-icon-big svg {
+            width: 60px; 
+            height: 60px;
+        }
       </style>
       
       <div class="app-container" id="app">
@@ -328,6 +511,10 @@ class HomeOrganizerPanel extends HTMLElement {
             </div>
             <!-- Left side in RTL (View Toggle) -->
             <div class="sub-bar-left">
+                <!-- ID Toggle Button -->
+                <button class="nav-btn" id="btn-toggle-ids" title="Toggle IDs">
+                    <svg viewBox="0 0 24 24"><path d="M17,3H7A2,2 0 0,0 5,5V21L12,18L19,21V5C19,3.89 18.1,3 17,3M17,18L12,15.82L7,18V5H17V18Z" /></svg>
+                </button>
                 <button class="nav-btn" id="btn-view-toggle" style="display:none;">
                    <svg id="icon-view-grid" viewBox="0 0 24 24" style="display:block"><path d="M3,11H11V3H3M3,21H11V13H3M13,21H21V13H13M13,3V11H21V3"/></svg>
                    <svg id="icon-view-list" viewBox="0 0 24 24" style="display:none"><path d="M3,4H21V6H3M3,8H21V10H3M3,12H21V14H3M3,16H21V18H3M3,20H21V22H3"/></svg>
@@ -432,6 +619,11 @@ class HomeOrganizerPanel extends HTMLElement {
     if (currentTheme === 'light') {
         this.shadowRoot.getElementById('app').classList.add('light-mode');
     }
+    
+    // Apply ID Visibility Class based on stored setting
+    if (!this.showIds) {
+        this.shadowRoot.getElementById('app').classList.add('hide-catalog-ids');
+    }
 
     this.bindEvents();
   }
@@ -476,6 +668,9 @@ class HomeOrganizerPanel extends HTMLElement {
         }
         this.render();
     });
+    
+    // Toggle IDs Event
+    click('btn-toggle-ids', () => this.toggleIds());
 
     click('btn-paste', () => this.pasteItem());
     click('btn-load-url', () => {
@@ -496,6 +691,14 @@ class HomeOrganizerPanel extends HTMLElement {
     click('btn-cam-snap', () => this.snapPhoto());
     click('btn-cam-switch', () => this.switchCamera());
     click('btn-cam-wb', () => this.toggleWhiteBG());
+  }
+  
+  toggleIds() {
+      this.showIds = !this.showIds;
+      localStorage.setItem('home_organizer_show_ids', this.showIds);
+      const app = this.shadowRoot.getElementById('app');
+      if (this.showIds) app.classList.remove('hide-catalog-ids');
+      else app.classList.add('hide-catalog-ids');
   }
 
   showMenu(menuId) {
@@ -1712,6 +1915,14 @@ class HomeOrganizerPanel extends HTMLElement {
       delete this.shopQuantities[name];
   }
   
+  toggleIds() {
+      this.showIds = !this.showIds;
+      localStorage.setItem('home_organizer_show_ids', this.showIds);
+      const app = this.shadowRoot.getElementById('app');
+      if (this.showIds) app.classList.remove('hide-catalog-ids');
+      else app.classList.add('hide-catalog-ids');
+  }
+
   enableSublocRename(btn, oldName) {
       const header = btn.closest('.group-separator');
       if (header.querySelector('input')) return; 
