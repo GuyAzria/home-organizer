@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.0.1 (Transparent Badges & Inline IDs)
+// Home Organizer Ultimate - Ver 6.0.2 (Fix Badge Position & RTL ID Alignment)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -212,33 +212,30 @@ class HomeOrganizerPanel extends HTMLElement {
         /* --- CATALOG ID STYLES --- */
         .catalog-badge {
             position: absolute;
-            top: -5px; /* Adjusted up slightly as it's transparent */
+            top: -22px; /* Lifted up above the square */
             left: 50%;
             transform: translateX(-50%);
-            background: transparent; /* Changed from var(--catalog-bg) */
-            color: var(--catalog-bg); /* Orange text */
-            font-size: 13px; /* Slightly larger */
-            font-weight: 900; /* Extra Bold */
+            background: transparent; 
+            color: var(--catalog-bg); 
+            font-size: 14px; 
+            font-weight: 900;
             padding: 0;
-            border-radius: 0;
-            z-index: 20;
-            box-shadow: none;
             border: none;
+            box-shadow: none;
+            z-index: 20;
             direction: ltr; /* Always LTR: A1.1 */
             unicode-bidi: isolate;
-            text-shadow: 0 0 3px rgba(0,0,0,0.8); /* Shadow for readability on dark/light */
+            pointer-events: none; /* Let clicks pass through to button */
         }
 
         .catalog-id-text {
             font-size: 13px;
             color: var(--catalog-bg); /* Orange */
             font-weight: bold;
-            margin-inline-start: auto; /* Push to end of flex row */
-            margin-inline-end: 10px;
+            /* Removed margin-inline-start to allow space-between to work correctly in RTL */
             direction: ltr; /* Always LTR */
             unicode-bidi: isolate;
             white-space: nowrap;
-            /* Removed display: block logic to sit inline */
         }
 
         /* --- List View Styles --- */
