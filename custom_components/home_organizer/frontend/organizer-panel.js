@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.10.1 (Fix Catalog ID Parsing)
+// Home Organizer Ultimate - Ver 5.10.2 (Catalog ID Badges & Layout Fixes)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -94,7 +94,7 @@ class HomeOrganizerPanel extends HTMLElement {
             --text-icon-box: #8ab4f8;
             
             /* Catalog ID Badge */
-            --bg-catalog: rgba(255, 152, 0, 0.9);
+            --bg-catalog: #ff9800;
             --text-catalog: #000;
         }
 
@@ -199,7 +199,9 @@ class HomeOrganizerPanel extends HTMLElement {
             background: var(--bg-icon-box); 
             color: var(--text-icon-box); 
             border-radius: 16px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px; 
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2); position: relative; overflow: visible; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2); 
+            position: relative; 
+            overflow: visible; /* CRITICAL for Badges to show outside box */
         }
         .android-folder-icon svg { width: 34px; height: 34px; }
         .android-folder-icon img { width: 38px; height: 38px; object-fit: contain; border-radius: 4px; }
@@ -207,19 +209,19 @@ class HomeOrganizerPanel extends HTMLElement {
         /* CATALOG ID BADGE */
         .catalog-badge {
             position: absolute;
-            top: -8px; 
+            top: -10px; 
             left: 50%;
             transform: translateX(-50%);
             background: var(--bg-catalog);
             color: var(--text-catalog);
-            font-size: 10px;
+            font-size: 11px;
             font-weight: bold;
-            padding: 1px 6px;
-            border-radius: 6px;
-            z-index: 20;
+            padding: 2px 8px;
+            border-radius: 8px;
+            z-index: 100;
             white-space: nowrap;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-            border: 1px solid var(--border-color);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.2);
         }
         /* Inline Item Badge */
         .item-catalog-badge {
@@ -234,10 +236,10 @@ class HomeOrganizerPanel extends HTMLElement {
         }
 
         /* Folder Action Buttons */
-        .folder-delete-btn { position: absolute; top: -5px; inset-inline-end: -5px; background: var(--danger); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
-        .folder-edit-btn { position: absolute; top: -5px; inset-inline-start: -5px; background: var(--primary); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
+        .folder-delete-btn { position: absolute; top: -5px; inset-inline-end: -5px; background: var(--danger); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 110; }
+        .folder-edit-btn { position: absolute; top: -5px; inset-inline-start: -5px; background: var(--primary); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 110; }
         .folder-edit-btn svg { width: 12px; height: 12px; }
-        .folder-img-btn { position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%); background: #ff9800; color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
+        .folder-img-btn { position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%); background: #ff9800; color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 110; }
         .folder-img-btn svg { width: 12px; height: 12px; }
 
         /* --- List View Styles --- */
@@ -1147,10 +1149,19 @@ class HomeOrganizerPanel extends HTMLElement {
             const icon = isExpanded ? ICONS.chevron_down : ICONS.chevron_right;
             const countBadge = `<span style="font-size:12px; background:var(--bg-badge); color:var(--text-badge); padding:2px 6px; border-radius:10px; margin-inline-start:8px;">${count}</span>`;
             
-            // If catalog ID exists, pre-pend it boldly
+            // NEW SUBLOCATION LAYOUT:
+            // If CatalogID exists -> Flex Column (Line 1: ID, Line 2: Name)
+            // Else -> Flex Row (Line 1: Name)
             let labelHtml = `<span>${displayName}</span>`;
+            let containerStyle = "display:flex;align-items:center;"; // Default row
+
             if (catalogID) {
-                labelHtml = `<span style="color:var(--primary); font-weight:bold; margin-right:8px;">(${catalogID})</span><span>${displayName}</span>`;
+                // Column Layout for "Separate Line"
+                containerStyle = "display:flex;flex-direction:column;align-items:flex-start;justify-content:center;line-height:1.2;";
+                labelHtml = `
+                    <span style="color:var(--primary); font-weight:bold; font-size:11px;">(${catalogID})</span>
+                    <span style="font-size:14px;">${displayName}</span>
+                `;
             }
 
             const header = document.createElement('div');
@@ -1166,11 +1177,13 @@ class HomeOrganizerPanel extends HTMLElement {
             if (this.isEditMode && subName !== "General") {
                 header.innerHTML = `
                     <div style="display:flex;align-items:center;">
-                        <span style="margin-inline-end:5px;display:flex;align-items:center">${icon}</span>
-                        ${labelHtml}
-                        ${countBadge}
+                        <span style="margin-inline-end:8px;">${icon}</span>
+                        <div style="${containerStyle}">
+                            ${labelHtml}
+                        </div>
+                        <div style="margin-inline-start:auto;">${countBadge}</div>
                     </div>
-                    <div style="display:flex;gap:5px;align-items:center">
+                    <div style="display:flex;gap:5px;align-items:center; margin-inline-start:10px;">
                         <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveSubLoc('${subName}', -1)" title="Move Up">${ICONS.arrow_up}</button>
                         <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveSubLoc('${subName}', 1)" style="transform:rotate(180deg)" title="Move Down">${ICONS.arrow_up}</button>
                         <div style="width:1px;height:15px;background:#444;margin:0 5px"></div>
@@ -1178,7 +1191,14 @@ class HomeOrganizerPanel extends HTMLElement {
                         <button class="delete-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button>
                     </div>`;
             } else {
-                header.innerHTML = `<div style="display:flex;align-items:center;"><span style="margin-inline-end:5px;display:flex;align-items:center">${icon}</span>${labelHtml}${countBadge}</div>`;
+                header.innerHTML = `
+                    <div style="display:flex;align-items:center;width:100%">
+                        <span style="margin-inline-end:8px;">${icon}</span>
+                        <div style="${containerStyle} flex:1">
+                            ${labelHtml}
+                        </div>
+                        <div>${countBadge}</div>
+                    </div>`;
             }
             listContainer.appendChild(header);
 
