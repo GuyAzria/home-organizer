@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.0.0 (Auto-Generated Catalog IDs)
+// Home Organizer Ultimate - Ver 6.0.1 (Transparent Badges & Inline IDs)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -212,31 +212,33 @@ class HomeOrganizerPanel extends HTMLElement {
         /* --- CATALOG ID STYLES --- */
         .catalog-badge {
             position: absolute;
-            top: -8px;
+            top: -5px; /* Adjusted up slightly as it's transparent */
             left: 50%;
             transform: translateX(-50%);
-            background: var(--catalog-bg);
-            color: var(--catalog-text);
-            font-size: 10px;
-            font-weight: bold;
-            padding: 2px 6px;
-            border-radius: 8px;
+            background: transparent; /* Changed from var(--catalog-bg) */
+            color: var(--catalog-bg); /* Orange text */
+            font-size: 13px; /* Slightly larger */
+            font-weight: 900; /* Extra Bold */
+            padding: 0;
+            border-radius: 0;
             z-index: 20;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-            border: 1px solid var(--bg-card);
+            box-shadow: none;
+            border: none;
             direction: ltr; /* Always LTR: A1.1 */
             unicode-bidi: isolate;
+            text-shadow: 0 0 3px rgba(0,0,0,0.8); /* Shadow for readability on dark/light */
         }
 
         .catalog-id-text {
-            display: block;
-            width: 100%;
-            font-size: 11px;
-            color: var(--catalog-bg);
+            font-size: 13px;
+            color: var(--catalog-bg); /* Orange */
             font-weight: bold;
-            margin-bottom: 2px;
+            margin-inline-start: auto; /* Push to end of flex row */
+            margin-inline-end: 10px;
             direction: ltr; /* Always LTR */
             unicode-bidi: isolate;
+            white-space: nowrap;
+            /* Removed display: block logic to sit inline */
         }
 
         /* --- List View Styles --- */
@@ -1119,35 +1121,34 @@ class HomeOrganizerPanel extends HTMLElement {
             }
             
             // Build visual text for ID if available
+            // Note: class updated to handle flex positioning
             const idHtml = catalogID ? `<span class="catalog-id-text">${catalogID}</span>` : '';
 
             if (this.isEditMode && subName !== "General") {
                 header.innerHTML = `
-                    <div style="display:flex; flex-direction:column; justify-content:center;">
-                        ${idHtml}
-                        <div style="display:flex;align-items:center;">
-                            <span style="margin-inline-end:5px;display:flex;align-items:center">${icon}</span>
-                            <span class="subloc-title">${subName}</span>
-                            ${countBadge}
-                        </div>
+                    <div style="display:flex;align-items:center;">
+                        <span style="margin-inline-end:5px;display:flex;align-items:center">${icon}</span>
+                        <span class="subloc-title">${subName}</span>
+                        ${countBadge}
                     </div>
-                    <div style="display:flex;gap:5px;align-items:center">
-                        <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveSubLoc('${subName}', -1)" title="Move Up">${ICONS.arrow_up}</button>
-                        <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveSubLoc('${subName}', 1)" style="transform:rotate(180deg)" title="Move Down">${ICONS.arrow_up}</button>
-                        <div style="width:1px;height:15px;background:#444;margin:0 5px"></div>
-                        <button class="edit-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableSublocRename(this, '${subName}')">${ICONS.edit}</button>
-                        <button class="delete-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        ${idHtml}
+                        <div style="display:flex;gap:5px;align-items:center">
+                            <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveSubLoc('${subName}', -1)" title="Move Up">${ICONS.arrow_up}</button>
+                            <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveSubLoc('${subName}', 1)" style="transform:rotate(180deg)" title="Move Down">${ICONS.arrow_up}</button>
+                            <div style="width:1px;height:15px;background:#444;margin:0 5px"></div>
+                            <button class="edit-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableSublocRename(this, '${subName}')">${ICONS.edit}</button>
+                            <button class="delete-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button>
+                        </div>
                     </div>`;
             } else {
                 header.innerHTML = `
-                    <div style="display:flex; flex-direction:column; justify-content:center;">
-                         ${idHtml}
-                         <div style="display:flex;align-items:center;">
-                            <span style="margin-inline-end:5px;display:flex;align-items:center">${icon}</span>
-                            <span>${subName}</span>
-                            ${countBadge}
-                         </div>
+                    <div style="display:flex;align-items:center;">
+                        <span style="margin-inline-end:5px;display:flex;align-items:center">${icon}</span>
+                        <span>${subName}</span>
+                        ${countBadge}
                     </div>
+                    ${idHtml}
                 `;
             }
             listContainer.appendChild(header);
