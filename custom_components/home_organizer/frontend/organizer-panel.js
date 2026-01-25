@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.9.9 (Fix Sub-Location Delete/Rename/Order)
+// Home Organizer Ultimate - Ver 5.10.0 (Catalog IDs & Stickers)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -92,6 +92,10 @@ class HomeOrganizerPanel extends HTMLElement {
             --text-badge: #fff;
             --bg-icon-box: #3c4043;
             --text-icon-box: #8ab4f8;
+            
+            /* Catalog ID Badge */
+            --bg-catalog: rgba(255, 152, 0, 0.9);
+            --text-catalog: #000;
         }
 
         /* -- Light Theme Overrides -- */
@@ -119,6 +123,9 @@ class HomeOrganizerPanel extends HTMLElement {
             --text-badge: #000000;    /* Black Text */
             --bg-icon-box: #e0e0e0;   /* White Gray */
             --text-icon-box: #03a9f4; /* Primary Blue */
+            
+            --bg-catalog: #ff9800;
+            --text-catalog: #fff;
         }
 
         * { box-sizing: border-box; }
@@ -197,7 +204,25 @@ class HomeOrganizerPanel extends HTMLElement {
         .android-folder-icon svg { width: 34px; height: 34px; }
         .android-folder-icon img { width: 38px; height: 38px; object-fit: contain; border-radius: 4px; }
         
-        /* Folder Action Buttons - Kept absolute for corners, but using logical properties ensures standard flip */
+        /* CATALOG ID BADGE */
+        .catalog-badge {
+            position: absolute;
+            top: -8px; 
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-catalog);
+            color: var(--text-catalog);
+            font-size: 10px;
+            font-weight: bold;
+            padding: 1px 6px;
+            border-radius: 6px;
+            z-index: 20;
+            white-space: nowrap;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            border: 1px solid var(--border-color);
+        }
+
+        /* Folder Action Buttons */
         .folder-delete-btn { position: absolute; top: -5px; inset-inline-end: -5px; background: var(--danger); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
         .folder-edit-btn { position: absolute; top: -5px; inset-inline-start: -5px; background: var(--primary); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
         .folder-edit-btn svg { width: 12px; height: 12px; }
@@ -734,6 +759,9 @@ class HomeOrganizerPanel extends HTMLElement {
         return;
     }
 
+    // REGEX for Catalog IDs e.g. "(A) Kitchen" or "(A1) Fridge"
+    const catalogRegex = /^\((.*?)\)\s*(.*)$/;
+
     // ROOM LEVEL (Depth 0) - WITH ZONE/FLOOR SUPPORT
     if (attrs.depth === 0) {
         const zoneContainer = document.createElement('div');
@@ -743,7 +771,6 @@ class HomeOrganizerPanel extends HTMLElement {
         const groupedRooms = {};
         const knownZones = new Set();
         
-        // Regex to extract [Zone] Name
         const zoneRegex = /^\[(.*?)\] (.*)$/;
         // Regex for Zone Marker with Order: ZONE_MARKER_010_Floor1
         const markerRegex = /^ZONE_MARKER_(\d+)_+(.*)$/;
@@ -785,10 +812,19 @@ class HomeOrganizerPanel extends HTMLElement {
 
                 if (!groupedRooms[zone]) groupedRooms[zone] = [];
                 
+                // Parse Catalog ID from displayName
+                let catalogID = null;
+                const catMatch = displayName.match(catalogRegex);
+                if (catMatch) {
+                    catalogID = catMatch[1];
+                    displayName = catMatch[2]; // Clean Name
+                }
+
                 // Store processed folder info
                 groupedRooms[zone].push({
                     originalName: f.name,
                     displayName: displayName,
+                    catalogID: catalogID,
                     img: f.img
                 });
             });
@@ -864,12 +900,18 @@ class HomeOrganizerPanel extends HTMLElement {
                 let folderContent = ICONS.folder;
                 if (folder.img) folderContent = `<img src="${folder.img}">`;
 
+                // --- CATALOG ID BADGE ---
+                let badgeHtml = '';
+                if (folder.catalogID) {
+                    badgeHtml = `<div class="catalog-badge">${folder.catalogID}</div>`;
+                }
+
                 const deleteBtnHtml = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.originalName}')">✕</div>` : '';
                 const editBtnHtml = this.isEditMode ? `<div class="folder-edit-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'), '${folder.originalName}')">${ICONS.edit}</div>` : '';
                 const imgBtnHtml = this.isEditMode ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${folder.originalName}', 'room')">${ICONS.image}</div>` : '';
 
                 el.innerHTML = `
-                    <div class="android-folder-icon">${folderContent}${editBtnHtml}${deleteBtnHtml}${imgBtnHtml}</div>
+                    <div class="android-folder-icon">${badgeHtml}${folderContent}${editBtnHtml}${deleteBtnHtml}${imgBtnHtml}</div>
                     <div class="folder-label">${folder.displayName}</div>
                 `;
                 grid.appendChild(el);
@@ -913,14 +955,29 @@ class HomeOrganizerPanel extends HTMLElement {
                     let folderContent = ICONS.folder;
                     if (folder.img) folderContent = `<img src="${folder.img}">`;
 
+                    // Parse Catalog ID for Locations (e.g. A1 Fridge)
+                    let displayName = folder.name;
+                    let catalogID = null;
+                    const catMatch = displayName.match(catalogRegex);
+                    if (catMatch) {
+                        catalogID = catMatch[1];
+                        displayName = catMatch[2];
+                    }
+
+                    // --- CATALOG ID BADGE ---
+                    let badgeHtml = '';
+                    if (catalogID) {
+                        badgeHtml = `<div class="catalog-badge">${catalogID}</div>`;
+                    }
+
                     const deleteBtnHtml = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` : '';
                     const editBtnHtml = this.isEditMode ? `<div class="folder-edit-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'), '${folder.name}')">${ICONS.edit}</div>` : '';
                     const context = attrs.depth === 0 ? 'room' : 'location';
                     const imgBtnHtml = this.isEditMode ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${folder.name}', '${context}')">${ICONS.image}</div>` : '';
 
                     el.innerHTML = `
-                        <div class="android-folder-icon">${folderContent}${editBtnHtml}${deleteBtnHtml}${imgBtnHtml}</div>
-                        <div class="folder-label">${folder.name}</div>
+                        <div class="android-folder-icon">${badgeHtml}${folderContent}${editBtnHtml}${deleteBtnHtml}${imgBtnHtml}</div>
+                        <div class="folder-label">${displayName}</div>
                     `;
                     grid.appendChild(el);
                 });
@@ -1033,6 +1090,15 @@ class HomeOrganizerPanel extends HTMLElement {
             const items = grouped[subName] || [];
             const count = items.length;
             
+            // --- CATALOG ID FOR SUBLOCATIONS ---
+            let displayName = subName;
+            let catalogID = "";
+            const catMatch = subName.match(catalogRegex);
+            if (catMatch) {
+                catalogID = catMatch[1];
+                displayName = catMatch[2]; // Clean Name for text
+            }
+            
             if (subName === "General" && count === 0 && !this.isEditMode) return;
             if (this.viewMode === 'grid' && count === 0) return;
             
@@ -1040,6 +1106,12 @@ class HomeOrganizerPanel extends HTMLElement {
             const icon = isExpanded ? ICONS.chevron_down : ICONS.chevron_right;
             const countBadge = `<span style="font-size:12px; background:var(--bg-badge); color:var(--text-badge); padding:2px 6px; border-radius:10px; margin-inline-start:8px;">${count}</span>`;
             
+            // If catalog ID exists, pre-pend it boldly
+            let labelHtml = `<span>${displayName}</span>`;
+            if (catalogID) {
+                labelHtml = `<span style="color:var(--primary); font-weight:bold; margin-right:8px;">(${catalogID})</span><span>${displayName}</span>`;
+            }
+
             const header = document.createElement('div');
             header.className = 'group-separator';
             this.setupDropTarget(header, subName);
@@ -1054,7 +1126,7 @@ class HomeOrganizerPanel extends HTMLElement {
                 header.innerHTML = `
                     <div style="display:flex;align-items:center;">
                         <span style="margin-inline-end:5px;display:flex;align-items:center">${icon}</span>
-                        <span class="subloc-title">${subName}</span>
+                        ${labelHtml}
                         ${countBadge}
                     </div>
                     <div style="display:flex;gap:5px;align-items:center">
@@ -1065,7 +1137,7 @@ class HomeOrganizerPanel extends HTMLElement {
                         <button class="delete-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button>
                     </div>`;
             } else {
-                header.innerHTML = `<div style="display:flex;align-items:center;"><span style="margin-inline-end:5px;display:flex;align-items:center">${icon}</span><span>${subName}</span>${countBadge}</div>`;
+                header.innerHTML = `<div style="display:flex;align-items:center;"><span style="margin-inline-end:5px;display:flex;align-items:center">${icon}</span>${labelHtml}${countBadge}</div>`;
             }
             listContainer.appendChild(header);
 
