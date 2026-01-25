@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.9.9 (Fix Sub-Location Delete/Rename/Order)
+// Home Organizer Ultimate - Ver 6.0.0 (Auto-Generated Catalog IDs)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -8,6 +8,7 @@ class HomeOrganizerPanel extends HTMLElement {
     this._hass = hass;
     if (!this.content) {
       this.currentPath = [];
+      this.catalogPath = []; // Stores the ID stack (e.g. ['A', 'A1'])
       this.isEditMode = false;
       this.isSearch = false;
       this.isShopMode = false;
@@ -92,6 +93,10 @@ class HomeOrganizerPanel extends HTMLElement {
             --text-badge: #fff;
             --bg-icon-box: #3c4043;
             --text-icon-box: #8ab4f8;
+
+            /* Catalog ID Colors */
+            --catalog-bg: #ff9800;
+            --catalog-text: #fff;
         }
 
         /* -- Light Theme Overrides -- */
@@ -203,6 +208,36 @@ class HomeOrganizerPanel extends HTMLElement {
         .folder-edit-btn svg { width: 12px; height: 12px; }
         .folder-img-btn { position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%); background: #ff9800; color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
         .folder-img-btn svg { width: 12px; height: 12px; }
+
+        /* --- CATALOG ID STYLES --- */
+        .catalog-badge {
+            position: absolute;
+            top: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--catalog-bg);
+            color: var(--catalog-text);
+            font-size: 10px;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 8px;
+            z-index: 20;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            border: 1px solid var(--bg-card);
+            direction: ltr; /* Always LTR: A1.1 */
+            unicode-bidi: isolate;
+        }
+
+        .catalog-id-text {
+            display: block;
+            width: 100%;
+            font-size: 11px;
+            color: var(--catalog-bg);
+            font-weight: bold;
+            margin-bottom: 2px;
+            direction: ltr; /* Always LTR */
+            unicode-bidi: isolate;
+        }
 
         /* --- List View Styles --- */
         .item-list { display: flex; flex-direction: column; gap: 5px; }
@@ -329,7 +364,7 @@ class HomeOrganizerPanel extends HTMLElement {
         
         /* --- Preview Overlay Styles --- */
         #overlay-img { 
-            max-width: 50% !important;    
+            max-width: 50% !important;     
             max-height: 35vh !important;
             border-radius: 8px; 
             object-fit: contain; 
@@ -734,6 +769,9 @@ class HomeOrganizerPanel extends HTMLElement {
         return;
     }
 
+    // CATALOG ID HELPER
+    const getAlphaId = (n) => String.fromCharCode(65 + (n % 26));
+
     // ROOM LEVEL (Depth 0) - WITH ZONE/FLOOR SUPPORT
     if (attrs.depth === 0) {
         const zoneContainer = document.createElement('div');
@@ -815,6 +853,9 @@ class HomeOrganizerPanel extends HTMLElement {
         // Sort the list
         zonesList.sort((a, b) => a.order - b.order);
 
+        // GLOBAL ROOM INDEX FOR ID GENERATION (A, B, C...)
+        let globalRoomIndex = 0;
+
         // 3. Render Zones
         zonesList.forEach(zoneObj => {
             const zoneName = zoneObj.name;
@@ -853,13 +894,18 @@ class HomeOrganizerPanel extends HTMLElement {
             grid.className = 'folder-grid';
             
             rooms.forEach(folder => {
+                // CALCULATE ID (A, B, C...)
+                const catalogID = getAlphaId(globalRoomIndex);
+                globalRoomIndex++;
+
                 const el = document.createElement('div');
                 el.className = 'folder-item';
                 
                 // DRAG & DROP Support for Rooms - ENABLED ALWAYS for Zone Moving
                 this.setupRoomDragSource(el, folder.originalName);
 
-                el.onclick = () => { if (!this.isEditMode) this.navigate('down', folder.originalName); };
+                // Pass the generated ID to navigate
+                el.onclick = () => { if (!this.isEditMode) this.navigate('down', folder.originalName, catalogID); };
                 
                 let folderContent = ICONS.folder;
                 if (folder.img) folderContent = `<img src="${folder.img}">`;
@@ -869,7 +915,11 @@ class HomeOrganizerPanel extends HTMLElement {
                 const imgBtnHtml = this.isEditMode ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${folder.originalName}', 'room')">${ICONS.image}</div>` : '';
 
                 el.innerHTML = `
-                    <div class="android-folder-icon">${folderContent}${editBtnHtml}${deleteBtnHtml}${imgBtnHtml}</div>
+                    <div class="android-folder-icon">
+                        ${folderContent}
+                        <div class="catalog-badge">${catalogID}</div>
+                        ${editBtnHtml}${deleteBtnHtml}${imgBtnHtml}
+                    </div>
                     <div class="folder-label">${folder.displayName}</div>
                 `;
                 grid.appendChild(el);
@@ -905,11 +955,21 @@ class HomeOrganizerPanel extends HTMLElement {
         if (attrs.folders && attrs.folders.length > 0 || this.isEditMode) {
             const grid = document.createElement('div');
             grid.className = 'folder-grid';
+            
+            // Current ID Parent (e.g., "A" if inside Kitchen)
+            const parentID = this.catalogPath[0] || "";
+
             if (attrs.folders) {
-                attrs.folders.forEach(folder => {
+                attrs.folders.forEach((folder, index) => {
+                    // CALCULATE ID (A1, A2, A3...)
+                    const catalogID = parentID + (index + 1);
+
                     const el = document.createElement('div');
                     el.className = 'folder-item';
-                    el.onclick = () => this.navigate('down', folder.name);
+                    
+                    // Pass the generated ID to navigate
+                    el.onclick = () => this.navigate('down', folder.name, catalogID);
+                    
                     let folderContent = ICONS.folder;
                     if (folder.img) folderContent = `<img src="${folder.img}">`;
 
@@ -919,7 +979,11 @@ class HomeOrganizerPanel extends HTMLElement {
                     const imgBtnHtml = this.isEditMode ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${folder.name}', '${context}')">${ICONS.image}</div>` : '';
 
                     el.innerHTML = `
-                        <div class="android-folder-icon">${folderContent}${editBtnHtml}${deleteBtnHtml}${imgBtnHtml}</div>
+                        <div class="android-folder-icon">
+                            ${folderContent}
+                            <div class="catalog-badge">${catalogID}</div>
+                            ${editBtnHtml}${deleteBtnHtml}${imgBtnHtml}
+                        </div>
                         <div class="folder-label">${folder.name}</div>
                     `;
                     grid.appendChild(el);
@@ -979,8 +1043,6 @@ class HomeOrganizerPanel extends HTMLElement {
         });
         
         // Scan items for sub_location groupings
-        // Note: Marker items themselves will appear here if backend returns them as items.
-        // We filter out marker items from visible groups.
         inStock.forEach(item => {
             const sub = item.sub_location || "General";
             if (sub.startsWith("ORDER_MARKER_")) {
@@ -1027,12 +1089,18 @@ class HomeOrganizerPanel extends HTMLElement {
             }
         });
 
+        // Current ID Parent (e.g., "A1" if inside Kitchen -> Fridge)
+        const parentID = this.catalogPath[1] || "";
+
         // 5. Render
-        orderedGroups.forEach(groupObj => {
+        orderedGroups.forEach((groupObj, index) => {
             const subName = groupObj.name;
             const items = grouped[subName] || [];
             const count = items.length;
             
+            // CALCULATE ID (A1.1, A1.2...)
+            const catalogID = parentID ? `${parentID}.${index + 1}` : "";
+
             if (subName === "General" && count === 0 && !this.isEditMode) return;
             if (this.viewMode === 'grid' && count === 0) return;
             
@@ -1050,12 +1118,18 @@ class HomeOrganizerPanel extends HTMLElement {
                 header.style.cursor = 'default';
             }
             
+            // Build visual text for ID if available
+            const idHtml = catalogID ? `<span class="catalog-id-text">${catalogID}</span>` : '';
+
             if (this.isEditMode && subName !== "General") {
                 header.innerHTML = `
-                    <div style="display:flex;align-items:center;">
-                        <span style="margin-inline-end:5px;display:flex;align-items:center">${icon}</span>
-                        <span class="subloc-title">${subName}</span>
-                        ${countBadge}
+                    <div style="display:flex; flex-direction:column; justify-content:center;">
+                        ${idHtml}
+                        <div style="display:flex;align-items:center;">
+                            <span style="margin-inline-end:5px;display:flex;align-items:center">${icon}</span>
+                            <span class="subloc-title">${subName}</span>
+                            ${countBadge}
+                        </div>
                     </div>
                     <div style="display:flex;gap:5px;align-items:center">
                         <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveSubLoc('${subName}', -1)" title="Move Up">${ICONS.arrow_up}</button>
@@ -1065,7 +1139,16 @@ class HomeOrganizerPanel extends HTMLElement {
                         <button class="delete-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button>
                     </div>`;
             } else {
-                header.innerHTML = `<div style="display:flex;align-items:center;"><span style="margin-inline-end:5px;display:flex;align-items:center">${icon}</span><span>${subName}</span>${countBadge}</div>`;
+                header.innerHTML = `
+                    <div style="display:flex; flex-direction:column; justify-content:center;">
+                         ${idHtml}
+                         <div style="display:flex;align-items:center;">
+                            <span style="margin-inline-end:5px;display:flex;align-items:center">${icon}</span>
+                            <span>${subName}</span>
+                            ${countBadge}
+                         </div>
+                    </div>
+                `;
             }
             listContainer.appendChild(header);
 
@@ -1462,24 +1545,24 @@ class HomeOrganizerPanel extends HTMLElement {
           this.localData.folders.forEach(f => {
               // Update Marker (Preserve Order)
               if (f.name.startsWith("ZONE_MARKER_") && f.name.endsWith(`_${oldZone}`)) {
-                   const prefix = f.name.substring(0, f.name.lastIndexOf(`_${oldZone}`)); // Extract 'ZONE_MARKER_010'
-                   this.callHA('update_item_details', { 
-                       original_name: f.name, 
-                       new_name: `${prefix}_${newZone}`,
-                       current_path: [], 
-                       is_folder: true 
-                   });
+                    const prefix = f.name.substring(0, f.name.lastIndexOf(`_${oldZone}`)); // Extract 'ZONE_MARKER_010'
+                    this.callHA('update_item_details', { 
+                        original_name: f.name, 
+                        new_name: `${prefix}_${newZone}`,
+                        current_path: [], 
+                        is_folder: true 
+                    });
               } 
               // Update prefixed rooms
               else if (f.name.startsWith(`[${oldZone}] `)) {
-                   const cleanName = f.name.replace(`[${oldZone}] `, "");
-                   const newName = `[${newZone}] ${cleanName}`;
-                   this.callHA('update_item_details', { 
-                       original_name: f.name, 
-                       new_name: newName,
-                       current_path: [], 
-                       is_folder: true 
-                   });
+                    const cleanName = f.name.replace(`[${oldZone}] `, "");
+                    const newName = `[${newZone}] ${cleanName}`;
+                    this.callHA('update_item_details', { 
+                        original_name: f.name, 
+                        new_name: newName,
+                        current_path: [], 
+                        is_folder: true 
+                    });
               }
           });
           // Refresh after slight delay for batch updates
@@ -1765,13 +1848,23 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   render() { this.updateUI(); }
-  navigate(dir, name) { 
-      if (dir === 'root') this.currentPath = []; 
-      else if (dir === 'up') this.currentPath.pop(); 
-      else if (dir === 'down') this.currentPath.push(name); 
+  
+  // NAVIGATE: Updates Stack for IDs
+  navigate(dir, name, catalogId) { 
+      if (dir === 'root') {
+          this.currentPath = []; 
+          this.catalogPath = [];
+      } else if (dir === 'up') {
+          this.currentPath.pop(); 
+          this.catalogPath.pop();
+      } else if (dir === 'down') {
+          this.currentPath.push(name); 
+          this.catalogPath.push(catalogId);
+      }
       this.expandedSublocs.clear();
       this.fetchData(); 
   }
+
   toggleRow(name) { this.expandedIdx = (this.expandedIdx === name) ? null : name; this.render(); }
   updateQty(name, d) { this.callHA('update_qty', { item_name: name, change: d }); }
   submitShopStock(name) { 
