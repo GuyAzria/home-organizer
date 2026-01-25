@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 5.10.0 (Catalog IDs & Stickers)
+// Home Organizer Ultimate - Ver 5.10.1 (Fix Catalog ID Parsing)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -220,6 +220,17 @@ class HomeOrganizerPanel extends HTMLElement {
             white-space: nowrap;
             box-shadow: 0 1px 3px rgba(0,0,0,0.3);
             border: 1px solid var(--border-color);
+        }
+        /* Inline Item Badge */
+        .item-catalog-badge {
+            background: var(--bg-catalog);
+            color: var(--text-catalog);
+            font-size: 10px;
+            font-weight: bold;
+            padding: 1px 5px;
+            border-radius: 4px;
+            margin-right: 6px;
+            display: inline-block;
         }
 
         /* Folder Action Buttons */
@@ -759,8 +770,11 @@ class HomeOrganizerPanel extends HTMLElement {
         return;
     }
 
-    // REGEX for Catalog IDs e.g. "(A) Kitchen" or "(A1) Fridge"
-    const catalogRegex = /^\((.*?)\)\s*(.*)$/;
+    // REGEX for Catalog IDs - Supports "(ID) Name" or "Name (ID)"
+    // Group 1: ID, Group 2: Name (for Prefix)
+    // Group 1: Name, Group 2: ID (for Suffix)
+    const catalogRegexPrefix = /^\(([^)]+)\)\s*(.*)$/;
+    const catalogRegexSuffix = /^(.*?)\s*\(([^)]+)\)$/;
 
     // ROOM LEVEL (Depth 0) - WITH ZONE/FLOOR SUPPORT
     if (attrs.depth === 0) {
@@ -814,10 +828,19 @@ class HomeOrganizerPanel extends HTMLElement {
                 
                 // Parse Catalog ID from displayName
                 let catalogID = null;
-                const catMatch = displayName.match(catalogRegex);
+                
+                // Try Prefix (ID) Name
+                let catMatch = displayName.match(catalogRegexPrefix);
                 if (catMatch) {
                     catalogID = catMatch[1];
                     displayName = catMatch[2]; // Clean Name
+                } else {
+                    // Try Suffix Name (ID)
+                    catMatch = displayName.match(catalogRegexSuffix);
+                    if (catMatch) {
+                        displayName = catMatch[1];
+                        catalogID = catMatch[2];
+                    }
                 }
 
                 // Store processed folder info
@@ -958,10 +981,19 @@ class HomeOrganizerPanel extends HTMLElement {
                     // Parse Catalog ID for Locations (e.g. A1 Fridge)
                     let displayName = folder.name;
                     let catalogID = null;
-                    const catMatch = displayName.match(catalogRegex);
+                    
+                    // Try Prefix (ID) Name
+                    let catMatch = displayName.match(catalogRegexPrefix);
                     if (catMatch) {
                         catalogID = catMatch[1];
-                        displayName = catMatch[2];
+                        displayName = catMatch[2]; // Clean Name
+                    } else {
+                        // Try Suffix Name (ID)
+                        catMatch = displayName.match(catalogRegexSuffix);
+                        if (catMatch) {
+                            displayName = catMatch[1];
+                            catalogID = catMatch[2];
+                        }
                     }
 
                     // --- CATALOG ID BADGE ---
@@ -1093,10 +1125,19 @@ class HomeOrganizerPanel extends HTMLElement {
             // --- CATALOG ID FOR SUBLOCATIONS ---
             let displayName = subName;
             let catalogID = "";
-            const catMatch = subName.match(catalogRegex);
+            
+            // Try Prefix (ID) Name
+            let catMatch = subName.match(catalogRegexPrefix);
             if (catMatch) {
                 catalogID = catMatch[1];
-                displayName = catMatch[2]; // Clean Name for text
+                displayName = catMatch[2]; // Clean Name
+            } else {
+                // Try Suffix Name (ID)
+                catMatch = subName.match(catalogRegexSuffix);
+                if (catMatch) {
+                    displayName = catMatch[1];
+                    catalogID = catMatch[2];
+                }
             }
             
             if (subName === "General" && count === 0 && !this.isEditMode) return;
@@ -1735,9 +1776,30 @@ class HomeOrganizerPanel extends HTMLElement {
      let iconHtml = `<span class="item-icon">${ICONS.item}</span>`;
      if (item.img) iconHtml = `<img src="${item.img}" class="item-thumbnail" alt="${item.name}" onclick="event.stopPropagation(); this.getRootNode().host.showImg('${item.img}')">`;
 
+     // --- CATALOG ID FOR ITEMS ---
+     // Supports "(ID) Name" or "Name (ID)"
+     const catRegexPrefix = /^\(([^)]+)\)\s*(.*)$/;
+     const catRegexSuffix = /^(.*?)\s*\(([^)]+)\)$/;
+     
+     let displayName = item.name;
+     let itemID = null;
+
+     let match = displayName.match(catRegexPrefix);
+     if (match) { itemID = match[1]; displayName = match[2]; } 
+     else {
+         match = displayName.match(catRegexSuffix);
+         if (match) { displayName = match[1]; itemID = match[2]; }
+     }
+
+     let nameHtml = `<div>${displayName}</div>`;
+     if (itemID) {
+         nameHtml = `<div><span class="item-catalog-badge">${itemID}</span>${displayName}</div>`;
+     }
+     // ----------------------------
+
      div.innerHTML = `
         <div class="item-main" onclick="this.getRootNode().host.toggleRow('${item.name}')">
-            <div class="item-left">${iconHtml}<div><div>${item.name}</div><div class="sub-title">${subText}</div></div></div>
+            <div class="item-left">${iconHtml}<div>${nameHtml}<div class="sub-title">${subText}</div></div></div>
             <div class="item-qty-ctrl">${controls}</div>
         </div>
      `;
