@@ -1,131 +1,25 @@
-// Home Organizer Ultimate - Ver 6.0.8 (Added Unit Value Input)
+// Home Organizer Ultimate - Ver 6.1.3 (Strict CSV Import)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
 
 const ITEM_CATEGORIES = {
-  "Food": {
-    "Fresh Produce": "Kg",
-    "Meat & Fish": "Kg",
-    "Dairy": "Liter",
-    "Dry Goods": "Kg",
-    "Frozen Food": "Kg",
-    "Beverages": "Liter",
-    "Snacks": "Units",
-    "Spices & Herbs": "g",
-    "Oils & Sauces": "Liter",
-    "Canned Food": "Units"
-  },
-  "Clothing": {
-    "Tops": "Units",
-    "Bottoms": "Units",
-    "Outerwear": "Units",
-    "Shoes": "Units",
-    "Underwear": "Units",
-    "Accessories": "Units",
-    "Workwear": "Units",
-    "Sportswear": "Units"
-  },
-  "Furniture": {
-    "Seating": "Units",
-    "Tables": "Units",
-    "Storage Furniture": "Units",
-    "Beds": "Units",
-    "Shelving": "Units",
-    "Outdoor Furniture": "Units"
-  },
-  "Electronics": {
-    "Computing Devices": "Units",
-    "Mobile Devices": "Units",
-    "Audio Equipment": "Units",
-    "Video Equipment": "Units",
-    "Networking": "Units",
-    "Accessories": "Units",
-    "Batteries": "Units"
-  },
-  "Tools": {
-    "Hand Tools": "Units",
-    "Power Tools": "Units",
-    "Measuring Tools": "Units",
-    "Cutting Tools": "Units",
-    "Workshop Equipment": "Units"
-  },
-  "Cleaning Supplies": {
-    "Liquid Cleaners": "Liter",
-    "Powders & Tablets": "Kg",
-    "Tools & Brushes": "Units",
-    "Paper Products": "Units",
-    "Disinfectants": "Liter"
-  },
-  "Stationery": {
-    "Writing Tools": "Units",
-    "Paper Products": "Units",
-    "Office Accessories": "Units",
-    "Printing Supplies": "Units",
-    "Filing & Storage": "Units"
-  },
-  "Storage & Organization": {
-    "Boxes & Bins": "Units",
-    "Shelving Containers": "Units",
-    "Bags & Covers": "Units",
-    "Drawer Organizers": "Units"
-  },
-  "Personal Care": {
-    "Skin Care": "ml",
-    "Hair Care": "ml",
-    "Oral Care": "Units",
-    "Grooming Tools": "Units",
-    "Cosmetics": "Units"
-  },
-  "Health & Medical": {
-    "Medications": "Units",
-    "Supplements": "Units",
-    "First Aid": "Units",
-    "Medical Devices": "Units",
-    "Hygiene Protection": "Units"
-  },
-  "Hardware": {
-    "Fasteners": "Units",
-    "Pipes & Fittings": "Units",
-    "Electrical Parts": "Units",
-    "Building Materials": "Kg",
-    "Adhesives & Sealants": "ml"
-  },
-  "Garden": {
-    "Plants": "Units",
-    "Seeds": "g",
-    "Soil & Compost": "Liter",
-    "Fertilizers": "Kg",
-    "Irrigation": "Units",
-    "Garden Tools": "Units",
-    "Pots & Planters": "Units",
-    "Mulch & Ground Cover": "Liter",
-    "Pest Control": "ml"
-  },
-  "Appliances": {
-    "Kitchen Appliances": "Units",
-    "Laundry Appliances": "Units",
-    "Climate Control": "Units",
-    "Small Appliances": "Units"
-  },
-  "Lighting": {
-    "Bulbs": "Units",
-    "Lamps": "Units",
-    "Outdoor Lighting": "Units",
-    "Fixtures": "Units"
-  },
-  "Toys & Games": {
-    "Children Toys": "Units",
-    "Board Games": "Units",
-    "Outdoor Games": "Units",
-    "Educational Toys": "Units"
-  },
-  "Miscellaneous": {
-    "Decorations": "Units",
-    "Seasonal Items": "Units",
-    "Collectibles": "Units",
-    "Other": "Units"
-  }
+  "Food": { "Fresh Produce": "Kg", "Meat & Fish": "Kg", "Dairy": "Liter", "Dry Goods": "Kg", "Frozen Food": "Kg", "Beverages": "Liter", "Snacks": "Units", "Spices & Herbs": "g", "Oils & Sauces": "Liter", "Canned Food": "Units" },
+  "Clothing": { "Tops": "Units", "Bottoms": "Units", "Outerwear": "Units", "Shoes": "Units", "Underwear": "Units", "Accessories": "Units", "Workwear": "Units", "Sportswear": "Units" },
+  "Furniture": { "Seating": "Units", "Tables": "Units", "Storage Furniture": "Units", "Beds": "Units", "Shelving": "Units", "Outdoor Furniture": "Units" },
+  "Electronics": { "Computing Devices": "Units", "Mobile Devices": "Units", "Audio Equipment": "Units", "Video Equipment": "Units", "Networking": "Units", "Accessories": "Units", "Batteries": "Units" },
+  "Tools": { "Hand Tools": "Units", "Power Tools": "Units", "Measuring Tools": "Units", "Cutting Tools": "Units", "Workshop Equipment": "Units" },
+  "Cleaning Supplies": { "Liquid Cleaners": "Liter", "Powders & Tablets": "Kg", "Tools & Brushes": "Units", "Paper Products": "Units", "Disinfectants": "Liter" },
+  "Stationery": { "Writing Tools": "Units", "Paper Products": "Units", "Office Accessories": "Units", "Printing Supplies": "Units", "Filing & Storage": "Units" },
+  "Storage & Organization": { "Boxes & Bins": "Units", "Shelving Containers": "Units", "Bags & Covers": "Units", "Drawer Organizers": "Units" },
+  "Personal Care": { "Skin Care": "ml", "Hair Care": "ml", "Oral Care": "Units", "Grooming Tools": "Units", "Cosmetics": "Units" },
+  "Health & Medical": { "Medications": "Units", "Supplements": "Units", "First Aid": "Units", "Medical Devices": "Units", "Hygiene Protection": "Units" },
+  "Hardware": { "Fasteners": "Units", "Pipes & Fittings": "Units", "Electrical Parts": "Units", "Building Materials": "Kg", "Adhesives & Sealants": "ml" },
+  "Garden": { "Plants": "Units", "Seeds": "g", "Soil & Compost": "Liter", "Fertilizers": "Kg", "Irrigation": "Units", "Garden Tools": "Units", "Pots & Planters": "Units", "Mulch & Ground Cover": "Liter", "Pest Control": "ml" },
+  "Appliances": { "Kitchen Appliances": "Units", "Laundry Appliances": "Units", "Climate Control": "Units", "Small Appliances": "Units" },
+  "Lighting": { "Bulbs": "Units", "Lamps": "Units", "Outdoor Lighting": "Units", "Fixtures": "Units" },
+  "Toys & Games": { "Children Toys": "Units", "Board Games": "Units", "Outdoor Games": "Units", "Educational Toys": "Units" },
+  "Miscellaneous": { "Decorations": "Units", "Seasonal Items": "Units", "Collectibles": "Units", "Other": "Units" }
 };
 
 class HomeOrganizerPanel extends HTMLElement {
@@ -151,17 +45,22 @@ class HomeOrganizerPanel extends HTMLElement {
       this.pickerPage = 0;
       this.pickerPageSize = 15;
       
-      // Load Persistent Settings
+      this.translations = {}; // Holds loaded CSV data
+      this.availableLangs = []; // ['en', 'he', 'it', ...] from CSV header
+
       try { 
           this.persistentIds = JSON.parse(localStorage.getItem('home_organizer_ids')) || {}; 
-          this.showIds = localStorage.getItem('home_organizer_show_ids') !== 'false'; // Default true
+          this.showIds = localStorage.getItem('home_organizer_show_ids') !== 'false'; 
       } 
       catch { 
           this.persistentIds = {}; 
           this.showIds = true;
       }
-
+      
+      this.currentLang = localStorage.getItem('home_organizer_lang') || 'en';
+      
       this.initUI();
+      this.loadTranslations(); // Fetch CSV on startup
     }
 
     if (this._hass && this._hass.connection && !this.subscribed) {
@@ -174,30 +73,76 @@ class HomeOrganizerPanel extends HTMLElement {
     }
   }
 
+  // --- CSV TRANSLATION LOADER ---
+  async loadTranslations() {
+      try {
+          const timestamp = new Date().getTime();
+          // Adjust path if your static setup is different
+          const response = await fetch(`/home_organizer_static/translations.csv?v=${timestamp}`);
+          if (!response.ok) throw new Error("CSV not found");
+          const text = await response.text();
+          this.parseCSV(text);
+      } catch (err) {
+          console.error("Failed to load translations:", err);
+          // Fallback minimal to prevent crash
+          this.availableLangs = ['en'];
+          this.translations = { "_direction": { "en": "ltr" } };
+          this.render();
+      }
+  }
+
+  parseCSV(csvText) {
+      const lines = csvText.split(/\r?\n/);
+      if (lines.length < 2) return;
+      
+      // Header: Key, en, he, it...
+      const headers = lines[0].split(',').map(h => h.trim());
+      // Identify languages (all columns after index 0)
+      this.availableLangs = headers.slice(1);
+      
+      this.translations = {};
+
+      for (let i = 1; i < lines.length; i++) {
+          const row = lines[i].trim();
+          if (!row) continue;
+          
+          // Split by comma. Note: Simple split. If text contains commas, regex is needed.
+          const cols = row.split(',');
+          const key = cols[0].trim();
+          
+          if (!this.translations[key]) this.translations[key] = {};
+          
+          // Map each column to language code
+          for (let j = 1; j < headers.length; j++) {
+              const langCode = headers[j];
+              this.translations[key][langCode] = (cols[j] || "").trim();
+          }
+      }
+      
+      // Re-apply language settings now that we have data
+      this.changeLanguage(this.currentLang);
+  }
+
+  // --- TRANSLATION HELPER ---
+  t(key, ...args) {
+      if (!this.translations[key]) return key.replace(/^cat_|^sub_/, '').replace(/_/g, ' '); // Fallback to formatted key name
+      let text = this.translations[key][this.currentLang] || this.translations[key]['en'] || key;
+      args.forEach((arg, i) => { text = text.replace(`{${i}}`, arg); });
+      return text;
+  }
+  
   // --- PERSISTENT ID LOGIC ---
   getPersistentID(scope, itemName) {
-      if (!this.persistentIds[scope]) {
-          this.persistentIds[scope] = {};
-      }
-      
-      // Return existing if found
-      if (this.persistentIds[scope][itemName]) {
-          return this.persistentIds[scope][itemName];
-      }
-
-      // Assign new unique ID (lowest available integer)
+      if (!this.persistentIds[scope]) this.persistentIds[scope] = {};
+      if (this.persistentIds[scope][itemName]) return this.persistentIds[scope][itemName];
       const used = Object.values(this.persistentIds[scope]).map(Number);
       let idx = 1;
-      while (used.includes(idx)) { 
-          idx++; 
-      }
-      
+      while (used.includes(idx)) { idx++; }
       this.persistentIds[scope][itemName] = idx;
       localStorage.setItem('home_organizer_ids', JSON.stringify(this.persistentIds));
       return idx;
   }
   
-  // Helper to convert 1->A, 2->B...
   toAlphaId(num) {
       let s = "";
       while (num > 0) {
@@ -228,393 +173,113 @@ class HomeOrganizerPanel extends HTMLElement {
   initUI() {
     this.content = true;
     this.attachShadow({mode: 'open'});
+    
+    // Default structure, will be updated by parseCSV
     this.shadowRoot.innerHTML = `
       <style>
         :host { 
-            /* -- Dark Theme Variables (Default) -- */
-            --primary: #03a9f4; 
-            --accent: #4caf50; 
-            --danger: #f44336; 
-            --warning: #ffeb3b;
-            --icon-btn-bg: #444;
-            
-            --bg-body: #1c1c1e;
-            --bg-bar: #242426;
-            --bg-sub-bar: #2a2a2c;
-            --bg-card: #2c2c2e;
-            --bg-card-hover: #3a3a3c;
-            --bg-input: #111;
-            --bg-input-edit: #222;
-            --bg-dropdown: #2c2c2e;
-            --bg-qty-ctrl: #222;
-            
-            --text-main: #fff;
-            --text-sub: #aaa;
-            
-            --border-color: #333;
-            --border-light: #444;
-            --border-input: #333;
-
-            /* Badge & Icon specific */
-            --bg-badge: #444;
-            --text-badge: #fff;
-            --bg-icon-box: #3c4043;
-            --text-icon-box: #8ab4f8;
-
-            /* Catalog ID Colors */
-            --catalog-bg: #ff9800;
-            --catalog-text: #fff;
+            --primary: #03a9f4; --accent: #4caf50; --danger: #f44336; --warning: #ffeb3b; --icon-btn-bg: #444;
+            --bg-body: #1c1c1e; --bg-bar: #242426; --bg-sub-bar: #2a2a2c;
+            --bg-card: #2c2c2e; --bg-card-hover: #3a3a3c;
+            --bg-input: #111; --bg-input-edit: #222;
+            --bg-dropdown: #2c2c2e; --bg-qty-ctrl: #222;
+            --text-main: #fff; --text-sub: #aaa;
+            --border-color: #333; --border-light: #444; --border-input: #333;
+            --bg-badge: #444; --text-badge: #fff;
+            --bg-icon-box: #3c4043; --text-icon-box: #8ab4f8;
+            --catalog-bg: #ff9800; --catalog-text: #fff;
         }
-
-        /* -- Light Theme Overrides -- */
         .light-mode {
-            --bg-body: #f5f5f5;
-            --bg-bar: #ffffff;
-            --bg-sub-bar: #f0f0f0;
-            --bg-card: #ffffff;
-            --bg-card-hover: #f9f9f9;
-            --bg-input: #ffffff;
-            --bg-input-edit: #ffffff;
-            --bg-dropdown: #ffffff;
-            --bg-qty-ctrl: #e0e0e0;
-            
-            --text-main: #333;
-            --text-sub: #666;
-            
-            --border-color: #ddd;
-            --border-light: #ccc;
-            --border-input: #ccc;
+            --bg-body: #f5f5f5; --bg-bar: #ffffff; --bg-sub-bar: #f0f0f0;
+            --bg-card: #ffffff; --bg-card-hover: #f9f9f9;
+            --bg-input: #ffffff; --bg-input-edit: #ffffff;
+            --bg-dropdown: #ffffff; --bg-qty-ctrl: #e0e0e0;
+            --text-main: #333; --text-sub: #666;
+            --border-color: #ddd; --border-light: #ccc; --border-input: #ccc;
             --icon-btn-bg: #e0e0e0;
-
-            --bg-badge: #e0e0e0;
-            --text-badge: #000000;
-            --bg-icon-box: #e0e0e0;
-            --text-icon-box: #03a9f4;
+            --bg-badge: #e0e0e0; --text-badge: #000000;
+            --bg-icon-box: #e0e0e0; --text-icon-box: #03a9f4;
         }
-
         * { box-sizing: border-box; }
-        
-        /* Default RTL (Hebrew) */
-        .app-container { 
-            background: var(--bg-body); 
-            color: var(--text-main); 
-            height: 100vh; 
-            display: flex; 
-            flex-direction: column; 
-            font-family: sans-serif; 
-            direction: rtl; 
-        }
-        
-        /* LTR Override (English) */
-        .app-container.ltr { direction: ltr; }
-
+        .app-container { background: var(--bg-body); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; font-family: sans-serif; }
         svg { width: 24px; height: 24px; fill: currentColor; }
-        
-        /* --- Top Bar & Sub Bar Styles --- */
-        .top-bar { 
-            background: var(--bg-bar); 
-            padding: 10px; 
-            border-bottom: 1px solid var(--border-color); 
-            display: flex; 
-            gap: 10px; 
-            align-items: center; 
-            justify-content: space-between; 
-            flex-shrink: 0; 
-            height: 60px; 
-            position: relative; 
-        }
-        
-        /* Sub-bar */
-        .sub-bar { 
-            background: var(--bg-sub-bar); 
-            height: 30px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: space-between; 
-            padding: 0 10px; 
-            border-bottom: 1px solid var(--border-color); 
-            flex-shrink: 0; 
-        }
-        
+        .top-bar { background: var(--bg-bar); padding: 10px; border-bottom: 1px solid var(--border-color); display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-shrink: 0; height: 60px; position: relative; }
+        .sub-bar { background: var(--bg-sub-bar); height: 30px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
         .sub-bar-left { display: flex; align-items: center; gap: 10px; }
         .sub-bar-right { display: flex; align-items: center; gap: 10px; }
-
-        .nav-btn { 
-            background: none; 
-            border: none; 
-            color: var(--primary); 
-            cursor: pointer; 
-            padding: 8px; 
-            border-radius: 50%; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-        }
+        .nav-btn { background: none; border: none; color: var(--primary); cursor: pointer; padding: 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
         .nav-btn:hover { background: rgba(125,125,125,0.1); }
         .nav-btn.active { color: var(--warning); }
         .nav-btn.edit-active { color: var(--accent); } 
-        
         .sub-bar .nav-btn { padding: 4px; }
         .sub-bar .nav-btn svg { width: 20px; height: 20px; }
-
-        /* Setup Dropdown */
         .setup-wrapper { position: relative; display: flex; align-items: center; }
-        .setup-dropdown { 
-            position: absolute; top: 50px; 
-            inset-inline-start: 0;
-            background: var(--bg-dropdown); border: 1px solid var(--border-color); 
-            border-radius: 8px; display: none; flex-direction: column; min-width: 180px; z-index: 3000;
-            box-shadow: 0 8px 16px rgba(0,0,0,0.3); overflow: hidden;
-        }
+        .setup-dropdown { position: absolute; top: 50px; inset-inline-start: 0; background: var(--bg-dropdown); border: 1px solid var(--border-color); border-radius: 8px; display: none; flex-direction: column; min-width: 180px; z-index: 3000; box-shadow: 0 8px 16px rgba(0,0,0,0.3); overflow: hidden; }
         .setup-dropdown.show { display: flex; }
-        .dropdown-item { 
-            padding: 12px 15px; cursor: pointer; color: var(--text-main); font-size: 14px; 
-            text-align: start; 
-            border-bottom: 1px solid var(--border-color); 
-            display: flex; align-items: center; justify-content: flex-start; gap: 10px; 
-        }
+        .dropdown-item { padding: 12px 15px; cursor: pointer; color: var(--text-main); font-size: 14px; text-align: start; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: flex-start; gap: 10px; }
         .dropdown-item:hover { background: var(--primary); color: white; }
         .dropdown-item:last-child { border-bottom: none; }
         .dropdown-item svg { width: 18px; height: 18px; opacity: 0.8; }
-        
         .back-btn { font-weight: bold; color: var(--primary); }
         .back-btn:hover { color: white; }
-
         .title-box { flex: 1; text-align: center; }
         .main-title { font-weight: bold; font-size: 16px; }
         .sub-title { font-size: 11px; color: var(--text-sub); direction: ltr; } 
         .content { flex: 1; padding: 15px; overflow-y: auto; }
-        
-        /* --- Folders & Grid --- */
-        .folder-grid { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); 
-            gap: 15px; 
-            padding: 5px; 
-            margin-bottom: 20px; 
-        }
-        .folder-item { 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            cursor: pointer; 
-            text-align: center; 
-            position: relative; 
-        }
-        .folder-item.dragging { 
-            opacity: 0.4; 
-            transform: scale(0.9); 
-            transition: all 0.2s ease; 
-            border: 1px dashed var(--primary); 
-            border-radius: 12px; 
-        }
-        
-        .android-folder-icon { 
-            width: 56px; 
-            height: 56px; 
-            background: var(--bg-icon-box); 
-            color: var(--text-icon-box); 
-            border-radius: 16px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            margin-bottom: 6px; 
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2); 
-            position: relative; 
-            overflow: visible; 
-        }
+        .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 20px; }
+        .folder-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; position: relative; }
+        .folder-item.dragging { opacity: 0.4; transform: scale(0.9); transition: all 0.2s ease; border: 1px dashed var(--primary); border-radius: 12px; }
+        .android-folder-icon { width: 56px; height: 56px; background: var(--bg-icon-box); color: var(--text-icon-box); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); position: relative; overflow: visible; }
         .android-folder-icon svg { width: 34px; height: 34px; }
         .android-folder-icon img { width: 38px; height: 38px; object-fit: contain; border-radius: 4px; }
-        
-        .folder-delete-btn { 
-            position: absolute; 
-            top: -5px; 
-            inset-inline-end: -5px; 
-            background: var(--danger); 
-            color: white; 
-            width: 20px; 
-            height: 20px; 
-            border-radius: 50%; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            font-size: 12px; 
-            font-weight: bold; 
-            box-shadow: 0 1px 3px rgba(0,0,0,0.5); 
-            z-index: 10; 
-        }
-        .folder-edit-btn { 
-            position: absolute; 
-            top: -5px; 
-            inset-inline-start: -5px; 
-            background: var(--primary); 
-            color: white; 
-            width: 20px; 
-            height: 20px; 
-            border-radius: 50%; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            font-size: 12px; 
-            font-weight: bold; 
-            box-shadow: 0 1px 3px rgba(0,0,0,0.5); 
-            z-index: 10; 
-        }
+        .folder-delete-btn { position: absolute; top: -5px; inset-inline-end: -5px; background: var(--danger); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
+        .folder-edit-btn { position: absolute; top: -5px; inset-inline-start: -5px; background: var(--primary); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
         .folder-edit-btn svg { width: 12px; height: 12px; }
-        .folder-img-btn { 
-            position: absolute; 
-            bottom: -5px; 
-            left: 50%; 
-            transform: translateX(-50%); 
-            background: #ff9800; 
-            color: white; 
-            width: 20px; 
-            height: 20px; 
-            border-radius: 50%; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            font-size: 12px; 
-            font-weight: bold; 
-            box-shadow: 0 1px 3px rgba(0,0,0,0.5); 
-            z-index: 10; 
-        }
+        .folder-img-btn { position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%); background: #ff9800; color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
         .folder-img-btn svg { width: 12px; height: 12px; }
-
-        /* --- CATALOG ID STYLES --- */
-        .catalog-badge {
-            position: absolute;
-            top: -10px; /* Reduced to ~1mm above button border */
-            left: 50%;
-            transform: translateX(-50%);
-            background: transparent; 
-            color: var(--catalog-bg); 
-            font-size: 14px; 
-            font-weight: 900;
-            padding: 0;
-            border: none;
-            box-shadow: none;
-            z-index: 20;
-            direction: ltr; /* Always LTR */
-            unicode-bidi: isolate;
-            pointer-events: none;
-        }
-        
-        /* This class hides badges when toggle is off */
-        .hide-catalog-ids .catalog-badge { 
-            display: none !important; 
-        }
-
-        .catalog-id-text {
-            font-size: 13px;
-            color: var(--catalog-bg);
-            font-weight: bold;
-            direction: ltr; 
-            unicode-bidi: isolate;
-            white-space: nowrap;
-        }
-
-        /* --- List View Styles --- */
+        .catalog-badge { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: transparent; color: var(--catalog-bg); font-size: 14px; font-weight: 900; padding: 0; border: none; box-shadow: none; z-index: 20; direction: ltr; unicode-bidi: isolate; pointer-events: none; }
+        .hide-catalog-ids .catalog-badge { display: none !important; }
+        .catalog-id-text { font-size: 13px; color: var(--catalog-bg); font-weight: bold; direction: ltr; unicode-bidi: isolate; white-space: nowrap; }
         .item-list { display: flex; flex-direction: column; gap: 5px; }
-        
-        .group-separator { 
-            color: var(--text-sub); 
-            font-size: 14px; 
-            margin: 20px 0 10px 0; 
-            border-bottom: 1px solid var(--border-light); 
-            padding-bottom: 4px; 
-            text-transform: uppercase; 
-            font-weight: bold; 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center;
-            min-height: 35px;
-            cursor: pointer; 
-        }
+        .group-separator { color: var(--text-sub); font-size: 14px; margin: 20px 0 10px 0; border-bottom: 1px solid var(--border-light); padding-bottom: 4px; text-transform: uppercase; font-weight: bold; display: flex; justify-content: space-between; align-items: center; min-height: 35px; cursor: pointer; }
         .group-separator:hover { background: rgba(125,125,125,0.05); }
         .group-separator.drag-over { border-bottom: 2px solid var(--primary); color: var(--primary); background: rgba(3, 169, 244, 0.1); }
         .oos-separator { color: var(--danger); border-color: var(--danger); }
-        
         .edit-subloc-btn { background: none; border: none; color: var(--text-sub); cursor: pointer; padding: 4px; }
         .edit-subloc-btn:hover { color: var(--primary); }
         .delete-subloc-btn { background: none; border: none; color: var(--danger); cursor: pointer; padding: 4px; }
         .arrow-btn { background: none; border: none; color: var(--text-sub); cursor: pointer; padding: 4px; }
         .arrow-btn:hover { color: var(--warning); }
-
-        .item-row { 
-            background: var(--bg-card); 
-            margin-bottom: 8px; 
-            border-radius: 8px; 
-            padding: 10px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: space-between; 
-            border: 1px solid transparent; 
-            touch-action: pan-y; 
-        }
+        .item-row { background: var(--bg-card); margin-bottom: 8px; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid transparent; touch-action: pan-y; }
         .item-row.expanded { background: var(--bg-card-hover); flex-direction: column; align-items: stretch; cursor: default; }
         .out-of-stock-frame { border: 2px solid var(--danger); }
-
         .item-main { display: flex; align-items: center; justify-content: space-between; width: 100%; cursor: pointer; }
         .item-left { display: flex; align-items: center; gap: 10px; }
         .item-icon { color: var(--primary); display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; }
-        
         .item-thumbnail { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: #000; display: block; border: 1px solid var(--border-light); }
-
         .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: var(--bg-qty-ctrl); color: var(--text-main); padding: 4px; border-radius: 20px; }
         .qty-btn { background: var(--icon-btn-bg); border: none; color: var(--text-main); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-        
-        /* --- NEW XL GRID STYLES --- */
         .xl-grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 10px; }
-        .xl-card { 
-            background: var(--bg-card); 
-            border-radius: 12px; 
-            padding: 10px; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: space-between;
-            aspect-ratio: 1; 
-            position: relative; 
-            border: 1px solid transparent;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
+        .xl-card { background: var(--bg-card); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; aspect-ratio: 1; position: relative; border: 1px solid transparent; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .xl-card:hover { background: var(--bg-card-hover); }
         .xl-icon-area { flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; overflow: hidden; cursor: zoom-in; }
-        
-        /* Restored Icon/Image Size to Full */
         .xl-icon-area svg { width: 48px; height: 48px; color: var(--primary); }
         .xl-icon-area img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
-        
-        /* Updated Grid Badge to use variables */
-        .xl-badge { 
-            position: absolute; top: 8px; 
-            inset-inline-end: 8px; /* Logical End (Right in LTR, Left in RTL - usually standard corners flip in OS) */
-            
-            background: var(--bg-badge); color: var(--text-badge); border: 1px solid var(--border-light);
-            min-width: 24px; height: 24px; border-radius: 12px; 
-            display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; 
-        }
+        .xl-badge { position: absolute; top: 8px; inset-inline-end: 8px; background: var(--bg-badge); color: var(--text-badge); border: 1px solid var(--border-light); min-width: 24px; height: 24px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; }
         .xl-info { width: 100%; text-align: center; margin-top: 8px; cursor: pointer; }
         .xl-name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; color: var(--text-main); }
         .xl-date { font-size: 10px; color: var(--text-sub); margin-top: 2px; }
-
-        /* --- Editing & Inputs --- */
         .add-folder-card .android-folder-icon { border: 2px dashed #4caf50; background: rgba(76, 175, 80, 0.1); color: #4caf50; }
         .add-folder-card:hover .android-folder-icon { background: rgba(76, 175, 80, 0.2); }
         .add-folder-input { width: 100%; height: 100%; border: none; background: transparent; color: white; text-align: center; font-size: 12px; padding: 5px; outline: none; }
-        
         .text-add-btn { background: none; border: none; color: var(--primary); font-size: 14px; font-weight: bold; cursor: pointer; padding: 8px 0; display: flex; align-items: center; gap: 5px; opacity: 0.8; }
         .text-add-btn:hover { opacity: 1; text-decoration: underline; }
         .group-add-row { padding: 0 10px; margin-bottom: 15px; }
-
         .add-item-btn-row { width: 100%; margin-top: 10px; }
         .add-item-btn { width: 100%; padding: 12px; background: rgba(76, 175, 80, 0.15); border: 1px dashed #4caf50; color: #4caf50; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; transition: background 0.2s; }
         .add-item-btn:hover { background: rgba(76, 175, 80, 0.3); }
-
         .expanded-details { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-light); display: flex; flex-direction: column; gap: 10px; }
         .detail-row { display: flex; gap: 10px; align-items: center; }
-        
         .action-btn { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--border-light); color: var(--text-sub); background: var(--icon-btn-bg); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 8px; }
         .action-btn:hover { background: var(--border-light); color: var(--text-main); }
         .btn-danger { color: #ff8a80; border-color: #d32f2f; }
@@ -622,32 +287,25 @@ class HomeOrganizerPanel extends HTMLElement {
         .move-container { display: flex; gap: 5px; align-items: center; flex: 1; }
         .move-select { flex: 1; padding: 8px; background: var(--bg-input-edit); color: var(--text-main); border: 1px solid var(--border-light); border-radius: 6px; }
         .search-box { display:none; padding:10px; background:var(--bg-sub-bar); display:flex; gap: 5px; align-items: center; }
-        
-        /* --- Modals --- */
         #icon-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2500; display: none; align-items: center; justify-content: center; flex-direction: column; }
         .modal-content { background: var(--bg-card); color:var(--text-main); width: 95%; max-width: 450px; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 15px; max-height: 90vh; overflow-y: auto; }
         .modal-title { font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 5px; }
-        
         .category-bar { display: none; gap: 10px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 10px; scrollbar-width: thin; scrollbar-color: var(--warning) transparent; }
         .category-bar::-webkit-scrollbar { height: 4px; }
         .category-bar::-webkit-scrollbar-thumb { background: var(--warning); border-radius: 2px; }
         .cat-btn { min-width: 65px; height: 65px; background: #333; border: 2px solid var(--warning); border-radius: 8px; color: white; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; text-align: center; padding: 5px; flex-shrink: 0; transition: all 0.2s; }
         .cat-btn.active { background: var(--warning); color: #000; font-weight: bold; }
         .cat-btn svg { width: 24px; height: 24px; margin-bottom: 4px; }
-
         .icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 10px; min-height: 200px; }
         .lib-icon { background: #333; border-radius: 8px; padding: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 5px; }
         .lib-icon:hover { background: #444; }
         .lib-icon svg { width: 32px; height: 32px; fill: #ccc; }
         .lib-icon span { font-size: 10px; color: #888; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; width: 50px; text-align: center; }
-        
         .pagination-ctrls { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding: 10px 0; border-top: 1px solid #444; }
         .page-btn { background: #444; color: white; border: none; border-radius: 4px; padding: 5px 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
         .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
         .page-info { font-size: 12px; color: #aaa; }
-
         .url-input-row { display: flex; gap: 10px; margin-top: 10px; border-top: 1px solid #444; padding-top: 10px; }
-        
         #camera-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: center; }
         #camera-video { width: 100%; height: 80%; object-fit: cover; }
         .camera-controls { height: 20%; width: 100%; display: flex; align-items: center; justify-content: center; gap: 30px; background: rgba(0,0,0,0.5); position: absolute; bottom: 0; }
@@ -659,27 +317,9 @@ class HomeOrganizerPanel extends HTMLElement {
         .wb-btn svg { width: 24px; height: 24px; margin-bottom: 2px; }
         #camera-canvas { display: none; }
         .overlay { display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:2500;justify-content:center;align-items:center }
-        
-        /* --- Preview Overlay Styles --- */
-        #overlay-img { 
-            max-width: 50% !important;     
-            max-height: 35vh !important;
-            border-radius: 8px; 
-            object-fit: contain; 
-            margin-bottom: 15px; 
-            display: none; 
-            border: 1px solid #444; 
-        }
-        #overlay-icon-big { 
-            display: none; 
-            margin-bottom: 15px; 
-            color: white; 
-        }
-        /* Fixed explicit size for the Preview Icon (60px) */
-        #overlay-icon-big svg {
-            width: 60px; 
-            height: 60px;
-        }
+        #overlay-img { max-width: 50% !important; max-height: 35vh !important; border-radius: 8px; object-fit: contain; margin-bottom: 15px; display: none; border: 1px solid #444; }
+        #overlay-icon-big { display: none; margin-bottom: 15px; color: white; }
+        #overlay-icon-big svg { width: 60px; height: 60px; }
       </style>
       
       <div class="app-container" id="app">
@@ -690,41 +330,40 @@ class HomeOrganizerPanel extends HTMLElement {
                     <svg viewBox="0 0 24 24"><path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.35 19.43,11.03L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.47,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.53,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.22,8.95 2.27,9.22 2.46,9.37L4.57,11.03C4.53,11.35 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.22,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.53,18.67 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.47,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z" /></svg>
                 </button>
                 <div class="setup-dropdown" id="setup-dropdown-menu">
-                    <!-- Main Menu -->
+                    <!-- Dynamic Menu Container -->
                     <div id="menu-main">
                         <div class="dropdown-item" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('lang')">
                             <svg viewBox="0 0 24 24"><path d="M12.87,15.07L10.33,12.56L10.36,12.53C12.1,10.59 13.34,8.36 14.07,6H17V4H11V2H9V4H2V6H4.18C4.87,8.8 6.13,11.23 7.82,13.23L4.25,16.8L5.66,18.21L9.24,14.65L12.87,18.73L12.87,15.07M18.5,10H16.5L12,22H14L15.12,19H19.87L20.98,22H22.97L18.5,10M15.88,17L17.5,12.67L19.12,17H15.88Z" /></svg>
-                            Language
+                            ${this.t('language')}
                         </div>
                         <div class="dropdown-item" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('theme')">
                             <svg viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20M12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18M12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16Z" /></svg>
-                            Theme
+                            ${this.t('theme')}
                         </div>
                     </div>
-                    <!-- Language Submenu -->
+                    <!-- Language Submenu (Dynamic) -->
                     <div id="menu-lang" style="display:none">
                         <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
                            <svg viewBox="0 0 24 24"><path d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z" /></svg>
-                           Back
+                           ${this.t('back')}
                         </div>
-                        <div class="dropdown-item" onclick="this.getRootNode().host.changeLanguage('en')">English</div>
-                        <div class="dropdown-item" onclick="this.getRootNode().host.changeLanguage('he')">Hebrew</div>
+                        <!-- Languages injected here by renderMenu() -->
                     </div>
                     <!-- Theme Submenu -->
                     <div id="menu-theme" style="display:none">
                         <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
                            <svg viewBox="0 0 24 24"><path d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z" /></svg>
-                           Back
+                           ${this.t('back')}
                         </div>
-                        <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('light')">Light</div>
-                        <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('dark')">Dark</div>
+                        <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('light')">${this.t('light')}</div>
+                        <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('dark')">${this.t('dark')}</div>
                     </div>
                 </div>
             </div>
             
             <div class="title-box">
-                <div class="main-title" id="display-title">Organizer</div>
-                <div class="sub-title" id="display-path">Main</div>
+                <div class="main-title" id="display-title">${this.t('app_title')}</div>
+                <div class="sub-title" id="display-path">${this.t('default_path')}</div>
             </div>
             <div style="display:flex;gap:5px">
                 <button class="nav-btn" id="btn-shop">${ICONS.cart}</button>
@@ -733,16 +372,12 @@ class HomeOrganizerPanel extends HTMLElement {
             </div>
         </div>
 
-        <!-- Sub-Bar (30px) -->
         <div class="sub-bar">
-            <!-- Right side in RTL (Home/Up) -->
             <div class="sub-bar-right">
                 <button class="nav-btn" id="btn-home">${ICONS.home}</button>
                 <button class="nav-btn" id="btn-up" style="display:none;">${ICONS.arrow_up}</button>
             </div>
-            <!-- Left side in RTL (View Toggle) -->
             <div class="sub-bar-left">
-                <!-- ID Toggle Button -->
                 <button class="nav-btn" id="btn-toggle-ids" title="Toggle IDs">
                     <svg viewBox="0 0 24 24"><path d="M17,3H7A2,2 0 0,0 5,5V21L12,18L19,21V5C19,3.89 18.1,3 17,3M17,18L12,15.82L7,18V5H17V18Z" /></svg>
                 </button>
@@ -755,7 +390,7 @@ class HomeOrganizerPanel extends HTMLElement {
         
         <div class="search-box" id="search-box">
             <div style="position:relative; flex:1;">
-                <input type="text" id="search-input" style="width:100%;padding:8px;padding-inline-start:35px;border-radius:8px;background:var(--bg-input);color:var(--text-main);border:1px solid var(--border-input)">
+                <input type="text" id="search-input" placeholder="${this.t('search_placeholder')}" style="width:100%;padding:8px;padding-inline-start:35px;border-radius:8px;background:var(--bg-input);color:var(--text-main);border:1px solid var(--border-input)">
                 <button class="nav-btn ai-btn" id="btn-ai-search" style="position:absolute;inset-inline-start:0;top:0;height:100%;background:none;border:none;">
                     ${ICONS.camera}
                 </button>
@@ -766,14 +401,13 @@ class HomeOrganizerPanel extends HTMLElement {
         <div class="paste-bar" id="paste-bar" style="display:none;padding:10px;background:rgba(255,235,59,0.2);color:#ffeb3b;align-items:center;justify-content:space-between"><div>${ICONS.cut} Cut: <b id="clipboard-name"></b></div><button id="btn-paste" style="background:#4caf50;color:white;border:none;padding:5px 15px;border-radius:15px">Paste</button></div>
         
         <div class="content" id="content">
-            <div style="text-align:center;padding:20px;color:#888;">Loading...</div>
+            <div style="text-align:center;padding:20px;color:#888;">${this.t('loading')}</div>
         </div>
       </div>
       
-      <!-- Icon Modal -->
       <div id="icon-modal" onclick="this.style.display='none'">
           <div class="modal-content" onclick="event.stopPropagation()">
-              <div class="modal-title">Change Icon</div>
+              <div class="modal-title">${this.t('change_icon')}</div>
               <div class="category-bar" id="picker-categories"></div>
               <div class="icon-grid" id="icon-lib-grid"></div>
               <div class="pagination-ctrls">
@@ -782,20 +416,19 @@ class HomeOrganizerPanel extends HTMLElement {
                   <button class="page-btn" id="picker-next" style="transform: rotate(180deg)">${ICONS.arrow_up}</button>
               </div>
               <div class="url-input-row">
-                  <input type="text" id="icon-url-input" placeholder="Paste Image URL..." style="flex:1;padding:8px;background:#111;color:white;border:1px solid #444;border-radius:4px">
+                  <input type="text" id="icon-url-input" placeholder="${this.t('paste_url')}" style="flex:1;padding:8px;background:#111;color:white;border:1px solid #444;border-radius:4px">
                   <button class="action-btn" id="btn-load-url">${ICONS.check}</button>
               </div>
               <div style="text-align:center; margin-top:10px;">
                   <label class="action-btn" style="width:100%; display:flex; gap:10px; justify-content:center;">
-                      ${ICONS.image} Upload File
+                      ${ICONS.image} ${this.t('upload_file')}
                       <input type="file" id="icon-file-upload" accept="image/*" style="display:none">
                   </label>
               </div>
-              <button class="action-btn" style="width:100%;margin-top:10px;background:#444" onclick="this.closest('#icon-modal').style.display='none'">Cancel</button>
+              <button class="action-btn" style="width:100%;margin-top:10px;background:#444" onclick="this.closest('#icon-modal').style.display='none'">${this.t('cancel')}</button>
           </div>
       </div>
       
-      <!-- Camera Modal -->
       <div id="camera-modal">
           <video id="camera-video" autoplay playsinline muted></video>
           <div class="camera-controls">
@@ -807,7 +440,6 @@ class HomeOrganizerPanel extends HTMLElement {
           <canvas id="camera-canvas"></canvas>
       </div>
 
-      <!-- Detail/Image Overlay -->
       <div class="overlay" id="img-overlay" onclick="this.style.display='none'">
           <div style="display:flex;flex-direction:column;align-items:center;max-width:90%;max-height:90%;width:100%">
               <img id="overlay-img">
@@ -859,6 +491,33 @@ class HomeOrganizerPanel extends HTMLElement {
     this.bindEvents();
   }
 
+  // Generate Menu Items Dynamically from Loaded CSV Headers
+  renderMenu() {
+      const menuLang = this.shadowRoot.getElementById('menu-lang');
+      if (!menuLang) return;
+      
+      let html = `
+        <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
+           <svg viewBox="0 0 24 24"><path d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z" /></svg>
+           ${this.t('back')}
+        </div>
+      `;
+      
+      // If we have loaded languages, iterate them
+      if (this.availableLangs && this.availableLangs.length > 0) {
+          this.availableLangs.forEach(lang => {
+              // Uppercase first letter for display, or use a map if preferred
+              const display = lang.toUpperCase(); 
+              html += `<div class="dropdown-item" onclick="this.getRootNode().host.changeLanguage('${lang}')">${display}</div>`;
+          });
+      } else {
+           // Fallback if CSV failed
+           html += `<div class="dropdown-item" onclick="this.getRootNode().host.changeLanguage('en')">English</div>`;
+      }
+      
+      menuLang.innerHTML = html;
+  }
+
   bindEvents() {
     const root = this.shadowRoot;
     const bind = (id, event, fn) => { const el = root.getElementById(id); if(el) el[event] = fn; };
@@ -866,6 +525,7 @@ class HomeOrganizerPanel extends HTMLElement {
 
     click('btn-user-setup', (e) => {
         e.stopPropagation();
+        this.renderMenu(); // Re-render menu before showing
         const menu = root.getElementById('setup-dropdown-menu');
         this.showMenu('main'); // Always reset to main menu on open
         menu.classList.toggle('show');
@@ -958,14 +618,18 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   changeLanguage(lang) {
-      const app = this.shadowRoot.getElementById('app');
-      if (lang === 'en') {
-          app.classList.add('ltr');
-      } else {
-          app.classList.remove('ltr');
-      }
+      this.currentLang = lang;
       localStorage.setItem('home_organizer_lang', lang);
+      
+      // Update Direction
+      const dir = (this.translations && this.translations['_direction'] && this.translations['_direction'][lang]) || 'ltr';
+      const app = this.shadowRoot.getElementById('app');
+      app.style.direction = dir;
+      
+      if (dir === 'ltr') app.classList.add('ltr'); else app.classList.remove('ltr');
+      
       this.shadowRoot.getElementById('setup-dropdown-menu').classList.remove('show');
+      this.render(); // Re-render to update text
   }
   
   toggleWhiteBG() {
@@ -1035,7 +699,14 @@ class HomeOrganizerPanel extends HTMLElement {
     if(!this.localData) return;
     const attrs = this.localData;
     const root = this.shadowRoot;
-    root.getElementById('display-title').innerText = attrs.path_display;
+    
+    // Update Title & Path
+    root.getElementById('display-title').innerText = this.t('app_title');
+    root.getElementById('display-path').innerText = 
+        this.isShopMode ? this.t('shopping_list') : 
+        (this.isSearch ? this.t('search_results') : 
+        (attrs.path_display === "Main" ? this.t('default_path') : attrs.path_display));
+        
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
     if(attrs.clipboard) root.getElementById('clipboard-name').innerText = attrs.clipboard;
@@ -1196,7 +867,7 @@ class HomeOrganizerPanel extends HTMLElement {
             header.className = 'group-separator';
             
             // Build Header Content with Edit/Delete/Reorder if in Edit Mode
-            let headerContent = `<span>${zoneName}</span>`;
+            let headerContent = `<span>${this.t('zone_' + zoneName) === ('zone_' + zoneName) ? zoneName : this.t('zone_' + zoneName)}</span>`; // Try to translate zone name if possible (e.g., General Rooms)
             if (this.isEditMode && zoneName !== "General Rooms") {
                 headerContent = `
                     <div style="display:flex;align-items:center;">
@@ -1256,7 +927,7 @@ class HomeOrganizerPanel extends HTMLElement {
             if (this.isEditMode) {
                 const addBtn = document.createElement('div');
                 addBtn.className = 'folder-item add-folder-card';
-                addBtn.innerHTML = `<div class="android-folder-icon">${ICONS.plus}</div><div class="folder-label">Add Room</div>`;
+                addBtn.innerHTML = `<div class="android-folder-icon">${ICONS.plus}</div><div class="folder-label">${this.t('add_room')}</div>`;
                 addBtn.onclick = (e) => this.enableZoneRoomInput(e.currentTarget, zoneName);
                 grid.appendChild(addBtn);
             }
@@ -1269,7 +940,7 @@ class HomeOrganizerPanel extends HTMLElement {
             const addZoneBtn = document.createElement('button');
             addZoneBtn.className = 'add-item-btn';
             addZoneBtn.style.marginTop = '20px';
-            addZoneBtn.innerHTML = `+ Add Sub Zone / Floor`;
+            addZoneBtn.innerHTML = this.t('add_zone_btn');
             addZoneBtn.onclick = () => this.createNewZone();
             zoneContainer.appendChild(addZoneBtn);
         }
@@ -1320,7 +991,7 @@ class HomeOrganizerPanel extends HTMLElement {
             if (this.isEditMode) {
                 const addBtn = document.createElement('div');
                 addBtn.className = 'folder-item add-folder-card';
-                addBtn.innerHTML = `<div class="android-folder-icon" id="add-folder-icon">${ICONS.plus}</div><div class="folder-label">Add</div>`;
+                addBtn.innerHTML = `<div class="android-folder-icon" id="add-folder-icon">${ICONS.plus}</div><div class="folder-label">${this.t('add')}</div>`;
                 addBtn.onclick = (e) => this.enableFolderInput(e.currentTarget);
                 grid.appendChild(addBtn);
             }
@@ -1337,7 +1008,7 @@ class HomeOrganizerPanel extends HTMLElement {
         if (this.isEditMode && attrs.depth === 1) {
              const addBtn = document.createElement('div');
              addBtn.className = 'add-item-btn-row';
-             addBtn.innerHTML = `<button class="add-item-btn" onclick="this.getRootNode().host.addQuickItem()">+ הוסף</button>`;
+             addBtn.innerHTML = `<button class="add-item-btn" onclick="this.getRootNode().host.addQuickItem()">+ ${this.t('add')}</button>`;
              content.appendChild(addBtn);
         }
     } else {
@@ -1521,7 +1192,7 @@ class HomeOrganizerPanel extends HTMLElement {
                 if (this.isEditMode) {
                       const addRow = document.createElement('div');
                       addRow.className = "group-add-row";
-                      addRow.innerHTML = `<button class="text-add-btn" onclick="this.getRootNode().host.addQuickItem('${subName}')">${ICONS.plus} הוסף</button>`;
+                      addRow.innerHTML = `<button class="text-add-btn" onclick="this.getRootNode().host.addQuickItem('${subName}')">${ICONS.plus} ${this.t('add')}</button>`;
                       listContainer.appendChild(addRow);
                 }
             }
@@ -1529,7 +1200,7 @@ class HomeOrganizerPanel extends HTMLElement {
         if (outOfStock.length > 0) {
             const oosHeader = document.createElement('div');
             oosHeader.className = 'group-separator oos-separator';
-            oosHeader.innerText = "Out of Stock";
+            oosHeader.innerText = this.t('out_of_stock');
             listContainer.appendChild(oosHeader);
             outOfStock.forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
         }
@@ -1539,7 +1210,7 @@ class HomeOrganizerPanel extends HTMLElement {
             gridContainer.style.marginTop = '20px';
             const addBtn = document.createElement('div');
             addBtn.className = 'folder-item add-folder-card';
-            addBtn.innerHTML = `<div class="android-folder-icon" id="add-subloc-icon">${ICONS.plus}</div><div class="folder-label">Add Sub</div>`;
+            addBtn.innerHTML = `<div class="android-folder-icon" id="add-subloc-icon">${ICONS.plus}</div><div class="folder-label">${this.t('add_sub')}</div>`;
             addBtn.onclick = (e) => this.enableFolderInput(e.currentTarget);
             gridContainer.appendChild(addBtn);
             listContainer.appendChild(gridContainer);
@@ -1691,7 +1362,7 @@ class HomeOrganizerPanel extends HTMLElement {
       
       iconContainer.innerHTML = `<input type="text" class="add-folder-input" placeholder="Name">`;
       const input = iconContainer.querySelector('input');
-      label.innerText = "Saving to " + zoneName;
+      label.innerText = this.t('save_to') + " " + zoneName;
       
       input.focus();
       input.onkeydown = (e) => { 
@@ -1767,7 +1438,7 @@ class HomeOrganizerPanel extends HTMLElement {
       // 1. Reconstruct current sorted list from DOM/Data
       // We need to parse all markers to get current order
       const zones = [];
-      const markerRegex = /^ZONE_MARKER_(\d+)_+(.*)$/;
+      const markerRegex = /^ZONE_MARKER_(\d+)_(.*)$/;
       const seen = new Set();
 
       if (this.localData && this.localData.folders) {
@@ -1901,7 +1572,7 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   deleteZone(zoneName) {
-      if(confirm(`Delete Zone "${zoneName}"? Rooms inside will move to General.`)) {
+      if(confirm(this.t('confirm_del_zone', zoneName))) {
           if (this.localData && this.localData.folders) {
               this.localData.folders.forEach(f => {
                   if (f.name.startsWith("ZONE_MARKER_") && f.name.endsWith(`_${zoneName}`)) {
@@ -1944,8 +1615,8 @@ class HomeOrganizerPanel extends HTMLElement {
       
       det.innerHTML = `
           <div style="font-size:20px;font-weight:bold;margin-bottom:8px">${item.name}</div>
-          <div style="font-size:16px;color:#aaa;margin-bottom:15px">${item.date || 'No Date'}</div>
-          <div style="font-size:18px;font-weight:bold;color:var(--accent);background:#333;padding:8px 20px;border-radius:20px;display:inline-block">Quantity: ${item.qty}</div>
+          <div style="font-size:16px;color:#aaa;margin-bottom:15px">${item.date || this.t('no_date')}</div>
+          <div style="font-size:18px;font-weight:bold;color:var(--accent);background:#333;padding:8px 20px;border-radius:20px;display:inline-block">${this.t('quantity')}: ${item.qty}</div>
       `;
   }
 
@@ -1974,7 +1645,7 @@ class HomeOrganizerPanel extends HTMLElement {
       if(iconContainer.querySelector('input')) return;
       iconContainer.innerHTML = `<input type="text" class="add-folder-input" placeholder="Name">`;
       const input = iconContainer.querySelector('input');
-      label.innerText = "Saving...";
+      label.innerText = this.t('saving');
       input.focus();
       input.onkeydown = (e) => { if (e.key === 'Enter') this.saveNewFolder(input.value); };
       input.onblur = () => { if (input.value.trim()) this.saveNewFolder(input.value); else this.render(); };
@@ -2014,7 +1685,7 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   addQuickItem(targetSubloc) {
-      const tempName = "New Item " + new Date().toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'});
+      const tempName = this.t('new_item') + " " + new Date().toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'});
       const today = new Date().toISOString().split('T')[0];
       let usePath = [...this.currentPath];
       if (targetSubloc && targetSubloc !== "General") usePath.push(targetSubloc);
@@ -2088,24 +1759,25 @@ class HomeOrganizerPanel extends HTMLElement {
          details.className = 'expanded-details';
          
          // Options logic
-         let roomOptions = `<option value="">-- Change Room --</option>`;
+         let roomOptions = `<option value="">-- ${this.t('move_to')} --</option>`;
          if(this.localData.hierarchy) Object.keys(this.localData.hierarchy).forEach(room => { roomOptions += `<option value="${room}">${room}</option>`; });
 
-         // Category Options
-         let mainCatOptions = `<option value="">Select Category</option>`;
+         // Category Options (Translated Keys)
+         let mainCatOptions = `<option value="">${this.t('select_cat')}</option>`;
          Object.keys(ITEM_CATEGORIES).forEach(cat => {
              const selected = (item.category === cat) ? 'selected' : '';
-             mainCatOptions += `<option value="${cat}" ${selected}>${cat}</option>`;
+             mainCatOptions += `<option value="${cat}" ${selected}>${this.t('cat_' + cat.replace(/[^a-zA-Z0-9]/g, '_')) || cat}</option>`;
          });
 
          // Sub Category Options
-         let subCatOptions = `<option value="">Select Sub</option>`;
+         let subCatOptions = `<option value="">${this.t('select_sub')}</option>`;
          let currentUnit = "";
          if (item.category && ITEM_CATEGORIES[item.category]) {
              const subs = ITEM_CATEGORIES[item.category];
              Object.keys(subs).forEach(sub => {
                  const selected = (item.sub_category === sub) ? 'selected' : '';
-                 subCatOptions += `<option value="${sub}" ${selected}>${sub}</option>`;
+                 const transKey = 'sub_' + sub.replace(/[^a-zA-Z0-9]/g, '_');
+                 subCatOptions += `<option value="${sub}" ${selected}>${this.t(transKey) || sub}</option>`;
                  if (selected) currentUnit = subs[sub];
              });
          }
@@ -2119,11 +1791,11 @@ class HomeOrganizerPanel extends HTMLElement {
                 <div style="position:relative; width:120px; height:36px; margin-inline-start:5px;">
                     <button class="action-btn" style="width:100%; height:100%; text-align:center; padding:0; display:flex; align-items:center; justify-content:center; background:var(--bg-input-edit); color:var(--text-main); border:1px solid var(--border-light);"
                         onclick="this.nextElementSibling.showPicker()">
-                        ${item.date || 'Set Date'}
+                        ${item.date || this.t('set_date')}
                     </button>
                     <input type="date" id="date-${item.name}" value="${item.date}" 
                         style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;"
-                        onchange="this.previousElementSibling.innerText = this.value || 'Set Date'; this.getRootNode().host.autoSaveItem('${item.name}', 'date')">
+                        onchange="this.previousElementSibling.innerText = this.value || '${this.t('set_date')}'; this.getRootNode().host.autoSaveItem('${item.name}', 'date')">
                 </div>
             </div>
             
@@ -2145,15 +1817,15 @@ class HomeOrganizerPanel extends HTMLElement {
 
             <div class="detail-row" style="justify-content:space-between; margin-top:10px;">
                  <div style="display:flex;gap:10px;">
-                    <button class="action-btn" title="Take Photo" onclick="this.getRootNode().host.triggerCameraEdit('${item.name}')">${ICONS.camera}</button>
-                    <button class="action-btn" title="Change Icon/Image" onclick="this.getRootNode().host.openIconPicker('${item.name}', 'item')">${ICONS.image}</button>
+                    <button class="action-btn" title="${this.t('take_photo')}" onclick="this.getRootNode().host.triggerCameraEdit('${item.name}')">${ICONS.camera}</button>
+                    <button class="action-btn" title="${this.t('change_img')}" onclick="this.getRootNode().host.openIconPicker('${item.name}', 'item')">${ICONS.image}</button>
                  </div>
-                 <div style="display:flex;gap:10px;"><button class="action-btn btn-danger" title="Delete" onclick="this.getRootNode().host.del('${item.name}')">${ICONS.delete}</button></div>
+                 <div style="display:flex;gap:10px;"><button class="action-btn btn-danger" title="${this.t('delete')}" onclick="this.getRootNode().host.del('${item.name}')">${ICONS.delete}</button></div>
             </div>
             <div class="detail-row" style="margin-top:10px; border-top:1px solid #444; padding-top:10px; flex-direction:column; gap:8px;">
-                <div class="move-container" style="width:100%"><span style="font-size:12px;color:#aaa;width:60px">Move to:</span><select class="move-select" id="room-select-${item.name}" onchange="this.getRootNode().host.updateLocationDropdown('${item.name}', this.value)">${roomOptions}</select></div>
-                <div class="move-container" style="width:100%; display:none;" id="loc-container-${item.name}"><span style="font-size:12px;color:#aaa;width:60px">Loc:</span><select class="move-select" id="loc-select-${item.name}" onchange="this.getRootNode().host.updateSublocDropdown('${item.name}', this.value)"><option value="">-- Select --</option></select></div>
-                <div class="move-container" style="width:100%; display:none;" id="subloc-container-${item.name}"><span style="font-size:12px;color:#aaa;width:60px">Sub:</span><select class="move-select" id="target-subloc-${item.name}" onchange="this.getRootNode().host.handleMoveToPath('${item.name}')"><option value="">-- Select --</option></select></div>
+                <div class="move-container" style="width:100%"><span style="font-size:12px;color:#aaa;width:60px">${this.t('move_to')}</span><select class="move-select" id="room-select-${item.name}" onchange="this.getRootNode().host.updateLocationDropdown('${item.name}', this.value)">${roomOptions}</select></div>
+                <div class="move-container" style="width:100%; display:none;" id="loc-container-${item.name}"><span style="font-size:12px;color:#aaa;width:60px">${this.t('loc_label')}</span><select class="move-select" id="loc-select-${item.name}" onchange="this.getRootNode().host.updateSublocDropdown('${item.name}', this.value)"><option value="">-- Select --</option></select></div>
+                <div class="move-container" style="width:100%; display:none;" id="subloc-container-${item.name}"><span style="font-size:12px;color:#aaa;width:60px">${this.t('sub_label')}</span><select class="move-select" id="target-subloc-${item.name}" onchange="this.getRootNode().host.handleMoveToPath('${item.name}')"><option value="">-- Select --</option></select></div>
             </div>
          `;
          div.appendChild(details);
@@ -2174,10 +1846,11 @@ class HomeOrganizerPanel extends HTMLElement {
 
       // If Main Category changed, rebuild Sub Category options
       if (type === 'main') {
-          let html = `<option value="">Select Sub</option>`;
+          let html = `<option value="">${this.t('select_sub')}</option>`;
           if (mainCat && ITEM_CATEGORIES[mainCat]) {
               Object.keys(ITEM_CATEGORIES[mainCat]).forEach(sub => {
-                  html += `<option value="${sub}">${sub}</option>`;
+                  const transKey = 'sub_' + sub.replace(/[^a-zA-Z0-9]/g, '_');
+                  html += `<option value="${sub}">${this.t(transKey) || sub}</option>`;
               });
           }
           subSelect.innerHTML = html;
@@ -2251,10 +1924,10 @@ class HomeOrganizerPanel extends HTMLElement {
       setTimeout(() => { this.callHA('paste_item', {target_path: targetPath}); }, 100);
   }
 
-  deleteFolder(name) { if(confirm(`Delete folder '${name}' and ALL items inside it?`)) this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); }
+  deleteFolder(name) { if(confirm(this.t('confirm_del_folder', name))) this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); }
   deleteSubloc(name) { 
       const realName = this.resolveRealName(name);
-      if(confirm(`Delete '${name}'?`)) this._hass.callService('home_organizer', 'delete_item', { item_name: realName, current_path: this.currentPath, is_folder: true }); 
+      if(confirm(this.t('confirm_del_item', name))) this._hass.callService('home_organizer', 'delete_item', { item_name: realName, current_path: this.currentPath, is_folder: true }); 
   }
 
   render() { this.updateUI(); }
@@ -2341,7 +2014,7 @@ class HomeOrganizerPanel extends HTMLElement {
                   current_path: this.currentPath, 
                   is_folder: true 
               }).catch(err => {
-                  newSpan.innerText = oldName; newSpan.style.opacity = '1'; alert("Failed to rename");
+                  newSpan.innerText = oldName; newSpan.style.opacity = '1'; alert(this.t('failed_rename'));
               });
           } else {
               const originalSpan = document.createElement('span');
