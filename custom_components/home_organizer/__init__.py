@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 6.0.0 (Added Category Support)
+# Home Organizer Ultimate - ver 6.0.2 (Added Unit Value Support)
 
 import logging
 import sqlite3
@@ -96,7 +96,7 @@ def init_db(hass):
     c.execute(f'''CREATE TABLE IF NOT EXISTS items (
         id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, type TEXT DEFAULT 'item',
         {cols}, item_date TEXT, quantity INTEGER DEFAULT 1, image_path TEXT,
-        category TEXT, sub_category TEXT, unit TEXT,
+        category TEXT, sub_category TEXT, unit TEXT, unit_value REAL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
     c.execute("PRAGMA table_info(items)")
@@ -112,6 +112,11 @@ def init_db(hass):
         if new_col not in existing_cols:
             try: c.execute(f"ALTER TABLE items ADD COLUMN {new_col} TEXT")
             except: pass
+
+    # Migration: Add Unit Value if missing
+    if 'unit_value' not in existing_cols:
+        try: c.execute("ALTER TABLE items ADD COLUMN unit_value REAL")
+        except: pass
         
     # Migration: Add Levels if missing
     for i in range(1, MAX_LEVELS + 1):
@@ -191,7 +196,8 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                         "location": " > ".join([p for p in fp if p]),
                         "category": r_dict.get('category', ''),
                         "sub_category": r_dict.get('sub_category', ''),
-                        "unit": r_dict.get('unit', '')
+                        "unit": r_dict.get('unit', ''),
+                        "unit_value": r_dict.get('unit_value', '')
                     })
 
         else:
@@ -230,7 +236,8 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                           "date": r_dict.get('item_date', ''),
                           "category": r_dict.get('category', ''),
                           "sub_category": r_dict.get('sub_category', ''),
-                          "unit": r_dict.get('unit', '')
+                          "unit": r_dict.get('unit', ''),
+                          "unit_value": r_dict.get('unit_value', '')
                       })
             else:
                 # List View Logic
@@ -257,7 +264,8 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                         "sub_location": subloc,
                         "category": r_dict.get('category', ''),
                         "sub_category": r_dict.get('sub_category', ''),
-                        "unit": r_dict.get('unit', '')
+                        "unit": r_dict.get('unit', ''),
+                        "unit_value": r_dict.get('unit_value', '')
                     })
                 
                 for s in sublocations: folders.append({"name": s})
@@ -387,6 +395,7 @@ async def register_services(hass, entry):
         cat = call.data.get("category")
         sub_cat = call.data.get("sub_category")
         unit = call.data.get("unit")
+        unit_value = call.data.get("unit_value")
 
         parts = call.data.get("current_path", [])
         is_folder = call.data.get("is_folder", False)
@@ -427,6 +436,7 @@ async def register_services(hass, entry):
                 if cat is not None: updates.append("category = ?"); params.append(cat)
                 if sub_cat is not None: updates.append("sub_category = ?"); params.append(sub_cat)
                 if unit is not None: updates.append("unit = ?"); params.append(unit)
+                if unit_value is not None: updates.append("unit_value = ?"); params.append(unit_value)
                 
                 if updates:
                     sql += ", ".join(updates)
