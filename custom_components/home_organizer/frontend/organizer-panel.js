@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.0.7 (Restored Full Formatting)
+// Home Organizer Ultimate - Ver 6.0.8 (Added Unit Value Input)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -2134,6 +2134,10 @@ class HomeOrganizerPanel extends HTMLElement {
                 <select class="move-select" id="cat-sub-${item.name}" onchange="this.getRootNode().host.updateItemCategory('${item.name}', this.value, 'sub')">
                     ${subCatOptions}
                 </select>
+                <!-- NEW: Unit Value Input -->
+                <input type="number" step="any" id="unit-val-${item.name}" value="${item.unit_value || ''}" placeholder="0" 
+                    style="width:60px;padding:8px;background:var(--bg-input-edit);color:var(--text-main);border:1px solid var(--border-light);border-radius:4px;text-align:center"
+                    onchange="this.getRootNode().host.updateItemCategory('${item.name}', null, 'val')">
                 <div id="unit-disp-${item.name}" style="background:var(--bg-badge);color:var(--text-badge);padding:4px 8px;border-radius:4px;font-size:11px;min-width:30px;text-align:center;">
                     ${currentUnit || '-'}
                 </div>
@@ -2160,10 +2164,12 @@ class HomeOrganizerPanel extends HTMLElement {
   updateItemCategory(itemName, value, type) {
       const mainSelect = this.shadowRoot.getElementById(`cat-main-${itemName}`);
       const subSelect = this.shadowRoot.getElementById(`cat-sub-${itemName}`);
+      const valInput = this.shadowRoot.getElementById(`unit-val-${itemName}`);
       const unitDisp = this.shadowRoot.getElementById(`unit-disp-${itemName}`);
       
       let mainCat = (type === 'main') ? value : mainSelect.value;
       let subCat = (type === 'sub') ? value : (type === 'main' ? "" : subSelect.value);
+      let unitVal = valInput ? valInput.value : "";
       let unit = "";
 
       // If Main Category changed, rebuild Sub Category options
@@ -2193,6 +2199,7 @@ class HomeOrganizerPanel extends HTMLElement {
           category: mainCat, 
           sub_category: subCat, 
           unit: unit,
+          unit_value: unitVal,
           current_path: this.currentPath
       });
   }
@@ -2304,6 +2311,7 @@ class HomeOrganizerPanel extends HTMLElement {
       titleSpan.replaceWith(input);
       input.focus();
       let isSaving = false;
+      
       const save = () => {
           if (isSaving) return;
           isSaving = true;
@@ -2314,12 +2322,27 @@ class HomeOrganizerPanel extends HTMLElement {
               newSpan.innerText = newVal;
               newSpan.style.opacity = '0.7';
               input.replaceWith(newSpan);
+              
+              // FIX: Resolve real name (which might include ORDER_MARKER_010_...)
               const realOldName = this.resolveRealName(oldName);
+              
+              // Calculate new name preserving marker prefix if it exists
               let finalNewName = newVal;
               const markerRegex = /^(ORDER_MARKER_\d+_)(.*)$/;
               const match = realOldName.match(markerRegex);
-              if (match) { finalNewName = match[1] + newVal; }
-              this.callHA('update_item_details', { original_name: realOldName, new_name: finalNewName, new_date: "", current_path: this.currentPath, is_folder: true }).catch(err => { newSpan.innerText = oldName; newSpan.style.opacity = '1'; alert("Failed to rename"); });
+              if (match) {
+                  finalNewName = match[1] + newVal; // Keep prefix, change name
+              }
+
+              this.callHA('update_item_details', { 
+                  original_name: realOldName, 
+                  new_name: finalNewName, 
+                  new_date: "", 
+                  current_path: this.currentPath, 
+                  is_folder: true 
+              }).catch(err => {
+                  newSpan.innerText = oldName; newSpan.style.opacity = '1'; alert("Failed to rename");
+              });
           } else {
               const originalSpan = document.createElement('span');
               originalSpan.className = 'subloc-title'; originalSpan.innerText = oldName; input.replaceWith(originalSpan);
