@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 5.5.1 (Fix Static Path Registration)
+# Home Organizer Ultimate - ver 6.0.0 (Added Category Support)
 
 import logging
 import sqlite3
@@ -12,7 +12,6 @@ from datetime import datetime, timedelta
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.components import panel_custom, websocket_api
-# CHANGED: Import StaticPathConfig
 from homeassistant.components.http import StaticPathConfig 
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .const import DOMAIN, CONF_API_KEY, CONF_DEBUG, CONF_USE_AI, DB_FILE, IMG_DIR, VERSION
@@ -31,8 +30,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if entry.options.get(CONF_DEBUG): _LOGGER.setLevel(logging.DEBUG)
 
-    # 1. REGISTER STATIC PATH (FIXED)
-    # This tells HA: "When browser asks for /home_organizer_static, serve files from my local frontend folder"
+    # 1. REGISTER STATIC PATH
     frontend_folder = os.path.join(os.path.dirname(__file__), "frontend")
     
     await hass.http.async_register_static_paths([
@@ -44,7 +42,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     ])
 
     # 2. REGISTER PANEL
-    # Pointing to the new STATIC_PATH_URL
     await panel_custom.async_register_panel(
         hass,
         webcomponent_name="home-organizer-panel",
@@ -94,18 +91,29 @@ def init_db(hass):
     conn = get_db_connection(hass)
     c = conn.cursor()
     cols = ", ".join([f"level_{i} TEXT" for i in range(1, MAX_LEVELS + 1)])
+    
+    # Create table with new category columns
     c.execute(f'''CREATE TABLE IF NOT EXISTS items (
         id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, type TEXT DEFAULT 'item',
         {cols}, item_date TEXT, quantity INTEGER DEFAULT 1, image_path TEXT,
+        category TEXT, sub_category TEXT, unit TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
     c.execute("PRAGMA table_info(items)")
     existing_cols = [col[1] for col in c.fetchall()]
     
+    # Migration: Add image_path if missing
     if 'image_path' not in existing_cols:
         try: c.execute("ALTER TABLE items ADD COLUMN image_path TEXT")
         except: pass
+
+    # Migration: Add Category columns if missing
+    for new_col in ['category', 'sub_category', 'unit']:
+        if new_col not in existing_cols:
+            try: c.execute(f"ALTER TABLE items ADD COLUMN {new_col} TEXT")
+            except: pass
         
+    # Migration: Add Levels if missing
     for i in range(1, MAX_LEVELS + 1):
         col_name = f"level_{i}"
         if col_name not in existing_cols:
@@ -174,7 +182,17 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                 fp = []; [fp.append(r_dict.get(f"level_{i}", "")) for i in range(1, MAX_LEVELS+1) if r_dict.get(f"level_{i}")]
                 if r_dict['type'] == 'item':
                     img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
-                    items.append({"name": r_dict['name'], "type": r_dict['type'], "qty": r_dict['quantity'], "date": r_dict['item_date'], "img": img, "location": " > ".join([p for p in fp if p])})
+                    items.append({
+                        "name": r_dict['name'], 
+                        "type": r_dict['type'], 
+                        "qty": r_dict['quantity'], 
+                        "date": r_dict['item_date'], 
+                        "img": img, 
+                        "location": " > ".join([p for p in fp if p]),
+                        "category": r_dict.get('category', ''),
+                        "sub_category": r_dict.get('sub_category', ''),
+                        "unit": r_dict.get('unit', '')
+                    })
 
         else:
             depth = len(path_parts)
@@ -187,7 +205,7 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                 c.execute(f"SELECT DISTINCT {col} FROM items WHERE {col} IS NOT NULL AND {col} != '' {sql_where} ORDER BY {col} ASC", tuple(params))
                 found_folders = [r[0] for r in c.fetchall()]
                 
-                # 2. Fetch images for these folders (look for folder_marker)
+                # 2. Fetch images for these folders
                 for f_name in found_folders:
                     marker_sql = f"SELECT image_path FROM items WHERE type='folder_marker' AND name=? {sql_where} AND {col}=?"
                     marker_params = [f"[Folder] {f_name}"] + params + [f_name]
@@ -204,7 +222,16 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                 for r in c.fetchall():
                       r_dict = dict(zip(col_names, r))
                       img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
-                      items.append({"name": r_dict['name'], "type": 'item', "qty": r_dict['quantity'], "img": img})
+                      items.append({
+                          "name": r_dict['name'], 
+                          "type": 'item', 
+                          "qty": r_dict['quantity'], 
+                          "img": img,
+                          "date": r_dict.get('item_date', ''),
+                          "category": r_dict.get('category', ''),
+                          "sub_category": r_dict.get('sub_category', ''),
+                          "unit": r_dict.get('unit', '')
+                      })
             else:
                 # List View Logic
                 sublocations = []
@@ -227,7 +254,10 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                         "qty": r_dict['quantity'], 
                         "date": r_dict['item_date'], 
                         "img": img, 
-                        "sub_location": subloc
+                        "sub_location": subloc,
+                        "category": r_dict.get('category', ''),
+                        "sub_category": r_dict.get('sub_category', ''),
+                        "unit": r_dict.get('unit', '')
                     })
                 
                 for s in sublocations: folders.append({"name": s})
@@ -352,6 +382,12 @@ async def register_services(hass, entry):
         orig = call.data.get("original_name")
         nn = call.data.get("new_name")
         nd = call.data.get("new_date")
+        
+        # New Category fields
+        cat = call.data.get("category")
+        sub_cat = call.data.get("sub_category")
+        unit = call.data.get("unit")
+
         parts = call.data.get("current_path", [])
         is_folder = call.data.get("is_folder", False)
 
@@ -382,8 +418,15 @@ async def register_services(hass, entry):
                 sql = "UPDATE items SET "
                 updates = []
                 params = []
+                
+                # Check what fields were actually passed
                 if nn and nn != orig: updates.append("name = ?"); params.append(nn)
-                if nd: updates.append("item_date = ?"); params.append(nd)
+                if nd is not None: updates.append("item_date = ?"); params.append(nd)
+                
+                # Categories
+                if cat is not None: updates.append("category = ?"); params.append(cat)
+                if sub_cat is not None: updates.append("sub_category = ?"); params.append(sub_cat)
+                if unit is not None: updates.append("unit = ?"); params.append(unit)
                 
                 if updates:
                     sql += ", ".join(updates)
