@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.2.3 (Duplicate Item & Translations)
+// Home Organizer Ultimate - Ver 6.2.4 (Autocomplete & Edit Logic)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -32,13 +32,13 @@ class HomeOrganizerPanel extends HTMLElement {
       this.isSearch = false;
       this.isShopMode = false;
       this.viewMode = 'list'; 
-      this.expandedIdx = null; // Now stores Item ID
+      this.expandedIdx = null; 
       this.lastAI = "";
       this.localData = null; 
       this.pendingItem = null;
-      this.pendingItemId = null; // For ID-based updates
+      this.pendingItemId = null; 
       this.useAiBg = true; 
-      this.shopQuantities = {}; // Keyed by ID now
+      this.shopQuantities = {}; 
       this.expandedSublocs = new Set(); 
       this.subscribed = false;
       this.pickerContext = 'room'; 
@@ -48,6 +48,7 @@ class HomeOrganizerPanel extends HTMLElement {
       
       this.translations = {}; 
       this.availableLangs = [];
+      this.allDbItems = []; // Store unique items for autocomplete
 
       try { 
           this.persistentIds = JSON.parse(localStorage.getItem('home_organizer_ids')) || {}; 
@@ -61,9 +62,8 @@ class HomeOrganizerPanel extends HTMLElement {
       this.currentLang = localStorage.getItem('home_organizer_lang') || 'en';
       
       this.initUI();
-      
-      // Fetch CSV on startup
-      this.loadTranslations(); 
+      this.loadTranslations();
+      this.fetchAllItems(); // Fetch items for autocomplete
     }
 
     if (this._hass && this._hass.connection && !this.subscribed) {
@@ -73,10 +73,19 @@ class HomeOrganizerPanel extends HTMLElement {
              if (e.data.mode === 'identify') { /* AI logic */ }
         }, 'home_organizer_ai_result');
         this.fetchData();
+        // Refresh full list occasionally or on update
+        this._hass.connection.subscribeEvents(() => this.fetchAllItems(), 'home_organizer_db_update');
     }
   }
 
-  // --- CSV TRANSLATION LOADER ---
+  async fetchAllItems() {
+      if (!this._hass) return;
+      try {
+          const items = await this._hass.callWS({ type: 'home_organizer/get_all_items' });
+          this.allDbItems = items || [];
+      } catch (e) { console.error("Failed to fetch all items", e); }
+  }
+
   async loadTranslations() {
       try {
           const timestamp = new Date().getTime();
@@ -95,43 +104,30 @@ class HomeOrganizerPanel extends HTMLElement {
   parseCSV(csvText) {
       const lines = csvText.split(/\r?\n/);
       if (lines.length < 2) return;
-      
       let headerLine = lines[0].trim();
-      if (headerLine.charCodeAt(0) === 0xFEFF) {
-          headerLine = headerLine.substr(1);
-      }
-      
+      if (headerLine.charCodeAt(0) === 0xFEFF) headerLine = headerLine.substr(1);
       const headers = headerLine.split(',').map(h => h.trim());
       this.availableLangs = headers.slice(1);
-      
       this.translations = {};
-
       for (let i = 1; i < lines.length; i++) {
           const row = lines[i].trim();
           if (!row) continue;
           const cols = row.split(',');
           const key = cols[0].trim();
-          
           if (!this.translations[key]) this.translations[key] = {};
-          
           for (let j = 1; j < headers.length; j++) {
               const langCode = headers[j];
               this.translations[key][langCode] = (cols[j] || "").trim();
           }
       }
-      
-      // Add manual translation key for duplicate if not in CSV (fallback)
       if (!this.translations['duplicate']) {
           this.translations['duplicate'] = { "en": "Duplicate", "he": "שכפל", "it": "Duplica", "es": "Duplicar", "fr": "Dupliquer", "ar": "تكرار" };
       }
-      
       this.changeLanguage(this.currentLang);
   }
 
   t(key, ...args) {
-      if (!this.translations[key]) {
-          return key.replace(/^cat_|^sub_|^unit_/, '').replace(/_/g, ' '); 
-      }
+      if (!this.translations[key]) return key.replace(/^cat_|^sub_|^unit_/, '').replace(/_/g, ' '); 
       let text = this.translations[key][this.currentLang] || this.translations[key]['en'] || key;
       args.forEach((arg, i) => { text = text.replace(`{${i}}`, arg); });
       return text;
@@ -170,15 +166,12 @@ class HomeOrganizerPanel extends HTMLElement {
           });
           this.localData = data;
           this.updateUI();
-      } catch (e) { 
-          console.error("Fetch error", e); 
-      }
+      } catch (e) { console.error("Fetch error", e); }
   }
 
   initUI() {
     this.content = true;
     this.attachShadow({mode: 'open'});
-    
     this.shadowRoot.innerHTML = `
       <style>
         :host { 
@@ -291,6 +284,36 @@ class HomeOrganizerPanel extends HTMLElement {
         .move-container { display: flex; gap: 5px; align-items: center; flex: 1; }
         .move-select { flex: 1; padding: 8px; background: var(--bg-input-edit); color: var(--text-main); border: 1px solid var(--border-light); border-radius: 6px; }
         .search-box { display:none; padding:10px; background:var(--bg-sub-bar); display:flex; gap: 5px; align-items: center; }
+        
+        .suggestions-box {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--bg-dropdown);
+            border: 1px solid var(--border-light);
+            border-radius: 4px;
+            z-index: 100;
+            max-height: 150px;
+            overflow-y: auto;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        .suggestion-item {
+            padding: 8px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .suggestion-item:hover {
+            background: var(--primary);
+            color: white;
+        }
+        .suggestion-img {
+            width: 24px; height: 24px; object-fit: cover; border-radius: 4px;
+        }
+        
         #icon-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2500; display: none; align-items: center; justify-content: center; flex-direction: column; }
         .modal-content { background: var(--bg-card); color:var(--text-main); width: 95%; max-width: 450px; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 15px; max-height: 90vh; overflow-y: auto; }
         .modal-title { font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 5px; }
