@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.1.6 (Strict CSV Translations & Text Unit Value)
+// Home Organizer Ultimate - Ver 6.2.0 (Strict CSV Translations & ID-Based Database Logic)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -36,6 +36,7 @@ class HomeOrganizerPanel extends HTMLElement {
       this.lastAI = "";
       this.localData = null; 
       this.pendingItem = null;
+      this.pendingItemId = null; // Store ID for uploads
       this.useAiBg = true; 
       this.shopQuantities = {};
       this.expandedSublocs = new Set(); 
@@ -79,14 +80,12 @@ class HomeOrganizerPanel extends HTMLElement {
   async loadTranslations() {
       try {
           const timestamp = new Date().getTime();
-          // Adjust path if your static setup is different
           const response = await fetch(`/home_organizer_static/translations.csv?v=${timestamp}`);
           if (!response.ok) throw new Error("CSV not found");
           const text = await response.text();
           this.parseCSV(text);
       } catch (err) {
           console.error("Failed to load translations:", err);
-          // Fallback minimal to prevent crash if CSV is missing
           this.availableLangs = ['en'];
           this.translations = { "_direction": { "en": "ltr" } };
           this.render();
@@ -97,15 +96,12 @@ class HomeOrganizerPanel extends HTMLElement {
       const lines = csvText.split(/\r?\n/);
       if (lines.length < 2) return;
       
-      // Header: Key, en, he, it...
-      // Handle potential BOM (Byte Order Mark) at start of file
       let headerLine = lines[0].trim();
       if (headerLine.charCodeAt(0) === 0xFEFF) {
           headerLine = headerLine.substr(1);
       }
       
       const headers = headerLine.split(',').map(h => h.trim());
-      // Identify languages (all columns after index 0)
       this.availableLangs = headers.slice(1);
       
       this.translations = {};
@@ -114,28 +110,22 @@ class HomeOrganizerPanel extends HTMLElement {
           const row = lines[i].trim();
           if (!row) continue;
           
-          // Split by comma.
           const cols = row.split(',');
           const key = cols[0].trim();
           
           if (!this.translations[key]) this.translations[key] = {};
           
-          // Map each column to language code
           for (let j = 1; j < headers.length; j++) {
               const langCode = headers[j];
               this.translations[key][langCode] = (cols[j] || "").trim();
           }
       }
       
-      // Re-apply language settings now that we have data
       this.changeLanguage(this.currentLang);
   }
 
-  // --- TRANSLATION HELPER ---
   t(key, ...args) {
       if (!this.translations[key]) {
-          // If key missing, return key formatted nicely
-          // This fallback helps while developing new keys
           return key.replace(/^cat_|^sub_|^unit_/, '').replace(/_/g, ' '); 
       }
       let text = this.translations[key][this.currentLang] || this.translations[key]['en'] || key;
@@ -143,7 +133,6 @@ class HomeOrganizerPanel extends HTMLElement {
       return text;
   }
   
-  // --- PERSISTENT ID LOGIC ---
   getPersistentID(scope, itemName) {
       if (!this.persistentIds[scope]) this.persistentIds[scope] = {};
       if (this.persistentIds[scope][itemName]) return this.persistentIds[scope][itemName];
@@ -186,7 +175,6 @@ class HomeOrganizerPanel extends HTMLElement {
     this.content = true;
     this.attachShadow({mode: 'open'});
     
-    // Default structure, will be updated by parseCSV
     this.shadowRoot.innerHTML = `
       <style>
         :host { 
@@ -1778,7 +1766,7 @@ class HomeOrganizerPanel extends HTMLElement {
          let mainCatOptions = `<option value="">${this.t('select_cat')}</option>`;
          Object.keys(ITEM_CATEGORIES).forEach(cat => {
              const selected = (item.category === cat) ? 'selected' : '';
-             mainCatOptions += `<option value="${cat}" ${selected}>${this.t('cat_' + cat.replace(/[^a-zA-Z0-9]+/g, '_')) || cat}</option>`;
+             mainCatOptions += `<option value="${cat}" ${selected}>${this.t('cat_' + cat.replace(/[^a-zA-Z0-9]/g, '_')) || cat}</option>`;
          });
 
          // Sub Category Options
