@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.1.3 (Strict CSV Import)
+// Home Organizer Ultimate - Ver 6.1.4 (Fix Translation Regex & Categories)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -125,7 +125,11 @@ class HomeOrganizerPanel extends HTMLElement {
 
   // --- TRANSLATION HELPER ---
   t(key, ...args) {
-      if (!this.translations[key]) return key.replace(/^cat_|^sub_/, '').replace(/_/g, ' '); // Fallback to formatted key name
+      if (!this.translations[key]) {
+          // If key missing, return key formatted nicely
+          // This fallback helps while developing new keys
+          return key.replace(/^cat_|^sub_|^unit_/, '').replace(/_/g, ' '); 
+      }
       let text = this.translations[key][this.currentLang] || this.translations[key]['en'] || key;
       args.forEach((arg, i) => { text = text.replace(`{${i}}`, arg); });
       return text;
@@ -1438,7 +1442,7 @@ class HomeOrganizerPanel extends HTMLElement {
       // 1. Reconstruct current sorted list from DOM/Data
       // We need to parse all markers to get current order
       const zones = [];
-      const markerRegex = /^ZONE_MARKER_(\d+)_(.*)$/;
+      const markerRegex = /^ZONE_MARKER_(\d+)_+(.*)$/;
       const seen = new Set();
 
       if (this.localData && this.localData.folders) {
@@ -1481,7 +1485,7 @@ class HomeOrganizerPanel extends HTMLElement {
       zones.forEach((z, index) => {
           const newOrder = (index + 1) * 10;
           const paddedOrder = String(newOrder).padStart(3, '0');
-          const newMarkerName = `ZONE_MARKER_${paddedOrder}_${z.name}`;
+          const newMarkerName = `ZONE_MARKER_${padded}_${z.name}`;
           
           if (z.markerName !== newMarkerName) {
               this.callHA('update_item_details', { 
@@ -1766,7 +1770,7 @@ class HomeOrganizerPanel extends HTMLElement {
          let mainCatOptions = `<option value="">${this.t('select_cat')}</option>`;
          Object.keys(ITEM_CATEGORIES).forEach(cat => {
              const selected = (item.category === cat) ? 'selected' : '';
-             mainCatOptions += `<option value="${cat}" ${selected}>${this.t('cat_' + cat.replace(/[^a-zA-Z0-9]/g, '_')) || cat}</option>`;
+             mainCatOptions += `<option value="${cat}" ${selected}>${this.t('cat_' + cat.replace(/[^a-zA-Z0-9]+/g, '_')) || cat}</option>`;
          });
 
          // Sub Category Options
@@ -1776,7 +1780,7 @@ class HomeOrganizerPanel extends HTMLElement {
              const subs = ITEM_CATEGORIES[item.category];
              Object.keys(subs).forEach(sub => {
                  const selected = (item.sub_category === sub) ? 'selected' : '';
-                 const transKey = 'sub_' + sub.replace(/[^a-zA-Z0-9]/g, '_');
+                 const transKey = 'sub_' + sub.replace(/[^a-zA-Z0-9]+/g, '_');
                  subCatOptions += `<option value="${sub}" ${selected}>${this.t(transKey) || sub}</option>`;
                  if (selected) currentUnit = subs[sub];
              });
@@ -1811,7 +1815,7 @@ class HomeOrganizerPanel extends HTMLElement {
                     style="width:60px;padding:8px;background:var(--bg-input-edit);color:var(--text-main);border:1px solid var(--border-light);border-radius:4px;text-align:center"
                     onchange="this.getRootNode().host.updateItemCategory('${item.name}', null, 'val')">
                 <div id="unit-disp-${item.name}" style="background:var(--bg-badge);color:var(--text-badge);padding:4px 8px;border-radius:4px;font-size:11px;min-width:30px;text-align:center;">
-                    ${currentUnit || '-'}
+                    ${this.t('unit_' + currentUnit) || currentUnit || '-'}
                 </div>
             </div>
 
@@ -1849,7 +1853,7 @@ class HomeOrganizerPanel extends HTMLElement {
           let html = `<option value="">${this.t('select_sub')}</option>`;
           if (mainCat && ITEM_CATEGORIES[mainCat]) {
               Object.keys(ITEM_CATEGORIES[mainCat]).forEach(sub => {
-                  const transKey = 'sub_' + sub.replace(/[^a-zA-Z0-9]/g, '_');
+                  const transKey = 'sub_' + sub.replace(/[^a-zA-Z0-9]+/g, '_');
                   html += `<option value="${sub}">${this.t(transKey) || sub}</option>`;
               });
           }
@@ -1861,7 +1865,7 @@ class HomeOrganizerPanel extends HTMLElement {
       // If Sub Category changed (or is present), update unit
       if (mainCat && subCat && ITEM_CATEGORIES[mainCat] && ITEM_CATEGORIES[mainCat][subCat]) {
           unit = ITEM_CATEGORIES[mainCat][subCat];
-          unitDisp.innerText = unit;
+          unitDisp.innerText = this.t('unit_' + unit) || unit;
       } else {
           unitDisp.innerText = "-";
       }
