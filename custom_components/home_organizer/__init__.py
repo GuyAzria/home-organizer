@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 6.0.2 (Added Unit Value Support)
+# Home Organizer Ultimate - ver 6.1.5 (Unit Value as Text)
 
 import logging
 import sqlite3
@@ -92,11 +92,11 @@ def init_db(hass):
     c = conn.cursor()
     cols = ", ".join([f"level_{i} TEXT" for i in range(1, MAX_LEVELS + 1)])
     
-    # Create table with new category columns
+    # Create table with new category columns and unit_value as TEXT
     c.execute(f'''CREATE TABLE IF NOT EXISTS items (
         id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, type TEXT DEFAULT 'item',
         {cols}, item_date TEXT, quantity INTEGER DEFAULT 1, image_path TEXT,
-        category TEXT, sub_category TEXT, unit TEXT, unit_value REAL,
+        category TEXT, sub_category TEXT, unit TEXT, unit_value TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
     c.execute("PRAGMA table_info(items)")
@@ -112,10 +112,10 @@ def init_db(hass):
         if new_col not in existing_cols:
             try: c.execute(f"ALTER TABLE items ADD COLUMN {new_col} TEXT")
             except: pass
-
-    # Migration: Add Unit Value if missing
+            
+    # Migration: Add unit_value if missing (TEXT)
     if 'unit_value' not in existing_cols:
-        try: c.execute("ALTER TABLE items ADD COLUMN unit_value REAL")
+        try: c.execute("ALTER TABLE items ADD COLUMN unit_value TEXT")
         except: pass
         
     # Migration: Add Levels if missing
