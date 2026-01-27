@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.2.4 (Autocomplete & Edit Logic)
+// Home Organizer Ultimate - Ver 6.2.6 (Fixed Autocomplete & Smart Update)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -81,6 +81,7 @@ class HomeOrganizerPanel extends HTMLElement {
   async fetchAllItems() {
       if (!this._hass) return;
       try {
+          // This command must exist in __init__.py
           const items = await this._hass.callWS({ type: 'home_organizer/get_all_items' });
           this.allDbItems = items || [];
       } catch (e) { console.error("Failed to fetch all items", e); }
@@ -285,6 +286,7 @@ class HomeOrganizerPanel extends HTMLElement {
         .move-select { flex: 1; padding: 8px; background: var(--bg-input-edit); color: var(--text-main); border: 1px solid var(--border-light); border-radius: 6px; }
         .search-box { display:none; padding:10px; background:var(--bg-sub-bar); display:flex; gap: 5px; align-items: center; }
         
+        /* --- AUTOCOMPLETE DROPDOWN STYLE --- */
         .suggestions-box {
             position: absolute;
             top: 100%;
@@ -293,10 +295,11 @@ class HomeOrganizerPanel extends HTMLElement {
             background: var(--bg-dropdown);
             border: 1px solid var(--border-light);
             border-radius: 4px;
-            z-index: 100;
+            z-index: 1000; /* Ensure it floats above subsequent elements */
             max-height: 150px;
             overflow-y: auto;
             box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            text-align: start; /* Supports RTL/LTR */
         }
         .suggestion-item {
             padding: 8px;
@@ -354,7 +357,7 @@ class HomeOrganizerPanel extends HTMLElement {
         <div class="top-bar">
             <div class="setup-wrapper">
                 <button class="nav-btn" id="btn-user-setup">
-                    <svg viewBox="0 0 24 24"><path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.35 19.43,11.03L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.47,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.53,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.22,8.95 2.27,9.22 2.46,9.37L4.57,11.03C4.53,11.35 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.22,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.53,18.67 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.47,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z" /></svg>
+                    <svg viewBox="0 0 24 24"><path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.35 19.43,11.03L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.47,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.53,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.22,8.95 2.27,9.22 2.46,9.37L4.57,11.03C4.53,11.35 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.22,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.53,18.67 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.47,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z" /></svg>
                 </button>
                 <div class="setup-dropdown" id="setup-dropdown-menu">
                     <!-- Dynamic Menu Container -->
@@ -516,6 +519,71 @@ class HomeOrganizerPanel extends HTMLElement {
     }
 
     this.bindEvents();
+  }
+  
+  // NEW: Input Handler for Autocomplete
+  handleNameInput(input, itemId) {
+      const val = input.value.toLowerCase();
+      // Use the closest positioned relative wrapper as the parent for the dropdown
+      const parent = input.parentElement; 
+      
+      // Remove old suggestions
+      const old = parent.querySelector('.suggestions-box');
+      if(old) old.remove();
+
+      if(val.length < 2) return;
+
+      const matches = this.allDbItems.filter(i => i.name.toLowerCase().startsWith(val));
+      if(matches.length === 0) return;
+
+      const box = document.createElement('div');
+      box.className = 'suggestions-box';
+      
+      // Limit to 5 suggestions
+      matches.slice(0, 5).forEach(match => {
+          const div = document.createElement('div');
+          div.className = 'suggestion-item';
+          let imgHtml = '';
+          if(match.image_path) {
+              imgHtml = `<img src="${match.image_path}" class="suggestion-img">`;
+          }
+          div.innerHTML = `${imgHtml}<span>${match.name}</span>`;
+          // Use mousedown to prevent blur from firing first
+          div.onmousedown = (e) => {
+              e.preventDefault(); // Prevent focus loss
+              this.applySuggestion(itemId, match);
+              box.remove();
+          };
+          box.appendChild(div);
+      });
+      
+      parent.appendChild(box);
+  }
+
+  // NEW: Apply Suggestion Logic
+  applySuggestion(itemId, match) {
+      const nameInput = this.shadowRoot.getElementById(`name-${itemId}`);
+      if(nameInput) nameInput.value = match.name;
+      
+      // Clean image path (strip prefix and params)
+      let cleanPath = null;
+      if (match.image_path) {
+          cleanPath = match.image_path.split('?')[0].split('/').pop();
+      }
+
+      this.callHA('update_item_details', {
+          item_id: itemId,
+          original_name: nameInput.value,
+          new_name: match.name,
+          category: match.category,
+          sub_category: match.sub_category,
+          unit: match.unit,
+          unit_value: match.unit_value,
+          image_path: cleanPath
+      });
+      
+      // Refresh UI to show new details
+      setTimeout(() => this.fetchData(), 200); 
   }
 
   // Generate Menu Items Dynamically from Loaded CSV Headers
@@ -1823,10 +1891,16 @@ class HomeOrganizerPanel extends HTMLElement {
 
          details.innerHTML = `
             <div class="detail-row">
-                <input type="text" id="name-${item.id}" value="${item.name}" 
-                    style="flex:1;padding:8px;background:var(--bg-input-edit);color:var(--text-main);border:1px solid var(--border-light);border-radius:4px;margin-inline-start:5px"
-                    onblur="this.getRootNode().host.autoSaveItem('${item.id}', 'name', '${item.name}')"
-                    onkeydown="if(event.key==='Enter') this.blur()">
+                <!-- Relative Wrapper for Autocomplete -->
+                <div style="position:relative; flex:1;">
+                    <input type="text" id="name-${item.id}" value="${item.name}" 
+                        style="width:100%;padding:8px;background:var(--bg-input-edit);color:var(--text-main);border:1px solid var(--border-light);border-radius:4px;margin-inline-start:5px"
+                        autocomplete="off"
+                        oninput="this.getRootNode().host.handleNameInput(this, '${item.id}')"
+                        onblur="setTimeout(() => { if(this.parentElement.querySelector('.suggestions-box')) this.parentElement.querySelector('.suggestions-box').remove() }, 200)"
+                        onkeydown="if(event.key==='Enter') { this.blur(); this.getRootNode().host.autoSaveItem('${item.id}', 'name', '${item.name}') }">
+                </div>
+
                 <div style="position:relative; width:120px; height:36px; margin-inline-start:5px;">
                     <button class="action-btn" style="width:100%; height:100%; text-align:center; padding:0; display:flex; align-items:center; justify-content:center; background:var(--bg-input-edit); color:var(--text-main); border:1px solid var(--border-light);"
                         onclick="this.nextElementSibling.showPicker()">
