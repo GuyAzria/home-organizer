@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 6.2.0 (ID-Based Item Keys)
+# Home Organizer Ultimate - ver 6.2.1 (Added Duplicate Logic)
 
 import logging
 import sqlite3
@@ -102,16 +102,18 @@ def init_db(hass):
     c.execute("PRAGMA table_info(items)")
     existing_cols = [col[1] for col in c.fetchall()]
     
-    # Migration checks
+    # Migration: Add image_path if missing
     if 'image_path' not in existing_cols:
         try: c.execute("ALTER TABLE items ADD COLUMN image_path TEXT")
         except: pass
 
+    # Migration: Add Category columns if missing
     for new_col in ['category', 'sub_category', 'unit', 'unit_value']:
         if new_col not in existing_cols:
             try: c.execute(f"ALTER TABLE items ADD COLUMN {new_col} TEXT")
             except: pass
         
+    # Migration: Add Levels if missing
     for i in range(1, MAX_LEVELS + 1):
         col_name = f"level_{i}"
         if col_name not in existing_cols:
@@ -325,9 +327,25 @@ async def register_services(hass, entry):
             await hass.async_add_executor_job(db_ins)
 
         broadcast_update()
+        
+    # NEW: Duplicate Item Service
+    async def handle_duplicate(call):
+        item_id = call.data.get("item_id")
+        if not item_id: return
+        def db_dup():
+            conn = get_db_connection(hass); c = conn.cursor()
+            # Dynamically get columns to copy, excluding id and timestamps
+            c.execute("PRAGMA table_info(items)")
+            columns = [col[1] for col in c.fetchall() if col[1] not in ('id', 'created_at')]
+            col_str = ", ".join(columns)
+            
+            # Insert exact copy
+            c.execute(f"INSERT INTO items ({col_str}) SELECT {col_str} FROM items WHERE id = ?", (item_id,))
+            conn.commit(); conn.close()
+        await hass.async_add_executor_job(db_dup)
+        broadcast_update()
 
     async def handle_update_qty(call):
-        # CHANGED: Use item_id
         item_id = call.data.get("item_id")
         change = int(call.data.get("change"))
         today = datetime.now().strftime("%Y-%m-%d")
@@ -339,7 +357,6 @@ async def register_services(hass, entry):
         await hass.async_add_executor_job(db_q); broadcast_update()
 
     async def handle_update_stock(call):
-        # CHANGED: Use item_id
         item_id = call.data.get("item_id")
         qty = int(call.data.get("quantity"))
         today = datetime.now().strftime("%Y-%m-%d")
@@ -351,7 +368,6 @@ async def register_services(hass, entry):
         await hass.async_add_executor_job(db_upd); broadcast_update()
 
     async def handle_delete(call):
-        # CHANGED: Use item_id for items
         item_id = call.data.get("item_id")
         name = call.data.get("item_name")
         parts = call.data.get("current_path", [])
@@ -372,7 +388,6 @@ async def register_services(hass, entry):
                 if item_id:
                     c.execute(f"DELETE FROM items WHERE id = ?", (item_id,))
                 else:
-                    # Fallback to name if ID missing (legacy)
                     c.execute(f"DELETE FROM items WHERE name = ?", (name,))
             conn.commit(); conn.close()
         await hass.async_add_executor_job(db_del); broadcast_update()
@@ -382,7 +397,6 @@ async def register_services(hass, entry):
         clipboard = hass.data.get(DOMAIN, {}).get("clipboard") 
         if not clipboard: return
         
-        # Clipboard can be just name (legacy) or dict with id
         item_id = clipboard.get("id") if isinstance(clipboard, dict) else None
         item_name = clipboard.get("name") if isinstance(clipboard, dict) else clipboard
 
@@ -412,11 +426,10 @@ async def register_services(hass, entry):
             hass.data[DOMAIN]["clipboard"] = None
 
     async def handle_update_item_details(call):
-        item_id = call.data.get("item_id") # NEW
+        item_id = call.data.get("item_id")
         orig = call.data.get("original_name")
         nn = call.data.get("new_name")
         nd = call.data.get("new_date")
-        
         cat = call.data.get("category")
         sub_cat = call.data.get("sub_category")
         unit = call.data.get("unit")
@@ -429,7 +442,6 @@ async def register_services(hass, entry):
             conn = get_db_connection(hass); c = conn.cursor()
             
             if is_folder:
-                # Folders must still use Path/Name logic as they represent a grouping of columns
                 depth = len(parts)
                 if depth < MAX_LEVELS:
                     target_col = f"level_{depth+1}"
@@ -441,16 +453,15 @@ async def register_services(hass, entry):
                     
                     c.execute(f"UPDATE items SET {target_col} = ? WHERE {where_clause}", [nn] + where_args)
                     
-                    # Update marker
                     marker_where = f"{target_col} = ?"
                     marker_args = [nn] 
                     for i, p in enumerate(parts):
                         marker_where += f" AND level_{i+1} = ?"
                         marker_args.append(p)
+                    
                     c.execute(f"UPDATE items SET name = ? WHERE type = 'folder_marker' AND name = ? AND {marker_where}", 
                               (f"[Folder] {nn}", f"[Folder] {orig}", *marker_args))
             else:
-                # Items use ID
                 sql = "UPDATE items SET "
                 updates = []
                 params = []
@@ -471,7 +482,6 @@ async def register_services(hass, entry):
                     else:
                         sql += " WHERE name = ?"
                         params.append(orig)
-                        # Fallback filtering by path for name-based updates
                         if parts:
                             for i, p in enumerate(parts): sql += f" AND level_{i+1} = ?"; params.append(p)
 
@@ -523,6 +533,6 @@ async def register_services(hass, entry):
         ("add_item", handle_add), ("update_image", handle_update_image),
         ("update_stock", handle_update_stock), ("update_qty", handle_update_qty), ("delete_item", handle_delete),
         ("clipboard_action", handle_clipboard), ("paste_item", handle_paste), ("ai_action", handle_ai_action),
-        ("update_item_details", handle_update_item_details)
+        ("update_item_details", handle_update_item_details), ("duplicate_item", handle_duplicate)
     ]:
         hass.services.async_register(DOMAIN, n, h)
