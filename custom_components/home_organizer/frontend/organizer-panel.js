@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.2.6 (Fixed Autocomplete & Smart Update)
+// Home Organizer Ultimate - Ver 6.2.7 (Fixed Autocomplete UI & Logic)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -81,7 +81,6 @@ class HomeOrganizerPanel extends HTMLElement {
   async fetchAllItems() {
       if (!this._hass) return;
       try {
-          // This command must exist in __init__.py
           const items = await this._hass.callWS({ type: 'home_organizer/get_all_items' });
           this.allDbItems = items || [];
       } catch (e) { console.error("Failed to fetch all items", e); }
@@ -286,7 +285,6 @@ class HomeOrganizerPanel extends HTMLElement {
         .move-select { flex: 1; padding: 8px; background: var(--bg-input-edit); color: var(--text-main); border: 1px solid var(--border-light); border-radius: 6px; }
         .search-box { display:none; padding:10px; background:var(--bg-sub-bar); display:flex; gap: 5px; align-items: center; }
         
-        /* --- AUTOCOMPLETE DROPDOWN STYLE --- */
         .suggestions-box {
             position: absolute;
             top: 100%;
@@ -295,26 +293,29 @@ class HomeOrganizerPanel extends HTMLElement {
             background: var(--bg-dropdown);
             border: 1px solid var(--border-light);
             border-radius: 4px;
-            z-index: 1000; /* Ensure it floats above subsequent elements */
+            z-index: 10000; /* Increased to ensure visibility */
             max-height: 150px;
             overflow-y: auto;
             box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-            text-align: start; /* Supports RTL/LTR */
+            text-align: inherit; /* Align based on RTL/LTR */
+            padding: 5px 0;
         }
         .suggestion-item {
-            padding: 8px;
+            padding: 10px;
             cursor: pointer;
             border-bottom: 1px solid var(--border-color);
             display: flex;
             align-items: center;
             gap: 10px;
+            background: var(--bg-card); /* Ensure solid background */
+            color: var(--text-main);
         }
         .suggestion-item:hover {
             background: var(--primary);
             color: white;
         }
         .suggestion-img {
-            width: 24px; height: 24px; object-fit: cover; border-radius: 4px;
+            width: 30px; height: 30px; object-fit: cover; border-radius: 4px; border: 1px solid #444;
         }
         
         #icon-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2500; display: none; align-items: center; justify-content: center; flex-direction: column; }
@@ -1533,7 +1534,7 @@ class HomeOrganizerPanel extends HTMLElement {
       // 1. Reconstruct current sorted list from DOM/Data
       // We need to parse all markers to get current order
       const zones = [];
-      const markerRegex = /^ZONE_MARKER_(\d+)_+(.*)$/;
+      const markerRegex = /^ZONE_MARKER_(\d+)_(.*)$/;
       const seen = new Set();
 
       if (this.localData && this.localData.folders) {
