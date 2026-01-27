@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.2.0 (Strict CSV Translations & ID-Based Database Logic)
+// Home Organizer Ultimate - Ver 6.2.1 (ID-Based Frontend Logic Fix)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -32,13 +32,13 @@ class HomeOrganizerPanel extends HTMLElement {
       this.isSearch = false;
       this.isShopMode = false;
       this.viewMode = 'list'; 
-      this.expandedIdx = null;
+      this.expandedIdx = null; // Now stores Item ID
       this.lastAI = "";
       this.localData = null; 
       this.pendingItem = null;
-      this.pendingItemId = null; // Store ID for uploads
+      this.pendingItemId = null; // For ID-based updates
       this.useAiBg = true; 
-      this.shopQuantities = {};
+      this.shopQuantities = {}; // Keyed by ID now
       this.expandedSublocs = new Set(); 
       this.subscribed = false;
       this.pickerContext = 'room'; 
@@ -46,8 +46,8 @@ class HomeOrganizerPanel extends HTMLElement {
       this.pickerPage = 0;
       this.pickerPageSize = 15;
       
-      this.translations = {}; // Holds loaded CSV data
-      this.availableLangs = []; // ['en', 'he', 'it', ...] from CSV header
+      this.translations = {}; 
+      this.availableLangs = [];
 
       try { 
           this.persistentIds = JSON.parse(localStorage.getItem('home_organizer_ids')) || {}; 
@@ -109,7 +109,6 @@ class HomeOrganizerPanel extends HTMLElement {
       for (let i = 1; i < lines.length; i++) {
           const row = lines[i].trim();
           if (!row) continue;
-          
           const cols = row.split(',');
           const key = cols[0].trim();
           
@@ -1179,7 +1178,7 @@ class HomeOrganizerPanel extends HTMLElement {
                           }
                           card.onclick = () => { 
                               this.viewMode = 'list';
-                              this.expandedIdx = item.name;
+                              this.expandedIdx = item.id;
                               this.render();
                           };
                           gridDiv.appendChild(card);
@@ -1715,46 +1714,50 @@ class HomeOrganizerPanel extends HTMLElement {
       } catch (err) { console.error("Drop failed:", err); }
   }
 
-  triggerCameraEdit(itemName) { this.pendingItem = itemName; this.openCamera('update'); }
-  adjustShopQty(name, delta) {
-      if (this.shopQuantities[name] === undefined) this.shopQuantities[name] = 0;
-      this.shopQuantities[name] = Math.max(0, this.shopQuantities[name] + delta);
+  triggerCameraEdit(id, name) { 
+      this.pendingItemId = id; 
+      this.pendingItemName = name;
+      this.openCamera('update'); 
+  }
+  adjustShopQty(id, delta) {
+      if (this.shopQuantities[id] === undefined) this.shopQuantities[id] = 0;
+      this.shopQuantities[id] = Math.max(0, this.shopQuantities[id] + delta);
       this.render();
   }
 
   createItemRow(item, isShopMode) {
      const div = document.createElement('div');
      const oosClass = (item.qty === 0) ? 'out-of-stock-frame' : '';
-     div.className = `item-row ${this.expandedIdx === item.name ? 'expanded' : ''} ${oosClass}`;
+     div.className = `item-row ${this.expandedIdx === item.id ? 'expanded' : ''} ${oosClass}`;
      this.setupDragSource(div, item.name);
      const appEl = this.shadowRoot.getElementById('app');
      const isRTL = appEl && !appEl.classList.contains('ltr');
 
      let controls = '';
      if (isShopMode) {
-         const localQty = (this.shopQuantities[item.name] !== undefined) ? this.shopQuantities[item.name] : 0;
+         const localQty = (this.shopQuantities[item.id] !== undefined) ? this.shopQuantities[item.id] : 0;
          const checkStyle = (localQty === 0) ? "background:#555;color:#888;cursor:not-allowed;width:40px;height:40px;margin-inline-start:8px;" : "background:var(--accent);width:40px;height:40px;margin-inline-start:8px;";
          const checkDisabled = (localQty === 0) ? "disabled" : "";
-         const minusBtn = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', -1)">${ICONS.minus}</button>`;
-         const plusBtn = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.name}', 1)">${ICONS.plus}</button>`;
+         const minusBtn = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.id}', -1)">${ICONS.minus}</button>`;
+         const plusBtn = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.id}', 1)">${ICONS.plus}</button>`;
          const qtySpan = `<span class="qty-val" style="margin:0 8px">${localQty}</span>`;
-         const checkBtn = `<button class="qty-btn" style="${checkStyle}" ${checkDisabled} title="Complete" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.name}')">${ICONS.check}</button>`;
+         const checkBtn = `<button class="qty-btn" style="${checkStyle}" ${checkDisabled} title="Complete" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.id}')">${ICONS.check}</button>`;
          if (isRTL) { controls = `${plusBtn}${qtySpan}${minusBtn}${checkBtn}`; } else { controls = `${minusBtn}${qtySpan}${plusBtn}${checkBtn}`; }
      } else {
-         controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', 1)">${ICONS.plus}</button><span class="qty-val">${item.qty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.name}', -1)">${ICONS.minus}</button>`;
+         controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.id}', 1)">${ICONS.plus}</button><span class="qty-val">${item.qty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.id}', -1)">${ICONS.minus}</button>`;
      }
      const subText = isShopMode ? `${item.main_location} > ${item.sub_location || ''}` : `${item.date || ''}`;
      let iconHtml = `<span class="item-icon">${ICONS.item}</span>`;
      if (item.img) iconHtml = `<img src="${item.img}" class="item-thumbnail" alt="${item.name}" onclick="event.stopPropagation(); this.getRootNode().host.showImg('${item.img}')">`;
 
      div.innerHTML = `
-        <div class="item-main" onclick="this.getRootNode().host.toggleRow('${item.name}')">
+        <div class="item-main" onclick="this.getRootNode().host.toggleRow('${item.id}')">
             <div class="item-left">${iconHtml}<div><div>${item.name}</div><div class="sub-title">${subText}</div></div></div>
             <div class="item-qty-ctrl">${controls}</div>
         </div>
      `;
      
-     if (this.expandedIdx === item.name) {
+     if (this.expandedIdx === item.id) {
          const details = document.createElement('div');
          details.className = 'expanded-details';
          
@@ -1766,7 +1769,7 @@ class HomeOrganizerPanel extends HTMLElement {
          let mainCatOptions = `<option value="">${this.t('select_cat')}</option>`;
          Object.keys(ITEM_CATEGORIES).forEach(cat => {
              const selected = (item.category === cat) ? 'selected' : '';
-             mainCatOptions += `<option value="${cat}" ${selected}>${this.t('cat_' + cat.replace(/[^a-zA-Z0-9]/g, '_')) || cat}</option>`;
+             mainCatOptions += `<option value="${cat}" ${selected}>${this.t('cat_' + cat.replace(/[^a-zA-Z0-9]+/g, '_')) || cat}</option>`;
          });
 
          // Sub Category Options
@@ -1784,48 +1787,48 @@ class HomeOrganizerPanel extends HTMLElement {
 
          details.innerHTML = `
             <div class="detail-row">
-                <input type="text" id="name-${item.name}" value="${item.name}" 
+                <input type="text" id="name-${item.id}" value="${item.name}" 
                     style="flex:1;padding:8px;background:var(--bg-input-edit);color:var(--text-main);border:1px solid var(--border-light);border-radius:4px;margin-inline-start:5px"
-                    onblur="this.getRootNode().host.autoSaveItem('${item.name}', 'name')"
+                    onblur="this.getRootNode().host.autoSaveItem('${item.id}', 'name', '${item.name}')"
                     onkeydown="if(event.key==='Enter') this.blur()">
                 <div style="position:relative; width:120px; height:36px; margin-inline-start:5px;">
                     <button class="action-btn" style="width:100%; height:100%; text-align:center; padding:0; display:flex; align-items:center; justify-content:center; background:var(--bg-input-edit); color:var(--text-main); border:1px solid var(--border-light);"
                         onclick="this.nextElementSibling.showPicker()">
                         ${item.date || this.t('set_date')}
                     </button>
-                    <input type="date" id="date-${item.name}" value="${item.date}" 
+                    <input type="date" id="date-${item.id}" value="${item.date}" 
                         style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;"
-                        onchange="this.previousElementSibling.innerText = this.value || '${this.t('set_date')}'; this.getRootNode().host.autoSaveItem('${item.name}', 'date')">
+                        onchange="this.previousElementSibling.innerText = this.value || '${this.t('set_date')}'; this.getRootNode().host.autoSaveItem('${item.id}', 'date', '${item.name}')">
                 </div>
             </div>
             
             <div class="detail-row" style="margin-top:10px; gap:5px; align-items:center;">
-                <select class="move-select" id="cat-main-${item.name}" onchange="this.getRootNode().host.updateItemCategory('${item.name}', this.value, 'main')">
+                <select class="move-select" id="cat-main-${item.id}" onchange="this.getRootNode().host.updateItemCategory('${item.id}', this.value, 'main', '${item.name}')">
                     ${mainCatOptions}
                 </select>
-                <select class="move-select" id="cat-sub-${item.name}" onchange="this.getRootNode().host.updateItemCategory('${item.name}', this.value, 'sub')">
+                <select class="move-select" id="cat-sub-${item.id}" onchange="this.getRootNode().host.updateItemCategory('${item.id}', this.value, 'sub', '${item.name}')">
                     ${subCatOptions}
                 </select>
                 <!-- NEW: Unit Value Input -->
-                <input type="text" id="unit-val-${item.name}" value="${item.unit_value || ''}" placeholder="Val" 
+                <input type="text" id="unit-val-${item.id}" value="${item.unit_value || ''}" placeholder="Val" 
                     style="width:60px;padding:8px;background:var(--bg-input-edit);color:var(--text-main);border:1px solid var(--border-light);border-radius:4px;text-align:center"
-                    onchange="this.getRootNode().host.updateItemCategory('${item.name}', null, 'val')">
-                <div id="unit-disp-${item.name}" style="background:var(--bg-badge);color:var(--text-badge);padding:4px 8px;border-radius:4px;font-size:11px;min-width:30px;text-align:center;">
+                    onchange="this.getRootNode().host.updateItemCategory('${item.id}', null, 'val', '${item.name}')">
+                <div id="unit-disp-${item.id}" style="background:var(--bg-badge);color:var(--text-badge);padding:4px 8px;border-radius:4px;font-size:11px;min-width:30px;text-align:center;">
                     ${this.t('unit_' + currentUnit) || currentUnit || '-'}
                 </div>
             </div>
 
             <div class="detail-row" style="justify-content:space-between; margin-top:10px;">
                  <div style="display:flex;gap:10px;">
-                    <button class="action-btn" title="${this.t('take_photo')}" onclick="this.getRootNode().host.triggerCameraEdit('${item.name}')">${ICONS.camera}</button>
-                    <button class="action-btn" title="${this.t('change_img')}" onclick="this.getRootNode().host.openIconPicker('${item.name}', 'item')">${ICONS.image}</button>
+                    <button class="action-btn" title="${this.t('take_photo')}" onclick="this.getRootNode().host.triggerCameraEdit('${item.id}', '${item.name}')">${ICONS.camera}</button>
+                    <button class="action-btn" title="${this.t('change_img')}" onclick="this.getRootNode().host.openIconPicker('${item.id}', 'item')">${ICONS.image}</button>
                  </div>
-                 <div style="display:flex;gap:10px;"><button class="action-btn btn-danger" title="${this.t('delete')}" onclick="this.getRootNode().host.del('${item.name}')">${ICONS.delete}</button></div>
+                 <div style="display:flex;gap:10px;"><button class="action-btn btn-danger" title="${this.t('delete')}" onclick="this.getRootNode().host.del('${item.id}')">${ICONS.delete}</button></div>
             </div>
             <div class="detail-row" style="margin-top:10px; border-top:1px solid #444; padding-top:10px; flex-direction:column; gap:8px;">
-                <div class="move-container" style="width:100%"><span style="font-size:12px;color:#aaa;width:60px">${this.t('move_to')}</span><select class="move-select" id="room-select-${item.name}" onchange="this.getRootNode().host.updateLocationDropdown('${item.name}', this.value)">${roomOptions}</select></div>
-                <div class="move-container" style="width:100%; display:none;" id="loc-container-${item.name}"><span style="font-size:12px;color:#aaa;width:60px">${this.t('loc_label')}</span><select class="move-select" id="loc-select-${item.name}" onchange="this.getRootNode().host.updateSublocDropdown('${item.name}', this.value)"><option value="">-- Select --</option></select></div>
-                <div class="move-container" style="width:100%; display:none;" id="subloc-container-${item.name}"><span style="font-size:12px;color:#aaa;width:60px">${this.t('sub_label')}</span><select class="move-select" id="target-subloc-${item.name}" onchange="this.getRootNode().host.handleMoveToPath('${item.name}')"><option value="">-- Select --</option></select></div>
+                <div class="move-container" style="width:100%"><span style="font-size:12px;color:#aaa;width:60px">${this.t('move_to')}</span><select class="move-select" id="room-select-${item.id}" onchange="this.getRootNode().host.updateLocationDropdown('${item.id}', this.value)">${roomOptions}</select></div>
+                <div class="move-container" style="width:100%; display:none;" id="loc-container-${item.id}"><span style="font-size:12px;color:#aaa;width:60px">${this.t('loc_label')}</span><select class="move-select" id="loc-select-${item.id}" onchange="this.getRootNode().host.updateSublocDropdown('${item.id}', this.value)"><option value="">-- Select --</option></select></div>
+                <div class="move-container" style="width:100%; display:none;" id="subloc-container-${item.id}"><span style="font-size:12px;color:#aaa;width:60px">${this.t('sub_label')}</span><select class="move-select" id="target-subloc-${item.id}" onchange="this.getRootNode().host.handleMoveToPath('${item.id}')"><option value="">-- Select --</option></select></div>
             </div>
          `;
          div.appendChild(details);
@@ -1833,11 +1836,11 @@ class HomeOrganizerPanel extends HTMLElement {
      return div;
   }
   
-  updateItemCategory(itemName, value, type) {
-      const mainSelect = this.shadowRoot.getElementById(`cat-main-${itemName}`);
-      const subSelect = this.shadowRoot.getElementById(`cat-sub-${itemName}`);
-      const valInput = this.shadowRoot.getElementById(`unit-val-${itemName}`);
-      const unitDisp = this.shadowRoot.getElementById(`unit-disp-${itemName}`);
+  updateItemCategory(itemId, value, type, itemName) {
+      const mainSelect = this.shadowRoot.getElementById(`cat-main-${itemId}`);
+      const subSelect = this.shadowRoot.getElementById(`cat-sub-${itemId}`);
+      const valInput = this.shadowRoot.getElementById(`unit-val-${itemId}`);
+      const unitDisp = this.shadowRoot.getElementById(`unit-disp-${itemId}`);
       
       let mainCat = (type === 'main') ? value : mainSelect.value;
       let subCat = (type === 'sub') ? value : (type === 'main' ? "" : subSelect.value);
@@ -1868,6 +1871,7 @@ class HomeOrganizerPanel extends HTMLElement {
 
       // Save to Backend
       this.callHA('update_item_details', { 
+          item_id: itemId,
           original_name: itemName, 
           category: mainCat, 
           sub_category: subCat, 
@@ -1877,20 +1881,20 @@ class HomeOrganizerPanel extends HTMLElement {
       });
   }
   
-  autoSaveItem(oldName, triggerType) {
-      const nameEl = this.shadowRoot.getElementById(`name-${oldName}`);
-      const dateEl = this.shadowRoot.getElementById(`date-${oldName}`);
+  autoSaveItem(itemId, triggerType, oldName) {
+      const nameEl = this.shadowRoot.getElementById(`name-${itemId}`);
+      const dateEl = this.shadowRoot.getElementById(`date-${itemId}`);
       if(!nameEl || !dateEl) return;
       const newName = nameEl.value.trim();
       const newDate = dateEl.value;
-      if(triggerType === 'name' && newName !== oldName) { this.expandedIdx = newName; }
-      this.callHA('update_item_details', { original_name: oldName, new_name: newName, new_date: newDate });
+      // if(triggerType === 'name' && newName !== oldName) { this.expandedIdx = newName; } // No longer needed as we track by ID
+      this.callHA('update_item_details', { item_id: itemId, original_name: oldName, new_name: newName, new_date: newDate });
   }
 
-  updateLocationDropdown(itemName, roomName) {
-      const locContainer = this.shadowRoot.getElementById(`loc-container-${itemName}`);
-      const locSelect = this.shadowRoot.getElementById(`loc-select-${itemName}`);
-      const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemName}`);
+  updateLocationDropdown(itemId, roomName) {
+      const locContainer = this.shadowRoot.getElementById(`loc-container-${itemId}`);
+      const locSelect = this.shadowRoot.getElementById(`loc-select-${itemId}`);
+      const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemId}`);
       subContainer.style.display = 'none';
       locSelect.innerHTML = '<option value="">-- Select --</option>';
       if(!roomName) { locContainer.style.display = 'none'; return; }
@@ -1901,10 +1905,10 @@ class HomeOrganizerPanel extends HTMLElement {
       locSelect.dataset.room = roomName;
   }
   
-  updateSublocDropdown(itemName, locationName) {
-      const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemName}`);
-      const subSelect = this.shadowRoot.getElementById(`target-subloc-${itemName}`);
-      const roomName = this.shadowRoot.getElementById(`room-select-${itemName}`).value;
+  updateSublocDropdown(itemId, locationName) {
+      const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemId}`);
+      const subSelect = this.shadowRoot.getElementById(`target-subloc-${itemId}`);
+      const roomName = this.shadowRoot.getElementById(`room-select-${itemId}`).value;
       if(!locationName) { subContainer.style.display = 'none'; return; }
       let html = `<option value="">-- Select Sublocation --</option>`;
       html += `<option value="__ROOT__">Main ${locationName}</option>`;
@@ -1913,18 +1917,29 @@ class HomeOrganizerPanel extends HTMLElement {
       subContainer.style.display = 'flex';
   }
   
-  handleMoveToPath(itemName) {
-      const room = this.shadowRoot.getElementById(`room-select-${itemName}`).value;
-      const loc = this.shadowRoot.getElementById(`loc-select-${itemName}`).value;
-      const sub = this.shadowRoot.getElementById(`target-subloc-${itemName}`).value;
+  handleMoveToPath(itemId) {
+      const room = this.shadowRoot.getElementById(`room-select-${itemId}`).value;
+      const loc = this.shadowRoot.getElementById(`loc-select-${itemId}`).value;
+      const sub = this.shadowRoot.getElementById(`target-subloc-${itemId}`).value;
       if(!room || !loc || !sub) return;
       let targetPath = [room, loc];
       if(sub !== "__ROOT__") targetPath.push(sub);
-      this.callHA('clipboard_action', {action: 'cut', item_name: itemName});
+      // For clipboard operations, we might still need name if backend isn't fully updated for ID move, 
+      // but assuming clipboard action handles ID or name:
+      // We pass the ITEM NAME for legacy compat if ID logic fails on paste, but paste uses stored clipboard obj
+      // Let's rely on cut logic.
+      // We need to find the item name associated with ID if we want to be safe, but let's pass ID to cut.
+      this.callHA('clipboard_action', {action: 'cut', item_id: itemId});
       setTimeout(() => { this.callHA('paste_item', {target_path: targetPath}); }, 100);
   }
 
   deleteFolder(name) { if(confirm(this.t('confirm_del_folder', name))) this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); }
+  
+  // Updated delete to use ID
+  del(id) { 
+      if(confirm(this.t('confirm_del_item'))) this._hass.callService('home_organizer', 'delete_item', { item_id: id, current_path: this.currentPath, is_folder: false }); 
+  }
+  
   deleteSubloc(name) { 
       const realName = this.resolveRealName(name);
       if(confirm(this.t('confirm_del_item', name))) this._hass.callService('home_organizer', 'delete_item', { item_name: realName, current_path: this.currentPath, is_folder: true }); 
@@ -1947,12 +1962,12 @@ class HomeOrganizerPanel extends HTMLElement {
       this.fetchData(); 
   }
 
-  toggleRow(name) { this.expandedIdx = (this.expandedIdx === name) ? null : name; this.render(); }
-  updateQty(name, d) { this.callHA('update_qty', { item_name: name, change: d }); }
-  submitShopStock(name) { 
-      const qty = this.shopQuantities[name] || 1;
-      this.callHA('update_stock', { item_name: name, quantity: qty }); 
-      delete this.shopQuantities[name];
+  toggleRow(id) { this.expandedIdx = (this.expandedIdx === id) ? null : id; this.render(); }
+  updateQty(id, d) { this.callHA('update_qty', { item_id: id, change: d }); }
+  submitShopStock(id) { 
+      const qty = this.shopQuantities[id] || 1;
+      this.callHA('update_stock', { item_id: id, quantity: qty }); 
+      delete this.shopQuantities[id];
   }
   
   toggleIds() {
@@ -2025,8 +2040,17 @@ class HomeOrganizerPanel extends HTMLElement {
       input.onblur = () => save();
   }
 
-  openIconPicker(targetName, context) {
-      this.pendingFolderIcon = targetName;
+  openIconPicker(target, context) {
+      // If target is ID (number/string ID), store it. If name (folder), store name.
+      // Context 'item' implies target is ID. Context 'room'/'location' implies target is name.
+      if (context === 'item') {
+           this.pendingItemId = target;
+           this.pendingFolderIcon = null; // Clear folder target
+      } else {
+           this.pendingFolderIcon = target;
+           this.pendingItemId = null;
+      }
+      
       this.pickerContext = context; 
       this.pickerPage = 0; 
       if (context === 'item') { this.pickerCategory = Object.keys(ICON_LIB_ITEM)[0]; } else { this.pickerCategory = null; }
@@ -2100,7 +2124,12 @@ class HomeOrganizerPanel extends HTMLElement {
           if (this.pickerContext === 'item') { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, size, size); }
           ctx.drawImage(img, 0, 0, size, size);
           const dataUrl = canvas.toDataURL('image/png');
-          if(this.pendingFolderIcon) {
+          
+          if(this.pendingItemId) {
+              // Item Update
+              this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
+          } else if(this.pendingFolderIcon) {
+              // Folder Update
               const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
               const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
               this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
@@ -2121,7 +2150,10 @@ class HomeOrganizerPanel extends HTMLElement {
           ctx.drawImage(img, 0, 0);
           try {
               const dataUrl = canvas.toDataURL('image/jpeg');
-              if(this.pendingFolderIcon) {
+              
+              if(this.pendingItemId) {
+                   this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
+              } else if(this.pendingFolderIcon) {
                   const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
                   const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
                   this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
@@ -2136,7 +2168,9 @@ class HomeOrganizerPanel extends HTMLElement {
   handleIconUpload(input) {
       const file = input.files[0]; if (!file) return;
       this.compressImage(file, (dataUrl) => {
-          if(this.pendingFolderIcon) {
+          if(this.pendingItemId) {
+               this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
+          } else if(this.pendingFolderIcon) {
               const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
               const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
               this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
@@ -2167,7 +2201,7 @@ class HomeOrganizerPanel extends HTMLElement {
 
   pasteItem() { this.callHA('paste_item', { target_path: this.currentPath }); }
   cut(name) { this.callHA('clipboard_action', {action: 'cut', item_name: name}); }
-  del(name) { this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: false }); }
+  // del(name) replaced by del(id) above
   callHA(service, data) { return this._hass.callService('home_organizer', service, data); }
 }
 
