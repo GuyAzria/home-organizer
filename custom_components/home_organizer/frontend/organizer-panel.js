@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.1.4 (Fix Translation Regex & Categories)
+// Home Organizer Ultimate - Ver 6.1.6 (Strict CSV Translations & Text Unit Value)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -60,7 +60,9 @@ class HomeOrganizerPanel extends HTMLElement {
       this.currentLang = localStorage.getItem('home_organizer_lang') || 'en';
       
       this.initUI();
-      this.loadTranslations(); // Fetch CSV on startup
+      
+      // Fetch CSV on startup
+      this.loadTranslations(); 
     }
 
     if (this._hass && this._hass.connection && !this.subscribed) {
@@ -84,7 +86,7 @@ class HomeOrganizerPanel extends HTMLElement {
           this.parseCSV(text);
       } catch (err) {
           console.error("Failed to load translations:", err);
-          // Fallback minimal to prevent crash
+          // Fallback minimal to prevent crash if CSV is missing
           this.availableLangs = ['en'];
           this.translations = { "_direction": { "en": "ltr" } };
           this.render();
@@ -96,7 +98,13 @@ class HomeOrganizerPanel extends HTMLElement {
       if (lines.length < 2) return;
       
       // Header: Key, en, he, it...
-      const headers = lines[0].split(',').map(h => h.trim());
+      // Handle potential BOM (Byte Order Mark) at start of file
+      let headerLine = lines[0].trim();
+      if (headerLine.charCodeAt(0) === 0xFEFF) {
+          headerLine = headerLine.substr(1);
+      }
+      
+      const headers = headerLine.split(',').map(h => h.trim());
       // Identify languages (all columns after index 0)
       this.availableLangs = headers.slice(1);
       
@@ -106,7 +114,7 @@ class HomeOrganizerPanel extends HTMLElement {
           const row = lines[i].trim();
           if (!row) continue;
           
-          // Split by comma. Note: Simple split. If text contains commas, regex is needed.
+          // Split by comma.
           const cols = row.split(',');
           const key = cols[0].trim();
           
@@ -1485,7 +1493,7 @@ class HomeOrganizerPanel extends HTMLElement {
       zones.forEach((z, index) => {
           const newOrder = (index + 1) * 10;
           const paddedOrder = String(newOrder).padStart(3, '0');
-          const newMarkerName = `ZONE_MARKER_${padded}_${z.name}`;
+          const newMarkerName = `ZONE_MARKER_${paddedOrder}_${z.name}`;
           
           if (z.markerName !== newMarkerName) {
               this.callHA('update_item_details', { 
@@ -1811,7 +1819,7 @@ class HomeOrganizerPanel extends HTMLElement {
                     ${subCatOptions}
                 </select>
                 <!-- NEW: Unit Value Input -->
-                <input type="number" step="any" id="unit-val-${item.name}" value="${item.unit_value || ''}" placeholder="0" 
+                <input type="text" id="unit-val-${item.name}" value="${item.unit_value || ''}" placeholder="Val" 
                     style="width:60px;padding:8px;background:var(--bg-input-edit);color:var(--text-main);border:1px solid var(--border-light);border-radius:4px;text-align:center"
                     onchange="this.getRootNode().host.updateItemCategory('${item.name}', null, 'val')">
                 <div id="unit-disp-${item.name}" style="background:var(--bg-badge);color:var(--text-badge);padding:4px 8px;border-radius:4px;font-size:11px;min-width:30px;text-align:center;">
