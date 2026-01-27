@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 6.2.1 (Added Duplicate Logic)
+# Home Organizer Ultimate - ver 6.2.2 (Added Autocomplete & Image Ref Update)
 
 import logging
 import sqlite3
@@ -20,6 +20,7 @@ _LOGGER = logging.getLogger(__name__)
 MAX_LEVELS = 10
 
 WS_GET_DATA = "home_organizer/get_data"
+WS_GET_ALL_ITEMS = "home_organizer/get_all_items" # New Command
 
 # Define the URL prefix for your frontend files
 STATIC_PATH_URL = "/home_organizer_static"
@@ -56,6 +57,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})
     
+    # Register Websockets
     try:
         websocket_api.async_register_command(
             hass,
@@ -67,6 +69,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 vol.Optional("search_query", default=""): str,
                 vol.Optional("date_filter", default="All"): str,
                 vol.Optional("shopping_mode", default=False): bool,
+            })
+        )
+        # NEW: Register command to get all items for autocomplete
+        websocket_api.async_register_command(
+            hass,
+            WS_GET_ALL_ITEMS,
+            websocket_get_all_items,
+            websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend({
+                vol.Required("type"): WS_GET_ALL_ITEMS
             })
         )
     except Exception:
@@ -102,18 +113,16 @@ def init_db(hass):
     c.execute("PRAGMA table_info(items)")
     existing_cols = [col[1] for col in c.fetchall()]
     
-    # Migration: Add image_path if missing
+    # Migration checks
     if 'image_path' not in existing_cols:
         try: c.execute("ALTER TABLE items ADD COLUMN image_path TEXT")
         except: pass
 
-    # Migration: Add Category columns if missing
     for new_col in ['category', 'sub_category', 'unit', 'unit_value']:
         if new_col not in existing_cols:
             try: c.execute(f"ALTER TABLE items ADD COLUMN {new_col} TEXT")
             except: pass
         
-    # Migration: Add Levels if missing
     for i in range(1, MAX_LEVELS + 1):
         col_name = f"level_{i}"
         if col_name not in existing_cols:
@@ -128,9 +137,28 @@ def websocket_get_data(hass, connection, msg):
     query = msg.get("search_query", "")
     date_filter = msg.get("date_filter", "All")
     is_shopping = msg.get("shopping_mode", False)
-    
     data = get_view_data(hass, path, query, date_filter, is_shopping)
     connection.send_result(msg["id"], data)
+
+# NEW: Handler for fetching all unique items for autocomplete
+@callback
+def websocket_get_all_items(hass, connection, msg):
+    conn = get_db_connection(hass)
+    c = conn.cursor()
+    try:
+        # Get unique names with their most common/recent properties
+        c.execute("SELECT name, category, sub_category, unit, unit_value, image_path FROM items WHERE type='item' GROUP BY name")
+        col_names = [description[0] for description in c.description]
+        results = []
+        for r in c.fetchall():
+            item = dict(zip(col_names, r))
+            # Format image path for frontend
+            if item['image_path']:
+                item['image_path'] = f"/local/{IMG_DIR}/{item['image_path']}?v={int(time.time())}"
+            results.append(item)
+        connection.send_result(msg["id"], results)
+    finally:
+        conn.close()
 
 def get_view_data(hass, path_parts, query, date_filter, is_shopping):
     conn = get_db_connection(hass); c = conn.cursor()
@@ -328,18 +356,14 @@ async def register_services(hass, entry):
 
         broadcast_update()
         
-    # NEW: Duplicate Item Service
     async def handle_duplicate(call):
         item_id = call.data.get("item_id")
         if not item_id: return
         def db_dup():
             conn = get_db_connection(hass); c = conn.cursor()
-            # Dynamically get columns to copy, excluding id and timestamps
             c.execute("PRAGMA table_info(items)")
             columns = [col[1] for col in c.fetchall() if col[1] not in ('id', 'created_at')]
             col_str = ", ".join(columns)
-            
-            # Insert exact copy
             c.execute(f"INSERT INTO items ({col_str}) SELECT {col_str} FROM items WHERE id = ?", (item_id,))
             conn.commit(); conn.close()
         await hass.async_add_executor_job(db_dup)
@@ -434,6 +458,9 @@ async def register_services(hass, entry):
         sub_cat = call.data.get("sub_category")
         unit = call.data.get("unit")
         unit_value = call.data.get("unit_value")
+        
+        # NEW: Receive image_path to update reference
+        image_path = call.data.get("image_path")
 
         parts = call.data.get("current_path", [])
         is_folder = call.data.get("is_folder", False)
@@ -473,6 +500,7 @@ async def register_services(hass, entry):
                 if sub_cat is not None: updates.append("sub_category = ?"); params.append(sub_cat)
                 if unit is not None: updates.append("unit = ?"); params.append(unit)
                 if unit_value is not None: updates.append("unit_value = ?"); params.append(unit_value)
+                if image_path is not None: updates.append("image_path = ?"); params.append(image_path) # Added
                 
                 if updates:
                     sql += ", ".join(updates)
