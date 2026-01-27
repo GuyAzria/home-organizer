@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 6.1.5 (Unit Value as Text)
+# Home Organizer Ultimate - ver 6.2.0 (ID-Based Item Keys)
 
 import logging
 import sqlite3
@@ -92,7 +92,7 @@ def init_db(hass):
     c = conn.cursor()
     cols = ", ".join([f"level_{i} TEXT" for i in range(1, MAX_LEVELS + 1)])
     
-    # Create table with new category columns and unit_value as TEXT
+    # Create table with new category columns and unit_value
     c.execute(f'''CREATE TABLE IF NOT EXISTS items (
         id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, type TEXT DEFAULT 'item',
         {cols}, item_date TEXT, quantity INTEGER DEFAULT 1, image_path TEXT,
@@ -102,23 +102,16 @@ def init_db(hass):
     c.execute("PRAGMA table_info(items)")
     existing_cols = [col[1] for col in c.fetchall()]
     
-    # Migration: Add image_path if missing
+    # Migration checks
     if 'image_path' not in existing_cols:
         try: c.execute("ALTER TABLE items ADD COLUMN image_path TEXT")
         except: pass
 
-    # Migration: Add Category columns if missing
-    for new_col in ['category', 'sub_category', 'unit']:
+    for new_col in ['category', 'sub_category', 'unit', 'unit_value']:
         if new_col not in existing_cols:
             try: c.execute(f"ALTER TABLE items ADD COLUMN {new_col} TEXT")
             except: pass
-            
-    # Migration: Add unit_value if missing (TEXT)
-    if 'unit_value' not in existing_cols:
-        try: c.execute("ALTER TABLE items ADD COLUMN unit_value TEXT")
-        except: pass
         
-    # Migration: Add Levels if missing
     for i in range(1, MAX_LEVELS + 1):
         col_name = f"level_{i}"
         if col_name not in existing_cols:
@@ -161,6 +154,7 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                 fp = []; [fp.append(r_dict.get(f"level_{i}", "")) for i in range(1, MAX_LEVELS+1) if r_dict.get(f"level_{i}")]
                 img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
                 shopping_list.append({
+                    "id": r_dict['id'],
                     "name": r_dict['name'], 
                     "qty": 0, 
                     "date": r_dict['item_date'], 
@@ -188,6 +182,7 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                 if r_dict['type'] == 'item':
                     img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
                     items.append({
+                        "id": r_dict['id'],
                         "name": r_dict['name'], 
                         "type": r_dict['type'], 
                         "qty": r_dict['quantity'], 
@@ -229,6 +224,7 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                       r_dict = dict(zip(col_names, r))
                       img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
                       items.append({
+                          "id": r_dict['id'],
                           "name": r_dict['name'], 
                           "type": 'item', 
                           "qty": r_dict['quantity'], 
@@ -256,6 +252,7 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                     img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
                     subloc = r_dict.get(f"level_{depth+1}", "")
                     fetched_items.append({
+                        "id": r_dict['id'],
                         "name": r_dict['name'], 
                         "type": 'item', 
                         "qty": r_dict['quantity'], 
@@ -330,24 +327,32 @@ async def register_services(hass, entry):
         broadcast_update()
 
     async def handle_update_qty(call):
-        name = call.data.get("item_name"); change = int(call.data.get("change"))
+        # CHANGED: Use item_id
+        item_id = call.data.get("item_id")
+        change = int(call.data.get("change"))
         today = datetime.now().strftime("%Y-%m-%d")
         def db_q():
             conn = get_db_connection(hass); c = conn.cursor()
-            c.execute(f"UPDATE items SET quantity = MAX(0, quantity + ?), item_date = ? WHERE name = ?", (change, today, name))
+            if item_id:
+                c.execute(f"UPDATE items SET quantity = MAX(0, quantity + ?), item_date = ? WHERE id = ?", (change, today, item_id))
             conn.commit(); conn.close()
         await hass.async_add_executor_job(db_q); broadcast_update()
 
     async def handle_update_stock(call):
-        name = call.data.get("item_name"); qty = int(call.data.get("quantity"))
+        # CHANGED: Use item_id
+        item_id = call.data.get("item_id")
+        qty = int(call.data.get("quantity"))
         today = datetime.now().strftime("%Y-%m-%d")
         def db_upd():
             conn = get_db_connection(hass); c = conn.cursor()
-            c.execute(f"UPDATE items SET quantity = ?, item_date = ? WHERE name = ?", (qty, today, name))
+            if item_id:
+                c.execute(f"UPDATE items SET quantity = ?, item_date = ? WHERE id = ?", (qty, today, item_id))
             conn.commit(); conn.close()
         await hass.async_add_executor_job(db_upd); broadcast_update()
 
     async def handle_delete(call):
+        # CHANGED: Use item_id for items
+        item_id = call.data.get("item_id")
         name = call.data.get("item_name")
         parts = call.data.get("current_path", [])
         is_folder = call.data.get("is_folder", False)
@@ -364,34 +369,54 @@ async def register_services(hass, entry):
                     args.append(p)
                 c.execute(f"DELETE FROM items WHERE {' AND '.join(conditions)}", tuple(args))
             else:
-                c.execute(f"DELETE FROM items WHERE name = ?", (name,))
+                if item_id:
+                    c.execute(f"DELETE FROM items WHERE id = ?", (item_id,))
+                else:
+                    # Fallback to name if ID missing (legacy)
+                    c.execute(f"DELETE FROM items WHERE name = ?", (name,))
             conn.commit(); conn.close()
         await hass.async_add_executor_job(db_del); broadcast_update()
 
     async def handle_paste(call):
         target_path = call.data.get("target_path")
-        item_name = hass.data.get(DOMAIN, {}).get("clipboard") 
-        if not item_name: return
+        clipboard = hass.data.get(DOMAIN, {}).get("clipboard") 
+        if not clipboard: return
+        
+        # Clipboard can be just name (legacy) or dict with id
+        item_id = clipboard.get("id") if isinstance(clipboard, dict) else None
+        item_name = clipboard.get("name") if isinstance(clipboard, dict) else clipboard
+
         def db_mv():
             conn = get_db_connection(hass); c = conn.cursor()
             upd = [f"level_{i} = ?" for i in range(1, MAX_LEVELS+1)]
             vals = [target_path[i-1] if i <= len(target_path) else None for i in range(1, MAX_LEVELS+1)]
-            c.execute(f"UPDATE items SET {','.join(upd)} WHERE name = ?", (*vals, item_name))
+            
+            if item_id:
+                c.execute(f"UPDATE items SET {','.join(upd)} WHERE id = ?", (*vals, item_id))
+            else:
+                c.execute(f"UPDATE items SET {','.join(upd)} WHERE name = ?", (*vals, item_name))
+                
             conn.commit(); conn.close()
         await hass.async_add_executor_job(db_mv)
         hass.data[DOMAIN]["clipboard"] = None
         broadcast_update()
 
     async def handle_clipboard(call):
-        action = call.data.get("action"); item = call.data.get("item_name")
-        hass.data[DOMAIN]["clipboard"] = item if action == "cut" else None
+        action = call.data.get("action")
+        item_name = call.data.get("item_name")
+        item_id = call.data.get("item_id")
+        
+        if action == "cut":
+            hass.data[DOMAIN]["clipboard"] = {"id": item_id, "name": item_name}
+        else:
+            hass.data[DOMAIN]["clipboard"] = None
 
     async def handle_update_item_details(call):
+        item_id = call.data.get("item_id") # NEW
         orig = call.data.get("original_name")
         nn = call.data.get("new_name")
         nd = call.data.get("new_date")
         
-        # New Category fields
         cat = call.data.get("category")
         sub_cat = call.data.get("sub_category")
         unit = call.data.get("unit")
@@ -404,6 +429,7 @@ async def register_services(hass, entry):
             conn = get_db_connection(hass); c = conn.cursor()
             
             if is_folder:
+                # Folders must still use Path/Name logic as they represent a grouping of columns
                 depth = len(parts)
                 if depth < MAX_LEVELS:
                     target_col = f"level_{depth+1}"
@@ -415,24 +441,23 @@ async def register_services(hass, entry):
                     
                     c.execute(f"UPDATE items SET {target_col} = ? WHERE {where_clause}", [nn] + where_args)
                     
+                    # Update marker
                     marker_where = f"{target_col} = ?"
                     marker_args = [nn] 
                     for i, p in enumerate(parts):
                         marker_where += f" AND level_{i+1} = ?"
                         marker_args.append(p)
-                    
                     c.execute(f"UPDATE items SET name = ? WHERE type = 'folder_marker' AND name = ? AND {marker_where}", 
                               (f"[Folder] {nn}", f"[Folder] {orig}", *marker_args))
             else:
+                # Items use ID
                 sql = "UPDATE items SET "
                 updates = []
                 params = []
                 
-                # Check what fields were actually passed
-                if nn and nn != orig: updates.append("name = ?"); params.append(nn)
+                if nn: updates.append("name = ?"); params.append(nn)
                 if nd is not None: updates.append("item_date = ?"); params.append(nd)
                 
-                # Categories
                 if cat is not None: updates.append("category = ?"); params.append(cat)
                 if sub_cat is not None: updates.append("sub_category = ?"); params.append(sub_cat)
                 if unit is not None: updates.append("unit = ?"); params.append(unit)
@@ -440,23 +465,35 @@ async def register_services(hass, entry):
                 
                 if updates:
                     sql += ", ".join(updates)
-                    sql += " WHERE name = ?"
-                    params.append(orig)
-                    if parts:
-                        for i, p in enumerate(parts): sql += f" AND level_{i+1} = ?"; params.append(p)
+                    if item_id:
+                        sql += " WHERE id = ?"
+                        params.append(item_id)
+                    else:
+                        sql += " WHERE name = ?"
+                        params.append(orig)
+                        # Fallback filtering by path for name-based updates
+                        if parts:
+                            for i, p in enumerate(parts): sql += f" AND level_{i+1} = ?"; params.append(p)
+
                     c.execute(sql, tuple(params))
 
             conn.commit(); conn.close()
         await hass.async_add_executor_job(db_u); broadcast_update()
 
     async def handle_update_image(call):
-        name = call.data.get("item_name"); img_b64 = call.data.get("image_data")
+        item_id = call.data.get("item_id")
+        name = call.data.get("item_name")
+        img_b64 = call.data.get("image_data")
         if "," in img_b64: img_b64 = img_b64.split(",")[1]
         fname = f"{name}_{int(time.time())}.jpg"
         def save():
             open(hass.config.path("www", IMG_DIR, fname), "wb").write(base64.b64decode(img_b64))
             conn = get_db_connection(hass); c = conn.cursor()
-            c.execute(f"UPDATE items SET image_path = ? WHERE name = ?", (fname, name)); conn.commit(); conn.close()
+            if item_id:
+                c.execute(f"UPDATE items SET image_path = ? WHERE id = ?", (fname, item_id))
+            else:
+                c.execute(f"UPDATE items SET image_path = ? WHERE name = ?", (fname, name))
+            conn.commit(); conn.close()
         await hass.async_add_executor_job(save); broadcast_update()
 
     async def handle_ai_action(call):
