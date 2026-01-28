@@ -43,15 +43,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     ])
 
     # 2. REGISTER PANEL
-    await panel_custom.async_register_panel(
-        hass,
-        webcomponent_name="home-organizer-panel",
-        frontend_url_path="organizer",
-        module_url=f"{STATIC_PATH_URL}/organizer-panel.js?v={int(time.time())}",
-        sidebar_title="ארגונית",
-        sidebar_icon="mdi:package-variant-closed",
-        require_admin=False
-    )
+    # We use a try/except here just in case the panel is already registered from a previous zombie state
+    try:
+        await panel_custom.async_register_panel(
+            hass,
+            webcomponent_name="home-organizer-panel",
+            frontend_url_path="organizer",
+            module_url=f"{STATIC_PATH_URL}/organizer-panel.js?v={int(time.time())}",
+            sidebar_title="ארגונית",
+            sidebar_icon="mdi:package-variant-closed",
+            require_admin=False
+        )
+    except Exception as e:
+        _LOGGER.warning(f"Panel registration warning (usually harmless on reload): {e}")
 
     await hass.async_add_executor_job(init_db, hass)
 
@@ -91,7 +95,13 @@ async def update_listener(hass: HomeAssistant, entry: ConfigEntry):
     await hass.config_entries.async_reload(entry.entry_id)
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    hass.components.frontend.async_remove_panel("organizer")
+    """Unload a config entry."""
+    # This try/except block prevents the 'FAILED_UNLOAD' state if the panel
+    # doesn't exist or was already removed.
+    try:
+        hass.components.frontend.async_remove_panel("organizer")
+    except Exception:
+        pass
     return True
 
 def get_db_connection(hass):
