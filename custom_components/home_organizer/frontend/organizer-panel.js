@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.2.9 (Added Image Loading Animation & Cache Busting)
+// Home Organizer Ultimate - Ver 6.2.10 (Fixed Local IP Camera Issue)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -758,6 +758,15 @@ class HomeOrganizerPanel extends HTMLElement {
 
   async openCamera(context) {
       this.cameraContext = context;
+      
+      // --- FIX: Fallback for insecure contexts (Local IP) ---
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          console.warn("Secure context required for Camera API. Switching to native file input.");
+          this.openNativeCamera(context);
+          return;
+      }
+      // ------------------------------------------------------
+
       const modal = this.shadowRoot.getElementById('camera-modal');
       const video = this.shadowRoot.getElementById('camera-video');
       modal.style.display = 'flex';
@@ -769,6 +778,57 @@ class HomeOrganizerPanel extends HTMLElement {
           modal.style.display = 'none';
       }
   }
+
+  // --- NEW: Native Camera Fallback ---
+  openNativeCamera(context) {
+      let input = this.shadowRoot.getElementById('native-camera-input');
+      if (!input) {
+          input = document.createElement('input');
+          input.id = 'native-camera-input';
+          input.type = 'file';
+          input.accept = 'image/*';
+          input.capture = 'environment'; // Prefer rear camera on mobile
+          input.style.display = 'none';
+          this.shadowRoot.appendChild(input);
+      }
+      
+      input.onchange = (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          
+          // Pass this.useAiBg to compressImage to apply filter if enabled
+          this.compressImage(file, async (dataUrl) => {
+              const targetId = this.pendingItemId || this.pendingItem;
+              const isSearch = context === 'search';
+
+              if (!isSearch && targetId) {
+                  this.setLoading(targetId, true);
+              }
+
+              try {
+                  if (isSearch) {
+                      await this.callHA('ai_action', { mode: 'search', image_data: dataUrl });
+                  } else if (this.pendingItemId) {
+                      await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
+                      this.refreshImageVersion(this.pendingItemId);
+                  } else if (this.pendingItem) {
+                      await this.callHA('update_image', { item_name: this.pendingItem, image_data: dataUrl });
+                      this.refreshImageVersion(this.pendingItem);
+                  }
+              } catch(e) { console.error(e); }
+              finally {
+                  if (!isSearch && targetId) this.setLoading(targetId, false);
+                  this.pendingItemId = null;
+                  this.pendingItem = null;
+              }
+          }, this.useAiBg); // Apply AI BG filter if enabled
+          
+          input.value = ''; // Reset input
+      };
+      
+      input.click();
+  }
+  // -----------------------------------
 
   stopCamera() {
       const modal = this.shadowRoot.getElementById('camera-modal');
@@ -2424,7 +2484,8 @@ class HomeOrganizerPanel extends HTMLElement {
       input.value = '';
   }
 
-  compressImage(file, callback) {
+  // Updated to support optional BG filter application
+  compressImage(file, callback, applyBgFilter = false) {
       const reader = new FileReader();
       reader.onload = (e) => {
           const img = new Image();
@@ -2436,6 +2497,17 @@ class HomeOrganizerPanel extends HTMLElement {
               if (w > h) { if (w > MAX) { h *= MAX/w; w = MAX; } } else { if (h > MAX) { w *= MAX/h; h = MAX; } }
               canvas.width = w; canvas.height = h;
               ctx.drawImage(img, 0, 0, w, h);
+              
+              if (applyBgFilter) {
+                  let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                  let data = imageData.data;
+                  for (let i = 0; i < data.length; i += 4) {
+                      let r = data[i], g = data[i+1], b = data[i+2];
+                      if (r > 190 && g > 190 && b > 190) { data[i] = 255; data[i+1] = 255; data[i+2] = 255; }
+                  }
+                  ctx.putImageData(imageData, 0, 0);
+              }
+
               callback(canvas.toDataURL('image/jpeg', 0.5));
           };
           img.src = e.target.result;
