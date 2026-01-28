@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.2.8 (Fixed Camera ID Logic)
+// Home Organizer Ultimate - Ver 6.2.9 (Added Image Loading Animation & Cache Busting)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -36,7 +36,8 @@ class HomeOrganizerPanel extends HTMLElement {
       this.lastAI = "";
       this.localData = null; 
       this.pendingItem = null;
-      this.pendingItemId = null; 
+      this.pendingItemId = null;
+      this.pendingFolderIcon = null; 
       this.useAiBg = true; 
       this.shopQuantities = {}; 
       this.expandedSublocs = new Set(); 
@@ -49,6 +50,11 @@ class HomeOrganizerPanel extends HTMLElement {
       this.translations = {}; 
       this.availableLangs = [];
       this.allDbItems = []; // Store unique items for autocomplete
+
+      // --- New Loading & Cache Busting State ---
+      this.loadingSet = new Set(); 
+      this.imageVersions = {}; 
+      // ----------------------------------------
 
       try { 
           this.persistentIds = JSON.parse(localStorage.getItem('home_organizer_ids')) || {}; 
@@ -169,6 +175,18 @@ class HomeOrganizerPanel extends HTMLElement {
       } catch (e) { console.error("Fetch error", e); }
   }
 
+  // --- Helper Methods for Loading Animation ---
+  setLoading(target, state) {
+      if(state) this.loadingSet.add(target);
+      else this.loadingSet.delete(target);
+      this.render();
+  }
+
+  refreshImageVersion(target) {
+      this.imageVersions[target] = Date.now();
+  }
+  // --------------------------------------------
+
   initUI() {
     this.content = true;
     this.attachShadow({mode: 'open'});
@@ -253,13 +271,13 @@ class HomeOrganizerPanel extends HTMLElement {
         .item-main { display: flex; align-items: center; justify-content: space-between; width: 100%; cursor: pointer; }
         .item-left { display: flex; align-items: center; gap: 10px; }
         .item-icon { color: var(--primary); display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; }
-        .item-thumbnail { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: #000; display: block; border: 1px solid var(--border-light); }
+        .item-thumbnail { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: #000; display: block; border: 1px solid var(--border-light); position: relative; }
         .item-qty-ctrl { display: flex; align-items: center; gap: 10px; background: var(--bg-qty-ctrl); color: var(--text-main); padding: 4px; border-radius: 20px; }
         .qty-btn { background: var(--icon-btn-bg); border: none; color: var(--text-main); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         .xl-grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 10px; }
         .xl-card { background: var(--bg-card); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; aspect-ratio: 1; position: relative; border: 1px solid transparent; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .xl-card:hover { background: var(--bg-card-hover); }
-        .xl-icon-area { flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; overflow: hidden; cursor: zoom-in; }
+        .xl-icon-area { flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; overflow: hidden; cursor: zoom-in; position: relative; }
         .xl-icon-area svg { width: 48px; height: 48px; color: var(--primary); }
         .xl-icon-area img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
         .xl-badge { position: absolute; top: 8px; inset-inline-end: 8px; background: var(--bg-badge); color: var(--text-badge); border: 1px solid var(--border-light); min-width: 24px; height: 24px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; }
@@ -285,6 +303,10 @@ class HomeOrganizerPanel extends HTMLElement {
         .move-select { flex: 1; padding: 8px; background: var(--bg-input-edit); color: var(--text-main); border: 1px solid var(--border-light); border-radius: 6px; }
         .search-box { display:none; padding:10px; background:var(--bg-sub-bar); display:flex; gap: 5px; align-items: center; }
         
+        .loader-container { position: absolute; inset:0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 5; border-radius: inherit; }
+        .loader { width: 24px; height: 24px; border: 3px solid #fff; border-bottom-color: transparent; border-radius: 50%; display: inline-block; box-sizing: border-box; animation: rotation 1s linear infinite; }
+        @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
         .suggestions-box {
             position: absolute;
             top: 100%;
@@ -762,7 +784,7 @@ class HomeOrganizerPanel extends HTMLElement {
       setTimeout(() => this.openCamera(this.cameraContext), 200);
   }
 
-  snapPhoto() {
+  async snapPhoto() {
       const video = this.shadowRoot.getElementById('camera-video');
       const canvas = this.shadowRoot.getElementById('camera-canvas');
       const context = canvas.getContext('2d');
@@ -783,15 +805,27 @@ class HomeOrganizerPanel extends HTMLElement {
       const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
       this.stopCamera();
       
-      if (this.cameraContext === 'search') {
-          this.callHA('ai_action', { mode: 'search', image_data: dataUrl });
-      } else if (this.pendingItemId) {
-          // --- FIX APPLIED HERE: Use pendingItemId if available ---
-          this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
+      const targetId = this.pendingItemId || this.pendingItem; // Handle ID or Name
+      const isSearch = this.cameraContext === 'search';
+
+      if (!isSearch && targetId) {
+          this.setLoading(targetId, true);
+      }
+
+      try {
+          if (isSearch) {
+              await this.callHA('ai_action', { mode: 'search', image_data: dataUrl });
+          } else if (this.pendingItemId) {
+              await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
+              this.refreshImageVersion(this.pendingItemId);
+          } else if (this.pendingItem) {
+              await this.callHA('update_image', { item_name: this.pendingItem, image_data: dataUrl });
+              this.refreshImageVersion(this.pendingItem);
+          }
+      } catch(e) { console.error(e); }
+      finally {
+          if(!isSearch && targetId) this.setLoading(targetId, false);
           this.pendingItemId = null;
-      } else if (this.pendingItem) {
-          // Fallback to legacy name-based update if needed
-          this.callHA('update_image', { item_name: this.pendingItem, image_data: dataUrl });
           this.pendingItem = null;
       }
   }
@@ -1006,8 +1040,20 @@ class HomeOrganizerPanel extends HTMLElement {
                 // Pass the generated ID to navigate
                 el.onclick = () => { if (!this.isEditMode) this.navigate('down', folder.originalName, catalogID); };
                 
+                // --- Updated Logic for Loader & Versioning ---
                 let folderContent = ICONS.folder;
-                if (folder.img) folderContent = `<img src="${folder.img}">`;
+                if (folder.img) {
+                    const isLoading = this.loadingSet.has(folder.originalName);
+                    const ver = this.imageVersions[folder.originalName] || '';
+                    const src = folder.img + (folder.img.includes('?') ? '&' : '?') + 'v=' + ver;
+                    
+                    let loaderHtml = '';
+                    if (isLoading) {
+                        loaderHtml = `<div class="loader-container"><span class="loader"></span></div>`;
+                    }
+                    folderContent = `<div style="position:relative;width:100%;height:100%"><img src="${src}" style="width:100%;height:100%;object-fit:contain;border-radius:4px">${loaderHtml}</div>`;
+                }
+                // ---------------------------------------------
 
                 const deleteBtnHtml = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.originalName}')">✕</div>` : '';
                 const editBtnHtml = this.isEditMode ? `<div class="folder-edit-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'), '${folder.originalName}')">${ICONS.edit}</div>` : '';
@@ -1070,8 +1116,20 @@ class HomeOrganizerPanel extends HTMLElement {
                     // Pass the generated ID to navigate
                     el.onclick = () => this.navigate('down', folder.name, catalogID);
                     
+                    // --- Updated Logic for Loader & Versioning ---
                     let folderContent = ICONS.folder;
-                    if (folder.img) folderContent = `<img src="${folder.img}">`;
+                    if (folder.img) {
+                        const isLoading = this.loadingSet.has(folder.name);
+                        const ver = this.imageVersions[folder.name] || '';
+                        const src = folder.img + (folder.img.includes('?') ? '&' : '?') + 'v=' + ver;
+                        
+                        let loaderHtml = '';
+                        if (isLoading) {
+                            loaderHtml = `<div class="loader-container"><span class="loader"></span></div>`;
+                        }
+                        folderContent = `<div style="position:relative;width:100%;height:100%"><img src="${src}" style="width:100%;height:100%;object-fit:contain;border-radius:4px">${loaderHtml}</div>`;
+                    }
+                    // ---------------------------------------------
 
                     const deleteBtnHtml = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` : '';
                     const editBtnHtml = this.isEditMode ? `<div class="folder-edit-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'), '${folder.name}')">${ICONS.edit}</div>` : '';
@@ -1262,7 +1320,18 @@ class HomeOrganizerPanel extends HTMLElement {
                           const card = document.createElement('div');
                           card.className = 'xl-card';
                           let iconHtml = ICONS.item;
-                          if (item.img) iconHtml = `<img src="${item.img}">`;
+                          // --- Updated Logic for Loader & Versioning ---
+                          if (item.img) {
+                              const isLoading = this.loadingSet.has(item.id);
+                              const ver = this.imageVersions[item.id] || '';
+                              const src = item.img + (item.img.includes('?') ? '&' : '?') + 'v=' + ver;
+                              let loaderHtml = '';
+                              if (isLoading) {
+                                  loaderHtml = `<div class="loader-container"><span class="loader"></span></div>`;
+                              }
+                              iconHtml = `<div style="position:relative;width:100%;height:100%"><img src="${src}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">${loaderHtml}</div>`;
+                          }
+                          // ---------------------------------------------
                           card.innerHTML = `
                               <div class="xl-icon-area">${iconHtml}</div>
                               <div class="xl-badge">${item.qty}</div>
@@ -1854,8 +1923,21 @@ class HomeOrganizerPanel extends HTMLElement {
          controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.id}', 1)">${ICONS.plus}</button><span class="qty-val">${item.qty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.id}', -1)">${ICONS.minus}</button>`;
      }
      const subText = isShopMode ? `${item.main_location} > ${item.sub_location || ''}` : `${item.date || ''}`;
+     
+     // --- Updated Logic for Loader & Versioning ---
      let iconHtml = `<span class="item-icon">${ICONS.item}</span>`;
-     if (item.img) iconHtml = `<img src="${item.img}" class="item-thumbnail" alt="${item.name}" onclick="event.stopPropagation(); this.getRootNode().host.showImg('${item.img}')">`;
+     if (item.img) {
+         const isLoading = this.loadingSet.has(item.id);
+         const ver = this.imageVersions[item.id] || '';
+         const src = item.img + (item.img.includes('?') ? '&' : '?') + 'v=' + ver;
+         
+         let loaderHtml = '';
+         if (isLoading) {
+             loaderHtml = `<div class="loader-container"><span class="loader"></span></div>`;
+         }
+         iconHtml = `<div style="position:relative;width:40px;height:40px"><img src="${src}" class="item-thumbnail" alt="${item.name}" onclick="event.stopPropagation(); this.getRootNode().host.showImg('${item.img}')">${loaderHtml}</div>`;
+     }
+     // ---------------------------------------------
 
      div.innerHTML = `
         <div class="item-main" onclick="this.getRootNode().host.toggleRow('${item.id}')">
@@ -2230,75 +2312,114 @@ class HomeOrganizerPanel extends HTMLElement {
       nextBtn.disabled = this.pickerPage >= totalPages - 1;
   }
 
-  selectLibraryIcon(svgHtml) {
+  async selectLibraryIcon(svgHtml) {
       let source = svgHtml;
       const size = 140; 
       if (!source.includes('xmlns')) source = source.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
       if (source.includes('width=')) { source = source.replace(/width="[^"]*"/, `width="${size}"`).replace(/height="[^"]*"/, `height="${size}"`); } 
       else { source = source.replace('<svg', `<svg width="${size}" height="${size}"`); }
       source = source.replace('<svg', '<svg fill="#4fc3f7"');
-      const img = new Image();
+      
+      // Async wrapper for image loading
+      const loadImage = (src) => new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.src = src;
+      });
+
       const blob = new Blob([source], {type: 'image/svg+xml;charset=utf-8'});
       const url = URL.createObjectURL(blob);
-      img.onload = () => {
-          const canvas = document.createElement('canvas');
-          canvas.width = size; canvas.height = size;
-          const ctx = canvas.getContext('2d');
-          if (this.pickerContext === 'item') { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, size, size); }
-          ctx.drawImage(img, 0, 0, size, size);
-          const dataUrl = canvas.toDataURL('image/png');
-          
+      const img = await loadImage(url);
+      
+      const canvas = document.createElement('canvas');
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (this.pickerContext === 'item') { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, size, size); }
+      ctx.drawImage(img, 0, 0, size, size);
+      const dataUrl = canvas.toDataURL('image/png');
+      
+      const target = this.pendingItemId || this.pendingFolderIcon;
+      if (target) this.setLoading(target, true);
+      this.shadowRoot.getElementById('icon-modal').style.display = 'none';
+
+      try {
           if(this.pendingItemId) {
-              // Item Update
-              this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
+              await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
+              this.refreshImageVersion(this.pendingItemId);
           } else if(this.pendingFolderIcon) {
-              // Folder Update
               const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
               const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
-              this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
+              await this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
+              this.refreshImageVersion(this.pendingFolderIcon);
           }
-          this.shadowRoot.getElementById('icon-modal').style.display = 'none';
+      } catch(e) { console.error(e); }
+      finally {
+          if(target) this.setLoading(target, false);
           URL.revokeObjectURL(url);
-      };
-      img.src = url;
+      }
   }
 
-  handleUrlIcon(url) {
-      const img = new Image();
-      img.crossOrigin = "Anonymous";
-      img.onload = () => {
+  async handleUrlIcon(url) {
+      const loadImage = (src) => new Promise((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = "Anonymous";
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = src;
+      });
+
+      try {
+          const img = await loadImage(url);
           const canvas = document.createElement('canvas');
           canvas.width = img.width; canvas.height = img.height;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0);
+          const dataUrl = canvas.toDataURL('image/jpeg');
+          
+          this.shadowRoot.getElementById('icon-modal').style.display = 'none';
+          this.shadowRoot.getElementById('icon-url-input').value = '';
+
+          const target = this.pendingItemId || this.pendingFolderIcon;
+          if (target) this.setLoading(target, true);
+
           try {
-              const dataUrl = canvas.toDataURL('image/jpeg');
-              
               if(this.pendingItemId) {
-                   this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
+                   await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
+                   this.refreshImageVersion(this.pendingItemId);
               } else if(this.pendingFolderIcon) {
                   const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
                   const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
-                  this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
+                  await this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
+                  this.refreshImageVersion(this.pendingFolderIcon);
               }
-              this.shadowRoot.getElementById('icon-modal').style.display = 'none';
-              this.shadowRoot.getElementById('icon-url-input').value = '';
-          } catch(e) { alert("CORS prevented saving this image. Try uploading the file directly."); }
-      };
-      img.src = url;
+          } finally {
+              if(target) this.setLoading(target, false);
+          }
+      } catch(e) { alert("Error loading image (CORS or Invalid URL)."); }
   }
 
   handleIconUpload(input) {
       const file = input.files[0]; if (!file) return;
-      this.compressImage(file, (dataUrl) => {
-          if(this.pendingItemId) {
-               this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
-          } else if(this.pendingFolderIcon) {
-              const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
-              const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
-              this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
-          }
+      this.compressImage(file, async (dataUrl) => {
           this.shadowRoot.getElementById('icon-modal').style.display = 'none';
+          
+          const target = this.pendingItemId || this.pendingFolderIcon;
+          if (target) this.setLoading(target, true);
+
+          try {
+              if(this.pendingItemId) {
+                   await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
+                   this.refreshImageVersion(this.pendingItemId);
+              } else if(this.pendingFolderIcon) {
+                  const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
+                  const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
+                  await this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
+                  this.refreshImageVersion(this.pendingFolderIcon);
+              }
+          } catch(e) { console.error(e); }
+          finally {
+              if(target) this.setLoading(target, false);
+          }
       });
       input.value = '';
   }
