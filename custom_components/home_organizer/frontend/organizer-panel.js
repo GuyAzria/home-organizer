@@ -278,7 +278,7 @@ class HomeOrganizerPanel extends HTMLElement {
         .xl-card { background: var(--bg-card); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; aspect-ratio: 1; position: relative; border: 1px solid transparent; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .xl-card:hover { background: var(--bg-card-hover); }
         .xl-icon-area { flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; overflow: hidden; cursor: zoom-in; position: relative; }
-        .xl-icon-area svg { width: 48px; height: 48px; color: var(--primary); }
+        .xl-icon-area svg { width: 38px; height: 38px; color: var(--primary); }
         .xl-icon-area img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
         .xl-badge { position: absolute; top: 8px; inset-inline-end: 8px; background: var(--bg-badge); color: var(--text-badge); border: 1px solid var(--border-light); min-width: 24px; height: 24px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; }
         .xl-info { width: 100%; text-align: center; margin-top: 8px; cursor: pointer; }
