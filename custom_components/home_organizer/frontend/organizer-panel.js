@@ -1,13 +1,12 @@
-// Home Organizer Ultimate - Ver 6.3.0 (Added AI Chat Feature)
+// Home Organizer Ultimate - Ver 6.3.2 (Forced AI Icon & Chat Fixes)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
 
-// --- Add AI Chat Icons if missing from library ---
-if (!ICONS.robot) {
-    ICONS.robot = `<svg viewBox="0 0 24 24"><path d="M12,2A2,2 0 0,1 14,4C14,4.74 13.6,5.39 13,5.73V7H14A7,7 0 0,1 21,14H22A1,1 0 0,1 23,15V18A1,1 0 0,1 22,19H21V20A2,2 0 0,1 19,22H5A2,2 0 0,1 3,20V19H2A1,1 0 0,1 1,18V15A1,1 0 0,1 2,14H3A7,7 0 0,1 10,7H11V5.73C10.4,5.39 10,4.74 10,4A2,2 0 0,1 12,2M7.5,13A2.5,2.5 0 0,0 5,15.5A2.5,2.5 0 0,0 7.5,18A2.5,2.5 0 0,0 10,15.5A2.5,2.5 0 0,0 7.5,13M16.5,13A2.5,2.5 0 0,0 14,15.5A2.5,2.5 0 0,0 16.5,18A2.5,2.5 0 0,0 19,15.5A2.5,2.5 0 0,0 16.5,13Z" /></svg>`;
-    ICONS.send = `<svg viewBox="0 0 24 24"><path d="M2,21L23,12L2,3V10L17,12L2,14V21Z" /></svg>`;
-}
+// --- FORCE AI Chat Icons (Overwrite existing) ---
+// "AI" letter icon (Capital A and I)
+ICONS.robot = `<svg viewBox="0 0 24 24"><path d="M9.5,7H11.5L14.5,17H12.5L12,15H9L8.5,17H6.5L9.5,7M10.5,10L9.6,13.5H11.4L10.5,10M16,7H18V17H16V7Z" /></svg>`;
+ICONS.send = `<svg viewBox="0 0 24 24"><path d="M2,21L23,12L2,3V10L17,12L2,14V21Z" /></svg>`;
 
 const ITEM_CATEGORIES = {
   "Food": {
@@ -143,8 +142,8 @@ class HomeOrganizerPanel extends HTMLElement {
       this.isEditMode = false;
       this.isSearch = false;
       this.isShopMode = false;
-      this.isChatMode = false; // NEW: Chat State
-      this.chatHistory = []; // NEW: Chat History
+      this.isChatMode = false; 
+      this.chatHistory = []; 
       this.viewMode = 'list'; 
       this.expandedIdx = null; 
       this.lastAI = "";
@@ -163,12 +162,10 @@ class HomeOrganizerPanel extends HTMLElement {
       
       this.translations = {}; 
       this.availableLangs = [];
-      this.allDbItems = []; // Store unique items for autocomplete
+      this.allDbItems = []; 
 
-      // --- New Loading & Cache Busting State ---
       this.loadingSet = new Set(); 
       this.imageVersions = {}; 
-      // ----------------------------------------
 
       try { 
           this.persistentIds = JSON.parse(localStorage.getItem('home_organizer_ids')) || {}; 
@@ -183,7 +180,7 @@ class HomeOrganizerPanel extends HTMLElement {
       
       this.initUI();
       this.loadTranslations();
-      this.fetchAllItems(); // Fetch items for autocomplete
+      this.fetchAllItems(); 
     }
 
     if (this._hass && this._hass.connection && !this.subscribed) {
@@ -193,7 +190,6 @@ class HomeOrganizerPanel extends HTMLElement {
              if (e.data.mode === 'identify') { /* AI logic */ }
         }, 'home_organizer_ai_result');
         this.fetchData();
-        // Refresh full list occasionally or on update
         this._hass.connection.subscribeEvents(() => this.fetchAllItems(), 'home_organizer_db_update');
     }
   }
@@ -289,7 +285,6 @@ class HomeOrganizerPanel extends HTMLElement {
       } catch (e) { console.error("Fetch error", e); }
   }
 
-  // --- Helper Methods for Loading Animation ---
   setLoading(target, state) {
       if(state) this.loadingSet.add(target);
       else this.loadingSet.delete(target);
@@ -299,7 +294,6 @@ class HomeOrganizerPanel extends HTMLElement {
   refreshImageVersion(target) {
       this.imageVersions[target] = Date.now();
   }
-  // --------------------------------------------
 
   initUI() {
     this.content = true;
@@ -423,38 +417,10 @@ class HomeOrganizerPanel extends HTMLElement {
         .loader { width: 24px; height: 24px; border: 3px solid #fff; border-bottom-color: transparent; border-radius: 50%; display: inline-block; box-sizing: border-box; animation: rotation 1s linear infinite; }
         @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        .suggestions-box {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: var(--bg-dropdown);
-            border: 1px solid var(--border-light);
-            border-radius: 4px;
-            z-index: 10000; /* Increased to ensure visibility */
-            max-height: 150px;
-            overflow-y: auto;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-            text-align: inherit; /* Align based on RTL/LTR */
-            padding: 5px 0;
-        }
-        .suggestion-item {
-            padding: 10px;
-            cursor: pointer;
-            border-bottom: 1px solid var(--border-color);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: var(--bg-card); /* Ensure solid background */
-            color: var(--text-main);
-        }
-        .suggestion-item:hover {
-            background: var(--primary);
-            color: white;
-        }
-        .suggestion-img {
-            width: 30px; height: 30px; object-fit: cover; border-radius: 4px; border: 1px solid #444;
-        }
+        .suggestions-box { position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-dropdown); border: 1px solid var(--border-light); border-radius: 4px; z-index: 10000; max-height: 150px; overflow-y: auto; box-shadow: 0 4px 8px rgba(0,0,0,0.3); text-align: inherit; padding: 5px 0; }
+        .suggestion-item { padding: 10px; cursor: pointer; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 10px; background: var(--bg-card); color: var(--text-main); }
+        .suggestion-item:hover { background: var(--primary); color: white; }
+        .suggestion-img { width: 30px; height: 30px; object-fit: cover; border-radius: 4px; border: 1px solid #444; }
         
         #icon-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2500; display: none; align-items: center; justify-content: center; flex-direction: column; }
         .modal-content { background: var(--bg-card); color:var(--text-main); width: 95%; max-width: 450px; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 15px; max-height: 90vh; overflow-y: auto; }
@@ -1544,7 +1510,7 @@ class HomeOrganizerPanel extends HTMLElement {
     }
   }
 
-  // NEW: Chat UI Render
+  // NEW: Chat UI Render (with Timeout Logic)
   renderChatUI(container) {
       const chatContainer = document.createElement('div');
       chatContainer.className = 'chat-container';
@@ -1552,7 +1518,6 @@ class HomeOrganizerPanel extends HTMLElement {
       const messagesDiv = document.createElement('div');
       messagesDiv.className = 'chat-messages';
       
-      // Default Welcome Message
       if (this.chatHistory.length === 0) {
           const welcome = document.createElement('div');
           welcome.className = 'message ai';
@@ -1585,35 +1550,49 @@ class HomeOrganizerPanel extends HTMLElement {
           const text = input.value.trim();
           if (!text) return;
           
-          // Add User Message
           this.chatHistory.push({ role: 'user', text: text });
-          this.render(); // Re-render to show message
+          this.render(); 
           
-          // Show loading by adding temp message
           this.chatHistory.push({ role: 'ai', text: "Thinking..." });
           this.render();
           
+          let responded = false;
+          // UI Safety Timeout (10 seconds)
+          const safetyTimeout = setTimeout(() => {
+              if(!responded) {
+                  this.chatHistory.pop();
+                  this.chatHistory.push({ role: 'ai', text: "Request took too long. Backend might be busy." });
+                  this.render();
+                  responded = true;
+              }
+          }, 10000); 
+
           try {
               const result = await this._hass.callWS({
                   type: 'home_organizer/ai_chat',
                   message: text
               });
               
-              // Remove "Thinking..."
-              this.chatHistory.pop();
-              
-              if (result.error) {
-                  this.chatHistory.push({ role: 'ai', text: "Error: " + result.error });
-              } else {
-                  this.chatHistory.push({ role: 'ai', text: result.response });
+              clearTimeout(safetyTimeout);
+              if(!responded) {
+                  this.chatHistory.pop();
+                  
+                  if (result.error) {
+                      this.chatHistory.push({ role: 'ai', text: "Error: " + result.error });
+                  } else {
+                      this.chatHistory.push({ role: 'ai', text: result.response });
+                  }
+                  responded = true;
               }
           } catch (e) {
-              this.chatHistory.pop();
-              this.chatHistory.push({ role: 'ai', text: "Connection error." });
+              clearTimeout(safetyTimeout);
+              if(!responded) {
+                  this.chatHistory.pop();
+                  this.chatHistory.push({ role: 'ai', text: "Connection error." });
+              }
           }
           
           this.render();
-          // Scroll to bottom (wait for render)
           setTimeout(() => {
               const msgs = this.shadowRoot.querySelector('.chat-messages');
               if(msgs) msgs.scrollTop = msgs.scrollHeight;
@@ -1628,8 +1607,6 @@ class HomeOrganizerPanel extends HTMLElement {
       chatContainer.appendChild(inputBar);
       
       container.appendChild(chatContainer);
-      
-      // Scroll to bottom on init
       setTimeout(() => messagesDiv.scrollTop = messagesDiv.scrollHeight, 0);
   }
 
