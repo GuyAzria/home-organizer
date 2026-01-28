@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 6.2.2 (Added Autocomplete & Image Ref Update)
+# Home Organizer Ultimate - ver 6.3.1 (Fix: Async Chat Handler & Hebrew Support)
 
 import logging
 import sqlite3
@@ -7,7 +7,9 @@ import os
 import base64
 import time
 import json
+import asyncio
 import voluptuous as vol
+from aiohttp import ClientTimeout
 from datetime import datetime, timedelta
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall, callback
@@ -21,7 +23,7 @@ MAX_LEVELS = 10
 
 WS_GET_DATA = "home_organizer/get_data"
 WS_GET_ALL_ITEMS = "home_organizer/get_all_items" 
-WS_AI_CHAT = "home_organizer/ai_chat" # NEW: AI Chat Command
+WS_AI_CHAT = "home_organizer/ai_chat" 
 
 # Define the URL prefix for your frontend files
 STATIC_PATH_URL = "/home_organizer_static"
@@ -83,7 +85,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 vol.Required("type"): WS_GET_ALL_ITEMS
             })
         )
-        # NEW: Register Chat Command
+        # Register Chat Command (Removed @callback to allow async I/O)
         websocket_api.async_register_command(
             hass,
             WS_AI_CHAT,
@@ -171,8 +173,7 @@ def websocket_get_all_items(hass, connection, msg):
     finally:
         conn.close()
 
-# NEW: AI Chat WebSocket Handler (Fixed Error Handling)
-@callback
+# NEW: Async Chat Handler (Removed @callback to prevent blocking)
 async def websocket_ai_chat(hass, connection, msg):
     try:
         user_message = msg.get("message", "")
@@ -206,10 +207,14 @@ async def websocket_ai_chat(hass, connection, msg):
 
         inventory_rows = await hass.async_add_executor_job(get_inventory)
         
+        # STOP Condition: If no inventory, return immediately
+        if not inventory_rows:
+            connection.send_result(msg["id"], {"response": "המלאי שלך ריק, אז אין לי מצרכים להציע מהם מתכונים."})
+            return
+
         # Format Inventory for AI
         inventory_context = "Current Inventory:\n"
         for r in inventory_rows:
-            # Safely unpack row, handling potential None values
             try:
                 name, qty, l1, l2, l3, unit, uval = r
                 l1 = l1 or ""
@@ -227,10 +232,12 @@ async def websocket_ai_chat(hass, connection, msg):
         # 3. Call Gemini
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
         
+        # Updated Prompt: Explicitly requests Hebrew response for Hebrew queries
         system_prompt = (
-            "You are a helpful home organizer assistant. You have access to the user's inventory listed below. "
-            "Answer questions based on this inventory. If asked for recipes, suggest ones using available ingredients. "
-            "Be concise and helpful.\n\n" + inventory_context
+            "You are a smart home organizer assistant. You have access to the user's inventory listed below. "
+            "Reply in the SAME LANGUAGE as the user's question (Hebrew/English). "
+            "If asked for recipes, suggest ideas using ONLY available ingredients if possible. "
+            "Be concise, friendly, and helpful.\n\n" + inventory_context
         )
 
         payload = {
@@ -240,10 +247,11 @@ async def websocket_ai_chat(hass, connection, msg):
         }
 
         session = async_get_clientsession(hass)
-        async with session.post(url, json=payload) as resp:
+        
+        # 5 Minute Timeout (300 seconds)
+        async with session.post(url, json=payload, timeout=ClientTimeout(total=300)) as resp:
             if resp.status == 200:
                 json_resp = await resp.json()
-                # Check for safe response extraction
                 if "candidates" in json_resp and json_resp["candidates"]:
                     content = json_resp["candidates"][0].get("content")
                     if content and content.get("parts"):
@@ -258,6 +266,8 @@ async def websocket_ai_chat(hass, connection, msg):
                 _LOGGER.error(f"Gemini API Error {resp.status}: {error_text}")
                 connection.send_result(msg["id"], {"error": f"API Error {resp.status}"})
 
+    except asyncio.TimeoutError:
+        connection.send_result(msg["id"], {"error": "Request Timed Out (5 min limit)."})
     except Exception as e:
         _LOGGER.exception("Unexpected error in AI Chat")
         connection.send_result(msg["id"], {"error": f"Internal System Error: {str(e)}"})
