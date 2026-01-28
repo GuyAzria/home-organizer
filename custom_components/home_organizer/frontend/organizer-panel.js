@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.2.11 (Fixed Icon Generation Size)
+// Home Organizer Ultimate - Ver 6.2.12 (Fixed Grid Icon Sizing & Cropping)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -279,7 +279,7 @@ class HomeOrganizerPanel extends HTMLElement {
         .xl-card:hover { background: var(--bg-card-hover); }
         .xl-icon-area { flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; overflow: hidden; cursor: zoom-in; position: relative; }
         .xl-icon-area svg { width: 40%; height: 40%; color: var(--primary); }
-        .xl-icon-area img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
+        .xl-icon-area img { width: 100%; height: 100%; object-fit: contain; border-radius: 8px; }
         .xl-badge { position: absolute; top: 8px; inset-inline-end: 8px; background: var(--bg-badge); color: var(--text-badge); border: 1px solid var(--border-light); min-width: 24px; height: 24px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; }
         .xl-info { width: 100%; text-align: center; margin-top: 8px; cursor: pointer; }
         .xl-name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; color: var(--text-main); }
@@ -1389,7 +1389,8 @@ class HomeOrganizerPanel extends HTMLElement {
                               if (isLoading) {
                                   loaderHtml = `<div class="loader-container"><span class="loader"></span></div>`;
                               }
-                              iconHtml = `<div style="position:relative;width:100%;height:100%"><img src="${src}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">${loaderHtml}</div>`;
+                              // FIX: Changed object-fit to 'contain' and reduced wrapper size to 80%
+                              iconHtml = `<div style="position:relative;width:80%;height:80%"><img src="${src}" style="width:100%;height:100%;object-fit:contain;border-radius:8px">${loaderHtml}</div>`;
                           }
                           // ---------------------------------------------
                           card.innerHTML = `
