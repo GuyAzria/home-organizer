@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.2.7 (Fixed Autocomplete UI & Logic)
+// Home Organizer Ultimate - Ver 6.2.8 (Fixed Camera ID Logic)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -785,7 +785,12 @@ class HomeOrganizerPanel extends HTMLElement {
       
       if (this.cameraContext === 'search') {
           this.callHA('ai_action', { mode: 'search', image_data: dataUrl });
+      } else if (this.pendingItemId) {
+          // --- FIX APPLIED HERE: Use pendingItemId if available ---
+          this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
+          this.pendingItemId = null;
       } else if (this.pendingItem) {
+          // Fallback to legacy name-based update if needed
           this.callHA('update_image', { item_name: this.pendingItem, image_data: dataUrl });
           this.pendingItem = null;
       }
