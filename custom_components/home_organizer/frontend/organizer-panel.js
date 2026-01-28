@@ -1,25 +1,137 @@
-// Home Organizer Ultimate - Ver 6.2.12 (Fixed Grid Icon Sizing & Cropping)
+// Home Organizer Ultimate - Ver 6.3.0 (Added AI Chat Feature)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
 
+// --- Add AI Chat Icons if missing from library ---
+if (!ICONS.robot) {
+    ICONS.robot = `<svg viewBox="0 0 24 24"><path d="M12,2A2,2 0 0,1 14,4C14,4.74 13.6,5.39 13,5.73V7H14A7,7 0 0,1 21,14H22A1,1 0 0,1 23,15V18A1,1 0 0,1 22,19H21V20A2,2 0 0,1 19,22H5A2,2 0 0,1 3,20V19H2A1,1 0 0,1 1,18V15A1,1 0 0,1 2,14H3A7,7 0 0,1 10,7H11V5.73C10.4,5.39 10,4.74 10,4A2,2 0 0,1 12,2M7.5,13A2.5,2.5 0 0,0 5,15.5A2.5,2.5 0 0,0 7.5,18A2.5,2.5 0 0,0 10,15.5A2.5,2.5 0 0,0 7.5,13M16.5,13A2.5,2.5 0 0,0 14,15.5A2.5,2.5 0 0,0 16.5,18A2.5,2.5 0 0,0 19,15.5A2.5,2.5 0 0,0 16.5,13Z" /></svg>`;
+    ICONS.send = `<svg viewBox="0 0 24 24"><path d="M2,21L23,12L2,3V10L17,12L2,14V21Z" /></svg>`;
+}
+
 const ITEM_CATEGORIES = {
-  "Food": { "Fresh Produce": "Kg", "Meat & Fish": "Kg", "Dairy": "Liter", "Dry Goods": "Kg", "Frozen Food": "Kg", "Beverages": "Liter", "Snacks": "Units", "Spices & Herbs": "g", "Oils & Sauces": "Liter", "Canned Food": "Units" },
-  "Clothing": { "Tops": "Units", "Bottoms": "Units", "Outerwear": "Units", "Shoes": "Units", "Underwear": "Units", "Accessories": "Units", "Workwear": "Units", "Sportswear": "Units" },
-  "Furniture": { "Seating": "Units", "Tables": "Units", "Storage Furniture": "Units", "Beds": "Units", "Shelving": "Units", "Outdoor Furniture": "Units" },
-  "Electronics": { "Computing Devices": "Units", "Mobile Devices": "Units", "Audio Equipment": "Units", "Video Equipment": "Units", "Networking": "Units", "Accessories": "Units", "Batteries": "Units" },
-  "Tools": { "Hand Tools": "Units", "Power Tools": "Units", "Measuring Tools": "Units", "Cutting Tools": "Units", "Workshop Equipment": "Units" },
-  "Cleaning Supplies": { "Liquid Cleaners": "Liter", "Powders & Tablets": "Kg", "Tools & Brushes": "Units", "Paper Products": "Units", "Disinfectants": "Liter" },
-  "Stationery": { "Writing Tools": "Units", "Paper Products": "Units", "Office Accessories": "Units", "Printing Supplies": "Units", "Filing & Storage": "Units" },
-  "Storage & Organization": { "Boxes & Bins": "Units", "Shelving Containers": "Units", "Bags & Covers": "Units", "Drawer Organizers": "Units" },
-  "Personal Care": { "Skin Care": "ml", "Hair Care": "ml", "Oral Care": "Units", "Grooming Tools": "Units", "Cosmetics": "Units" },
-  "Health & Medical": { "Medications": "Units", "Supplements": "Units", "First Aid": "Units", "Medical Devices": "Units", "Hygiene Protection": "Units" },
-  "Hardware": { "Fasteners": "Units", "Pipes & Fittings": "Units", "Electrical Parts": "Units", "Building Materials": "Kg", "Adhesives & Sealants": "ml" },
-  "Garden": { "Plants": "Units", "Seeds": "g", "Soil & Compost": "Liter", "Fertilizers": "Kg", "Irrigation": "Units", "Garden Tools": "Units", "Pots & Planters": "Units", "Mulch & Ground Cover": "Liter", "Pest Control": "ml" },
-  "Appliances": { "Kitchen Appliances": "Units", "Laundry Appliances": "Units", "Climate Control": "Units", "Small Appliances": "Units" },
-  "Lighting": { "Bulbs": "Units", "Lamps": "Units", "Outdoor Lighting": "Units", "Fixtures": "Units" },
-  "Toys & Games": { "Children Toys": "Units", "Board Games": "Units", "Outdoor Games": "Units", "Educational Toys": "Units" },
-  "Miscellaneous": { "Decorations": "Units", "Seasonal Items": "Units", "Collectibles": "Units", "Other": "Units" }
+  "Food": {
+    "Fresh Produce": "Kg",
+    "Meat & Fish": "Kg",
+    "Dairy": "Liter",
+    "Dry Goods": "Kg",
+    "Frozen Food": "Kg",
+    "Beverages": "Liter",
+    "Snacks": "Units",
+    "Spices & Herbs": "g",
+    "Oils & Sauces": "Liter",
+    "Canned Food": "Units"
+  },
+  "Clothing": {
+    "Tops": "Units",
+    "Bottoms": "Units",
+    "Outerwear": "Units",
+    "Shoes": "Units",
+    "Underwear": "Units",
+    "Accessories": "Units",
+    "Workwear": "Units",
+    "Sportswear": "Units"
+  },
+  "Furniture": {
+    "Seating": "Units",
+    "Tables": "Units",
+    "Storage Furniture": "Units",
+    "Beds": "Units",
+    "Shelving": "Units",
+    "Outdoor Furniture": "Units"
+  },
+  "Electronics": {
+    "Computing Devices": "Units",
+    "Mobile Devices": "Units",
+    "Audio Equipment": "Units",
+    "Video Equipment": "Units",
+    "Networking": "Units",
+    "Accessories": "Units",
+    "Batteries": "Units"
+  },
+  "Tools": {
+    "Hand Tools": "Units",
+    "Power Tools": "Units",
+    "Measuring Tools": "Units",
+    "Cutting Tools": "Units",
+    "Workshop Equipment": "Units"
+  },
+  "Cleaning Supplies": {
+    "Liquid Cleaners": "Liter",
+    "Powders & Tablets": "Kg",
+    "Tools & Brushes": "Units",
+    "Paper Products": "Units",
+    "Disinfectants": "Liter"
+  },
+  "Stationery": {
+    "Writing Tools": "Units",
+    "Paper Products": "Units",
+    "Office Accessories": "Units",
+    "Printing Supplies": "Units",
+    "Filing & Storage": "Units"
+  },
+  "Storage & Organization": {
+    "Boxes & Bins": "Units",
+    "Shelving Containers": "Units",
+    "Bags & Covers": "Units",
+    "Drawer Organizers": "Units"
+  },
+  "Personal Care": {
+    "Skin Care": "ml",
+    "Hair Care": "ml",
+    "Oral Care": "Units",
+    "Grooming Tools": "Units",
+    "Cosmetics": "Units"
+  },
+  "Health & Medical": {
+    "Medications": "Units",
+    "Supplements": "Units",
+    "First Aid": "Units",
+    "Medical Devices": "Units",
+    "Hygiene Protection": "Units"
+  },
+  "Hardware": {
+    "Fasteners": "Units",
+    "Pipes & Fittings": "Units",
+    "Electrical Parts": "Units",
+    "Building Materials": "Kg",
+    "Adhesives & Sealants": "ml"
+  },
+  "Garden": {
+    "Plants": "Units",
+    "Seeds": "g",
+    "Soil & Compost": "Liter",
+    "Fertilizers": "Kg",
+    "Irrigation": "Units",
+    "Garden Tools": "Units",
+    "Pots & Planters": "Units",
+    "Mulch & Ground Cover": "Liter",
+    "Pest Control": "ml"
+  },
+  "Appliances": {
+    "Kitchen Appliances": "Units",
+    "Laundry Appliances": "Units",
+    "Climate Control": "Units",
+    "Small Appliances": "Units"
+  },
+  "Lighting": {
+    "Bulbs": "Units",
+    "Lamps": "Units",
+    "Outdoor Lighting": "Units",
+    "Fixtures": "Units"
+  },
+  "Toys & Games": {
+    "Children Toys": "Units",
+    "Board Games": "Units",
+    "Outdoor Games": "Units",
+    "Educational Toys": "Units"
+  },
+  "Miscellaneous": {
+    "Decorations": "Units",
+    "Seasonal Items": "Units",
+    "Collectibles": "Units",
+    "Other": "Units"
+  }
 };
 
 class HomeOrganizerPanel extends HTMLElement {
@@ -31,6 +143,8 @@ class HomeOrganizerPanel extends HTMLElement {
       this.isEditMode = false;
       this.isSearch = false;
       this.isShopMode = false;
+      this.isChatMode = false; // NEW: Chat State
+      this.chatHistory = []; // NEW: Chat History
       this.viewMode = 'list'; 
       this.expandedIdx = null; 
       this.lastAI = "";
@@ -203,6 +317,7 @@ class HomeOrganizerPanel extends HTMLElement {
             --bg-badge: #444; --text-badge: #fff;
             --bg-icon-box: #3c4043; --text-icon-box: #8ab4f8;
             --catalog-bg: #ff9800; --catalog-text: #fff;
+            --chat-bg: #111; --chat-msg-user: #004d40; --chat-msg-ai: #263238;
         }
         .light-mode {
             --bg-body: #f5f5f5; --bg-bar: #ffffff; --bg-sub-bar: #f0f0f0;
@@ -214,6 +329,7 @@ class HomeOrganizerPanel extends HTMLElement {
             --icon-btn-bg: #e0e0e0;
             --bg-badge: #e0e0e0; --text-badge: #000000;
             --bg-icon-box: #e0e0e0; --text-icon-box: #03a9f4;
+            --chat-bg: #fff; --chat-msg-user: #e0f2f1; --chat-msg-ai: #eceff1;
         }
         * { box-sizing: border-box; }
         .app-container { background: var(--bg-body); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; font-family: sans-serif; }
@@ -373,6 +489,17 @@ class HomeOrganizerPanel extends HTMLElement {
         #overlay-img { max-width: 50% !important; max-height: 35vh !important; border-radius: 8px; object-fit: contain; margin-bottom: 15px; display: none; border: 1px solid #444; }
         #overlay-icon-big { display: none; margin-bottom: 15px; color: white; }
         #overlay-icon-big svg { width: 60px; height: 60px; }
+        
+        /* Chat Styles */
+        .chat-container { display: flex; flex-direction: column; height: 100%; background: var(--chat-bg); color: var(--text-main); }
+        .chat-messages { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 15px; }
+        .message { max-width: 80%; padding: 10px 15px; border-radius: 12px; line-height: 1.4; word-wrap: break-word; font-size: 14px; position: relative; }
+        .message.user { align-self: flex-end; background: var(--chat-msg-user); color: var(--text-main); border-bottom-right-radius: 2px; }
+        .message.ai { align-self: flex-start; background: var(--chat-msg-ai); color: var(--text-main); border-bottom-left-radius: 2px; }
+        .chat-input-bar { padding: 10px; background: var(--bg-bar); border-top: 1px solid var(--border-color); display: flex; gap: 10px; align-items: center; }
+        .chat-input { flex: 1; padding: 10px; border-radius: 20px; border: 1px solid var(--border-input); background: var(--bg-input); color: var(--text-main); outline: none; }
+        .chat-send-btn { background: var(--primary); color: white; border: none; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .chat-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
       </style>
       
       <div class="app-container" id="app">
@@ -400,7 +527,6 @@ class HomeOrganizerPanel extends HTMLElement {
                            <svg viewBox="0 0 24 24"><path d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z" /></svg>
                            ${this.t('back')}
                         </div>
-                        <!-- Languages injected here by renderMenu() -->
                     </div>
                     <!-- Theme Submenu -->
                     <div id="menu-theme" style="display:none">
@@ -419,6 +545,7 @@ class HomeOrganizerPanel extends HTMLElement {
                 <div class="sub-title" id="display-path">${this.t('default_path')}</div>
             </div>
             <div style="display:flex;gap:5px">
+                <button class="nav-btn" id="btn-chat" style="display:none;" title="AI Chat">${ICONS.robot}</button>
                 <button class="nav-btn" id="btn-shop">${ICONS.cart}</button>
                 <button class="nav-btn" id="btn-search">${ICONS.search}</button>
                 <button class="nav-btn" id="btn-edit">${ICONS.edit}</button>
@@ -458,6 +585,7 @@ class HomeOrganizerPanel extends HTMLElement {
         </div>
       </div>
       
+      <!-- Icon Picker Modal -->
       <div id="icon-modal" onclick="this.style.display='none'">
           <div class="modal-content" onclick="event.stopPropagation()">
               <div class="modal-title">${this.t('change_icon')}</div>
@@ -482,6 +610,7 @@ class HomeOrganizerPanel extends HTMLElement {
           </div>
       </div>
       
+      <!-- Camera Modal -->
       <div id="camera-modal">
           <video id="camera-video" autoplay playsinline muted></video>
           <div class="camera-controls">
@@ -493,6 +622,7 @@ class HomeOrganizerPanel extends HTMLElement {
           <canvas id="camera-canvas"></canvas>
       </div>
 
+      <!-- Image Overlay -->
       <div class="overlay" id="img-overlay" onclick="this.style.display='none'">
           <div style="display:flex;flex-direction:column;align-items:center;max-width:90%;max-height:90%;width:100%">
               <img id="overlay-img">
@@ -544,13 +674,10 @@ class HomeOrganizerPanel extends HTMLElement {
     this.bindEvents();
   }
   
-  // NEW: Input Handler for Autocomplete
   handleNameInput(input, itemId) {
       const val = input.value.toLowerCase();
-      // Use the closest positioned relative wrapper as the parent for the dropdown
       const parent = input.parentElement; 
       
-      // Remove old suggestions
       const old = parent.querySelector('.suggestions-box');
       if(old) old.remove();
 
@@ -562,7 +689,6 @@ class HomeOrganizerPanel extends HTMLElement {
       const box = document.createElement('div');
       box.className = 'suggestions-box';
       
-      // Limit to 5 suggestions
       matches.slice(0, 5).forEach(match => {
           const div = document.createElement('div');
           div.className = 'suggestion-item';
@@ -571,9 +697,8 @@ class HomeOrganizerPanel extends HTMLElement {
               imgHtml = `<img src="${match.image_path}" class="suggestion-img">`;
           }
           div.innerHTML = `${imgHtml}<span>${match.name}</span>`;
-          // Use mousedown to prevent blur from firing first
           div.onmousedown = (e) => {
-              e.preventDefault(); // Prevent focus loss
+              e.preventDefault(); 
               this.applySuggestion(itemId, match);
               box.remove();
           };
@@ -583,12 +708,10 @@ class HomeOrganizerPanel extends HTMLElement {
       parent.appendChild(box);
   }
 
-  // NEW: Apply Suggestion Logic
   applySuggestion(itemId, match) {
       const nameInput = this.shadowRoot.getElementById(`name-${itemId}`);
       if(nameInput) nameInput.value = match.name;
       
-      // Clean image path (strip prefix and params)
       let cleanPath = null;
       if (match.image_path) {
           cleanPath = match.image_path.split('?')[0].split('/').pop();
@@ -605,11 +728,9 @@ class HomeOrganizerPanel extends HTMLElement {
           image_path: cleanPath
       });
       
-      // Refresh UI to show new details
       setTimeout(() => this.fetchData(), 200); 
   }
 
-  // Generate Menu Items Dynamically from Loaded CSV Headers
   renderMenu() {
       const menuLang = this.shadowRoot.getElementById('menu-lang');
       if (!menuLang) return;
@@ -621,15 +742,12 @@ class HomeOrganizerPanel extends HTMLElement {
         </div>
       `;
       
-      // If we have loaded languages, iterate them
       if (this.availableLangs && this.availableLangs.length > 0) {
           this.availableLangs.forEach(lang => {
-              // Uppercase first letter for display, or use a map if preferred
               const display = lang.toUpperCase(); 
               html += `<div class="dropdown-item" onclick="this.getRootNode().host.changeLanguage('${lang}')">${display}</div>`;
           });
       } else {
-           // Fallback if CSV failed
            html += `<div class="dropdown-item" onclick="this.getRootNode().host.changeLanguage('en')">English</div>`;
       }
       
@@ -643,9 +761,9 @@ class HomeOrganizerPanel extends HTMLElement {
 
     click('btn-user-setup', (e) => {
         e.stopPropagation();
-        this.renderMenu(); // Re-render menu before showing
+        this.renderMenu();
         const menu = root.getElementById('setup-dropdown-menu');
-        this.showMenu('main'); // Always reset to main menu on open
+        this.showMenu('main');
         menu.classList.toggle('show');
     });
 
@@ -657,12 +775,32 @@ class HomeOrganizerPanel extends HTMLElement {
     if(menu) menu.onclick = (e) => e.stopPropagation();
 
     click('btn-up', () => this.navigate('up'));
-    click('btn-home', () => { this.isShopMode = false; this.isSearch = false; this.navigate('root'); });
-    click('btn-shop', () => { this.isShopMode = !this.isShopMode; if(this.isShopMode) { this.isSearch=false; this.isEditMode=false; } this.fetchData(); });
-    click('btn-search', () => { this.isSearch = true; this.isShopMode = false; this.render(); });
+    click('btn-home', () => { 
+        this.isShopMode = false; this.isSearch = false; this.isChatMode = false; 
+        this.navigate('root'); 
+    });
+    click('btn-shop', () => { 
+        this.isShopMode = !this.isShopMode; 
+        if(this.isShopMode) { this.isSearch=false; this.isEditMode=false; this.isChatMode = false; } 
+        this.fetchData(); 
+    });
+    click('btn-search', () => { 
+        this.isSearch = true; this.isShopMode = false; this.isChatMode = false; 
+        this.render(); 
+    });
     click('search-close', () => { this.isSearch = false; this.fetchData(); });
     bind('search-input', 'oninput', (e) => this.fetchData());
-    click('btn-edit', () => { this.isEditMode = !this.isEditMode; this.isShopMode = false; this.render(); });
+    click('btn-edit', () => { 
+        this.isEditMode = !this.isEditMode; this.isShopMode = false; this.isChatMode = false;
+        this.render(); 
+    });
+    
+    // NEW: Chat Button Handler
+    click('btn-chat', () => {
+        this.isChatMode = !this.isChatMode;
+        if(this.isChatMode) { this.isShopMode = false; this.isSearch = false; this.isEditMode = false; }
+        this.render();
+    });
     
     click('btn-view-toggle', () => {
         this.viewMode = (this.viewMode === 'list') ? 'grid' : 'list';
@@ -678,7 +816,6 @@ class HomeOrganizerPanel extends HTMLElement {
         this.render();
     });
     
-    // Toggle IDs Event
     click('btn-toggle-ids', () => this.toggleIds());
 
     click('btn-paste', () => this.pasteItem());
@@ -709,7 +846,6 @@ class HomeOrganizerPanel extends HTMLElement {
       if (this.showIds) app.classList.remove('hide-catalog-ids');
       else app.classList.add('hide-catalog-ids');
       
-      // Update button color
       const btn = this.shadowRoot.getElementById('btn-toggle-ids');
       if (btn) btn.style.color = this.showIds ? 'var(--catalog-bg)' : 'var(--primary)';
   }
@@ -739,7 +875,6 @@ class HomeOrganizerPanel extends HTMLElement {
       this.currentLang = lang;
       localStorage.setItem('home_organizer_lang', lang);
       
-      // Update Direction
       const dir = (this.translations && this.translations['_direction'] && this.translations['_direction'][lang]) || 'ltr';
       const app = this.shadowRoot.getElementById('app');
       app.style.direction = dir;
@@ -747,7 +882,7 @@ class HomeOrganizerPanel extends HTMLElement {
       if (dir === 'ltr') app.classList.add('ltr'); else app.classList.remove('ltr');
       
       this.shadowRoot.getElementById('setup-dropdown-menu').classList.remove('show');
-      this.render(); // Re-render to update text
+      this.render(); 
   }
   
   toggleWhiteBG() {
@@ -759,13 +894,11 @@ class HomeOrganizerPanel extends HTMLElement {
   async openCamera(context) {
       this.cameraContext = context;
       
-      // --- FIX: Fallback for insecure contexts (Local IP) ---
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
           console.warn("Secure context required for Camera API. Switching to native file input.");
           this.openNativeCamera(context);
           return;
       }
-      // ------------------------------------------------------
 
       const modal = this.shadowRoot.getElementById('camera-modal');
       const video = this.shadowRoot.getElementById('camera-video');
@@ -779,7 +912,6 @@ class HomeOrganizerPanel extends HTMLElement {
       }
   }
 
-  // --- NEW: Native Camera Fallback ---
   openNativeCamera(context) {
       let input = this.shadowRoot.getElementById('native-camera-input');
       if (!input) {
@@ -787,7 +919,7 @@ class HomeOrganizerPanel extends HTMLElement {
           input.id = 'native-camera-input';
           input.type = 'file';
           input.accept = 'image/*';
-          input.capture = 'environment'; // Prefer rear camera on mobile
+          input.capture = 'environment';
           input.style.display = 'none';
           this.shadowRoot.appendChild(input);
       }
@@ -796,7 +928,6 @@ class HomeOrganizerPanel extends HTMLElement {
           const file = e.target.files[0];
           if (!file) return;
           
-          // Pass this.useAiBg to compressImage to apply filter if enabled
           this.compressImage(file, async (dataUrl) => {
               const targetId = this.pendingItemId || this.pendingItem;
               const isSearch = context === 'search';
@@ -821,14 +952,13 @@ class HomeOrganizerPanel extends HTMLElement {
                   this.pendingItemId = null;
                   this.pendingItem = null;
               }
-          }, this.useAiBg); // Apply AI BG filter if enabled
+          }, this.useAiBg); 
           
-          input.value = ''; // Reset input
+          input.value = ''; 
       };
       
       input.click();
   }
-  // -----------------------------------
 
   stopCamera() {
       const modal = this.shadowRoot.getElementById('camera-modal');
@@ -865,7 +995,7 @@ class HomeOrganizerPanel extends HTMLElement {
       const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
       this.stopCamera();
       
-      const targetId = this.pendingItemId || this.pendingItem; // Handle ID or Name
+      const targetId = this.pendingItemId || this.pendingItem;
       const isSearch = this.cameraContext === 'search';
 
       if (!isSearch && targetId) {
@@ -898,13 +1028,24 @@ class HomeOrganizerPanel extends HTMLElement {
     // Update Title & Path
     root.getElementById('display-title').innerText = this.t('app_title');
     root.getElementById('display-path').innerText = 
-        this.isShopMode ? this.t('shopping_list') : 
+        this.isChatMode ? "AI Chat Assistant" : 
+        (this.isShopMode ? this.t('shopping_list') : 
         (this.isSearch ? this.t('search_results') : 
-        (attrs.path_display === "Main" ? this.t('default_path') : attrs.path_display));
+        (attrs.path_display === "Main" ? this.t('default_path') : attrs.path_display)));
         
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
     if(attrs.clipboard) root.getElementById('clipboard-name').innerText = attrs.clipboard;
+    
+    // NEW: Show/Hide Chat Button
+    const chatBtn = root.getElementById('btn-chat');
+    if (attrs.enable_ai) {
+        chatBtn.style.display = 'flex';
+        chatBtn.classList.toggle('active', this.isChatMode);
+    } else {
+        chatBtn.style.display = 'none';
+    }
+
     const app = root.getElementById('app');
     if(this.isEditMode) app.classList.add('edit-mode'); else app.classList.remove('edit-mode');
     
@@ -916,6 +1057,12 @@ class HomeOrganizerPanel extends HTMLElement {
 
     const content = root.getElementById('content');
     content.innerHTML = '';
+    
+    // NEW: Chat Mode Logic
+    if (this.isChatMode) {
+        this.renderChatUI(content);
+        return;
+    }
 
     const upBtn = root.getElementById('btn-up');
     if (upBtn) {
@@ -929,7 +1076,6 @@ class HomeOrganizerPanel extends HTMLElement {
     const viewBtn = root.getElementById('btn-view-toggle');
     if (attrs.depth >= 2) viewBtn.style.display = 'block'; else viewBtn.style.display = 'none';
     
-    // Toggle Button Logic (Hide at Level 3 / Depth >= 2)
     const toggleBtn = root.getElementById('btn-toggle-ids');
     if (toggleBtn) {
         if (attrs.depth >= 2) {
@@ -968,28 +1114,23 @@ class HomeOrganizerPanel extends HTMLElement {
         return;
     }
 
-    // ROOM LEVEL (Depth 0) - WITH ZONE/FLOOR SUPPORT
     if (attrs.depth === 0) {
         const zoneContainer = document.createElement('div');
         zoneContainer.className = 'item-list';
 
-        // 1. Identify Zones (Group rooms by prefix [ZoneName])
         const groupedRooms = {};
         const knownZones = new Set();
         
-        // Regex to extract [Zone] Name
         const zoneRegex = /^\[(.*?)\] (.*)$/;
-        // Regex for Zone Marker with Order: ZONE_MARKER_010_Floor1
         const markerRegex = /^ZONE_MARKER_(\d+)_+(.*)$/;
 
-        const zonesList = []; // Array to store { name, order, markerName }
+        const zonesList = [];
 
         if (attrs.folders) {
             attrs.folders.forEach(f => {
                 let zone = "General Rooms";
                 let displayName = f.name;
 
-                // Check for explicit Zone Marker first
                 if (f.name.startsWith("ZONE_MARKER_")) {
                     let zOrder = 9999;
                     let zName = f.name.replace("ZONE_MARKER_", "").trim();
@@ -1004,22 +1145,19 @@ class HomeOrganizerPanel extends HTMLElement {
                         knownZones.add(zName);
                         zonesList.push({ name: zName, order: zOrder, markerName: f.name });
                     }
-                    return; // Don't show marker as room
+                    return; 
                 }
 
-                // Check for Prefix "[Zone] Name"
                 const match = f.name.match(zoneRegex);
                 if (match) {
                     zone = match[1];
                     displayName = match[2];
                 } else if (f.zone) {
-                    // Fallback to legacy zone property if available
                     zone = f.zone;
                 }
 
                 if (!groupedRooms[zone]) groupedRooms[zone] = [];
                 
-                // Store processed folder info
                 groupedRooms[zone].push({
                     originalName: f.name,
                     displayName: displayName,
@@ -1028,41 +1166,32 @@ class HomeOrganizerPanel extends HTMLElement {
             });
         }
         
-        // Ensure empty zones (from markers) exist in list
         knownZones.forEach(z => { if (!groupedRooms[z]) groupedRooms[z] = []; });
         if (!groupedRooms["General Rooms"]) groupedRooms["General Rooms"] = [];
 
-        // 2. Sort Zones based on Marker Order
-        // First, add "General Rooms" if not in zonesList (it usually isn't)
         const hasGeneral = zonesList.find(z => z.name === "General Rooms");
         if (!hasGeneral && groupedRooms["General Rooms"].length > 0) {
-            zonesList.push({ name: "General Rooms", order: -1, markerName: null }); // Always top
+            zonesList.push({ name: "General Rooms", order: -1, markerName: null });
         }
 
-        // Add any discovered zones from rooms that didn't have markers
         Object.keys(groupedRooms).forEach(z => {
             if (!zonesList.find(i => i.name === z)) {
                 zonesList.push({ name: z, order: 9999, markerName: null });
             }
         });
 
-        // Sort the list
         zonesList.sort((a, b) => a.order - b.order);
 
-        // 3. Render Zones
         zonesList.forEach(zoneObj => {
             const zoneName = zoneObj.name;
             const rooms = groupedRooms[zoneName] || [];
             
-            // Skip empty General Rooms if not editing
             if (zoneName === "General Rooms" && rooms.length === 0 && !this.isEditMode) return;
 
-            // Zone Header - acts as drop target for rooms
             const header = document.createElement('div');
             header.className = 'group-separator';
             
-            // Build Header Content with Edit/Delete/Reorder if in Edit Mode
-            let headerContent = `<span>${this.t('zone_' + zoneName) === ('zone_' + zoneName) ? zoneName : this.t('zone_' + zoneName)}</span>`; // Try to translate zone name if possible (e.g., General Rooms)
+            let headerContent = `<span>${this.t('zone_' + zoneName) === ('zone_' + zoneName) ? zoneName : this.t('zone_' + zoneName)}</span>`; 
             if (this.isEditMode && zoneName !== "General Rooms") {
                 headerContent = `
                     <div style="display:flex;align-items:center;">
@@ -1078,29 +1207,23 @@ class HomeOrganizerPanel extends HTMLElement {
             }
             header.innerHTML = headerContent;
             
-            // Allow Drop ALWAYS (Requirement: drag and drop not in edit mode)
             this.setupZoneDropTarget(header, zoneName);
             zoneContainer.appendChild(header);
 
-            // Room Grid for this Zone
             const grid = document.createElement('div');
             grid.className = 'folder-grid';
             
             rooms.forEach(folder => {
-                // PERSISTENT ID
                 const rawID = this.getPersistentID('root', folder.originalName);
                 const catalogID = this.toAlphaId(rawID);
 
                 const el = document.createElement('div');
                 el.className = 'folder-item';
                 
-                // DRAG & DROP Support for Rooms - ENABLED ALWAYS for Zone Moving
                 this.setupRoomDragSource(el, folder.originalName);
 
-                // Pass the generated ID to navigate
                 el.onclick = () => { if (!this.isEditMode) this.navigate('down', folder.originalName, catalogID); };
                 
-                // --- Updated Logic for Loader & Versioning ---
                 let folderContent = ICONS.folder;
                 if (folder.img) {
                     const isLoading = this.loadingSet.has(folder.originalName);
@@ -1113,7 +1236,6 @@ class HomeOrganizerPanel extends HTMLElement {
                     }
                     folderContent = `<div style="position:relative;width:100%;height:100%"><img src="${src}" style="width:100%;height:100%;object-fit:contain;border-radius:4px">${loaderHtml}</div>`;
                 }
-                // ---------------------------------------------
 
                 const deleteBtnHtml = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.originalName}')">✕</div>` : '';
                 const editBtnHtml = this.isEditMode ? `<div class="folder-edit-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'), '${folder.originalName}')">${ICONS.edit}</div>` : '';
@@ -1130,7 +1252,6 @@ class HomeOrganizerPanel extends HTMLElement {
                 grid.appendChild(el);
             });
 
-            // Add room specifically to this zone button (INLINE INPUT)
             if (this.isEditMode) {
                 const addBtn = document.createElement('div');
                 addBtn.className = 'folder-item add-folder-card';
@@ -1142,7 +1263,6 @@ class HomeOrganizerPanel extends HTMLElement {
             zoneContainer.appendChild(grid);
         });
 
-        // Global Edit Mode Options for Zone Management (No Popup - Instant Add)
         if (this.isEditMode) {
             const addZoneBtn = document.createElement('button');
             addZoneBtn.className = 'add-item-btn';
@@ -1161,22 +1281,18 @@ class HomeOrganizerPanel extends HTMLElement {
             const grid = document.createElement('div');
             grid.className = 'folder-grid';
             
-            // Current ID Parent (e.g., "A" if inside Kitchen)
             const parentID = this.catalogPath[0] || "";
 
             if (attrs.folders) {
                 attrs.folders.forEach(folder => {
-                    // PERSISTENT ID
                     const rawID = this.getPersistentID(this.currentPath[0], folder.name);
                     const catalogID = parentID + rawID;
 
                     const el = document.createElement('div');
                     el.className = 'folder-item';
                     
-                    // Pass the generated ID to navigate
                     el.onclick = () => this.navigate('down', folder.name, catalogID);
                     
-                    // --- Updated Logic for Loader & Versioning ---
                     let folderContent = ICONS.folder;
                     if (folder.img) {
                         const isLoading = this.loadingSet.has(folder.name);
@@ -1189,7 +1305,6 @@ class HomeOrganizerPanel extends HTMLElement {
                         }
                         folderContent = `<div style="position:relative;width:100%;height:100%"><img src="${src}" style="width:100%;height:100%;object-fit:contain;border-radius:4px">${loaderHtml}</div>`;
                     }
-                    // ---------------------------------------------
 
                     const deleteBtnHtml = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` : '';
                     const editBtnHtml = this.isEditMode ? `<div class="folder-edit-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'), '${folder.name}')">${ICONS.edit}</div>` : '';
@@ -1237,16 +1352,12 @@ class HomeOrganizerPanel extends HTMLElement {
         if (attrs.items) attrs.items.forEach(item => (item.qty === 0 ? outOfStock : inStock).push(item));
         const grouped = {};
         
-        // SUB-LOCATION ORDERING LOGIC
         const markerRegex = /^ORDER_MARKER_(\d+)_(.*)$/;
-        const orderedGroups = []; // { name: 'Fridge', order: 10, markerKey: 'ORDER_MARKER_010_Fridge' }
+        const orderedGroups = []; 
         const foundMarkers = new Set();
 
-        // 1. Identify groups and markers
-        // Scan folders or implicit sub-locations from items
         const rawGroups = new Set();
         if (attrs.folders) attrs.folders.forEach(f => {
-             // If this folder is a marker
              if (f.name.startsWith("ORDER_MARKER_")) {
                  const match = f.name.match(markerRegex);
                  if (match) {
@@ -1260,16 +1371,13 @@ class HomeOrganizerPanel extends HTMLElement {
              }
         });
         
-        // Scan items for sub_location groupings
         inStock.forEach(item => {
             const sub = item.sub_location || "General";
             if (sub.startsWith("ORDER_MARKER_")) {
-                 // It's a marker item, parse it
                  const match = sub.match(markerRegex);
                  if (match) {
                      const order = parseInt(match[1]);
                      const realName = match[2];
-                     // Only add if not already added via folders loop
                      if (!orderedGroups.find(g => g.markerKey === sub)) {
                          orderedGroups.push({ name: realName, order: order, markerKey: sub });
                          foundMarkers.add(realName);
@@ -1280,7 +1388,6 @@ class HomeOrganizerPanel extends HTMLElement {
             }
         });
 
-        // 2. Add non-marked groups with default order
         rawGroups.forEach(g => {
             if (!foundMarkers.has(g)) {
                 let order = 9999;
@@ -1289,34 +1396,28 @@ class HomeOrganizerPanel extends HTMLElement {
             }
         });
 
-        // 3. Sort
         orderedGroups.sort((a,b) => {
             if (a.order !== b.order) return a.order - b.order;
             return a.name.localeCompare(b.name);
         });
 
-        // 4. Populate grouped items
         orderedGroups.forEach(g => grouped[g.name] = []);
         
-        // Fill items into groups
         inStock.forEach(item => {
             const sub = item.sub_location || "General";
             if (!sub.startsWith("ORDER_MARKER_")) {
-                if(!grouped[sub]) grouped[sub] = []; // Just in case
+                if(!grouped[sub]) grouped[sub] = []; 
                 grouped[sub].push(item);
             }
         });
 
-        // Current ID Parent (e.g., "A1" if inside Kitchen -> Fridge)
         const parentID = this.catalogPath[1] || "";
 
-        // 5. Render
         orderedGroups.forEach(groupObj => {
             const subName = groupObj.name;
             const items = grouped[subName] || [];
             const count = items.length;
             
-            // PERSISTENT ID
             const rawID = this.getPersistentID(this.currentPath.join('_'), subName);
             const catalogID = parentID ? `${parentID}.${rawID}` : "";
 
@@ -1337,8 +1438,6 @@ class HomeOrganizerPanel extends HTMLElement {
                 header.style.cursor = 'default';
             }
             
-            // Build visual text for ID if available
-            // Note: class updated to handle flex positioning
             const idHtml = catalogID ? `<span class="catalog-id-text">${catalogID}</span>` : '';
 
             if (this.isEditMode && subName !== "General") {
@@ -1359,8 +1458,6 @@ class HomeOrganizerPanel extends HTMLElement {
                         </div>
                     </div>`;
             } else {
-                // FIXED RTL ALIGNMENT: Swapped ID to be the second child so it appears at the End in both modes
-                // Flex Row: [Title Group] ...space-between... [ID]
                 header.innerHTML = `
                     <div style="display:flex;align-items:center;">
                         <span style="margin-inline-end:5px;display:flex;align-items:center">${icon}</span>
@@ -1380,7 +1477,6 @@ class HomeOrganizerPanel extends HTMLElement {
                           const card = document.createElement('div');
                           card.className = 'xl-card';
                           let iconHtml = ICONS.item;
-                          // --- Updated Logic for Loader & Versioning ---
                           if (item.img) {
                               const isLoading = this.loadingSet.has(item.id);
                               const ver = this.imageVersions[item.id] || '';
@@ -1389,10 +1485,8 @@ class HomeOrganizerPanel extends HTMLElement {
                               if (isLoading) {
                                   loaderHtml = `<div class="loader-container"><span class="loader"></span></div>`;
                               }
-                              // FIX: Changed object-fit to 'contain' and reduced wrapper size to 80%
                               iconHtml = `<div style="position:relative;width:80%;height:80%"><img src="${src}" style="width:100%;height:100%;object-fit:contain;border-radius:8px">${loaderHtml}</div>`;
                           }
-                          // ---------------------------------------------
                           card.innerHTML = `
                               <div class="xl-icon-area">${iconHtml}</div>
                               <div class="xl-badge">${item.qty}</div>
@@ -1450,20 +1544,104 @@ class HomeOrganizerPanel extends HTMLElement {
     }
   }
 
-  // --- SUB-LOCATION REORDERING ---
-  
-  // Helper to find the actual database name if it's hidden behind a marker
+  // NEW: Chat UI Render
+  renderChatUI(container) {
+      const chatContainer = document.createElement('div');
+      chatContainer.className = 'chat-container';
+      
+      const messagesDiv = document.createElement('div');
+      messagesDiv.className = 'chat-messages';
+      
+      // Default Welcome Message
+      if (this.chatHistory.length === 0) {
+          const welcome = document.createElement('div');
+          welcome.className = 'message ai';
+          welcome.innerText = "Hi! I'm your Home Organizer assistant. Ask me anything about your inventory or for recipe ideas!";
+          messagesDiv.appendChild(welcome);
+      }
+      
+      this.chatHistory.forEach(msg => {
+          const div = document.createElement('div');
+          div.className = `message ${msg.role}`;
+          div.innerText = msg.text;
+          messagesDiv.appendChild(div);
+      });
+      
+      chatContainer.appendChild(messagesDiv);
+      
+      const inputBar = document.createElement('div');
+      inputBar.className = 'chat-input-bar';
+      
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'chat-input';
+      input.placeholder = "Ask about your inventory...";
+      
+      const sendBtn = document.createElement('button');
+      sendBtn.className = 'chat-send-btn';
+      sendBtn.innerHTML = ICONS.send;
+      
+      const sendMessage = async () => {
+          const text = input.value.trim();
+          if (!text) return;
+          
+          // Add User Message
+          this.chatHistory.push({ role: 'user', text: text });
+          this.render(); // Re-render to show message
+          
+          // Show loading by adding temp message
+          this.chatHistory.push({ role: 'ai', text: "Thinking..." });
+          this.render();
+          
+          try {
+              const result = await this._hass.callWS({
+                  type: 'home_organizer/ai_chat',
+                  message: text
+              });
+              
+              // Remove "Thinking..."
+              this.chatHistory.pop();
+              
+              if (result.error) {
+                  this.chatHistory.push({ role: 'ai', text: "Error: " + result.error });
+              } else {
+                  this.chatHistory.push({ role: 'ai', text: result.response });
+              }
+          } catch (e) {
+              this.chatHistory.pop();
+              this.chatHistory.push({ role: 'ai', text: "Connection error." });
+          }
+          
+          this.render();
+          // Scroll to bottom (wait for render)
+          setTimeout(() => {
+              const msgs = this.shadowRoot.querySelector('.chat-messages');
+              if(msgs) msgs.scrollTop = msgs.scrollHeight;
+          }, 100);
+      };
+
+      sendBtn.onclick = sendMessage;
+      input.onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
+      
+      inputBar.appendChild(input);
+      inputBar.appendChild(sendBtn);
+      chatContainer.appendChild(inputBar);
+      
+      container.appendChild(chatContainer);
+      
+      // Scroll to bottom on init
+      setTimeout(() => messagesDiv.scrollTop = messagesDiv.scrollHeight, 0);
+  }
+
   resolveRealName(displayName) {
       if (!this.localData) return displayName;
       
-      // Check folders
       if (this.localData.folders) {
           const markerRegex = new RegExp(`^ORDER_MARKER_\\d+_${displayName}$`);
           const found = this.localData.folders.find(f => f.name.match(markerRegex));
           if (found) return found.name;
       }
       
-      // Check items (sub-location markers)
       if (this.localData.items) {
           const markerRegex = new RegExp(`^ORDER_MARKER_\\d+_${displayName}$`);
           const found = this.localData.items.find(i => i.sub_location && i.sub_location.match(markerRegex));
@@ -1474,13 +1652,11 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   async moveSubLoc(subName, direction) {
-      // 1. Reconstruct list from items/folders data to ensure current state
       const subGroups = [];
       const markerRegex = /^ORDER_MARKER_(\d+)_(.*)$/;
       const seen = new Set();
-      const currentMarkers = {}; // Map RealName -> MarkerItemName
+      const currentMarkers = {}; 
 
-      // Check folders
       if (this.localData.folders) this.localData.folders.forEach(f => {
           if (f.name.startsWith("ORDER_MARKER_")) {
               const match = f.name.match(markerRegex);
@@ -1496,7 +1672,6 @@ class HomeOrganizerPanel extends HTMLElement {
               if (!seen.has(f.name)) { subGroups.push({ name: f.name, order: 9999 }); seen.add(f.name); }
           }
       });
-      // Check items
       if (this.localData.items) this.localData.items.forEach(i => {
           const s = i.sub_location || "General";
           if (s.startsWith("ORDER_MARKER_")) {
@@ -1517,7 +1692,6 @@ class HomeOrganizerPanel extends HTMLElement {
           }
       });
 
-      // Stable Sort
       subGroups.sort((a,b) => {
           if (a.order !== b.order) return a.order - b.order;
           return a.name.localeCompare(b.name);
@@ -1528,10 +1702,8 @@ class HomeOrganizerPanel extends HTMLElement {
       const newIdx = idx + direction;
       if (newIdx < 0 || newIdx >= subGroups.length) return;
 
-      // Swap
       [subGroups[idx], subGroups[newIdx]] = [subGroups[newIdx], subGroups[idx]];
 
-      // Apply new orders sequentially
       for (let i = 0; i < subGroups.length; i++) {
           const g = subGroups[i];
           const newOrder = (i + 1) * 10;
@@ -1541,19 +1713,17 @@ class HomeOrganizerPanel extends HTMLElement {
 
           if (g.name !== "General") {
               if (oldMarkerName && oldMarkerName !== newMarkerName) {
-                  // Rename existing marker group (this moves the marker item to new sub_location)
                   await this.callHA('update_item_details', { 
-                      original_name: oldMarkerName, // treating sub_loc as folder name for update
+                      original_name: oldMarkerName, 
                       new_name: newMarkerName,
                       current_path: this.currentPath, 
                       is_folder: true 
                   });
               } else if (!oldMarkerName) {
-                  // Create new marker item to establish order
                   await this.callHA('add_item', { 
                       item_name: "OrderMarker", 
                       item_type: 'item', 
-                      current_path: [...this.currentPath, newMarkerName] // putting it into the marker sub-loc
+                      current_path: [...this.currentPath, newMarkerName]
                   });
               }
           }
@@ -1561,16 +1731,12 @@ class HomeOrganizerPanel extends HTMLElement {
       this.fetchData();
   }
 
-  // --- ZONE/FLOOR MANAGEMENT LOGIC ---
-  
-  // Instant creation of zone without popup
   createNewZone() {
       let base = "New Zone";
       let name = base;
       let count = 1;
       const existingZones = new Set();
       if (this.localData && this.localData.folders) {
-          // Check both f.zone and ZONE_MARKERs
           this.localData.folders.forEach(f => { 
               if(f.zone) existingZones.add(f.zone);
               if(f.name.startsWith("ZONE_MARKER_")) existingZones.add(f.name.replace(/^ZONE_MARKER_\d+_/, "").trim());
@@ -1581,11 +1747,9 @@ class HomeOrganizerPanel extends HTMLElement {
       }
       
       const markerName = "ZONE_MARKER_999_" + name;
-      // CHANGED TO 'folder' so backend accepts it properly
       this.callHA('add_item', { item_name: markerName, item_type: 'folder', zone: name, current_path: [] });
   }
 
-  // NEW: Inline Input for adding room to a specific zone
   enableZoneRoomInput(cardEl, zoneName) {
       const iconContainer = cardEl.querySelector('.android-folder-icon');
       const label = cardEl.querySelector('.folder-label');
@@ -1605,7 +1769,6 @@ class HomeOrganizerPanel extends HTMLElement {
       };
   }
 
-  // NEW: Save room and immediately force zone update using PREFIX hack since DB has no zone column
   saveNewRoomInZone(name, zoneName) {
       if(!name) return;
       
@@ -1644,7 +1807,6 @@ class HomeOrganizerPanel extends HTMLElement {
 
   async moveRoomToZone(roomName, zoneName) {
       try {
-          // Calculate new name with prefix
           const cleanName = roomName.replace(/^\[(.*?)\]\s*/, "");
           let newName = cleanName;
           if (zoneName !== "General Rooms") {
@@ -1663,11 +1825,7 @@ class HomeOrganizerPanel extends HTMLElement {
       } catch (err) { console.error("Zone move failed", err); }
   }
 
-  // --- REORDERING LOGIC ---
-  
   moveZone(zoneName, direction) {
-      // 1. Reconstruct current sorted list from DOM/Data
-      // We need to parse all markers to get current order
       const zones = [];
       const markerRegex = /^ZONE_MARKER_(\d+)_(.*)$/;
       const seen = new Set();
@@ -1682,7 +1840,6 @@ class HomeOrganizerPanel extends HTMLElement {
                       zOrder = parseInt(match[1]);
                       zName = match[2];
                   } else {
-                      // Handle unindexed legacy markers if any
                       zName = f.name.replace("ZONE_MARKER_", "").trim();
                   }
                   if (!seen.has(zName)) {
@@ -1693,22 +1850,18 @@ class HomeOrganizerPanel extends HTMLElement {
           });
       }
       
-      // Sort by current order
       zones.sort((a,b) => a.order - b.order);
       
-      // Find current index
       const idx = zones.findIndex(z => z.name === zoneName);
-      if (idx === -1) return; // Should not happen
+      if (idx === -1) return; 
       
       const newIdx = idx + direction;
-      if (newIdx < 0 || newIdx >= zones.length) return; // Out of bounds
+      if (newIdx < 0 || newIdx >= zones.length) return; 
       
-      // Swap
       const temp = zones[idx];
       zones[idx] = zones[newIdx];
       zones[newIdx] = temp;
       
-      // Re-assign indices (10, 20, 30...) and Rename Markers
       zones.forEach((z, index) => {
           const newOrder = (index + 1) * 10;
           const paddedOrder = String(newOrder).padStart(3, '0');
@@ -1724,11 +1877,9 @@ class HomeOrganizerPanel extends HTMLElement {
           }
       });
       
-      // Refresh UI after short delay to allow DB writes
       setTimeout(() => this.fetchData(), 600);
   }
 
-  // Handle Zone Rename
   enableZoneRename(btn, oldName) {
       const header = btn.closest('.group-separator');
       if (header.querySelector('input')) return; 
@@ -1772,12 +1923,11 @@ class HomeOrganizerPanel extends HTMLElement {
 
   batchUpdateZone(oldZone, newZone) {
       if (this.localData && this.localData.folders) {
-          const markerRegex = new RegExp(`^ZONE_MARKER_\\d+_${oldZone}$`); // Match specific zone marker
+          const markerRegex = new RegExp(`^ZONE_MARKER_\\d+_${oldZone}$`); 
           
           this.localData.folders.forEach(f => {
-              // Update Marker (Preserve Order)
               if (f.name.startsWith("ZONE_MARKER_") && f.name.endsWith(`_${oldZone}`)) {
-                    const prefix = f.name.substring(0, f.name.lastIndexOf(`_${oldZone}`)); // Extract 'ZONE_MARKER_010'
+                    const prefix = f.name.substring(0, f.name.lastIndexOf(`_${oldZone}`)); 
                     this.callHA('update_item_details', { 
                         original_name: f.name, 
                         new_name: `${prefix}_${newZone}`,
@@ -1785,7 +1935,6 @@ class HomeOrganizerPanel extends HTMLElement {
                         is_folder: true 
                     });
               } 
-              // Update prefixed rooms
               else if (f.name.startsWith(`[${oldZone}] `)) {
                     const cleanName = f.name.replace(`[${oldZone}] `, "");
                     const newName = `[${newZone}] ${cleanName}`;
@@ -1797,7 +1946,6 @@ class HomeOrganizerPanel extends HTMLElement {
                     });
               }
           });
-          // Refresh after slight delay for batch updates
           setTimeout(() => this.fetchData(), 800);
       }
   }
@@ -1809,7 +1957,6 @@ class HomeOrganizerPanel extends HTMLElement {
                   if (f.name.startsWith("ZONE_MARKER_") && f.name.endsWith(`_${zoneName}`)) {
                       this.callHA('delete_item', { item_name: f.name, current_path: [], is_folder: true });
                   } else if (f.name.startsWith(`[${zoneName}] `)) {
-                      // Move to General (strip prefix)
                       const cleanName = f.name.replace(`[${zoneName}] `, "");
                       this.callHA('update_item_details', { 
                           original_name: f.name, 
@@ -1823,8 +1970,6 @@ class HomeOrganizerPanel extends HTMLElement {
           setTimeout(() => this.fetchData(), 800);
       }
   }
-
-  // --- END ZONE LOGIC ---
 
   showItemDetails(item) {
       const ov = this.shadowRoot.getElementById('img-overlay');
@@ -1985,7 +2130,6 @@ class HomeOrganizerPanel extends HTMLElement {
      }
      const subText = isShopMode ? `${item.main_location} > ${item.sub_location || ''}` : `${item.date || ''}`;
      
-     // --- Updated Logic for Loader & Versioning ---
      let iconHtml = `<span class="item-icon">${ICONS.item}</span>`;
      if (item.img) {
          const isLoading = this.loadingSet.has(item.id);
@@ -1998,7 +2142,6 @@ class HomeOrganizerPanel extends HTMLElement {
          }
          iconHtml = `<div style="position:relative;width:40px;height:40px"><img src="${src}" class="item-thumbnail" alt="${item.name}" onclick="event.stopPropagation(); this.getRootNode().host.showImg('${item.img}')">${loaderHtml}</div>`;
      }
-     // ---------------------------------------------
 
      div.innerHTML = `
         <div class="item-main" onclick="this.getRootNode().host.toggleRow('${item.id}')">
@@ -2011,18 +2154,15 @@ class HomeOrganizerPanel extends HTMLElement {
          const details = document.createElement('div');
          details.className = 'expanded-details';
          
-         // Options logic
          let roomOptions = `<option value="">-- ${this.t('move_to')} --</option>`;
          if(this.localData.hierarchy) Object.keys(this.localData.hierarchy).forEach(room => { roomOptions += `<option value="${room}">${room}</option>`; });
 
-         // Category Options (Translated Keys)
          let mainCatOptions = `<option value="">${this.t('select_cat')}</option>`;
          Object.keys(ITEM_CATEGORIES).forEach(cat => {
              const selected = (item.category === cat) ? 'selected' : '';
              mainCatOptions += `<option value="${cat}" ${selected}>${this.t('cat_' + cat.replace(/[^a-zA-Z0-9]+/g, '_')) || cat}</option>`;
          });
 
-         // Sub Category Options
          let subCatOptions = `<option value="">${this.t('select_sub')}</option>`;
          let currentUnit = "";
          if (item.category && ITEM_CATEGORIES[item.category]) {
@@ -2035,12 +2175,10 @@ class HomeOrganizerPanel extends HTMLElement {
              });
          }
          
-         // SVG for Copy/Duplicate Icon
          const COPY_SVG = `<svg viewBox="0 0 24 24"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z" /></svg>`;
 
          details.innerHTML = `
             <div class="detail-row">
-                <!-- Relative Wrapper for Autocomplete -->
                 <div style="position:relative; flex:1;">
                     <input type="text" id="name-${item.id}" value="${item.name}" 
                         style="width:100%;padding:8px;background:var(--bg-input-edit);color:var(--text-main);border:1px solid var(--border-light);border-radius:4px;margin-inline-start:5px"
@@ -2068,7 +2206,6 @@ class HomeOrganizerPanel extends HTMLElement {
                 <select class="move-select" id="cat-sub-${item.id}" onchange="this.getRootNode().host.updateItemCategory('${item.id}', this.value, 'sub', '${item.name}')">
                     ${subCatOptions}
                 </select>
-                <!-- NEW: Unit Value Input -->
                 <input type="text" id="unit-val-${item.id}" value="${item.unit_value || ''}" placeholder="Val" 
                     style="width:60px;padding:8px;background:var(--bg-input-edit);color:var(--text-main);border:1px solid var(--border-light);border-radius:4px;text-align:center"
                     onchange="this.getRootNode().host.updateItemCategory('${item.id}', null, 'val', '${item.name}')">
@@ -2109,7 +2246,6 @@ class HomeOrganizerPanel extends HTMLElement {
       let unitVal = valInput ? valInput.value : "";
       let unit = "";
 
-      // If Main Category changed, rebuild Sub Category options
       if (type === 'main') {
           let html = `<option value="">${this.t('select_sub')}</option>`;
           if (mainCat && ITEM_CATEGORIES[mainCat]) {
@@ -2119,11 +2255,10 @@ class HomeOrganizerPanel extends HTMLElement {
               });
           }
           subSelect.innerHTML = html;
-          subCat = ""; // Reset sub
+          subCat = ""; 
           unitDisp.innerText = "-";
       }
 
-      // If Sub Category changed (or is present), update unit
       if (mainCat && subCat && ITEM_CATEGORIES[mainCat] && ITEM_CATEGORIES[mainCat][subCat]) {
           unit = ITEM_CATEGORIES[mainCat][subCat];
           unitDisp.innerText = this.t('unit_' + unit) || unit;
@@ -2131,9 +2266,8 @@ class HomeOrganizerPanel extends HTMLElement {
           unitDisp.innerText = "-";
       }
 
-      // Save to Backend
       this.callHA('update_item_details', { 
-          item_id: itemId,
+          item_id: itemId, 
           original_name: itemName, 
           category: mainCat, 
           sub_category: subCat, 
@@ -2149,7 +2283,6 @@ class HomeOrganizerPanel extends HTMLElement {
       if(!nameEl || !dateEl) return;
       const newName = nameEl.value.trim();
       const newDate = dateEl.value;
-      // if(triggerType === 'name' && newName !== oldName) { this.expandedIdx = newName; } // No longer needed as we track by ID
       this.callHA('update_item_details', { item_id: itemId, original_name: oldName, new_name: newName, new_date: newDate });
   }
 
@@ -2186,18 +2319,12 @@ class HomeOrganizerPanel extends HTMLElement {
       if(!room || !loc || !sub) return;
       let targetPath = [room, loc];
       if(sub !== "__ROOT__") targetPath.push(sub);
-      // For clipboard operations, we might still need name if backend isn't fully updated for ID move, 
-      // but assuming clipboard action handles ID or name:
-      // We pass the ITEM NAME for legacy compat if ID logic fails on paste, but paste uses stored clipboard obj
-      // Let's rely on cut logic.
-      // We need to find the item name associated with ID if we want to be safe, but let's pass ID to cut.
       this.callHA('clipboard_action', {action: 'cut', item_id: itemId});
       setTimeout(() => { this.callHA('paste_item', {target_path: targetPath}); }, 100);
   }
 
   deleteFolder(name) { if(confirm(this.t('confirm_del_folder', name))) this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); }
   
-  // Updated delete to use ID
   del(id) { 
       if(confirm(this.t('confirm_del_item'))) this._hass.callService('home_organizer', 'delete_item', { item_id: id, current_path: this.currentPath, is_folder: false }); 
   }
@@ -2236,82 +2363,10 @@ class HomeOrganizerPanel extends HTMLElement {
       delete this.shopQuantities[id];
   }
   
-  toggleIds() {
-      this.showIds = !this.showIds;
-      localStorage.setItem('home_organizer_show_ids', this.showIds);
-      const app = this.shadowRoot.getElementById('app');
-      if (this.showIds) app.classList.remove('hide-catalog-ids');
-      else app.classList.add('hide-catalog-ids');
-      
-      const btn = this.shadowRoot.getElementById('btn-toggle-ids');
-      if (btn) btn.style.color = this.showIds ? 'var(--catalog-bg)' : 'var(--primary)';
-  }
-
-  enableSublocRename(btn, oldName) {
-      const header = btn.closest('.group-separator');
-      if (header.querySelector('input')) return; 
-      const titleSpan = header.querySelector('.subloc-title') || header.querySelector('span');
-      if(!titleSpan) return;
-      const input = document.createElement('input');
-      input.value = oldName;
-      input.style.background = 'var(--bg-input-edit)';
-      input.style.color = 'var(--text-main)';
-      input.style.border = '1px solid var(--primary)';
-      input.style.borderRadius = '4px';
-      input.style.padding = '4px';
-      input.style.fontSize = '14px';
-      input.style.width = '200px'; 
-      input.onclick = (e) => e.stopPropagation();
-      titleSpan.replaceWith(input);
-      input.focus();
-      let isSaving = false;
-      
-      const save = () => {
-          if (isSaving) return;
-          isSaving = true;
-          const newVal = input.value.trim();
-          if (newVal && newVal !== oldName) {
-              const newSpan = document.createElement('span');
-              newSpan.className = 'subloc-title';
-              newSpan.innerText = newVal;
-              newSpan.style.opacity = '0.7';
-              input.replaceWith(newSpan);
-              
-              // FIX: Resolve real name (which might include ORDER_MARKER_010_...)
-              const realOldName = this.resolveRealName(oldName);
-              
-              // Calculate new name preserving marker prefix if it exists
-              let finalNewName = newVal;
-              const markerRegex = /^(ORDER_MARKER_\d+_)(.*)$/;
-              const match = realOldName.match(markerRegex);
-              if (match) {
-                  finalNewName = match[1] + newVal; // Keep prefix, change name
-              }
-
-              this.callHA('update_item_details', { 
-                  original_name: realOldName, 
-                  new_name: finalNewName, 
-                  new_date: "", 
-                  current_path: this.currentPath, 
-                  is_folder: true 
-              }).catch(err => {
-                  newSpan.innerText = oldName; newSpan.style.opacity = '1'; alert(this.t('failed_rename'));
-              });
-          } else {
-              const originalSpan = document.createElement('span');
-              originalSpan.className = 'subloc-title'; originalSpan.innerText = oldName; input.replaceWith(originalSpan);
-          }
-      };
-      input.onkeydown = (e) => { if (e.key === 'Enter') input.blur(); };
-      input.onblur = () => save();
-  }
-
   openIconPicker(target, context) {
-      // If target is ID (number/string ID), store it. If name (folder), store name.
-      // Context 'item' implies target is ID. Context 'room'/'location' implies target is name.
       if (context === 'item') {
            this.pendingItemId = target;
-           this.pendingFolderIcon = null; // Clear folder target
+           this.pendingFolderIcon = null; 
       } else {
            this.pendingFolderIcon = target;
            this.pendingItemId = null;
@@ -2381,7 +2436,6 @@ class HomeOrganizerPanel extends HTMLElement {
       else { source = source.replace('<svg', `<svg width="${size}" height="${size}"`); }
       source = source.replace('<svg', '<svg fill="#4fc3f7"');
       
-      // Async wrapper for image loading
       const loadImage = (src) => new Promise((resolve) => {
           const img = new Image();
           img.onload = () => resolve(img);
@@ -2396,19 +2450,15 @@ class HomeOrganizerPanel extends HTMLElement {
       canvas.width = size; canvas.height = size;
       const ctx = canvas.getContext('2d');
       
-      // --- FIX: Reduce icon size (add padding) for items so they don't fill the entire grid cell ---
       if (this.pickerContext === 'item') { 
           ctx.fillStyle = '#000'; 
           ctx.fillRect(0, 0, size, size);
-          
-          const padding = size * 0.15; // 15% padding
-          const drawSize = size * 0.7; // 70% size
+          const padding = size * 0.15; 
+          const drawSize = size * 0.7; 
           ctx.drawImage(img, padding, padding, drawSize, drawSize);
       } else {
-          // Room/Location icons can stay full bleed or transparent
           ctx.drawImage(img, 0, 0, size, size);
       }
-      // ------------------------------------------------------------------------------------------
 
       const dataUrl = canvas.toDataURL('image/png');
       
@@ -2498,7 +2548,6 @@ class HomeOrganizerPanel extends HTMLElement {
       input.value = '';
   }
 
-  // Updated to support optional BG filter application
   compressImage(file, callback, applyBgFilter = false) {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -2531,7 +2580,6 @@ class HomeOrganizerPanel extends HTMLElement {
 
   pasteItem() { this.callHA('paste_item', { target_path: this.currentPath }); }
   cut(name) { this.callHA('clipboard_action', {action: 'cut', item_name: name}); }
-  // del(name) replaced by del(id) above
   callHA(service, data) { return this._hass.callService('home_organizer', service, data); }
 }
 
