@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.3.2 (Forced AI Icon & Chat Fixes)
+// Home Organizer Ultimate - Ver 6.3.3 (Timeout Increased to 60s & AI Icon Fixed)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -1557,15 +1557,15 @@ class HomeOrganizerPanel extends HTMLElement {
           this.render();
           
           let responded = false;
-          // UI Safety Timeout (10 seconds)
+          // UI Safety Timeout (60 seconds)
           const safetyTimeout = setTimeout(() => {
               if(!responded) {
                   this.chatHistory.pop();
-                  this.chatHistory.push({ role: 'ai', text: "Request took too long. Backend might be busy." });
+                  this.chatHistory.push({ role: 'ai', text: "Request took too long (>60s). Please try again." });
                   this.render();
                   responded = true;
               }
-          }, 10000); 
+          }, 60000); 
 
           try {
               const result = await this._hass.callWS({
