@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.2.10 (Fixed Local IP Camera Issue)
+// Home Organizer Ultimate - Ver 6.2.11 (Fixed Icon Generation Size)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -278,7 +278,7 @@ class HomeOrganizerPanel extends HTMLElement {
         .xl-card { background: var(--bg-card); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; aspect-ratio: 1; position: relative; border: 1px solid transparent; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .xl-card:hover { background: var(--bg-card-hover); }
         .xl-icon-area { flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; overflow: hidden; cursor: zoom-in; position: relative; }
-        .xl-icon-area svg { width: 38px; height: 38px; color: var(--primary); }
+        .xl-icon-area svg { width: 40%; height: 40%; color: var(--primary); }
         .xl-icon-area img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
         .xl-badge { position: absolute; top: 8px; inset-inline-end: 8px; background: var(--bg-badge); color: var(--text-badge); border: 1px solid var(--border-light); min-width: 24px; height: 24px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; }
         .xl-info { width: 100%; text-align: center; margin-top: 8px; cursor: pointer; }
@@ -2394,8 +2394,21 @@ class HomeOrganizerPanel extends HTMLElement {
       const canvas = document.createElement('canvas');
       canvas.width = size; canvas.height = size;
       const ctx = canvas.getContext('2d');
-      if (this.pickerContext === 'item') { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, size, size); }
-      ctx.drawImage(img, 0, 0, size, size);
+      
+      // --- FIX: Reduce icon size (add padding) for items so they don't fill the entire grid cell ---
+      if (this.pickerContext === 'item') { 
+          ctx.fillStyle = '#000'; 
+          ctx.fillRect(0, 0, size, size);
+          
+          const padding = size * 0.15; // 15% padding
+          const drawSize = size * 0.7; // 70% size
+          ctx.drawImage(img, padding, padding, drawSize, drawSize);
+      } else {
+          // Room/Location icons can stay full bleed or transparent
+          ctx.drawImage(img, 0, 0, size, size);
+      }
+      // ------------------------------------------------------------------------------------------
+
       const dataUrl = canvas.toDataURL('image/png');
       
       const target = this.pendingItemId || this.pendingFolderIcon;
