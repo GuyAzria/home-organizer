@@ -20,7 +20,8 @@ _LOGGER = logging.getLogger(__name__)
 MAX_LEVELS = 10
 
 WS_GET_DATA = "home_organizer/get_data"
-WS_GET_ALL_ITEMS = "home_organizer/get_all_items" # New Command
+WS_GET_ALL_ITEMS = "home_organizer/get_all_items" 
+WS_AI_CHAT = "home_organizer/ai_chat" # NEW: AI Chat Command
 
 # Define the URL prefix for your frontend files
 STATIC_PATH_URL = "/home_organizer_static"
@@ -43,7 +44,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     ])
 
     # 2. REGISTER PANEL
-    # We use a try/except here just in case the panel is already registered from a previous zombie state
     try:
         await panel_custom.async_register_panel(
             hass,
@@ -55,7 +55,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             require_admin=False
         )
     except Exception as e:
-        _LOGGER.warning(f"Panel registration warning (usually harmless on reload): {e}")
+        _LOGGER.warning(f"Panel registration warning: {e}")
 
     await hass.async_add_executor_job(init_db, hass)
 
@@ -75,13 +75,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 vol.Optional("shopping_mode", default=False): bool,
             })
         )
-        # NEW: Register command to get all items for autocomplete
         websocket_api.async_register_command(
             hass,
             WS_GET_ALL_ITEMS,
             websocket_get_all_items,
             websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend({
                 vol.Required("type"): WS_GET_ALL_ITEMS
+            })
+        )
+        # NEW: Register Chat Command
+        websocket_api.async_register_command(
+            hass,
+            WS_AI_CHAT,
+            websocket_ai_chat,
+            websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend({
+                vol.Required("type"): WS_AI_CHAT,
+                vol.Required("message"): str
             })
         )
     except Exception:
@@ -95,9 +104,6 @@ async def update_listener(hass: HomeAssistant, entry: ConfigEntry):
     await hass.config_entries.async_reload(entry.entry_id)
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload a config entry."""
-    # This try/except block prevents the 'FAILED_UNLOAD' state if the panel
-    # doesn't exist or was already removed.
     try:
         hass.components.frontend.async_remove_panel("organizer")
     except Exception:
@@ -113,7 +119,6 @@ def init_db(hass):
     c = conn.cursor()
     cols = ", ".join([f"level_{i} TEXT" for i in range(1, MAX_LEVELS + 1)])
     
-    # Create table with new category columns and unit_value
     c.execute(f'''CREATE TABLE IF NOT EXISTS items (
         id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, type TEXT DEFAULT 'item',
         {cols}, item_date TEXT, quantity INTEGER DEFAULT 1, image_path TEXT,
@@ -123,7 +128,6 @@ def init_db(hass):
     c.execute("PRAGMA table_info(items)")
     existing_cols = [col[1] for col in c.fetchall()]
     
-    # Migration checks
     if 'image_path' not in existing_cols:
         try: c.execute("ALTER TABLE items ADD COLUMN image_path TEXT")
         except: pass
@@ -150,19 +154,16 @@ def websocket_get_data(hass, connection, msg):
     data = get_view_data(hass, path, query, date_filter, is_shopping)
     connection.send_result(msg["id"], data)
 
-# NEW: Handler for fetching all unique items for autocomplete
 @callback
 def websocket_get_all_items(hass, connection, msg):
     conn = get_db_connection(hass)
     c = conn.cursor()
     try:
-        # Get unique names with their most common/recent properties
         c.execute("SELECT name, category, sub_category, unit, unit_value, image_path FROM items WHERE type='item' GROUP BY name")
         col_names = [description[0] for description in c.description]
         results = []
         for r in c.fetchall():
             item = dict(zip(col_names, r))
-            # Format image path for frontend
             if item['image_path']:
                 item['image_path'] = f"/local/{IMG_DIR}/{item['image_path']}?v={int(time.time())}"
             results.append(item)
@@ -170,7 +171,82 @@ def websocket_get_all_items(hass, connection, msg):
     finally:
         conn.close()
 
+# NEW: AI Chat WebSocket Handler
+@callback
+async def websocket_ai_chat(hass, connection, msg):
+    user_message = msg.get("message", "")
+    
+    # 1. Get Config
+    entries = hass.config_entries.async_entries(DOMAIN)
+    if not entries:
+        connection.send_result(msg["id"], {"error": "Integration not loaded"})
+        return
+        
+    entry = entries[0]
+    api_key = entry.options.get(CONF_API_KEY, entry.data.get(CONF_API_KEY))
+    
+    if not api_key:
+        connection.send_result(msg["id"], {"error": "API Key missing"})
+        return
+
+    # 2. Get Inventory Context
+    def get_inventory():
+        conn = get_db_connection(hass)
+        c = conn.cursor()
+        # Fetch items with qty > 0
+        c.execute(f"SELECT name, quantity, level_1, level_2, level_3, unit, unit_value FROM items WHERE type='item' AND quantity > 0")
+        items = c.fetchall()
+        conn.close()
+        return items
+
+    inventory_rows = await hass.async_add_executor_job(get_inventory)
+    
+    # Format Inventory for AI
+    inventory_context = "Current Inventory:\n"
+    for r in inventory_rows:
+        name, qty, l1, l2, l3, unit, uval = r
+        loc = " > ".join(filter(None, [l1, l2, l3]))
+        unit_str = f"{uval}{unit}" if unit and uval else ""
+        inventory_context += f"- {name}: {qty} {unit_str} (in {loc})\n"
+
+    # 3. Call Gemini
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    
+    system_prompt = (
+        "You are a helpful home organizer assistant. You have access to the user's inventory listed below. "
+        "Answer questions based on this inventory. If asked for recipes, suggest ones using available ingredients. "
+        "Be concise and helpful.\n\n" + inventory_context
+    )
+
+    payload = {
+        "contents": [
+            {"role": "user", "parts": [{"text": system_prompt + "\n\nUser Question: " + user_message}]}
+        ]
+    }
+
+    try:
+        session = async_get_clientsession(hass)
+        async with session.post(url, json=payload) as resp:
+            if resp.status == 200:
+                json_resp = await resp.json()
+                text = json_resp["candidates"][0]["content"]["parts"][0]["text"].strip()
+                connection.send_result(msg["id"], {"response": text})
+            else:
+                connection.send_result(msg["id"], {"error": f"API Error {resp.status}"})
+    except Exception as e:
+        connection.send_result(msg["id"], {"error": str(e)})
+
 def get_view_data(hass, path_parts, query, date_filter, is_shopping):
+    # NEW: Determine if AI Chat should be enabled
+    enable_ai = False
+    entries = hass.config_entries.async_entries(DOMAIN)
+    if entries:
+        entry = entries[0]
+        api_key = entry.options.get(CONF_API_KEY, entry.data.get(CONF_API_KEY))
+        use_ai = entry.options.get(CONF_USE_AI, entry.data.get(CONF_USE_AI, True))
+        if api_key and use_ai:
+            enable_ai = True
+
     conn = get_db_connection(hass); c = conn.cursor()
     folders = []; items = []; shopping_list = []
     
@@ -317,7 +393,8 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
         "shopping_list": shopping_list,
         "app_version": VERSION,
         "depth": len(path_parts),
-        "hierarchy": hierarchy
+        "hierarchy": hierarchy,
+        "enable_ai": enable_ai # Pass this flag to frontend
     }
 
 async def register_services(hass, entry):
@@ -469,7 +546,6 @@ async def register_services(hass, entry):
         unit = call.data.get("unit")
         unit_value = call.data.get("unit_value")
         
-        # NEW: Receive image_path to update reference
         image_path = call.data.get("image_path")
 
         parts = call.data.get("current_path", [])
@@ -510,7 +586,7 @@ async def register_services(hass, entry):
                 if sub_cat is not None: updates.append("sub_category = ?"); params.append(sub_cat)
                 if unit is not None: updates.append("unit = ?"); params.append(unit)
                 if unit_value is not None: updates.append("unit_value = ?"); params.append(unit_value)
-                if image_path is not None: updates.append("image_path = ?"); params.append(image_path) # Added
+                if image_path is not None: updates.append("image_path = ?"); params.append(image_path)
                 
                 if updates:
                     sql += ", ".join(updates)
