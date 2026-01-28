@@ -171,70 +171,96 @@ def websocket_get_all_items(hass, connection, msg):
     finally:
         conn.close()
 
-# NEW: AI Chat WebSocket Handler
+# NEW: AI Chat WebSocket Handler (Fixed Error Handling)
 @callback
 async def websocket_ai_chat(hass, connection, msg):
-    user_message = msg.get("message", "")
-    
-    # 1. Get Config
-    entries = hass.config_entries.async_entries(DOMAIN)
-    if not entries:
-        connection.send_result(msg["id"], {"error": "Integration not loaded"})
-        return
-        
-    entry = entries[0]
-    api_key = entry.options.get(CONF_API_KEY, entry.data.get(CONF_API_KEY))
-    
-    if not api_key:
-        connection.send_result(msg["id"], {"error": "API Key missing"})
-        return
-
-    # 2. Get Inventory Context
-    def get_inventory():
-        conn = get_db_connection(hass)
-        c = conn.cursor()
-        # Fetch items with qty > 0
-        c.execute(f"SELECT name, quantity, level_1, level_2, level_3, unit, unit_value FROM items WHERE type='item' AND quantity > 0")
-        items = c.fetchall()
-        conn.close()
-        return items
-
-    inventory_rows = await hass.async_add_executor_job(get_inventory)
-    
-    # Format Inventory for AI
-    inventory_context = "Current Inventory:\n"
-    for r in inventory_rows:
-        name, qty, l1, l2, l3, unit, uval = r
-        loc = " > ".join(filter(None, [l1, l2, l3]))
-        unit_str = f"{uval}{unit}" if unit and uval else ""
-        inventory_context += f"- {name}: {qty} {unit_str} (in {loc})\n"
-
-    # 3. Call Gemini
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-    
-    system_prompt = (
-        "You are a helpful home organizer assistant. You have access to the user's inventory listed below. "
-        "Answer questions based on this inventory. If asked for recipes, suggest ones using available ingredients. "
-        "Be concise and helpful.\n\n" + inventory_context
-    )
-
-    payload = {
-        "contents": [
-            {"role": "user", "parts": [{"text": system_prompt + "\n\nUser Question: " + user_message}]}
-        ]
-    }
-
     try:
+        user_message = msg.get("message", "")
+        
+        # 1. Get Config
+        entries = hass.config_entries.async_entries(DOMAIN)
+        if not entries:
+            connection.send_result(msg["id"], {"error": "Integration not loaded"})
+            return
+            
+        entry = entries[0]
+        api_key = entry.options.get(CONF_API_KEY, entry.data.get(CONF_API_KEY))
+        
+        if not api_key:
+            connection.send_result(msg["id"], {"error": "API Key missing"})
+            return
+
+        # 2. Get Inventory Context
+        def get_inventory():
+            try:
+                conn = get_db_connection(hass)
+                c = conn.cursor()
+                # Fetch items with qty > 0
+                c.execute(f"SELECT name, quantity, level_1, level_2, level_3, unit, unit_value FROM items WHERE type='item' AND quantity > 0")
+                items = c.fetchall()
+                conn.close()
+                return items
+            except Exception as e:
+                _LOGGER.error(f"DB Error fetching inventory: {e}")
+                return []
+
+        inventory_rows = await hass.async_add_executor_job(get_inventory)
+        
+        # Format Inventory for AI
+        inventory_context = "Current Inventory:\n"
+        for r in inventory_rows:
+            # Safely unpack row, handling potential None values
+            try:
+                name, qty, l1, l2, l3, unit, uval = r
+                l1 = l1 or ""
+                l2 = l2 or ""
+                l3 = l3 or ""
+                unit = unit or ""
+                uval = uval or ""
+                
+                loc = " > ".join(filter(None, [l1, l2, l3]))
+                unit_str = f"{uval}{unit}" if unit and uval else ""
+                inventory_context += f"- {name}: {qty} {unit_str} (in {loc})\n"
+            except Exception:
+                continue
+
+        # 3. Call Gemini
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        
+        system_prompt = (
+            "You are a helpful home organizer assistant. You have access to the user's inventory listed below. "
+            "Answer questions based on this inventory. If asked for recipes, suggest ones using available ingredients. "
+            "Be concise and helpful.\n\n" + inventory_context
+        )
+
+        payload = {
+            "contents": [
+                {"role": "user", "parts": [{"text": system_prompt + "\n\nUser Question: " + user_message}]}
+            ]
+        }
+
         session = async_get_clientsession(hass)
         async with session.post(url, json=payload) as resp:
             if resp.status == 200:
                 json_resp = await resp.json()
-                text = json_resp["candidates"][0]["content"]["parts"][0]["text"].strip()
-                connection.send_result(msg["id"], {"response": text})
+                # Check for safe response extraction
+                if "candidates" in json_resp and json_resp["candidates"]:
+                    content = json_resp["candidates"][0].get("content")
+                    if content and content.get("parts"):
+                        text = content["parts"][0]["text"].strip()
+                        connection.send_result(msg["id"], {"response": text})
+                    else:
+                        connection.send_result(msg["id"], {"error": "AI returned no text content."})
+                else:
+                    connection.send_result(msg["id"], {"error": "AI response was filtered or empty."})
             else:
+                error_text = await resp.text()
+                _LOGGER.error(f"Gemini API Error {resp.status}: {error_text}")
                 connection.send_result(msg["id"], {"error": f"API Error {resp.status}"})
+
     except Exception as e:
-        connection.send_result(msg["id"], {"error": str(e)})
+        _LOGGER.exception("Unexpected error in AI Chat")
+        connection.send_result(msg["id"], {"error": f"Internal System Error: {str(e)}"})
 
 def get_view_data(hass, path_parts, query, date_filter, is_shopping):
     # NEW: Determine if AI Chat should be enabled
