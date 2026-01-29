@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 6.3.1 (Fix: Async Chat Handler & Hebrew Support)
+# Home Organizer Ultimate - ver 6.3.2 (Added Full Context Logging & Item IDs/Categories)
 
 import logging
 import sqlite3
@@ -85,7 +85,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 vol.Required("type"): WS_GET_ALL_ITEMS
             })
         )
-        # Register Chat Command (Removed @callback to allow async I/O)
+        # Register Chat Command
         websocket_api.async_register_command(
             hass,
             WS_AI_CHAT,
@@ -173,7 +173,7 @@ def websocket_get_all_items(hass, connection, msg):
     finally:
         conn.close()
 
-# NEW: Async Chat Handler (Removed @callback to prevent blocking)
+# NEW: Async Chat Handler
 async def websocket_ai_chat(hass, connection, msg):
     try:
         user_message = msg.get("message", "")
@@ -191,13 +191,15 @@ async def websocket_ai_chat(hass, connection, msg):
             connection.send_result(msg["id"], {"error": "API Key missing"})
             return
 
-        # 2. Get Inventory Context
+        _LOGGER.info("HomeOrganizer AI Chat: Preparing data...")
+
+        # 2. Get Inventory Context (Now includes ID and Categories)
         def get_inventory():
             try:
                 conn = get_db_connection(hass)
                 c = conn.cursor()
-                # Fetch items with qty > 0
-                c.execute(f"SELECT name, quantity, level_1, level_2, level_3, unit, unit_value FROM items WHERE type='item' AND quantity > 0")
+                # Added id, category, sub_category to selection
+                c.execute(f"SELECT id, name, quantity, level_1, level_2, level_3, unit, unit_value, category, sub_category FROM items WHERE type='item' AND quantity > 0")
                 items = c.fetchall()
                 conn.close()
                 return items
@@ -207,38 +209,45 @@ async def websocket_ai_chat(hass, connection, msg):
 
         inventory_rows = await hass.async_add_executor_job(get_inventory)
         
-        # STOP Condition: If no inventory, return immediately
         if not inventory_rows:
             connection.send_result(msg["id"], {"response": "המלאי שלך ריק, אז אין לי מצרכים להציע מהם מתכונים."})
             return
 
         # Format Inventory for AI
-        inventory_context = "Current Inventory:\n"
+        inventory_context = "Current Inventory Data:\n"
         for r in inventory_rows:
             try:
-                name, qty, l1, l2, l3, unit, uval = r
-                l1 = l1 or ""
-                l2 = l2 or ""
-                l3 = l3 or ""
-                unit = unit or ""
-                uval = uval or ""
+                # Unpack all 10 columns
+                i_id, name, qty, l1, l2, l3, unit, uval, cat, sub_cat = r
+                
+                # Normalize values
+                l1, l2, l3 = l1 or "", l2 or "", l3 or ""
+                unit, uval = unit or "", uval or ""
+                cat, sub_cat = cat or "Uncategorized", sub_cat or ""
                 
                 loc = " > ".join(filter(None, [l1, l2, l3]))
                 unit_str = f"{uval}{unit}" if unit and uval else ""
-                inventory_context += f"- {name}: {qty} {unit_str} (in {loc})\n"
-            except Exception:
+                
+                # Detailed format for AI
+                inventory_context += f"- [ID:{i_id}] {name}: {qty} {unit_str} | Cat: {cat} > {sub_cat} | Loc: {loc}\n"
+            except Exception as e:
+                _LOGGER.error(f"Error formatting row {r}: {e}")
                 continue
 
         # 3. Call Gemini
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
         
-        # Updated Prompt: Explicitly requests Hebrew response for Hebrew queries
         system_prompt = (
             "You are a smart home organizer assistant. You have access to the user's inventory listed below. "
             "Reply in the SAME LANGUAGE as the user's question (Hebrew/English). "
+            "The inventory format is: [ID] Name: Quantity | Category | Location. "
             "If asked for recipes, suggest ideas using ONLY available ingredients if possible. "
+            "You can refer to items by their location to help the user find them. "
             "Be concise, friendly, and helpful.\n\n" + inventory_context
         )
+
+        # Log the full prompt so user can debug
+        _LOGGER.info(f"HomeOrganizer SENDING TO AI:\n{system_prompt}\nUser Question: {user_message}")
 
         payload = {
             "contents": [
@@ -248,7 +257,7 @@ async def websocket_ai_chat(hass, connection, msg):
 
         session = async_get_clientsession(hass)
         
-        # 5 Minute Timeout (300 seconds)
+        # 5 Minute Timeout
         async with session.post(url, json=payload, timeout=ClientTimeout(total=300)) as resp:
             if resp.status == 200:
                 json_resp = await resp.json()
@@ -256,6 +265,7 @@ async def websocket_ai_chat(hass, connection, msg):
                     content = json_resp["candidates"][0].get("content")
                     if content and content.get("parts"):
                         text = content["parts"][0]["text"].strip()
+                        _LOGGER.info(f"HomeOrganizer AI RESPONSE: {text[:100]}...") # Log partial response
                         connection.send_result(msg["id"], {"response": text})
                     else:
                         connection.send_result(msg["id"], {"error": "AI returned no text content."})
@@ -267,13 +277,14 @@ async def websocket_ai_chat(hass, connection, msg):
                 connection.send_result(msg["id"], {"error": f"API Error {resp.status}"})
 
     except asyncio.TimeoutError:
+        _LOGGER.error("HomeOrganizer AI Request Timed Out (300s)")
         connection.send_result(msg["id"], {"error": "Request Timed Out (5 min limit)."})
     except Exception as e:
         _LOGGER.exception("Unexpected error in AI Chat")
         connection.send_result(msg["id"], {"error": f"Internal System Error: {str(e)}"})
 
 def get_view_data(hass, path_parts, query, date_filter, is_shopping):
-    # NEW: Determine if AI Chat should be enabled
+    # Determine if AI Chat should be enabled
     enable_ai = False
     entries = hass.config_entries.async_entries(DOMAIN)
     if entries:
@@ -430,7 +441,7 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
         "app_version": VERSION,
         "depth": len(path_parts),
         "hierarchy": hierarchy,
-        "enable_ai": enable_ai # Pass this flag to frontend
+        "enable_ai": enable_ai 
     }
 
 async def register_services(hass, entry):
