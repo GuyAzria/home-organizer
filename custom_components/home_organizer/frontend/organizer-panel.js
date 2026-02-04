@@ -243,7 +243,7 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   t(key, ...args) {
-      if (!this.translations[key]) return key.replace(/^cat_|^sub_|^unit_/, '').replace(/_/g, ' '); 
+      if (!this.translations[key]) return key.replace(/^cat_|^sub_|^unit_|^zone_/, '').replace(/_/g, ' '); 
       let text = this.translations[key][this.currentLang] || this.translations[key]['en'] || key;
       args.forEach((arg, i) => { text = text.replace(`{${i}}`, arg); });
       return text;
