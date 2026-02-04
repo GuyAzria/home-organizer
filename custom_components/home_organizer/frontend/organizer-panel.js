@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.3.5 (Visual Chat Steps & Context Display)
+// Home Organizer Ultimate - Ver 6.3.6 (5 Min Timeout, Persistent Steps & Context Display)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -462,6 +462,7 @@ class HomeOrganizerPanel extends HTMLElement {
         .message { max-width: 80%; padding: 10px 15px; border-radius: 12px; line-height: 1.4; word-wrap: break-word; font-size: 14px; position: relative; }
         .message.user { align-self: flex-end; background: var(--chat-msg-user); color: var(--text-main); border-bottom-right-radius: 2px; }
         .message.ai { align-self: flex-start; background: var(--chat-msg-ai); color: var(--text-main); border-bottom-left-radius: 2px; }
+        .message.system { align-self: center; background: transparent; color: #888; font-size: 12px; width: 100%; text-align: left; border: 1px solid #444; }
         .chat-input-bar { padding: 10px; background: var(--bg-bar); border-top: 1px solid var(--border-color); display: flex; gap: 10px; align-items: center; }
         .chat-input { flex: 1; padding: 10px; border-radius: 20px; border: 1px solid var(--border-input); background: var(--bg-input); color: var(--text-main); outline: none; }
         .chat-send-btn { background: var(--primary); color: white; border: none; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
@@ -1562,39 +1563,19 @@ class HomeOrganizerPanel extends HTMLElement {
           this.chatHistory.push({ role: 'user', text: text });
           this.render(); 
           
-          // ADDED: Stepping logic
-          const steps = [
-              "Step 1: Reading Database...",
-              "Step 2: Formatting Inventory (IDs, Categories, Locations)...",
-              "Step 3: Sending Context to AI...",
-              "Step 4: Waiting for Answer..."
-          ];
-          let stepIdx = 0;
-          this.chatHistory.push({ role: 'ai', text: steps[0] });
+          this.chatHistory.push({ role: 'ai', text: "מעבד נתונים... (ממתין לתשובה מהענן)" });
           this.render();
           
-          const stepInterval = setInterval(() => {
-              stepIdx++;
-              if (stepIdx < steps.length) {
-                  // Update last message: APPEND line
-                  if(this.chatHistory[this.chatHistory.length - 1].role === 'ai') {
-                      this.chatHistory[this.chatHistory.length - 1].text += "<br>" + steps[stepIdx];
-                      this.render();
-                  }
-              }
-          }, 1500); 
-          
           let responded = false;
-          // INCREASED TIMEOUT: 60 seconds 
+          // INCREASED TIMEOUT: 5 Minutes (Matches Backend)
           const safetyTimeout = setTimeout(() => {
               if(!responded) {
-                  clearInterval(stepInterval);
                   this.chatHistory.pop();
-                  this.chatHistory.push({ role: 'ai', text: "Request took too long (>60s). Please try again." });
+                  this.chatHistory.push({ role: 'ai', text: "הבקשה לוקחת יותר מדי זמן (מעל 5 דקות). נסה שוב מאוחר יותר." });
                   this.render();
                   responded = true;
               }
-          }, 60000); 
+          }, 300000); 
 
           try {
               const result = await this._hass.callWS({
@@ -1603,16 +1584,15 @@ class HomeOrganizerPanel extends HTMLElement {
               });
               
               clearTimeout(safetyTimeout);
-              clearInterval(stepInterval);
               
               if(!responded) {
-                  this.chatHistory.pop(); // Remove step message
+                  this.chatHistory.pop(); // Remove "Processing..."
                   
-                  // NEW: Show Context First
+                  // NEW: Show Context Bubble First (Grey)
                   if (result.context) {
                        this.chatHistory.push({ 
                            role: 'system', 
-                           text: `<b>Data Sent to AI:</b><br><div style='font-size:10px;white-space:pre-wrap;max-height:100px;overflow:auto;background:#222;padding:5px;border-radius:5px'>${result.context}</div>` 
+                           text: `<div style='font-size:11px;font-weight:bold;margin-bottom:5px'>Information Sent to AI:</div><div style='font-size:10px;white-space:pre-wrap;max-height:150px;overflow:auto;background:rgba(255,255,255,0.05);padding:8px;border-radius:6px;border:1px solid #444;direction:ltr'>${result.context}</div>` 
                        });
                   }
                   
@@ -1625,10 +1605,9 @@ class HomeOrganizerPanel extends HTMLElement {
               }
           } catch (e) {
               clearTimeout(safetyTimeout);
-              clearInterval(stepInterval);
               if(!responded) {
                   this.chatHistory.pop();
-                  this.chatHistory.push({ role: 'ai', text: "Connection error." });
+                  this.chatHistory.push({ role: 'ai', text: "שגיאת חיבור: " + e.message });
               }
           }
           
