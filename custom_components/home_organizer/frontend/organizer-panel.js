@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.3.4 (Chat Process Steps Visualization)
+// Home Organizer Ultimate - Ver 6.3.5 (Visual Chat Steps & Context Display)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -1537,7 +1537,7 @@ class HomeOrganizerPanel extends HTMLElement {
       this.chatHistory.forEach(msg => {
           const div = document.createElement('div');
           div.className = `message ${msg.role}`;
-          div.innerText = msg.text;
+          div.innerHTML = msg.text; 
           messagesDiv.appendChild(div);
       });
       
@@ -1576,16 +1576,16 @@ class HomeOrganizerPanel extends HTMLElement {
           const stepInterval = setInterval(() => {
               stepIdx++;
               if (stepIdx < steps.length) {
-                  // Update last message (Thinking bubble)
+                  // Update last message: APPEND line
                   if(this.chatHistory[this.chatHistory.length - 1].role === 'ai') {
-                      this.chatHistory[this.chatHistory.length - 1].text = steps[stepIdx];
+                      this.chatHistory[this.chatHistory.length - 1].text += "<br>" + steps[stepIdx];
                       this.render();
                   }
               }
-          }, 1500); // Update step every 1.5s
+          }, 1500); 
           
           let responded = false;
-          // INCREASED TIMEOUT: 60 seconds (Backend has 300s limit now)
+          // INCREASED TIMEOUT: 60 seconds 
           const safetyTimeout = setTimeout(() => {
               if(!responded) {
                   clearInterval(stepInterval);
@@ -1607,6 +1607,14 @@ class HomeOrganizerPanel extends HTMLElement {
               
               if(!responded) {
                   this.chatHistory.pop(); // Remove step message
+                  
+                  // NEW: Show Context First
+                  if (result.context) {
+                       this.chatHistory.push({ 
+                           role: 'system', 
+                           text: `<b>Data Sent to AI:</b><br><div style='font-size:10px;white-space:pre-wrap;max-height:100px;overflow:auto;background:#222;padding:5px;border-radius:5px'>${result.context}</div>` 
+                       });
+                  }
                   
                   if (result.error) {
                       this.chatHistory.push({ role: 'ai', text: "Error: " + result.error });
