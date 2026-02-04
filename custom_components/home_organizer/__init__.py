@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 6.3.3 (Added Context Return for UI Visualization)
+# Home Organizer Ultimate - ver 6.3.5 (Enhanced Hebrew Support & Context Debug)
 
 import logging
 import sqlite3
@@ -25,7 +25,6 @@ WS_GET_DATA = "home_organizer/get_data"
 WS_GET_ALL_ITEMS = "home_organizer/get_all_items" 
 WS_AI_CHAT = "home_organizer/ai_chat" 
 
-# Define the URL prefix for your frontend files
 STATIC_PATH_URL = "/home_organizer_static"
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -34,7 +33,6 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if entry.options.get(CONF_DEBUG): _LOGGER.setLevel(logging.DEBUG)
 
-    # 1. REGISTER STATIC PATH
     frontend_folder = os.path.join(os.path.dirname(__file__), "frontend")
     
     await hass.http.async_register_static_paths([
@@ -45,7 +43,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
     ])
 
-    # 2. REGISTER PANEL
     try:
         await panel_custom.async_register_panel(
             hass,
@@ -63,7 +60,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})
     
-    # Register Websockets
     try:
         websocket_api.async_register_command(
             hass,
@@ -85,7 +81,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 vol.Required("type"): WS_GET_ALL_ITEMS
             })
         )
-        # Register Chat Command
         websocket_api.async_register_command(
             hass,
             WS_AI_CHAT,
@@ -208,29 +203,38 @@ async def websocket_ai_chat(hass, connection, msg):
         inventory_rows = await hass.async_add_executor_job(get_inventory)
         
         if not inventory_rows:
-            connection.send_result(msg["id"], {"response": "המלאי שלך ריק.", "context": "Inventory is empty."})
+            connection.send_result(msg["id"], {"response": "המלאי שלך ריק.", "context": "Database returned 0 items."})
             return
 
         # Format Inventory for AI
-        inventory_context = "Current Inventory Data:\n"
+        inventory_list_str = ""
         for r in inventory_rows:
             try:
                 i_id, name, qty, l1, l2, l3, unit, uval, cat, sub_cat = r
                 l1 = l1 or ""; l2 = l2 or ""; l3 = l3 or ""; unit = unit or ""; uval = uval or ""; cat = cat or ""; sub_cat = sub_cat or ""
                 loc = " > ".join(filter(None, [l1, l2, l3]))
                 unit_str = f"{uval}{unit}" if unit and uval else ""
-                inventory_context += f"- [ID:{i_id}] {name}: {qty}{unit_str} | Cat: {cat}>{sub_cat} | Loc: {loc}\n"
+                inventory_list_str += f"- {name} (Qty: {qty}{unit_str}, Loc: {loc})\n"
             except Exception:
                 continue
+
+        # Prepare Context for Display
+        debug_context = f"Step 1: Reading Database... Done.\n"
+        debug_context += f"Step 2: Found {len(inventory_rows)} items.\n"
+        debug_context += f"Step 3: Sending the following data to AI:\n\n{inventory_list_str}"
 
         # Call Gemini
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
         
         system_prompt = (
             "You are a smart home organizer assistant. You have access to the user's inventory listed below. "
-            "Reply in the SAME LANGUAGE as the user's question (Hebrew/English). "
-            "If asked for recipes, suggest ideas using ONLY available ingredients if possible. "
-            "Be concise, friendly, and helpful.\n\n" + inventory_context
+            "IMPORTANT: "
+            "1. Analyze the user's request."
+            "2. If they ask about a specific location (e.g., 'fridge'), look for items with that location in the list."
+            "3. Suggest recipes or answers based ONLY on the items listed."
+            "4. Reply in the SAME LANGUAGE as the user (Hebrew if the user writes in Hebrew)."
+            "5. Be concise.\n\n"
+            "INVENTORY DATA:\n" + inventory_list_str
         )
 
         payload = {
@@ -241,27 +245,27 @@ async def websocket_ai_chat(hass, connection, msg):
 
         session = async_get_clientsession(hass)
         
-        # 5 Minute Timeout
-        async with session.post(url, json=payload, timeout=ClientTimeout(total=300)) as resp:
+        # 60 Second Timeout
+        async with session.post(url, json=payload, timeout=ClientTimeout(total=60)) as resp:
             if resp.status == 200:
                 json_resp = await resp.json()
                 if "candidates" in json_resp and json_resp["candidates"]:
                     content = json_resp["candidates"][0].get("content")
                     if content and content.get("parts"):
                         text = content["parts"][0]["text"].strip()
-                        # RETURN BOTH RESPONSE AND CONTEXT
-                        connection.send_result(msg["id"], {"response": text, "context": inventory_context})
+                        # Return Response AND Debug Context
+                        connection.send_result(msg["id"], {"response": text, "context": debug_context})
                     else:
-                        connection.send_result(msg["id"], {"error": "AI returned no text content."})
+                        connection.send_result(msg["id"], {"error": "AI returned no text.", "context": debug_context})
                 else:
-                    connection.send_result(msg["id"], {"error": "AI response was filtered or empty."})
+                    connection.send_result(msg["id"], {"error": "AI response empty.", "context": debug_context})
             else:
-                connection.send_result(msg["id"], {"error": f"API Error {resp.status}"})
+                connection.send_result(msg["id"], {"error": f"API Error {resp.status}", "context": debug_context})
 
     except asyncio.TimeoutError:
-        connection.send_result(msg["id"], {"error": "Request Timed Out (5 min limit)."})
+        connection.send_result(msg["id"], {"error": "Request Timed Out (60s). Check internet connection."})
     except Exception as e:
-        connection.send_result(msg["id"], {"error": f"Internal System Error: {str(e)}"})
+        connection.send_result(msg["id"], {"error": f"System Error: {str(e)}"})
 
 def get_view_data(hass, path_parts, query, date_filter, is_shopping):
     enable_ai = False
