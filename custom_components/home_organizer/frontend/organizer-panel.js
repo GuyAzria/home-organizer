@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.3.3 (Timeout Increased to 60s & AI Icon Fixed)
+// Home Organizer Ultimate - Ver 6.3.4 (Chat Process Steps Visualization)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -1510,7 +1510,7 @@ class HomeOrganizerPanel extends HTMLElement {
     }
   }
 
-  // NEW: Chat UI Render (with Timeout Logic)
+  // NEW: Chat UI Render (with Process Steps & Extended Timeout)
   renderChatUI(container) {
       const chatContainer = document.createElement('div');
       chatContainer.className = 'chat-container';
@@ -1521,7 +1521,16 @@ class HomeOrganizerPanel extends HTMLElement {
       if (this.chatHistory.length === 0) {
           const welcome = document.createElement('div');
           welcome.className = 'message ai';
-          welcome.innerText = "Hi! I'm your Home Organizer assistant. Ask me anything about your inventory or for recipe ideas!";
+          welcome.innerHTML = `
+            <b>AI Assistant Ready</b><br>
+            I have access to your inventory.<br><br>
+            <b>Data sent to AI:</b><br>
+            • Item Names & IDs<br>
+            • Quantities<br>
+            • Categories & Sub-Categories<br>
+            • Exact Locations<br><br>
+            Ask me for recipes, location checks, or organization tips!
+          `;
           messagesDiv.appendChild(welcome);
       }
       
@@ -1553,13 +1562,33 @@ class HomeOrganizerPanel extends HTMLElement {
           this.chatHistory.push({ role: 'user', text: text });
           this.render(); 
           
-          this.chatHistory.push({ role: 'ai', text: "Thinking..." });
+          // ADDED: Stepping logic
+          const steps = [
+              "Step 1: Reading Database...",
+              "Step 2: Formatting Inventory (IDs, Categories, Locations)...",
+              "Step 3: Sending Context to AI...",
+              "Step 4: Waiting for Answer..."
+          ];
+          let stepIdx = 0;
+          this.chatHistory.push({ role: 'ai', text: steps[0] });
           this.render();
           
+          const stepInterval = setInterval(() => {
+              stepIdx++;
+              if (stepIdx < steps.length) {
+                  // Update last message (Thinking bubble)
+                  if(this.chatHistory[this.chatHistory.length - 1].role === 'ai') {
+                      this.chatHistory[this.chatHistory.length - 1].text = steps[stepIdx];
+                      this.render();
+                  }
+              }
+          }, 1500); // Update step every 1.5s
+          
           let responded = false;
-          // UI Safety Timeout (60 seconds)
+          // INCREASED TIMEOUT: 60 seconds (Backend has 300s limit now)
           const safetyTimeout = setTimeout(() => {
               if(!responded) {
+                  clearInterval(stepInterval);
                   this.chatHistory.pop();
                   this.chatHistory.push({ role: 'ai', text: "Request took too long (>60s). Please try again." });
                   this.render();
@@ -1574,8 +1603,10 @@ class HomeOrganizerPanel extends HTMLElement {
               });
               
               clearTimeout(safetyTimeout);
+              clearInterval(stepInterval);
+              
               if(!responded) {
-                  this.chatHistory.pop();
+                  this.chatHistory.pop(); // Remove step message
                   
                   if (result.error) {
                       this.chatHistory.push({ role: 'ai', text: "Error: " + result.error });
@@ -1586,6 +1617,7 @@ class HomeOrganizerPanel extends HTMLElement {
               }
           } catch (e) {
               clearTimeout(safetyTimeout);
+              clearInterval(stepInterval);
               if(!responded) {
                   this.chatHistory.pop();
                   this.chatHistory.push({ role: 'ai', text: "Connection error." });
