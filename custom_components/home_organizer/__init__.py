@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 6.3.5 (Enhanced Hebrew Support & Context Debug)
+# Home Organizer Ultimate - ver 6.3.8 (Simplified & Robust AI Handler)
 
 import logging
 import sqlite3
@@ -172,7 +172,8 @@ def websocket_get_all_items(hass, connection, msg):
 async def websocket_ai_chat(hass, connection, msg):
     try:
         user_message = msg.get("message", "")
-        
+        _LOGGER.debug(f"AI Request received: {user_message}")
+
         entries = hass.config_entries.async_entries(DOMAIN)
         if not entries:
             connection.send_result(msg["id"], {"error": "Integration not loaded"})
@@ -182,90 +183,83 @@ async def websocket_ai_chat(hass, connection, msg):
         api_key = entry.options.get(CONF_API_KEY, entry.data.get(CONF_API_KEY))
         
         if not api_key:
-            connection.send_result(msg["id"], {"error": "API Key missing"})
+            connection.send_result(msg["id"], {"error": "API Key is missing in configuration"})
             return
 
-        _LOGGER.info("HomeOrganizer AI Chat: Preparing data...")
-
-        # Get Inventory Context
+        # 1. Fetch Data
         def get_inventory():
             try:
                 conn = get_db_connection(hass)
                 c = conn.cursor()
-                c.execute(f"SELECT id, name, quantity, level_1, level_2, level_3, unit, unit_value, category, sub_category FROM items WHERE type='item' AND quantity > 0")
+                # Get relevant columns
+                c.execute(f"SELECT id, name, quantity, level_1, level_2, level_3, category, sub_category FROM items WHERE type='item' AND quantity > 0")
                 items = c.fetchall()
                 conn.close()
                 return items
             except Exception as e:
-                _LOGGER.error(f"DB Error fetching inventory: {e}")
+                _LOGGER.error(f"DB Error: {e}")
                 return []
 
         inventory_rows = await hass.async_add_executor_job(get_inventory)
         
-        if not inventory_rows:
-            connection.send_result(msg["id"], {"response": "המלאי שלך ריק.", "context": "Database returned 0 items."})
-            return
-
-        # Format Inventory for AI
-        inventory_list_str = ""
+        # 2. Build Context String
+        # We build a simple list. No complex SQL translation needed for small lists.
+        # RAG (Retrieval Augmented Generation) is standard here.
+        inventory_context = ""
         for r in inventory_rows:
             try:
-                i_id, name, qty, l1, l2, l3, unit, uval, cat, sub_cat = r
-                l1 = l1 or ""; l2 = l2 or ""; l3 = l3 or ""; unit = unit or ""; uval = uval or ""; cat = cat or ""; sub_cat = sub_cat or ""
-                loc = " > ".join(filter(None, [l1, l2, l3]))
-                unit_str = f"{uval}{unit}" if unit and uval else ""
-                inventory_list_str += f"- {name} (Qty: {qty}{unit_str}, Loc: {loc})\n"
-            except Exception:
+                i_id, name, qty, l1, l2, l3, cat, sub = r
+                loc = " > ".join(filter(None, [l1, l2, l3])) or "General"
+                cat_str = f"({cat})" if cat else ""
+                inventory_context += f"- {name} {cat_str}: {qty} (Location: {loc})\n"
+            except:
                 continue
 
-        # Prepare Context for Display
-        debug_context = f"Step 1: Reading Database... Done.\n"
-        debug_context += f"Step 2: Found {len(inventory_rows)} items.\n"
-        debug_context += f"Step 3: Sending the following data to AI:\n\n{inventory_list_str}"
+        if not inventory_context:
+            inventory_context = "Inventory is empty."
 
-        # Call Gemini
+        _LOGGER.debug(f"Context built (Length: {len(inventory_context)})")
+
+        # 3. Call API
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
         
+        # Strict Prompt for Hebrew
         system_prompt = (
-            "You are a smart home organizer assistant. You have access to the user's inventory listed below. "
-            "IMPORTANT: "
-            "1. Analyze the user's request."
-            "2. If they ask about a specific location (e.g., 'fridge'), look for items with that location in the list."
-            "3. Suggest recipes or answers based ONLY on the items listed."
-            "4. Reply in the SAME LANGUAGE as the user (Hebrew if the user writes in Hebrew)."
-            "5. Be concise.\n\n"
-            "INVENTORY DATA:\n" + inventory_list_str
+            "You are a home assistant. "
+            "You have the user's inventory list below. "
+            "Answer the user question based ONLY on this list. "
+            "If the user asks in Hebrew, reply in Hebrew. "
+            "Be helpful and suggest recipes if asked using available items.\n\n"
+            "INVENTORY:\n" + inventory_context
         )
 
         payload = {
             "contents": [
-                {"role": "user", "parts": [{"text": system_prompt + "\n\nUser Question: " + user_message}]}
+                {"role": "user", "parts": [{"text": system_prompt + "\n\nUser: " + user_message}]}
             ]
         }
 
         session = async_get_clientsession(hass)
         
-        # 60 Second Timeout
+        # 30 second timeout is usually enough for text, but we set 60s to be safe
         async with session.post(url, json=payload, timeout=ClientTimeout(total=60)) as resp:
             if resp.status == 200:
                 json_resp = await resp.json()
-                if "candidates" in json_resp and json_resp["candidates"]:
-                    content = json_resp["candidates"][0].get("content")
-                    if content and content.get("parts"):
-                        text = content["parts"][0]["text"].strip()
-                        # Return Response AND Debug Context
-                        connection.send_result(msg["id"], {"response": text, "context": debug_context})
-                    else:
-                        connection.send_result(msg["id"], {"error": "AI returned no text.", "context": debug_context})
-                else:
-                    connection.send_result(msg["id"], {"error": "AI response empty.", "context": debug_context})
+                try:
+                    text = json_resp["candidates"][0]["content"]["parts"][0]["text"].strip()
+                    connection.send_result(msg["id"], {"response": text, "context": inventory_context})
+                except (KeyError, IndexError, TypeError):
+                     connection.send_result(msg["id"], {"error": "Invalid response format from Google AI", "context": inventory_context})
             else:
-                connection.send_result(msg["id"], {"error": f"API Error {resp.status}", "context": debug_context})
+                err_text = await resp.text()
+                _LOGGER.error(f"Gemini API Error {resp.status}: {err_text}")
+                connection.send_result(msg["id"], {"error": f"Google API Error: {resp.status}", "context": inventory_context})
 
     except asyncio.TimeoutError:
-        connection.send_result(msg["id"], {"error": "Request Timed Out (60s). Check internet connection."})
+        connection.send_result(msg["id"], {"error": "Timeout: Google AI took too long to respond."})
     except Exception as e:
-        connection.send_result(msg["id"], {"error": f"System Error: {str(e)}"})
+        _LOGGER.exception("AI Chat Exception")
+        connection.send_result(msg["id"], {"error": f"Internal Error: {str(e)}"})
 
 def get_view_data(hass, path_parts, query, date_filter, is_shopping):
     enable_ai = False
