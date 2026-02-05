@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.3.6 (5 Min Timeout, Persistent Steps & Context Display)
+// Home Organizer Ultimate - Ver 6.3.7 (Real-time Step Visualization & Context Debug)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -1563,14 +1563,38 @@ class HomeOrganizerPanel extends HTMLElement {
           this.chatHistory.push({ role: 'user', text: text });
           this.render(); 
           
-          this.chatHistory.push({ role: 'ai', text: "מעבד נתונים... (ממתין לתשובה מהענן)" });
+          // Initial Loading Message with Step 1
+          const steps = [
+              "שלב 1: קורא נתונים ממסד הנתונים...",
+              "שלב 2: מעבד רשימת מלאי (מזהים, קטגוריות, מיקומים)...",
+              "שלב 3: בונה הקשר ושולח ל-Google Gemini...",
+              "שלב 4: ממתין לתשובה (נא להמתין, זה לוקח זמן)..."
+          ];
+          
+          // Add first loading message (will be updated)
+          const loadingMsg = { role: 'ai', text: steps[0] };
+          this.chatHistory.push(loadingMsg);
           this.render();
+          
+          let stepIdx = 0;
+          const stepInterval = setInterval(() => {
+              stepIdx++;
+              if (stepIdx < steps.length) {
+                  // Append new step line instead of replacing
+                  loadingMsg.text += "<br>" + steps[stepIdx];
+                  this.render();
+              } else {
+                  // Stop adding lines once all steps shown
+                  clearInterval(stepInterval);
+              }
+          }, 2000); 
           
           let responded = false;
           // INCREASED TIMEOUT: 5 Minutes (Matches Backend)
           const safetyTimeout = setTimeout(() => {
               if(!responded) {
-                  this.chatHistory.pop();
+                  clearInterval(stepInterval);
+                  this.chatHistory.pop(); // Remove loading
                   this.chatHistory.push({ role: 'ai', text: "הבקשה לוקחת יותר מדי זמן (מעל 5 דקות). נסה שוב מאוחר יותר." });
                   this.render();
                   responded = true;
@@ -1584,11 +1608,12 @@ class HomeOrganizerPanel extends HTMLElement {
               });
               
               clearTimeout(safetyTimeout);
+              clearInterval(stepInterval);
               
               if(!responded) {
-                  this.chatHistory.pop(); // Remove "Processing..."
+                  this.chatHistory.pop(); // Remove loading message
                   
-                  // NEW: Show Context Bubble First (Grey)
+                  // Show Context Bubble First (Grey)
                   if (result.context) {
                        this.chatHistory.push({ 
                            role: 'system', 
@@ -1605,6 +1630,7 @@ class HomeOrganizerPanel extends HTMLElement {
               }
           } catch (e) {
               clearTimeout(safetyTimeout);
+              clearInterval(stepInterval);
               if(!responded) {
                   this.chatHistory.pop();
                   this.chatHistory.push({ role: 'ai', text: "שגיאת חיבור: " + e.message });
