@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.3.8 (Simplified Chat & Fixed Icon)
+// Home Organizer Ultimate - Ver 6.3.9 (Added Step 0 to Chat Visualization)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -1452,10 +1452,10 @@ class HomeOrganizerPanel extends HTMLElement {
           
           // Initial Loading Message with Step 1
           const steps = [
-              "שלב 1: קורא נתונים ממסד הנתונים...",
-              "שלב 2: מעבד רשימת מלאי (מזהים, קטגוריות, מיקומים)...",
-              "שלב 3: בונה הקשר ושולח ל-Google Gemini...",
-              "שלב 4: ממתין לתשובה (נא להמתין, זה לוקח זמן)..."
+              "בדיקת חיבור ל-AI...",
+              "קורא נתונים ממסד הנתונים...",
+              "מעבד רשימת מלאי (מזהים, קטגוריות, מיקומים)...",
+              "שולח שאלה וממתין לתשובה (עד 60 שניות)..."
           ];
           
           // Add first loading message (will be updated)
@@ -1474,7 +1474,7 @@ class HomeOrganizerPanel extends HTMLElement {
                   // Stop adding lines once all steps shown
                   clearInterval(stepInterval);
               }
-          }, 2000); 
+          }, 1500); 
           
           let responded = false;
           // INCREASED TIMEOUT: 5 Minutes (Matches Backend)
