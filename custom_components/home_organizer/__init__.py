@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 6.3.11 (Debug Context on Error)
+# Home Organizer Ultimate - ver 6.3.14 (Full Debug Context & Robust AI)
 
 import logging
 import sqlite3
@@ -19,7 +19,6 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .const import DOMAIN, CONF_API_KEY, CONF_DEBUG, CONF_USE_AI, DB_FILE, IMG_DIR, VERSION
 
 _LOGGER = logging.getLogger(__name__)
-MAX_LEVELS = 10
 
 WS_GET_DATA = "home_organizer/get_data"
 WS_GET_ALL_ITEMS = "home_organizer/get_all_items" 
@@ -114,30 +113,29 @@ def init_db(hass):
     if not os.path.exists(hass.config.path("www", IMG_DIR)): os.makedirs(hass.config.path("www", IMG_DIR))
     conn = get_db_connection(hass)
     c = conn.cursor()
-    cols = ", ".join([f"level_{i} TEXT" for i in range(1, MAX_LEVELS + 1)])
-    
-    c.execute(f'''CREATE TABLE IF NOT EXISTS items (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, type TEXT DEFAULT 'item',
-        {cols}, item_date TEXT, quantity INTEGER DEFAULT 1, image_path TEXT,
-        category TEXT, sub_category TEXT, unit TEXT, unit_value TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+    c.execute("CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)")
     
     c.execute("PRAGMA table_info(items)")
     existing_cols = [col[1] for col in c.fetchall()]
     
-    if 'image_path' not in existing_cols:
-        try: c.execute("ALTER TABLE items ADD COLUMN image_path TEXT")
-        except: pass
+    needed_cols = {
+        'type': "TEXT DEFAULT 'item'",
+        'quantity': "INTEGER DEFAULT 1",
+        'item_date': "TEXT",
+        'image_path': "TEXT",
+        'category': "TEXT",
+        'sub_category': "TEXT",
+        'unit': "TEXT",
+        'unit_value': "TEXT",
+        'created_at': "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+    }
+    
+    for i in range(1, 11): 
+        needed_cols[f"level_{i}"] = "TEXT"
 
-    for new_col in ['category', 'sub_category', 'unit', 'unit_value']:
-        if new_col not in existing_cols:
-            try: c.execute(f"ALTER TABLE items ADD COLUMN {new_col} TEXT")
-            except: pass
-        
-    for i in range(1, MAX_LEVELS + 1):
-        col_name = f"level_{i}"
-        if col_name not in existing_cols:
-            try: c.execute(f"ALTER TABLE items ADD COLUMN {col_name} TEXT")
+    for col, dtype in needed_cols.items():
+        if col not in existing_cols:
+            try: c.execute(f"ALTER TABLE items ADD COLUMN {col} {dtype}")
             except: pass
 
     conn.commit(); conn.close()
@@ -168,12 +166,13 @@ def websocket_get_all_items(hass, connection, msg):
     finally:
         conn.close()
 
-# Async Chat Handler with Robust Error Context
+# Async Chat Handler - Robust & Transparent
 async def websocket_ai_chat(hass, connection, msg):
-    inventory_context = "Initializing..." # Default value
+    inventory_context = ""
     try:
         user_message = msg.get("message", "")
-        
+        _LOGGER.info(f"HomeOrganizer AI: Request received: {user_message}")
+
         entries = hass.config_entries.async_entries(DOMAIN)
         if not entries:
             connection.send_result(msg["id"], {"error": "Integration not loaded"})
@@ -189,27 +188,13 @@ async def websocket_ai_chat(hass, connection, msg):
         session = async_get_clientsession(hass)
         gen_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
 
-        # 0. Connection Test
-        _LOGGER.info("HomeOrganizer AI: Testing connectivity...")
-        test_payload = {"contents": [{"parts": [{"text": "Hello"}]}]}
-        
-        try:
-            async with session.post(gen_url, json=test_payload, timeout=ClientTimeout(total=10)) as resp:
-                if resp.status != 200:
-                    err_text = await resp.text()
-                    connection.send_result(msg["id"], {"error": f"Connection Test Failed: {resp.status} - {err_text}"})
-                    return
-        except Exception as e:
-            connection.send_result(msg["id"], {"error": f"Connection Test Exception: {str(e)}"})
-            return
-
-        # 1. Get Inventory Context
-        _LOGGER.info("HomeOrganizer AI: Fetching DB...")
+        # 1. Fetch Inventory from DB
         def get_inventory():
             try:
                 conn = get_db_connection(hass)
                 c = conn.cursor()
-                c.execute(f"SELECT id, name, quantity, level_1, level_2, level_3, unit, unit_value, category, sub_category FROM items WHERE type='item' AND quantity > 0")
+                # Ensure we only get real items with qty > 0
+                c.execute(f"SELECT id, name, quantity, level_1, level_2, level_3, unit, unit_value, category FROM items WHERE type='item' AND quantity > 0")
                 items = c.fetchall()
                 conn.close()
                 return items
@@ -220,27 +205,34 @@ async def websocket_ai_chat(hass, connection, msg):
         inventory_rows = await hass.async_add_executor_job(get_inventory)
         
         if not inventory_rows:
-            connection.send_result(msg["id"], {"response": "המלאי שלך ריק.", "context": "Database returned 0 items."})
+            connection.send_result(msg["id"], {"response": "המלאי שלך ריק (אין פריטים עם כמות חיובית).", "context": "SQL returned 0 rows."})
             return
 
-        # 2. Format Context
-        inventory_context = "Inventory Data (Sent to AI):\n"
+        # 2. Build Context String
+        inventory_context = "My Inventory:\n"
         for r in inventory_rows:
             try:
-                i_id, name, qty, l1, l2, l3, unit, uval, cat, sub_cat = r
-                l1 = l1 or ""; l2 = l2 or ""; l3 = l3 or ""; unit = unit or ""; uval = uval or ""; cat = cat or ""; sub_cat = sub_cat or ""
-                loc = " > ".join(filter(None, [l1, l2, l3]))
-                unit_str = f"{uval}{unit}" if unit and uval else ""
-                inventory_context += f"- {name} (Qty: {qty}{unit_str}) in {loc}\n"
+                i_id, name, qty, l1, l2, l3, unit, uval, cat = r
+                l1 = l1 or ""; l2 = l2 or ""; l3 = l3 or ""; unit = unit or ""; uval = uval or ""; cat = cat or ""
+                
+                loc_parts = [p for p in [l1, l2, l3] if p]
+                loc_str = " > ".join(loc_parts)
+                
+                unit_str = f" {uval}{unit}" if unit else ""
+                inventory_context += f"- {name} (Qty:{qty}{unit_str}) in {loc_str}\n"
             except Exception:
                 continue
+        
+        _LOGGER.info(f"HomeOrganizer AI: Sending {len(inventory_rows)} items to Gemini.")
 
         # 3. Call Gemini
         system_prompt = (
-            "You are a smart home organizer assistant. You have access to the user's inventory listed below. "
-            "Reply in the SAME LANGUAGE as the user's question (Hebrew/English). "
-            "If asked for recipes, suggest ideas using ONLY available ingredients if possible. "
-            "Be concise, friendly, and helpful.\n\n" + inventory_context
+            "You are a helpful home assistant. "
+            "You have the user's current inventory listed below. "
+            "Reply in the SAME LANGUAGE as the user (Hebrew/English). "
+            "Based ONLY on the inventory, suggest recipes or answer questions. "
+            "Ignore items with 0 quantity if any appear. "
+            "\n\n" + inventory_context
         )
 
         payload = {
@@ -264,12 +256,13 @@ async def websocket_ai_chat(hass, connection, msg):
                     connection.send_result(msg["id"], {"error": "AI response was filtered or empty.", "context": inventory_context})
             else:
                 error_text = await resp.text()
+                _LOGGER.error(f"Gemini API Error {resp.status}: {error_text}")
                 connection.send_result(msg["id"], {"error": f"API Error {resp.status}", "context": inventory_context})
 
     except asyncio.TimeoutError:
-        connection.send_result(msg["id"], {"error": "Request Timed Out (5 min limit).", "context": inventory_context})
+        connection.send_result(msg["id"], {"error": "Timeout (60s). AI did not reply.", "context": inventory_context})
     except Exception as e:
-        connection.send_result(msg["id"], {"error": f"Internal System Error: {str(e)}", "context": inventory_context})
+        connection.send_result(msg["id"], {"error": f"System Error: {str(e)}", "context": inventory_context})
 
 def get_view_data(hass, path_parts, query, date_filter, is_shopping):
     enable_ai = False
