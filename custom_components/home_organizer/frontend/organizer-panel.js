@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.3.12 (Persistent Process Log & Context)
+// Home Organizer Ultimate - Ver 6.3.14 (Full Code Restored - Visual Log, Persistent Steps & Context)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -8,22 +8,128 @@ ICONS.robot = `<svg viewBox="0 0 24 24"><path d="M9.5,7H11.5L14.5,17H12.5L12,15H
 ICONS.send = `<svg viewBox="0 0 24 24"><path d="M2,21L23,12L2,3V10L17,12L2,14V21Z" /></svg>`;
 
 const ITEM_CATEGORIES = {
-  "Food": { "Fresh Produce": "Kg", "Meat & Fish": "Kg", "Dairy": "Liter", "Dry Goods": "Kg", "Frozen Food": "Kg", "Beverages": "Liter", "Snacks": "Units", "Spices & Herbs": "g", "Oils & Sauces": "Liter", "Canned Food": "Units" },
-  "Clothing": { "Tops": "Units", "Bottoms": "Units", "Outerwear": "Units", "Shoes": "Units", "Underwear": "Units", "Accessories": "Units", "Workwear": "Units", "Sportswear": "Units" },
-  "Furniture": { "Seating": "Units", "Tables": "Units", "Storage Furniture": "Units", "Beds": "Units", "Shelving": "Units", "Outdoor Furniture": "Units" },
-  "Electronics": { "Computing Devices": "Units", "Mobile Devices": "Units", "Audio Equipment": "Units", "Video Equipment": "Units", "Networking": "Units", "Accessories": "Units", "Batteries": "Units" },
-  "Tools": { "Hand Tools": "Units", "Power Tools": "Units", "Measuring Tools": "Units", "Cutting Tools": "Units", "Workshop Equipment": "Units" },
-  "Cleaning Supplies": { "Liquid Cleaners": "Liter", "Powders & Tablets": "Kg", "Tools & Brushes": "Units", "Paper Products": "Units", "Disinfectants": "Liter" },
-  "Stationery": { "Writing Tools": "Units", "Paper Products": "Units", "Office Accessories": "Units", "Printing Supplies": "Units", "Filing & Storage": "Units" },
-  "Storage & Organization": { "Boxes & Bins": "Units", "Shelving Containers": "Units", "Bags & Covers": "Units", "Drawer Organizers": "Units" },
-  "Personal Care": { "Skin Care": "ml", "Hair Care": "ml", "Oral Care": "Units", "Grooming Tools": "Units", "Cosmetics": "Units" },
-  "Health & Medical": { "Medications": "Units", "Supplements": "Units", "First Aid": "Units", "Medical Devices": "Units", "Hygiene Protection": "Units" },
-  "Hardware": { "Fasteners": "Units", "Pipes & Fittings": "Units", "Electrical Parts": "Units", "Building Materials": "Kg", "Adhesives & Sealants": "ml" },
-  "Garden": { "Plants": "Units", "Seeds": "g", "Soil & Compost": "Liter", "Fertilizers": "Kg", "Irrigation": "Units", "Garden Tools": "Units", "Pots & Planters": "Units", "Mulch & Ground Cover": "Liter", "Pest Control": "ml" },
-  "Appliances": { "Kitchen Appliances": "Units", "Laundry Appliances": "Units", "Climate Control": "Units", "Small Appliances": "Units" },
-  "Lighting": { "Bulbs": "Units", "Lamps": "Units", "Outdoor Lighting": "Units", "Fixtures": "Units" },
-  "Toys & Games": { "Children Toys": "Units", "Board Games": "Units", "Outdoor Games": "Units", "Educational Toys": "Units" },
-  "Miscellaneous": { "Decorations": "Units", "Seasonal Items": "Units", "Collectibles": "Units", "Other": "Units" }
+  "Food": { 
+      "Fresh Produce": "Kg", 
+      "Meat & Fish": "Kg", 
+      "Dairy": "Liter", 
+      "Dry Goods": "Kg", 
+      "Frozen Food": "Kg", 
+      "Beverages": "Liter", 
+      "Snacks": "Units", 
+      "Spices & Herbs": "g", 
+      "Oils & Sauces": "Liter", 
+      "Canned Food": "Units" 
+  },
+  "Clothing": { 
+      "Tops": "Units", 
+      "Bottoms": "Units", 
+      "Outerwear": "Units", 
+      "Shoes": "Units", 
+      "Underwear": "Units", 
+      "Accessories": "Units", 
+      "Workwear": "Units", 
+      "Sportswear": "Units" 
+  },
+  "Furniture": { 
+      "Seating": "Units", 
+      "Tables": "Units", 
+      "Storage Furniture": "Units", 
+      "Beds": "Units", 
+      "Shelving": "Units", 
+      "Outdoor Furniture": "Units" 
+  },
+  "Electronics": { 
+      "Computing Devices": "Units", 
+      "Mobile Devices": "Units", 
+      "Audio Equipment": "Units", 
+      "Video Equipment": "Units", 
+      "Networking": "Units", 
+      "Accessories": "Units", 
+      "Batteries": "Units" 
+  },
+  "Tools": { 
+      "Hand Tools": "Units", 
+      "Power Tools": "Units", 
+      "Measuring Tools": "Units", 
+      "Cutting Tools": "Units", 
+      "Workshop Equipment": "Units" 
+  },
+  "Cleaning Supplies": { 
+      "Liquid Cleaners": "Liter", 
+      "Powders & Tablets": "Kg", 
+      "Tools & Brushes": "Units", 
+      "Paper Products": "Units", 
+      "Disinfectants": "Liter" 
+  },
+  "Stationery": { 
+      "Writing Tools": "Units", 
+      "Paper Products": "Units", 
+      "Office Accessories": "Units", 
+      "Printing Supplies": "Units", 
+      "Filing & Storage": "Units" 
+  },
+  "Storage & Organization": { 
+      "Boxes & Bins": "Units", 
+      "Shelving Containers": "Units", 
+      "Bags & Covers": "Units", 
+      "Drawer Organizers": "Units" 
+  },
+  "Personal Care": { 
+      "Skin Care": "ml", 
+      "Hair Care": "ml", 
+      "Oral Care": "Units", 
+      "Grooming Tools": "Units", 
+      "Cosmetics": "Units" 
+  },
+  "Health & Medical": { 
+      "Medications": "Units", 
+      "Supplements": "Units", 
+      "First Aid": "Units", 
+      "Medical Devices": "Units", 
+      "Hygiene Protection": "Units" 
+  },
+  "Hardware": { 
+      "Fasteners": "Units", 
+      "Pipes & Fittings": "Units", 
+      "Electrical Parts": "Units", 
+      "Building Materials": "Kg", 
+      "Adhesives & Sealants": "ml" 
+  },
+  "Garden": { 
+      "Plants": "Units", 
+      "Seeds": "g", 
+      "Soil & Compost": "Liter", 
+      "Fertilizers": "Kg", 
+      "Irrigation": "Units", 
+      "Garden Tools": "Units", 
+      "Pots & Planters": "Units", 
+      "Mulch & Ground Cover": "Liter", 
+      "Pest Control": "ml" 
+  },
+  "Appliances": { 
+      "Kitchen Appliances": "Units", 
+      "Laundry Appliances": "Units", 
+      "Climate Control": "Units", 
+      "Small Appliances": "Units" 
+  },
+  "Lighting": { 
+      "Bulbs": "Units", 
+      "Lamps": "Units", 
+      "Outdoor Lighting": "Units", 
+      "Fixtures": "Units" 
+  },
+  "Toys & Games": { 
+      "Children Toys": "Units", 
+      "Board Games": "Units", 
+      "Outdoor Games": "Units", 
+      "Educational Toys": "Units" 
+  },
+  "Miscellaneous": { 
+      "Decorations": "Units", 
+      "Seasonal Items": "Units", 
+      "Collectibles": "Units", 
+      "Other": "Units" 
+  }
 };
 
 class HomeOrganizerPanel extends HTMLElement {
@@ -79,6 +185,9 @@ class HomeOrganizerPanel extends HTMLElement {
     if (this._hass && this._hass.connection && !this.subscribed) {
         this.subscribed = true;
         this._hass.connection.subscribeEvents((e) => this.fetchData(), 'home_organizer_db_update');
+        this._hass.connection.subscribeEvents((e) => {
+             if (e.data.mode === 'identify') { /* AI logic */ }
+        }, 'home_organizer_ai_result');
         this.fetchData();
         this._hass.connection.subscribeEvents(() => this.fetchAllItems(), 'home_organizer_db_update');
     }
@@ -125,6 +234,9 @@ class HomeOrganizerPanel extends HTMLElement {
               const langCode = headers[j];
               this.translations[key][langCode] = (cols[j] || "").trim();
           }
+      }
+      if (!this.translations['duplicate']) {
+          this.translations['duplicate'] = { "en": "Duplicate", "he": "שכפל", "it": "Duplica", "es": "Duplicar", "fr": "Dupliquer", "ar": "تكرار" };
       }
       this.changeLanguage(this.currentLang);
   }
@@ -1398,7 +1510,7 @@ class HomeOrganizerPanel extends HTMLElement {
     }
   }
 
-  // NEW: Chat UI Render (Persistent Steps Log)
+  // NEW: Chat UI Render (Persistent Steps & Context)
   renderChatUI(container) {
       const chatContainer = document.createElement('div');
       chatContainer.className = 'chat-container';
@@ -1447,7 +1559,6 @@ class HomeOrganizerPanel extends HTMLElement {
           const text = input.value.trim();
           if (!text) return;
           
-          // User Message
           this.chatHistory.push({ role: 'user', text: text });
           this.render(); 
           
