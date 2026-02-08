@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.3.9 (Added Step 0 to Chat Visualization)
+// Home Organizer Ultimate - Ver 6.3.11 (Removed Step 4 Animation & Fixed Icon)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -1398,7 +1398,7 @@ class HomeOrganizerPanel extends HTMLElement {
     }
   }
 
-  // NEW: Chat UI Render (with Process Steps & Extended Timeout)
+  // NEW: Chat UI Render (Simplified - No Animated Steps)
   renderChatUI(container) {
       const chatContainer = document.createElement('div');
       chatContainer.className = 'chat-container';
@@ -1450,37 +1450,13 @@ class HomeOrganizerPanel extends HTMLElement {
           this.chatHistory.push({ role: 'user', text: text });
           this.render(); 
           
-          // Initial Loading Message with Step 1
-          const steps = [
-              "בדיקת חיבור ל-AI...",
-              "קורא נתונים ממסד הנתונים...",
-              "מעבד רשימת מלאי (מזהים, קטגוריות, מיקומים)...",
-              "שולח שאלה וממתין לתשובה (עד 60 שניות)..."
-          ];
-          
-          // Add first loading message (will be updated)
-          const loadingMsg = { role: 'ai', text: steps[0] };
-          this.chatHistory.push(loadingMsg);
+          this.chatHistory.push({ role: 'ai', text: "מעבד בקשה... (ממתין לתשובה מהענן, עד 5 דקות)" });
           this.render();
-          
-          let stepIdx = 0;
-          const stepInterval = setInterval(() => {
-              stepIdx++;
-              if (stepIdx < steps.length) {
-                  // Append new step line instead of replacing
-                  loadingMsg.text += "<br>" + steps[stepIdx];
-                  this.render();
-              } else {
-                  // Stop adding lines once all steps shown
-                  clearInterval(stepInterval);
-              }
-          }, 1500); 
           
           let responded = false;
           // INCREASED TIMEOUT: 5 Minutes (Matches Backend)
           const safetyTimeout = setTimeout(() => {
               if(!responded) {
-                  clearInterval(stepInterval);
                   this.chatHistory.pop(); // Remove loading
                   this.chatHistory.push({ role: 'ai', text: "הבקשה לוקחת יותר מדי זמן (מעל 5 דקות). נסה שוב מאוחר יותר." });
                   this.render();
@@ -1495,7 +1471,6 @@ class HomeOrganizerPanel extends HTMLElement {
               });
               
               clearTimeout(safetyTimeout);
-              clearInterval(stepInterval);
               
               if(!responded) {
                   this.chatHistory.pop(); // Remove loading message
@@ -1517,7 +1492,6 @@ class HomeOrganizerPanel extends HTMLElement {
               }
           } catch (e) {
               clearTimeout(safetyTimeout);
-              clearInterval(stepInterval);
               if(!responded) {
                   this.chatHistory.pop();
                   this.chatHistory.push({ role: 'ai', text: "שגיאת חיבור: " + e.message });
