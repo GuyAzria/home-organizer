@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 6.3.14 (Full Debug Context & Robust AI)
+# Home Organizer Ultimate - ver 6.4.0 (Enhanced AI Debugging & Multi-language)
 
 import logging
 import sqlite3
@@ -48,7 +48,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             webcomponent_name="home-organizer-panel",
             frontend_url_path="organizer",
             module_url=f"{STATIC_PATH_URL}/organizer-panel.js?v={int(time.time())}",
-            sidebar_title="ארגונית",
+            sidebar_title="Organizr",
             sidebar_icon="mdi:package-variant-closed",
             require_admin=False
         )
@@ -166,9 +166,11 @@ def websocket_get_all_items(hass, connection, msg):
     finally:
         conn.close()
 
-# Async Chat Handler - Robust & Transparent
+# --- IMPROVED AI CHAT HANDLER ---
 async def websocket_ai_chat(hass, connection, msg):
     inventory_context = ""
+    sql_debug_str = ""
+    
     try:
         user_message = msg.get("message", "")
         _LOGGER.info(f"HomeOrganizer AI: Request received: {user_message}")
@@ -182,19 +184,19 @@ async def websocket_ai_chat(hass, connection, msg):
         api_key = entry.options.get(CONF_API_KEY, entry.data.get(CONF_API_KEY))
         
         if not api_key:
-            connection.send_result(msg["id"], {"error": "API Key missing"})
+            connection.send_result(msg["id"], {"error": "API Key missing. Please configure the integration."})
             return
 
         session = async_get_clientsession(hass)
         gen_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
 
-        # 1. Fetch Inventory from DB
+        # 1. Fetch Inventory from DB with Raw Debugging
         def get_inventory():
             try:
                 conn = get_db_connection(hass)
                 c = conn.cursor()
-                # Ensure we only get real items with qty > 0
-                c.execute(f"SELECT id, name, quantity, level_1, level_2, level_3, unit, unit_value, category FROM items WHERE type='item' AND quantity > 0")
+                # Fetch all relevant fields
+                c.execute(f"SELECT id, name, quantity, level_1, level_2, level_3, unit, unit_value, category, sub_category FROM items WHERE type='item' AND quantity > 0")
                 items = c.fetchall()
                 conn.close()
                 return items
@@ -204,34 +206,54 @@ async def websocket_ai_chat(hass, connection, msg):
 
         inventory_rows = await hass.async_add_executor_job(get_inventory)
         
-        if not inventory_rows:
-            connection.send_result(msg["id"], {"response": "המלאי שלך ריק (אין פריטים עם כמות חיובית).", "context": "SQL returned 0 rows."})
-            return
-
-        # 2. Build Context String
-        inventory_context = "My Inventory:\n"
-        for r in inventory_rows:
-            try:
-                i_id, name, qty, l1, l2, l3, unit, uval, cat = r
-                l1 = l1 or ""; l2 = l2 or ""; l3 = l3 or ""; unit = unit or ""; uval = uval or ""; cat = cat or ""
-                
-                loc_parts = [p for p in [l1, l2, l3] if p]
-                loc_str = " > ".join(loc_parts)
-                
-                unit_str = f" {uval}{unit}" if unit else ""
-                inventory_context += f"- {name} (Qty:{qty}{unit_str}) in {loc_str}\n"
-            except Exception:
-                continue
+        # 2. Build SQL Debug String (To show in Chat)
+        sql_debug_lines = [f"Found {len(inventory_rows)} items in Database:"]
         
-        _LOGGER.info(f"HomeOrganizer AI: Sending {len(inventory_rows)} items to Gemini.")
+        inventory_context_lines = ["My Current Inventory:"]
+        
+        if not inventory_rows:
+            sql_debug_str = "Query returned 0 rows. Table is empty or no items with Qty > 0."
+            inventory_context = "Inventory is empty."
+            # We still allow sending to AI, it might answer generic questions
+        else:
+            for r in inventory_rows:
+                try:
+                    # Unpack row
+                    i_id, name, qty, l1, l2, l3, unit, uval, cat, subcat = r
+                    
+                    # Clean None values
+                    l1 = l1 or ""; l2 = l2 or ""; l3 = l3 or ""; 
+                    unit = unit or ""; uval = uval or ""; 
+                    cat = cat or ""; subcat = subcat or ""
+                    
+                    # Debug Line
+                    sql_debug_lines.append(f"ID:{i_id} | {name} | Qty:{qty} | Loc:[{l1} > {l2} > {l3}]")
+                    
+                    # Context Line
+                    loc_parts = [p for p in [l1, l2, l3] if p]
+                    loc_str = " > ".join(loc_parts) if loc_parts else "General Storage"
+                    
+                    unit_str = f" {uval}{unit}" if unit else ""
+                    cat_str = f" ({cat}/{subcat})" if cat else ""
+                    
+                    inventory_context_lines.append(f"- {name}{cat_str}: {qty}{unit_str} (Location: {loc_str})")
+                except Exception as e:
+                    sql_debug_lines.append(f"Error parsing row: {str(e)}")
+                    continue
+            
+            sql_debug_str = "\n".join(sql_debug_lines)
+            inventory_context = "\n".join(inventory_context_lines)
+        
+        _LOGGER.info(f"HomeOrganizer AI: Prepared context with {len(inventory_rows)} items.")
 
         # 3. Call Gemini
         system_prompt = (
-            "You are a helpful home assistant. "
-            "You have the user's current inventory listed below. "
-            "Reply in the SAME LANGUAGE as the user (Hebrew/English). "
-            "Based ONLY on the inventory, suggest recipes or answer questions. "
-            "Ignore items with 0 quantity if any appear. "
+            "You are a smart Home Assistant for inventory management. "
+            "You have access to the user's inventory list below. "
+            "IMPORTANT: Reply in the SAME LANGUAGE that the user used in their question. "
+            "If the user asks in Hebrew, reply in Hebrew. If English, reply in English. "
+            "Based ONLY on the inventory provided, suggest recipes, find locations, or answer questions. "
+            "Do not hallucinate items that are not in the list. "
             "\n\n" + inventory_context
         )
 
@@ -241,28 +263,53 @@ async def websocket_ai_chat(hass, connection, msg):
             ]
         }
 
-        # 300 Second Timeout
-        async with session.post(gen_url, json=payload, timeout=ClientTimeout(total=300)) as resp:
+        # 60 Second Timeout for API call
+        async with session.post(gen_url, json=payload, timeout=ClientTimeout(total=60)) as resp:
             if resp.status == 200:
                 json_resp = await resp.json()
                 if "candidates" in json_resp and json_resp["candidates"]:
                     content = json_resp["candidates"][0].get("content")
                     if content and content.get("parts"):
                         text = content["parts"][0]["text"].strip()
-                        connection.send_result(msg["id"], {"response": text, "context": inventory_context})
+                        # SUCCESS
+                        connection.send_result(msg["id"], {
+                            "response": text, 
+                            "context": inventory_context,
+                            "sql_debug": sql_debug_str
+                        })
                     else:
-                        connection.send_result(msg["id"], {"error": "AI returned no text content.", "context": inventory_context})
+                        connection.send_result(msg["id"], {
+                            "error": "AI returned empty text (Content Filtered?).", 
+                            "context": inventory_context,
+                            "sql_debug": sql_debug_str
+                        })
                 else:
-                    connection.send_result(msg["id"], {"error": "AI response was filtered or empty.", "context": inventory_context})
+                    connection.send_result(msg["id"], {
+                        "error": "AI response format invalid.", 
+                        "context": inventory_context,
+                        "sql_debug": sql_debug_str
+                    })
             else:
                 error_text = await resp.text()
                 _LOGGER.error(f"Gemini API Error {resp.status}: {error_text}")
-                connection.send_result(msg["id"], {"error": f"API Error {resp.status}", "context": inventory_context})
+                connection.send_result(msg["id"], {
+                    "error": f"API Error {resp.status}: {error_text}", 
+                    "context": inventory_context,
+                    "sql_debug": sql_debug_str
+                })
 
     except asyncio.TimeoutError:
-        connection.send_result(msg["id"], {"error": "Timeout (60s). AI did not reply.", "context": inventory_context})
+        connection.send_result(msg["id"], {
+            "error": "Timeout: AI took too long to respond.", 
+            "context": inventory_context, 
+            "sql_debug": sql_debug_str
+        })
     except Exception as e:
-        connection.send_result(msg["id"], {"error": f"System Error: {str(e)}", "context": inventory_context})
+        connection.send_result(msg["id"], {
+            "error": f"System Error: {str(e)}", 
+            "context": inventory_context, 
+            "sql_debug": sql_debug_str
+        })
 
 def get_view_data(hass, path_parts, query, date_filter, is_shopping):
     enable_ai = False
@@ -294,7 +341,7 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
             col_names = [description[0] for description in c.description]
             for r in c.fetchall():
                 r_dict = dict(zip(col_names, r))
-                fp = []; [fp.append(r_dict.get(f"level_{i}", "")) for i in range(1, MAX_LEVELS+1) if r_dict.get(f"level_{i}")]
+                fp = []; [fp.append(r_dict.get(f"level_{i}", "")) for i in range(1, 11) if r_dict.get(f"level_{i}")]
                 img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
                 shopping_list.append({
                     "id": r_dict['id'],
@@ -321,7 +368,7 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
             col_names = [description[0] for description in c.description]
             for r in c.fetchall():
                 r_dict = dict(zip(col_names, r))
-                fp = []; [fp.append(r_dict.get(f"level_{i}", "")) for i in range(1, MAX_LEVELS+1) if r_dict.get(f"level_{i}")]
+                fp = []; [fp.append(r_dict.get(f"level_{i}", "")) for i in range(1, 11) if r_dict.get(f"level_{i}")]
                 if r_dict['type'] == 'item':
                     img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
                     items.append({
@@ -446,7 +493,7 @@ async def register_services(hass, entry):
         cols = ["name", "type", "quantity", "item_date", "image_path"]
         
         if itype == 'folder':
-            if depth >= MAX_LEVELS: return
+            if depth >= 10: return
             vals = [f"[Folder] {name}", "folder_marker", 0, date, fname]
             qs = ["?", "?", "?", "?", "?"]
             for i, p in enumerate(parts): cols.append(f"level_{i+1}"); vals.append(p); qs.append("?")
@@ -540,8 +587,8 @@ async def register_services(hass, entry):
 
         def db_mv():
             conn = get_db_connection(hass); c = conn.cursor()
-            upd = [f"level_{i} = ?" for i in range(1, MAX_LEVELS+1)]
-            vals = [target_path[i-1] if i <= len(target_path) else None for i in range(1, MAX_LEVELS+1)]
+            upd = [f"level_{i} = ?" for i in range(1, 11)]
+            vals = [target_path[i-1] if i <= len(target_path) else None for i in range(1, 11)]
             
             if item_id:
                 c.execute(f"UPDATE items SET {','.join(upd)} WHERE id = ?", (*vals, item_id))
@@ -583,7 +630,7 @@ async def register_services(hass, entry):
             
             if is_folder:
                 depth = len(parts)
-                if depth < MAX_LEVELS:
+                if depth < 10:
                     target_col = f"level_{depth+1}"
                     where_clause = f"{target_col} = ?"
                     where_args = [orig]
