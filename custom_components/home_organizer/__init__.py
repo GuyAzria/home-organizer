@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 6.3.10 (Connection Test Changed to 'Hello')
+# Home Organizer Ultimate - ver 6.3.11 (Debug Context on Error)
 
 import logging
 import sqlite3
@@ -25,7 +25,6 @@ WS_GET_DATA = "home_organizer/get_data"
 WS_GET_ALL_ITEMS = "home_organizer/get_all_items" 
 WS_AI_CHAT = "home_organizer/ai_chat" 
 
-# Define the URL prefix for your frontend files
 STATIC_PATH_URL = "/home_organizer_static"
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -34,7 +33,6 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if entry.options.get(CONF_DEBUG): _LOGGER.setLevel(logging.DEBUG)
 
-    # 1. REGISTER STATIC PATH
     frontend_folder = os.path.join(os.path.dirname(__file__), "frontend")
     
     await hass.http.async_register_static_paths([
@@ -45,7 +43,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
     ])
 
-    # 2. REGISTER PANEL
     try:
         await panel_custom.async_register_panel(
             hass,
@@ -63,7 +60,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})
     
-    # Register Websockets
     try:
         websocket_api.async_register_command(
             hass,
@@ -85,7 +81,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 vol.Required("type"): WS_GET_ALL_ITEMS
             })
         )
-        # Register Chat Command
         websocket_api.async_register_command(
             hass,
             WS_AI_CHAT,
@@ -173,8 +168,9 @@ def websocket_get_all_items(hass, connection, msg):
     finally:
         conn.close()
 
-# Async Chat Handler with Pre-flight Check
+# Async Chat Handler with Robust Error Context
 async def websocket_ai_chat(hass, connection, msg):
+    inventory_context = "Initializing..." # Default value
     try:
         user_message = msg.get("message", "")
         
@@ -191,40 +187,34 @@ async def websocket_ai_chat(hass, connection, msg):
             return
 
         session = async_get_clientsession(hass)
-        
-        # Standard URL for Gemini
         gen_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
 
-        # 0. Connection Test (Simple "Hello")
-        _LOGGER.info("HomeOrganizer AI: Testing connectivity with 'Hello'...")
+        # 0. Connection Test
+        _LOGGER.info("HomeOrganizer AI: Testing connectivity...")
         test_payload = {"contents": [{"parts": [{"text": "Hello"}]}]}
         
         try:
-            # Short timeout for connection test (10s)
             async with session.post(gen_url, json=test_payload, timeout=ClientTimeout(total=10)) as resp:
                 if resp.status != 200:
                     err_text = await resp.text()
-                    _LOGGER.error(f"AI Connection Test Failed: {resp.status} - {err_text}")
-                    connection.send_result(msg["id"], {"error": f"AI Connection Failed (Status: {resp.status})"})
+                    connection.send_result(msg["id"], {"error": f"Connection Test Failed: {resp.status} - {err_text}"})
                     return
         except Exception as e:
-            _LOGGER.error(f"AI Connection Exception: {e}")
-            connection.send_result(msg["id"], {"error": f"AI Connection Failed: {str(e)}"})
+            connection.send_result(msg["id"], {"error": f"Connection Test Exception: {str(e)}"})
             return
 
         # 1. Get Inventory Context
-        _LOGGER.info("HomeOrganizer AI: Connection OK. Fetching DB...")
+        _LOGGER.info("HomeOrganizer AI: Fetching DB...")
         def get_inventory():
             try:
                 conn = get_db_connection(hass)
                 c = conn.cursor()
-                # Get relevant columns
                 c.execute(f"SELECT id, name, quantity, level_1, level_2, level_3, unit, unit_value, category, sub_category FROM items WHERE type='item' AND quantity > 0")
                 items = c.fetchall()
                 conn.close()
                 return items
             except Exception as e:
-                _LOGGER.error(f"DB Error fetching inventory: {e}")
+                _LOGGER.error(f"DB Error: {e}")
                 return []
 
         inventory_rows = await hass.async_add_executor_job(get_inventory)
@@ -233,19 +223,19 @@ async def websocket_ai_chat(hass, connection, msg):
             connection.send_result(msg["id"], {"response": "המלאי שלך ריק.", "context": "Database returned 0 items."})
             return
 
-        # Format Inventory for AI
-        inventory_context = "Current Inventory Data:\n"
+        # 2. Format Context
+        inventory_context = "Inventory Data (Sent to AI):\n"
         for r in inventory_rows:
             try:
                 i_id, name, qty, l1, l2, l3, unit, uval, cat, sub_cat = r
                 l1 = l1 or ""; l2 = l2 or ""; l3 = l3 or ""; unit = unit or ""; uval = uval or ""; cat = cat or ""; sub_cat = sub_cat or ""
                 loc = " > ".join(filter(None, [l1, l2, l3]))
                 unit_str = f"{uval}{unit}" if unit and uval else ""
-                inventory_context += f"- [ID:{i_id}] {name}: {qty}{unit_str} | Cat: {cat}>{sub_cat} | Loc: {loc}\n"
+                inventory_context += f"- {name} (Qty: {qty}{unit_str}) in {loc}\n"
             except Exception:
                 continue
 
-        # 2. Call Gemini for Real Query
+        # 3. Call Gemini
         system_prompt = (
             "You are a smart home organizer assistant. You have access to the user's inventory listed below. "
             "Reply in the SAME LANGUAGE as the user's question (Hebrew/English). "
@@ -259,8 +249,7 @@ async def websocket_ai_chat(hass, connection, msg):
             ]
         }
 
-        _LOGGER.info("HomeOrganizer AI: Sending main request...")
-        # 300 Second Timeout (5 Minutes) for actual generation
+        # 300 Second Timeout
         async with session.post(gen_url, json=payload, timeout=ClientTimeout(total=300)) as resp:
             if resp.status == 200:
                 json_resp = await resp.json()
@@ -275,14 +264,12 @@ async def websocket_ai_chat(hass, connection, msg):
                     connection.send_result(msg["id"], {"error": "AI response was filtered or empty.", "context": inventory_context})
             else:
                 error_text = await resp.text()
-                _LOGGER.error(f"Gemini API Error {resp.status}: {error_text}")
                 connection.send_result(msg["id"], {"error": f"API Error {resp.status}", "context": inventory_context})
 
     except asyncio.TimeoutError:
-        connection.send_result(msg["id"], {"error": "Request Timed Out (5 min limit)."})
+        connection.send_result(msg["id"], {"error": "Request Timed Out (5 min limit).", "context": inventory_context})
     except Exception as e:
-        _LOGGER.exception("Unexpected error in AI Chat")
-        connection.send_result(msg["id"], {"error": f"Internal System Error: {str(e)}"})
+        connection.send_result(msg["id"], {"error": f"Internal System Error: {str(e)}", "context": inventory_context})
 
 def get_view_data(hass, path_parts, query, date_filter, is_shopping):
     enable_ai = False
