@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.3.14 (Full Code Restored - Visual Log, Persistent Steps & Context)
+// Home Organizer Ultimate - Ver 6.4.0 (Full Code - Visual Log & SQL Debug)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -158,7 +158,7 @@ class HomeOrganizerPanel extends HTMLElement {
       this.pickerCategory = null; 
       this.pickerPage = 0;
       this.pickerPageSize = 15;
-      
+       
       this.translations = {}; 
       this.availableLangs = [];
       this.allDbItems = []; 
@@ -186,7 +186,7 @@ class HomeOrganizerPanel extends HTMLElement {
         this.subscribed = true;
         this._hass.connection.subscribeEvents((e) => this.fetchData(), 'home_organizer_db_update');
         this._hass.connection.subscribeEvents((e) => {
-             if (e.data.mode === 'identify') { /* AI logic */ }
+              if (e.data.mode === 'identify') { /* AI logic */ }
         }, 'home_organizer_ai_result');
         this.fetchData();
         this._hass.connection.subscribeEvents(() => this.fetchAllItems(), 'home_organizer_db_update');
@@ -247,7 +247,7 @@ class HomeOrganizerPanel extends HTMLElement {
       args.forEach((arg, i) => { text = text.replace(`{${i}}`, arg); });
       return text;
   }
-  
+   
   getPersistentID(scope, itemName) {
       if (!this.persistentIds[scope]) this.persistentIds[scope] = {};
       if (this.persistentIds[scope][itemName]) return this.persistentIds[scope][itemName];
@@ -258,7 +258,7 @@ class HomeOrganizerPanel extends HTMLElement {
       localStorage.setItem('home_organizer_ids', JSON.stringify(this.persistentIds));
       return idx;
   }
-  
+   
   toAlphaId(num) {
       let s = "";
       while (num > 0) {
@@ -466,6 +466,16 @@ class HomeOrganizerPanel extends HTMLElement {
         .chat-input { flex: 1; padding: 10px; border-radius: 20px; border: 1px solid var(--border-input); background: var(--bg-input); color: var(--text-main); outline: none; }
         .chat-send-btn { background: var(--primary); color: white; border: none; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         .chat-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* NEW DEBUG STYLES */
+        .details-block { 
+            font-size:10px; white-space:pre-wrap; max-height:100px; overflow:auto; 
+            background:rgba(255,255,255,0.05); padding:8px; border-radius:6px; 
+            border:1px solid #444; direction:ltr; margin-top:5px;
+        }
+        .details-summary {
+            cursor: pointer; font-weight:bold; font-size:11px; margin-bottom:5px; display:flex; justify-content:space-between;
+        }
       </style>
       
       <div class="app-container" id="app">
@@ -1524,12 +1534,11 @@ class HomeOrganizerPanel extends HTMLElement {
           welcome.innerHTML = `
             <b>AI Assistant Ready</b><br>
             I have access to your inventory.<br><br>
-            <b>Data sent to AI:</b><br>
-            • Item Names & IDs<br>
-            • Quantities<br>
-            • Categories & Sub-Categories<br>
-            • Exact Locations<br><br>
-            Ask me for recipes, location checks, or organization tips!
+            <b>Capabilities:</b><br>
+            • Recipe suggestions based on ingredients<br>
+            • Finding items<br>
+            • Organization tips<br><br>
+            Ask me anything!
           `;
           messagesDiv.appendChild(welcome);
       }
@@ -1562,16 +1571,15 @@ class HomeOrganizerPanel extends HTMLElement {
           this.chatHistory.push({ role: 'user', text: text });
           this.render(); 
           
-          // Log Message (Will be updated)
-          const statusMsg = { role: 'system', text: "מתחיל תהליך..." };
+          const statusMsg = { role: 'system', text: "Starting Process..." };
           this.chatHistory.push(statusMsg);
           this.render();
           
           const steps = [
-              "בדיקת חיבור (Connection Test)...",
-              "שליפת נתונים (SQL Query)...",
-              "בניית הקשר (Context Building)...",
-              "שליחה ל-Google Gemini (המתנה לתשובה)..."
+              "Connection Test...",
+              "Running SQL Query...",
+              "Building AI Context...",
+              "Sending to Google Gemini..."
           ];
           
           let stepIdx = 0;
@@ -1581,18 +1589,18 @@ class HomeOrganizerPanel extends HTMLElement {
                   this.render();
                   stepIdx++;
               }
-          }, 2000); 
+          }, 800); 
 
           let responded = false;
-          // 5 Minute Timeout
+          // 2 Minute Timeout
           const safetyTimeout = setTimeout(() => {
               if(!responded) {
                   clearInterval(stepInterval);
-                  this.chatHistory.push({ role: 'ai', text: "הבקשה לוקחת יותר מדי זמן (מעל 5 דקות). נסה שוב מאוחר יותר." });
+                  this.chatHistory.push({ role: 'ai', text: "Request timed out (Client Side). Please try again." });
                   this.render();
                   responded = true;
               }
-          }, 300000); 
+          }, 120000); 
 
           try {
               const result = await this._hass.callWS({
@@ -1604,27 +1612,50 @@ class HomeOrganizerPanel extends HTMLElement {
               clearInterval(stepInterval);
               
               if(!responded) {
-                  // Do NOT pop statusMsg. Keep it.
-                  
-                  if (result.context) {
-                       this.chatHistory.push({ 
+                   // Clean up status message
+                   statusMsg.text = "✔ Data Processed";
+
+                   if (result.sql_debug) {
+                        const debugID = "sql-" + Date.now();
+                        this.chatHistory.push({ 
                            role: 'system', 
-                           text: `<div style='font-size:11px;font-weight:bold;margin-bottom:5px'>Data Sent to AI:</div><div style='font-size:10px;white-space:pre-wrap;max-height:150px;overflow:auto;background:rgba(255,255,255,0.05);padding:8px;border-radius:6px;border:1px solid #444;direction:ltr'>${result.context}</div>` 
-                       });
-                  }
+                           text: `
+                             <div class="details-summary" onclick="document.getElementById('${debugID}').style.display = document.getElementById('${debugID}').style.display === 'none' ? 'block' : 'none'">
+                                <span>▶ SQL Data (Raw)</span> <span>▼</span>
+                             </div>
+                             <div id="${debugID}" class="details-block" style="display:none">${result.sql_debug}</div>
+                           ` 
+                        });
+                   }
+
+                   if (result.context) {
+                        const ctxID = "ctx-" + Date.now();
+                        this.chatHistory.push({ 
+                           role: 'system', 
+                           text: `
+                             <div class="details-summary" onclick="document.getElementById('${ctxID}').style.display = document.getElementById('${ctxID}').style.display === 'none' ? 'block' : 'none'">
+                                <span>▶ AI Context (Prompt)</span> <span>▼</span>
+                             </div>
+                             <div id="${ctxID}" class="details-block" style="display:none">${result.context}</div>
+                           ` 
+                        });
+                   }
                   
-                  if (result.error) {
-                      this.chatHistory.push({ role: 'ai', text: "Error: " + result.error });
-                  } else {
-                      this.chatHistory.push({ role: 'ai', text: result.response });
-                  }
-                  responded = true;
+                   if (result.error) {
+                       this.chatHistory.push({ role: 'ai', text: "<b>Error:</b> " + result.error });
+                   } else {
+                       // Format the AI response (basic markdown-like bolding)
+                       let formatted = result.response.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+                       formatted = formatted.replace(/\n/g, '<br>');
+                       this.chatHistory.push({ role: 'ai', text: formatted });
+                   }
+                   responded = true;
               }
           } catch (e) {
               clearTimeout(safetyTimeout);
               clearInterval(stepInterval);
               if(!responded) {
-                  this.chatHistory.push({ role: 'ai', text: "שגיאת חיבור: " + e.message });
+                  this.chatHistory.push({ role: 'ai', text: "Connection Error: " + e.message });
               }
           }
           
@@ -2027,7 +2058,7 @@ class HomeOrganizerPanel extends HTMLElement {
       if (this.expandedSublocs.has(name)) this.expandedSublocs.delete(name); else this.expandedSublocs.add(name);
       this.render();
   }
-  
+   
   enableFolderInput(cardEl) {
       const iconContainer = cardEl.querySelector('.android-folder-icon');
       const label = cardEl.querySelector('.folder-label');
@@ -2039,7 +2070,7 @@ class HomeOrganizerPanel extends HTMLElement {
       input.onkeydown = (e) => { if (e.key === 'Enter') this.saveNewFolder(input.value); };
       input.onblur = () => { if (input.value.trim()) this.saveNewFolder(input.value); else this.render(); };
   }
-  
+   
   enableFolderRename(labelEl, oldName) {
       if (!labelEl || labelEl.querySelector('input')) return;
       const input = document.createElement('input');
@@ -2114,7 +2145,7 @@ class HomeOrganizerPanel extends HTMLElement {
       this.shopQuantities[id] = Math.max(0, this.shopQuantities[id] + delta);
       this.render();
   }
-  
+   
   duplicateItem(itemId) {
       if (!itemId) return;
       this.callHA('duplicate_item', { item_id: itemId });
