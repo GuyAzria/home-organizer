@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 6.4.0 (Enhanced AI Debugging & Multi-language)
+# Home Organizer Ultimate - ver 6.4.1 (Safe SQL & AI Debug)
 
 import logging
 import sqlite3
@@ -166,7 +166,7 @@ def websocket_get_all_items(hass, connection, msg):
     finally:
         conn.close()
 
-# --- IMPROVED AI CHAT HANDLER ---
+# --- ROBUST AI CHAT HANDLER ---
 async def websocket_ai_chat(hass, connection, msg):
     inventory_context = ""
     sql_debug_str = ""
@@ -190,14 +190,15 @@ async def websocket_ai_chat(hass, connection, msg):
         session = async_get_clientsession(hass)
         gen_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
 
-        # 1. Fetch Inventory from DB with Raw Debugging
+        # 1. Fetch Inventory from DB (Safe Dictionary Mode)
         def get_inventory():
             try:
                 conn = get_db_connection(hass)
+                conn.row_factory = sqlite3.Row # Access columns by name
                 c = conn.cursor()
-                # Fetch all relevant fields
-                c.execute(f"SELECT id, name, quantity, level_1, level_2, level_3, unit, unit_value, category, sub_category FROM items WHERE type='item' AND quantity > 0")
-                items = c.fetchall()
+                # Select * allows us to not crash if a specific column is missing
+                c.execute("SELECT * FROM items WHERE type='item' AND quantity > 0")
+                items = [dict(row) for row in c.fetchall()]
                 conn.close()
                 return items
             except Exception as e:
@@ -206,36 +207,39 @@ async def websocket_ai_chat(hass, connection, msg):
 
         inventory_rows = await hass.async_add_executor_job(get_inventory)
         
-        # 2. Build SQL Debug String (To show in Chat)
+        # 2. Build Debug Strings
         sql_debug_lines = [f"Found {len(inventory_rows)} items in Database:"]
-        
         inventory_context_lines = ["My Current Inventory:"]
         
         if not inventory_rows:
             sql_debug_str = "Query returned 0 rows. Table is empty or no items with Qty > 0."
             inventory_context = "Inventory is empty."
-            # We still allow sending to AI, it might answer generic questions
         else:
             for r in inventory_rows:
                 try:
-                    # Unpack row
-                    i_id, name, qty, l1, l2, l3, unit, uval, cat, subcat = r
+                    name = r.get('name', 'Unknown')
+                    qty = r.get('quantity', 0)
                     
-                    # Clean None values
-                    l1 = l1 or ""; l2 = l2 or ""; l3 = l3 or ""; 
-                    unit = unit or ""; uval = uval or ""; 
-                    cat = cat or ""; subcat = subcat or ""
+                    # Safe location extraction
+                    loc_parts = []
+                    for i in range(1, 4): # Get levels 1-3
+                        val = r.get(f'level_{i}')
+                        if val: loc_parts.append(val)
                     
-                    # Debug Line
-                    sql_debug_lines.append(f"ID:{i_id} | {name} | Qty:{qty} | Loc:[{l1} > {l2} > {l3}]")
-                    
-                    # Context Line
-                    loc_parts = [p for p in [l1, l2, l3] if p]
                     loc_str = " > ".join(loc_parts) if loc_parts else "General Storage"
                     
+                    unit = r.get('unit', '') or ''
+                    uval = r.get('unit_value', '') or ''
                     unit_str = f" {uval}{unit}" if unit else ""
+                    
+                    cat = r.get('category', '') or ''
+                    subcat = r.get('sub_category', '') or ''
                     cat_str = f" ({cat}/{subcat})" if cat else ""
                     
+                    # Debug Line (Detailed)
+                    sql_debug_lines.append(f"ID:{r.get('id')} | {name} | Qty:{qty} | Loc:[{loc_str}]")
+                    
+                    # Context Line (Clean)
                     inventory_context_lines.append(f"- {name}{cat_str}: {qty}{unit_str} (Location: {loc_str})")
                 except Exception as e:
                     sql_debug_lines.append(f"Error parsing row: {str(e)}")
@@ -244,7 +248,7 @@ async def websocket_ai_chat(hass, connection, msg):
             sql_debug_str = "\n".join(sql_debug_lines)
             inventory_context = "\n".join(inventory_context_lines)
         
-        _LOGGER.info(f"HomeOrganizer AI: Prepared context with {len(inventory_rows)} items.")
+        _LOGGER.info(f"HomeOrganizer AI: Context ready.")
 
         # 3. Call Gemini
         system_prompt = (
@@ -271,7 +275,6 @@ async def websocket_ai_chat(hass, connection, msg):
                     content = json_resp["candidates"][0].get("content")
                     if content and content.get("parts"):
                         text = content["parts"][0]["text"].strip()
-                        # SUCCESS
                         connection.send_result(msg["id"], {
                             "response": text, 
                             "context": inventory_context,
