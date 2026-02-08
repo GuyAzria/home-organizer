@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.4.2 (Fixed AI Toggle)
+// Home Organizer Ultimate - Ver 6.4.3 (Clean & Sanitized)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -1658,6 +1658,10 @@ class HomeOrganizerPanel extends HTMLElement {
               clearInterval(stepInterval);
               if(!responded) {
                   this.chatHistory.push({ role: 'ai', text: "Connection Error: " + e.message });
+                  // Fallback debug info if possible
+                  if (e.message.includes("syntax")) {
+                       this.chatHistory.push({ role: 'system', text: "Check browser console for SyntaxError details." });
+                  }
               }
           }
           
