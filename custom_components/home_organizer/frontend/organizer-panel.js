@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.4.0 (Full Code - Visual Log & SQL Debug)
+// Home Organizer Ultimate - Ver 6.4.1 (Full Code - Visual Log & SQL Debug)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -1617,10 +1617,11 @@ class HomeOrganizerPanel extends HTMLElement {
 
                    if (result.sql_debug) {
                         const debugID = "sql-" + Date.now();
+                        // IMPORTANT: Shadow DOM Fix for onclick
                         this.chatHistory.push({ 
                            role: 'system', 
                            text: `
-                             <div class="details-summary" onclick="document.getElementById('${debugID}').style.display = document.getElementById('${debugID}').style.display === 'none' ? 'block' : 'none'">
+                             <div class="details-summary" onclick="const el = this.getRootNode().getElementById('${debugID}'); el.style.display = el.style.display === 'none' ? 'block' : 'none'">
                                 <span>▶ SQL Data (Raw)</span> <span>▼</span>
                              </div>
                              <div id="${debugID}" class="details-block" style="display:none">${result.sql_debug}</div>
@@ -1633,7 +1634,7 @@ class HomeOrganizerPanel extends HTMLElement {
                         this.chatHistory.push({ 
                            role: 'system', 
                            text: `
-                             <div class="details-summary" onclick="document.getElementById('${ctxID}').style.display = document.getElementById('${ctxID}').style.display === 'none' ? 'block' : 'none'">
+                             <div class="details-summary" onclick="const el = this.getRootNode().getElementById('${ctxID}'); el.style.display = el.style.display === 'none' ? 'block' : 'none'">
                                 <span>▶ AI Context (Prompt)</span> <span>▼</span>
                              </div>
                              <div id="${ctxID}" class="details-block" style="display:none">${result.context}</div>
