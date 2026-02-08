@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 6.4.1 (Safe SQL & AI Debug)
+# Home Organizer Ultimate - ver 6.4.2 (Robust Error Handling)
 
 import logging
 import sqlite3
@@ -166,10 +166,11 @@ def websocket_get_all_items(hass, connection, msg):
     finally:
         conn.close()
 
-# --- ROBUST AI CHAT HANDLER ---
+# --- AI CHAT HANDLER ---
 async def websocket_ai_chat(hass, connection, msg):
-    inventory_context = ""
-    sql_debug_str = ""
+    # Initialize these to ensure they exist even if everything fails
+    inventory_context = "Init..."
+    sql_debug_str = "Init..."
     
     try:
         user_message = msg.get("message", "")
@@ -177,87 +178,78 @@ async def websocket_ai_chat(hass, connection, msg):
 
         entries = hass.config_entries.async_entries(DOMAIN)
         if not entries:
-            connection.send_result(msg["id"], {"error": "Integration not loaded"})
+            connection.send_result(msg["id"], {"error": "Integration not loaded", "context": "N/A", "sql_debug": "No Config Entry"})
             return
             
         entry = entries[0]
         api_key = entry.options.get(CONF_API_KEY, entry.data.get(CONF_API_KEY))
         
         if not api_key:
-            connection.send_result(msg["id"], {"error": "API Key missing. Please configure the integration."})
+            connection.send_result(msg["id"], {"error": "API Key missing.", "context": "N/A", "sql_debug": "No API Key"})
             return
 
         session = async_get_clientsession(hass)
         gen_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
 
-        # 1. Fetch Inventory from DB (Safe Dictionary Mode)
+        # 1. Fetch Inventory from DB
         def get_inventory():
             try:
                 conn = get_db_connection(hass)
-                conn.row_factory = sqlite3.Row # Access columns by name
+                conn.row_factory = sqlite3.Row 
                 c = conn.cursor()
-                # Select * allows us to not crash if a specific column is missing
+                # Use SELECT * to avoid errors if specific columns are missing
                 c.execute("SELECT * FROM items WHERE type='item' AND quantity > 0")
                 items = [dict(row) for row in c.fetchall()]
                 conn.close()
                 return items
             except Exception as e:
                 _LOGGER.error(f"DB Error: {e}")
-                return []
+                return [{"error": str(e)}]
 
         inventory_rows = await hass.async_add_executor_job(get_inventory)
         
         # 2. Build Debug Strings
-        sql_debug_lines = [f"Found {len(inventory_rows)} items in Database:"]
-        inventory_context_lines = ["My Current Inventory:"]
+        sql_debug_lines = [f"SQL Result Count: {len(inventory_rows)}"]
+        inventory_context_lines = ["My Inventory:"]
         
         if not inventory_rows:
-            sql_debug_str = "Query returned 0 rows. Table is empty or no items with Qty > 0."
+            sql_debug_str = "Query returned 0 rows (Inventory Empty)."
             inventory_context = "Inventory is empty."
+        elif "error" in inventory_rows[0]:
+             sql_debug_str = f"SQL Error: {inventory_rows[0]['error']}"
+             inventory_context = "Error reading database."
         else:
             for r in inventory_rows:
                 try:
                     name = r.get('name', 'Unknown')
                     qty = r.get('quantity', 0)
                     
-                    # Safe location extraction
                     loc_parts = []
-                    for i in range(1, 4): # Get levels 1-3
+                    for i in range(1, 4):
                         val = r.get(f'level_{i}')
-                        if val: loc_parts.append(val)
+                        if val: loc_parts.append(str(val))
                     
-                    loc_str = " > ".join(loc_parts) if loc_parts else "General Storage"
-                    
+                    loc_str = " > ".join(loc_parts) if loc_parts else "General"
                     unit = r.get('unit', '') or ''
                     uval = r.get('unit_value', '') or ''
-                    unit_str = f" {uval}{unit}" if unit else ""
                     
-                    cat = r.get('category', '') or ''
-                    subcat = r.get('sub_category', '') or ''
-                    cat_str = f" ({cat}/{subcat})" if cat else ""
+                    # Debug Line
+                    sql_debug_lines.append(f"{name} | Qty:{qty} | {loc_str}")
                     
-                    # Debug Line (Detailed)
-                    sql_debug_lines.append(f"ID:{r.get('id')} | {name} | Qty:{qty} | Loc:[{loc_str}]")
-                    
-                    # Context Line (Clean)
-                    inventory_context_lines.append(f"- {name}{cat_str}: {qty}{unit_str} (Location: {loc_str})")
+                    # Context Line
+                    inventory_context_lines.append(f"- {name}: {qty} {uval}{unit} in {loc_str}")
                 except Exception as e:
-                    sql_debug_lines.append(f"Error parsing row: {str(e)}")
-                    continue
+                    sql_debug_lines.append(f"Row Parse Error: {e}")
             
             sql_debug_str = "\n".join(sql_debug_lines)
             inventory_context = "\n".join(inventory_context_lines)
         
-        _LOGGER.info(f"HomeOrganizer AI: Context ready.")
-
         # 3. Call Gemini
         system_prompt = (
-            "You are a smart Home Assistant for inventory management. "
-            "You have access to the user's inventory list below. "
-            "IMPORTANT: Reply in the SAME LANGUAGE that the user used in their question. "
-            "If the user asks in Hebrew, reply in Hebrew. If English, reply in English. "
-            "Based ONLY on the inventory provided, suggest recipes, find locations, or answer questions. "
-            "Do not hallucinate items that are not in the list. "
+            "You are a helpful home assistant. "
+            "You have the user's inventory below. "
+            "Reply in the SAME LANGUAGE as the user (Hebrew/English). "
+            "Ignore items with 0 quantity. "
             "\n\n" + inventory_context
         )
 
@@ -267,7 +259,6 @@ async def websocket_ai_chat(hass, connection, msg):
             ]
         }
 
-        # 60 Second Timeout for API call
         async with session.post(gen_url, json=payload, timeout=ClientTimeout(total=60)) as resp:
             if resp.status == 200:
                 json_resp = await resp.json()
@@ -282,34 +273,27 @@ async def websocket_ai_chat(hass, connection, msg):
                         })
                     else:
                         connection.send_result(msg["id"], {
-                            "error": "AI returned empty text (Content Filtered?).", 
+                            "error": "AI returned empty text.", 
                             "context": inventory_context,
                             "sql_debug": sql_debug_str
                         })
                 else:
                     connection.send_result(msg["id"], {
-                        "error": "AI response format invalid.", 
+                        "error": "AI response invalid structure.", 
                         "context": inventory_context,
                         "sql_debug": sql_debug_str
                     })
             else:
                 error_text = await resp.text()
-                _LOGGER.error(f"Gemini API Error {resp.status}: {error_text}")
                 connection.send_result(msg["id"], {
                     "error": f"API Error {resp.status}: {error_text}", 
                     "context": inventory_context,
                     "sql_debug": sql_debug_str
                 })
 
-    except asyncio.TimeoutError:
-        connection.send_result(msg["id"], {
-            "error": "Timeout: AI took too long to respond.", 
-            "context": inventory_context, 
-            "sql_debug": sql_debug_str
-        })
     except Exception as e:
         connection.send_result(msg["id"], {
-            "error": f"System Error: {str(e)}", 
+            "error": f"Crash: {str(e)}", 
             "context": inventory_context, 
             "sql_debug": sql_debug_str
         })
