@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.3.11 (Removed Step 4 Animation & Fixed Icon)
+// Home Organizer Ultimate - Ver 6.3.12 (Persistent Process Log & Context)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
@@ -1398,7 +1398,7 @@ class HomeOrganizerPanel extends HTMLElement {
     }
   }
 
-  // NEW: Chat UI Render (Simplified - No Animated Steps)
+  // NEW: Chat UI Render (Persistent Steps Log)
   renderChatUI(container) {
       const chatContainer = document.createElement('div');
       chatContainer.className = 'chat-container';
@@ -1447,17 +1447,36 @@ class HomeOrganizerPanel extends HTMLElement {
           const text = input.value.trim();
           if (!text) return;
           
+          // User Message
           this.chatHistory.push({ role: 'user', text: text });
           this.render(); 
           
-          this.chatHistory.push({ role: 'ai', text: "מעבד בקשה... (ממתין לתשובה מהענן, עד 5 דקות)" });
+          // Log Message (Will be updated)
+          const statusMsg = { role: 'system', text: "מתחיל תהליך..." };
+          this.chatHistory.push(statusMsg);
           this.render();
           
+          const steps = [
+              "בדיקת חיבור (Connection Test)...",
+              "שליפת נתונים (SQL Query)...",
+              "בניית הקשר (Context Building)...",
+              "שליחה ל-Google Gemini (המתנה לתשובה)..."
+          ];
+          
+          let stepIdx = 0;
+          const stepInterval = setInterval(() => {
+              if (stepIdx < steps.length) {
+                  statusMsg.text += "<br>✔ " + steps[stepIdx];
+                  this.render();
+                  stepIdx++;
+              }
+          }, 2000); 
+
           let responded = false;
-          // INCREASED TIMEOUT: 5 Minutes (Matches Backend)
+          // 5 Minute Timeout
           const safetyTimeout = setTimeout(() => {
               if(!responded) {
-                  this.chatHistory.pop(); // Remove loading
+                  clearInterval(stepInterval);
                   this.chatHistory.push({ role: 'ai', text: "הבקשה לוקחת יותר מדי זמן (מעל 5 דקות). נסה שוב מאוחר יותר." });
                   this.render();
                   responded = true;
@@ -1471,15 +1490,15 @@ class HomeOrganizerPanel extends HTMLElement {
               });
               
               clearTimeout(safetyTimeout);
+              clearInterval(stepInterval);
               
               if(!responded) {
-                  this.chatHistory.pop(); // Remove loading message
+                  // Do NOT pop statusMsg. Keep it.
                   
-                  // Show Context Bubble First (Grey)
                   if (result.context) {
                        this.chatHistory.push({ 
                            role: 'system', 
-                           text: `<div style='font-size:11px;font-weight:bold;margin-bottom:5px'>Information Sent to AI:</div><div style='font-size:10px;white-space:pre-wrap;max-height:150px;overflow:auto;background:rgba(255,255,255,0.05);padding:8px;border-radius:6px;border:1px solid #444;direction:ltr'>${result.context}</div>` 
+                           text: `<div style='font-size:11px;font-weight:bold;margin-bottom:5px'>Data Sent to AI:</div><div style='font-size:10px;white-space:pre-wrap;max-height:150px;overflow:auto;background:rgba(255,255,255,0.05);padding:8px;border-radius:6px;border:1px solid #444;direction:ltr'>${result.context}</div>` 
                        });
                   }
                   
@@ -1492,8 +1511,8 @@ class HomeOrganizerPanel extends HTMLElement {
               }
           } catch (e) {
               clearTimeout(safetyTimeout);
+              clearInterval(stepInterval);
               if(!responded) {
-                  this.chatHistory.pop();
                   this.chatHistory.push({ role: 'ai', text: "שגיאת חיבור: " + e.message });
               }
           }
