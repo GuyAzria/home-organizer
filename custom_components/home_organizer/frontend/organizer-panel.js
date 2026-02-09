@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.6.7 (Modular Data)
+// Home Organizer Ultimate - Ver 6.7.0 (AI Chat Real-Time Debug)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
@@ -1346,7 +1346,7 @@ class HomeOrganizerPanel extends HTMLElement {
                        this.chatHistory.push({ role: 'ai', text: "Received empty response from server." });
                    }
                    responded = true;
-              }
+               }
           } catch (e) {
               clearTimeout(safetyTimeout);
               clearInterval(stepInterval);
