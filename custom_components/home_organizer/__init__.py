@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 6.6.1 (5 Minute Timeout & Complete)
+# Home Organizer Ultimate - ver 6.7.0 (Real-Time Debugging)
 
 import logging
 import sqlite3
@@ -166,8 +166,9 @@ def websocket_get_all_items(hass, connection, msg):
     finally:
         conn.close()
 
-# --- ROBUST AI CHAT HANDLER ---
+# --- AI CHAT HANDLER ---
 async def websocket_ai_chat(hass, connection, msg):
+    # Prepare result containers
     inventory_context = "Init..."
     sql_debug_str = "Init..."
     
@@ -190,27 +191,26 @@ async def websocket_ai_chat(hass, connection, msg):
         session = async_get_clientsession(hass)
         gen_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
 
-        # 1. Fetch Inventory from DB (Safe Dictionary Mode)
+        # 1. Fetch Inventory from DB
         def get_inventory():
             try:
                 conn = get_db_connection(hass)
                 conn.row_factory = sqlite3.Row 
                 c = conn.cursor()
-                # Use SELECT * to avoid errors if specific columns are missing
+                # Select * allows us to not crash if a specific column is missing
                 c.execute("SELECT * FROM items WHERE type='item' AND quantity > 0")
                 items = [dict(row) for row in c.fetchall()]
                 conn.close()
                 return items
             except Exception as e:
                 _LOGGER.error(f"DB Error: {e}")
-                # Return list with error dict to be caught below
                 return [{"_error": str(e)}]
 
         inventory_rows = await hass.async_add_executor_job(get_inventory)
         
         # 2. Build Debug Strings
         sql_debug_lines = [f"SQL Result Count: {len(inventory_rows)}"]
-        inventory_context_lines = ["My Current Inventory:"]
+        inventory_context_lines = ["My Available Inventory:"]
         
         if not inventory_rows:
             sql_debug_str = "Query returned 0 rows (Inventory Empty)."
@@ -224,32 +224,24 @@ async def websocket_ai_chat(hass, connection, msg):
                     name = r.get('name', 'Unknown')
                     qty = r.get('quantity', 0)
                     
-                    # Safe location extraction
                     loc_parts = []
-                    for i in range(1, 4): # Get levels 1-3
+                    for i in range(1, 4):
                         val = r.get(f'level_{i}')
                         if val: loc_parts.append(str(val))
                     
                     loc_str = " > ".join(loc_parts) if loc_parts else "General"
-                    
                     unit = r.get('unit', '') or ''
                     uval = r.get('unit_value', '') or ''
                     unit_str = f" {uval}{unit}" if unit else ""
                     
                     cat = r.get('category', '') or ''
                     subcat = r.get('sub_category', '') or ''
+                    cat_info = f"({cat} > {subcat})" if (cat and subcat) else (f"({cat})" if cat else "")
                     
-                    # Format: Name (Category > Sub)
-                    cat_info = ""
-                    if cat and subcat:
-                        cat_info = f"({cat} > {subcat})"
-                    elif cat:
-                         cat_info = f"({cat})"
+                    # Debug Line
+                    sql_debug_lines.append(f"ID:{r.get('id')} | {name} | {qty} | {loc_str}")
                     
-                    # Debug Line (Detailed)
-                    sql_debug_lines.append(f"ID:{r.get('id')} | {name} | Qty:{qty} | Loc:[{loc_str}]")
-                    
-                    # Context Line (Structured for AI)
+                    # Context Line
                     inventory_context_lines.append(f"- {name} {cat_info}: {qty}{unit_str} (in {loc_str})")
                 except Exception as e:
                     sql_debug_lines.append(f"Row Parsing Error: {str(e)}")
@@ -261,7 +253,6 @@ async def websocket_ai_chat(hass, connection, msg):
         _LOGGER.info(f"HomeOrganizer AI: Context ready.")
 
         # 3. Call Gemini
-        # Strict prompt to force the exact response format
         system_prompt = (
             "You are a smart, friendly Home Assistant chef and organizer. "
             "You have the user's current inventory list below. "
@@ -292,7 +283,7 @@ async def websocket_ai_chat(hass, connection, msg):
             ]
         }
 
-        # 300 Second Timeout for API call (5 Minutes)
+        # 5 Minute Timeout (300 seconds)
         async with session.post(gen_url, json=payload, timeout=ClientTimeout(total=300)) as resp:
             if resp.status == 200:
                 json_resp = await resp.json()
@@ -307,19 +298,18 @@ async def websocket_ai_chat(hass, connection, msg):
                         })
                     else:
                         connection.send_result(msg["id"], {
-                            "error": "AI returned empty text (Content Filtered?).", 
+                            "error": "AI returned empty text.", 
                             "context": inventory_context,
                             "sql_debug": sql_debug_str
                         })
                 else:
                     connection.send_result(msg["id"], {
-                        "error": "AI response format invalid.", 
+                        "error": "AI response invalid structure.", 
                         "context": inventory_context,
                         "sql_debug": sql_debug_str
                     })
             else:
                 error_text = await resp.text()
-                _LOGGER.error(f"Gemini API Error {resp.status}: {error_text}")
                 connection.send_result(msg["id"], {
                     "error": f"API Error {resp.status}: {error_text}", 
                     "context": inventory_context,
@@ -327,15 +317,15 @@ async def websocket_ai_chat(hass, connection, msg):
                 })
 
     except asyncio.TimeoutError:
-        # TIMEOUT HANDLER - Returns the data anyway!
+        # TIMEOUT: Return debug info regardless!
         connection.send_result(msg["id"], {
-            "error": "Timeout: AI took too long to respond. Displaying collected data.", 
+            "error": "Timeout: AI took too long. Debug info below.", 
             "context": inventory_context, 
             "sql_debug": sql_debug_str
         })
     except Exception as e:
         connection.send_result(msg["id"], {
-            "error": f"System Crash: {str(e)}", 
+            "error": f"Crash: {str(e)}", 
             "context": inventory_context, 
             "sql_debug": sql_debug_str
         })
