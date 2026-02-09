@@ -1315,7 +1315,7 @@ class HomeOrganizerPanel extends HTMLElement {
           this.render(); 
           
           // Initial Status Message
-          const statusMsg = { role: 'system', text: "Starting Process...", isStatus: true };
+          const statusMsg = { role: 'system', text: "Starting Process...<br>Analyzing request...", isStatus: true };
           this.chatHistory.push(statusMsg);
           this.render();
           
@@ -1654,7 +1654,7 @@ class HomeOrganizerPanel extends HTMLElement {
       zones.forEach((z, index) => {
           const newOrder = (index + 1) * 10;
           const paddedOrder = String(newOrder).padStart(3, '0');
-          const newMarkerName = `ZONE_MARKER_${paddedOrder}_${z.name}`;
+          const newMarkerName = `ZONE_MARKER_${padded}_${z.name}`;
           
           if (z.markerName !== newMarkerName) {
               this.callHA('update_item_details', { 
