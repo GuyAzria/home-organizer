@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.7.0 (AI Chat Real-Time Debug)
+// Home Organizer Ultimate - Ver 6.8.0 (Real-Time Events)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
@@ -60,8 +60,45 @@ class HomeOrganizerPanel extends HTMLElement {
         this._hass.connection.subscribeEvents((e) => {
               if (e.data.mode === 'identify') { /* AI logic */ }
         }, 'home_organizer_ai_result');
+        
+        // SUBSCRIBE TO CHAT PROGRESS EVENT
+        this._hass.connection.subscribeEvents((e) => this.handleChatProgress(e.data), 'home_organizer_chat_progress');
+        
         this.fetchData();
         this._hass.connection.subscribeEvents(() => this.fetchAllItems(), 'home_organizer_db_update');
+    }
+  }
+
+  handleChatProgress(data) {
+    // This finds the "status" bubble and updates it with real data from backend
+    if (!this.isChatMode) return;
+    
+    // We expect the "Starting Process..." system message to be the last one or near last
+    // Let's force an update to the UI directly
+    const statusMsg = this.chatHistory.find(msg => msg.role === 'system' && msg.isStatus === true);
+    
+    if (statusMsg) {
+       let content = "✔ Data Collected (Waiting for AI...)<br>";
+       
+       if (data.sql_debug) {
+           content += `
+             <details class="debug-details">
+                <summary class="debug-summary">▶ SQL Data (Raw)</summary>
+                <div class="debug-content">${data.sql_debug}</div>
+             </details>
+           `;
+       }
+       if (data.context) {
+           content += `
+             <details class="debug-details">
+                <summary class="debug-summary">▶ AI Context (Prompt)</summary>
+                <div class="debug-content">${data.context}</div>
+             </details>
+           `;
+       }
+       
+       statusMsg.text = content;
+       this.render(); // Re-render to show updated status
     }
   }
 
@@ -1242,6 +1279,11 @@ class HomeOrganizerPanel extends HTMLElement {
           const div = document.createElement('div');
           div.className = `message ${msg.role}`;
           div.innerHTML = msg.text; 
+          
+          if(msg.isStatus) {
+              div.id = 'chat-status-msg'; // Mark for updates
+          }
+          
           messagesDiv.appendChild(div);
       });
       
@@ -1266,96 +1308,65 @@ class HomeOrganizerPanel extends HTMLElement {
           this.chatHistory.push({ role: 'user', text: text });
           this.render(); 
           
-          const statusMsg = { role: 'system', text: "Starting Process..." };
+          // Initial Status Message
+          const statusMsg = { role: 'system', text: "Starting Process...<br>Analyzing request...", isStatus: true };
           this.chatHistory.push(statusMsg);
           this.render();
           
-          const steps = [
-              "Connection Test...",
-              "Running SQL Query...",
-              "Building AI Context...",
-              "Sending to Google Gemini..."
-          ];
-          
-          let stepIdx = 0;
-          const stepInterval = setInterval(() => {
-              if (stepIdx < steps.length) {
-                  statusMsg.text += "<br>✔ " + steps[stepIdx];
-                  this.render();
-                  stepIdx++;
-              }
-          }, 800); 
-
-          let responded = false;
-          // 5 Minute Timeout
-          const safetyTimeout = setTimeout(() => {
-              if(!responded) {
-                  clearInterval(stepInterval);
-                  this.chatHistory.push({ role: 'ai', text: "Request timed out (Client Side). Please try again." });
-                  this.render();
-                  responded = true;
-              }
-          }, 300000); 
+          // Scroll to bottom
+          setTimeout(() => {
+              const msgs = this.shadowRoot.querySelector('.chat-messages');
+              if(msgs) msgs.scrollTop = msgs.scrollHeight;
+          }, 100);
 
           try {
+              // This single call triggers the backend flow:
+              // 1. Backend gets inventory
+              // 2. Backend fires 'home_organizer_chat_progress' -> Updates this UI immediately
+              // 3. Backend calls AI (slow part)
+              // 4. Backend returns final result
               const result = await this._hass.callWS({
                   type: 'home_organizer/ai_chat',
                   message: text
               });
               
-              clearTimeout(safetyTimeout);
-              clearInterval(stepInterval);
-              
-              if(!responded) {
-                   // Clean up status message
-                   statusMsg.text = "✔ Data Processed";
-
-                   if (result && result.sql_debug) {
-                        // NEW FIX: Use NATIVE <details> tag. No JS needed for toggle!
-                        this.chatHistory.push({ 
-                           role: 'system', 
-                           text: `
-                             <details class="debug-details">
-                                <summary class="debug-summary">▶ SQL Data (Raw)</summary>
-                                <div class="debug-content">${result.sql_debug}</div>
-                             </details>
-                           ` 
-                        });
+              if (result) {
+                   // Replace status message with "Done" details if they exist
+                   let debugHTML = "";
+                   if (result.sql_debug) {
+                       debugHTML += `
+                         <details class="debug-details">
+                            <summary class="debug-summary">▶ SQL Data (Raw)</summary>
+                            <div class="debug-content">${result.sql_debug}</div>
+                         </details>
+                       `;
                    }
-
-                   if (result && result.context) {
-                        this.chatHistory.push({ 
-                           role: 'system', 
-                           text: `
-                             <details class="debug-details">
-                                <summary class="debug-summary">▶ AI Context (Prompt)</summary>
-                                <div class="debug-content">${result.context}</div>
-                             </details>
-                           ` 
-                        });
+                   if (result.context) {
+                       debugHTML += `
+                         <details class="debug-details">
+                            <summary class="debug-summary">▶ AI Context (Prompt)</summary>
+                            <div class="debug-content">${result.context}</div>
+                         </details>
+                       `;
                    }
-                  
-                   if (result && result.error) {
+                   
+                   // Update the status message in history to show completion
+                   statusMsg.text = "✔ Data Processed" + debugHTML;
+
+                   // Push new AI message
+                   if (result.error) {
                        this.chatHistory.push({ role: 'ai', text: "<b>Error:</b> " + result.error });
-                   } else if (result && result.response) {
-                       // Format the AI response (basic markdown-like bolding)
+                   } else if (result.response) {
                        let formatted = result.response.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
                        formatted = formatted.replace(/\n/g, '<br>');
                        this.chatHistory.push({ role: 'ai', text: formatted });
                    } else {
-                       this.chatHistory.push({ role: 'ai', text: "Received empty response from server." });
+                       this.chatHistory.push({ role: 'ai', text: "Received empty response." });
                    }
-                   responded = true;
-               }
-          } catch (e) {
-              clearTimeout(safetyTimeout);
-              clearInterval(stepInterval);
-              if(!responded) {
-                  this.chatHistory.push({ role: 'ai', text: "Connection Error: " + e.message });
-                  if (e.message.includes("syntax")) {
-                       this.chatHistory.push({ role: 'system', text: "Check browser console for SyntaxError details." });
-                  }
               }
+          } catch (e) {
+              statusMsg.text += "<br>❌ Connection Failed";
+              this.chatHistory.push({ role: 'ai', text: "Connection Error: " + e.message });
           }
           
           this.render();
@@ -1374,6 +1385,45 @@ class HomeOrganizerPanel extends HTMLElement {
       
       container.appendChild(chatContainer);
       setTimeout(() => messagesDiv.scrollTop = messagesDiv.scrollHeight, 0);
+  }
+
+  // Handle the real-time progress event from backend
+  handleChatProgress(data) {
+    if (!this.isChatMode) return;
+    
+    // Find the active status message (the last system message with isStatus flag)
+    // We iterate backwards to find the most recent one
+    let statusMsg = null;
+    for (let i = this.chatHistory.length - 1; i >= 0; i--) {
+        if (this.chatHistory[i].role === 'system' && this.chatHistory[i].isStatus) {
+            statusMsg = this.chatHistory[i];
+            break;
+        }
+    }
+    
+    if (statusMsg) {
+       let content = "✔ Data Collected (Waiting for AI...)<br>";
+       
+       if (data.sql_debug) {
+           content += `
+             <details class="debug-details">
+                <summary class="debug-summary">▶ SQL Data (Raw)</summary>
+                <div class="debug-content">${data.sql_debug}</div>
+             </details>
+           `;
+       }
+       if (data.context) {
+           content += `
+             <details class="debug-details">
+                <summary class="debug-summary">▶ AI Context (Prompt)</summary>
+                <div class="debug-content">${data.context}</div>
+             </details>
+           `;
+       }
+       
+       statusMsg.text = content;
+       this.render(); // Re-render to update the UI immediately
+    }
   }
 
   // [ ... rest of class methods like resolveRealName, moveSubLoc, etc. must remain ... ]
@@ -1612,7 +1662,7 @@ class HomeOrganizerPanel extends HTMLElement {
       zones.forEach((z, index) => {
           const newOrder = (index + 1) * 10;
           const paddedOrder = String(newOrder).padStart(3, '0');
-          const newMarkerName = `ZONE_MARKER_${paddedOrder}_${z.name}`;
+          const newMarkerName = `ZONE_MARKER_${padded}_${z.name}`;
           
           if (z.markerName !== newMarkerName) {
               this.callHA('update_item_details', { 
