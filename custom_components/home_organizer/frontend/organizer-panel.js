@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.9.0 (Smart Location Filtering)
+// Home Organizer Ultimate - Ver 6.9.1 (Cleaned & Fixed)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
