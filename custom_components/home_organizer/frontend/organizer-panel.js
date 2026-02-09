@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.9.1 (Cleaned & Fixed)
+// Home Organizer Ultimate - Ver 7.0.0 (Two-Step AI UI)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
@@ -72,20 +72,17 @@ class HomeOrganizerPanel extends HTMLElement {
   handleChatProgress(data) {
     if (!this.isChatMode) return;
     
-    // Find the active status message (the last system message with isStatus flag)
-    let statusMsg = null;
-    for (let i = this.chatHistory.length - 1; i >= 0; i--) {
-        if (this.chatHistory[i].role === 'system' && this.chatHistory[i].isStatus) {
-            statusMsg = this.chatHistory[i];
-            break;
-        }
-    }
+    // Append to the last status message, or update it
+    let statusMsg = this.chatHistory.find(msg => msg.isStatus);
     
     if (statusMsg) {
-       let content = "✔ Data Collected (Waiting for AI...)<br>";
+       // Append new step nicely
+       if (data.step) {
+           statusMsg.text += `<br>✔ ${data.step}`;
+       }
        
        if (data.sql_debug) {
-           content += `
+           statusMsg.text += `
              <details class="debug-details">
                 <summary class="debug-summary">▶ SQL Data (Raw)</summary>
                 <div class="debug-content">${data.sql_debug}</div>
@@ -93,7 +90,7 @@ class HomeOrganizerPanel extends HTMLElement {
            `;
        }
        if (data.context) {
-           content += `
+           statusMsg.text += `
              <details class="debug-details">
                 <summary class="debug-summary">▶ AI Context (Prompt)</summary>
                 <div class="debug-content">${data.context}</div>
@@ -101,8 +98,13 @@ class HomeOrganizerPanel extends HTMLElement {
            `;
        }
        
-       statusMsg.text = content;
-       this.render(); // Re-render to update the UI immediately
+       this.render(); // Re-render immediately
+       
+       // Auto-scroll
+       setTimeout(() => {
+          const msgs = this.shadowRoot.querySelector('.chat-messages');
+          if(msgs) msgs.scrollTop = msgs.scrollHeight;
+       }, 50);
     }
   }
 
@@ -1285,7 +1287,7 @@ class HomeOrganizerPanel extends HTMLElement {
           div.innerHTML = msg.text; 
           
           if(msg.isStatus) {
-              div.id = 'chat-status-msg'; // Mark for updates
+              div.id = 'chat-status-msg'; 
           }
           
           messagesDiv.appendChild(div);
@@ -1313,7 +1315,7 @@ class HomeOrganizerPanel extends HTMLElement {
           this.render(); 
           
           // Initial Status Message
-          const statusMsg = { role: 'system', text: "Starting Process...<br>Analyzing request...", isStatus: true };
+          const statusMsg = { role: 'system', text: "Starting Process...", isStatus: true };
           this.chatHistory.push(statusMsg);
           this.render();
           
@@ -1324,18 +1326,14 @@ class HomeOrganizerPanel extends HTMLElement {
           }, 100);
 
           try {
-              // This single call triggers the backend flow:
-              // 1. Backend gets inventory
-              // 2. Backend fires 'home_organizer_chat_progress' -> Updates this UI immediately
-              // 3. Backend calls AI (slow part)
-              // 4. Backend returns final result
+              // This triggers the 2-step backend flow
               const result = await this._hass.callWS({
                   type: 'home_organizer/ai_chat',
                   message: text
               });
               
               if (result) {
-                   // Replace status message with "Done" details if they exist
+                   // Replace status message
                    let debugHTML = "";
                    if (result.sql_debug) {
                        debugHTML += `
@@ -1354,23 +1352,19 @@ class HomeOrganizerPanel extends HTMLElement {
                        `;
                    }
                    
-                   // Update the status message in history to show completion
-                   statusMsg.text = "✔ Data Processed" + debugHTML;
+                   statusMsg.text = "✔ Complete" + debugHTML;
 
-                   // Push new AI message
                    if (result.error) {
                        this.chatHistory.push({ role: 'ai', text: "<b>Error:</b> " + result.error });
                    } else if (result.response) {
                        let formatted = result.response.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
                        formatted = formatted.replace(/\n/g, '<br>');
                        this.chatHistory.push({ role: 'ai', text: formatted });
-                   } else {
-                       this.chatHistory.push({ role: 'ai', text: "Received empty response." });
                    }
               }
           } catch (e) {
-              statusMsg.text += "<br>❌ Connection Failed";
-              this.chatHistory.push({ role: 'ai', text: "Connection Error: " + e.message });
+              statusMsg.text += "<br>❌ Failed";
+              this.chatHistory.push({ role: 'ai', text: "Error: " + e.message });
           }
           
           this.render();
@@ -1395,8 +1389,7 @@ class HomeOrganizerPanel extends HTMLElement {
   handleChatProgress(data) {
     if (!this.isChatMode) return;
     
-    // Find the active status message (the last system message with isStatus flag)
-    // We iterate backwards to find the most recent one
+    // Find the active status message (last one)
     let statusMsg = null;
     for (let i = this.chatHistory.length - 1; i >= 0; i--) {
         if (this.chatHistory[i].role === 'system' && this.chatHistory[i].isStatus) {
@@ -1406,27 +1399,22 @@ class HomeOrganizerPanel extends HTMLElement {
     }
     
     if (statusMsg) {
-       let content = "✔ Data Collected (Waiting for AI...)<br>";
-       
-       if (data.sql_debug) {
-           content += `
-             <details class="debug-details">
-                <summary class="debug-summary">▶ SQL Data (Raw)</summary>
-                <div class="debug-content">${data.sql_debug}</div>
-             </details>
-           `;
-       }
-       if (data.context) {
-           content += `
-             <details class="debug-details">
-                <summary class="debug-summary">▶ AI Context (Prompt)</summary>
-                <div class="debug-content">${data.context}</div>
-             </details>
-           `;
+       // Append the new step
+       if (data.step) {
+           // Prevent duplicate step logging
+           if (!statusMsg.text.includes(data.step)) {
+                statusMsg.text += `<br>✔ ${data.step}`;
+                if (data.details) statusMsg.text += `<br><small style="margin-inline-start:15px;color:#888">${data.details}</small>`;
+           }
        }
        
-       statusMsg.text = content;
-       this.render(); // Re-render to update the UI immediately
+       this.render(); 
+       
+       // Auto-scroll
+       setTimeout(() => {
+          const msgs = this.shadowRoot.querySelector('.chat-messages');
+          if(msgs) msgs.scrollTop = msgs.scrollHeight;
+       }, 50);
     }
   }
 
@@ -1666,7 +1654,7 @@ class HomeOrganizerPanel extends HTMLElement {
       zones.forEach((z, index) => {
           const newOrder = (index + 1) * 10;
           const paddedOrder = String(newOrder).padStart(3, '0');
-          const newMarkerName = `ZONE_MARKER_${padded}_${z.name}`;
+          const newMarkerName = `ZONE_MARKER_${paddedOrder}_${z.name}`;
           
           if (z.markerName !== newMarkerName) {
               this.callHA('update_item_details', { 
