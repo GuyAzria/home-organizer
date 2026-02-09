@@ -32,15 +32,15 @@ take_photo,Take Photo,צלם תמונה,Scatta foto,Tomar foto,Prendre une photo
 change_img,Change Image,שנה תמונה,Cambia immagine,Cambiar imagen,Changer l'image,تغيير الصورة
 duplicate,Duplicate,שכפל,Duplica,Duplicar,Dupliquer,تكرار
 delete,Delete,מחק,Elimina,Eliminar,Supprimer,حذف
-confirm_del_folder,Delete folder '{0}' and all its contents?,למחוק את התיקייה '{0}' ואת כל התוכן שלה?,Eliminare la cartella '{0}' e tutto il suo contenuto?,¿Eliminar la carpeta '{0}' y todo su contenido?,Supprimer le dossier '{0}' et tout son contenu ?,هل تريد حذف المجلد '{0}' وكل محتوياته؟
-confirm_del_item,Delete item '{0}'?,למחוק את הפריט '{0}'?,Eliminare l'elemento '{0}'?,¿Eliminar el elemento '{0}'?,Supprimer l'élément '{0}' ?,هل تريد حذف العنصر '{0}'؟
-confirm_del_zone,Delete zone '{0}' and ALL contents?,למחוק את האזור '{0}' ואת כל התוכן?,Eliminare la zona '{0}' e TUTTO il contenuto?,¿Eliminar la zona '{0}' y TODO el contenido?,Supprimer la zone '{0}' et TOUT le contenu ?,هل تريد حذف المنطقة '{0}' وكل المحتويات؟
+confirm_del_folder,"Delete folder '{0}' and all its contents?","למחוק את התיקייה '{0}' ואת כל התוכן שלה?","Eliminare la cartella '{0}' e tutto il suo contenuto?","¿Eliminar la carpeta '{0}' y todo su contenido?","Supprimer le dossier '{0}' et tout son contenu ?","هل تريد حذف المجلد '{0}' وكل محتوياته؟"
+confirm_del_item,"Delete item '{0}'?","למחוק את הפריט '{0}'?","Eliminare l'elemento '{0}'?","¿Eliminar el elemento '{0}'?","Supprimer l'élément '{0}' ?","هل تريد حذف العنصر '{0}'؟"
+confirm_del_zone,"Delete zone '{0}' and ALL contents?","למחוק את האזור '{0}' ואת כל התוכן?","Eliminare la zona '{0}' e TUTTO il contenuto?","¿Eliminar la zona '{0}' y TODO el contenido?","Supprimer la zone '{0}' et TOUT le contenu ?","هل تريد حذف المنطقة '{0}' وكل المحتويات؟"
 add_zone_btn,Add New Zone,הוסף אזור חדש,Aggiungi nuova zona,Añadir nueva zona,Ajouter une nouvelle zone,إضافة منطقة جديدة
-unit_Kg,Kg,ק"ג,Kg,Kg,Kg,كجم
+unit_Kg,Kg,"ק""ג",Kg,Kg,Kg,كجم
 unit_Liter,Liter,ליטר,Litro,Litro,litre,لتر
 unit_Units,Units,יח',Unità,Unidades,Unités,وحدات
 unit_g,g,גרם,g,g,g,غرام
-unit_ml,ml,מ"ל,ml,ml,ml,مل
+unit_ml,ml,"מ""ל",ml,ml,ml,مل
 cat_Food,Food,מזון,Cibo,Comida,Nourriture,طعام
 sub_Fresh_Produce,Fresh Produce,תוצרת טרייה,Prodotti freschi,Productos frescos,Produits frais,منتجات طازجة
 sub_Vegetables,Vegetables,ירקות,Verdure,Verduras,Légumes,خضروات
