@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 6.5.0 (Formatted Response & Deep Debug)
+# Home Organizer Ultimate - ver 6.6.1 (5 Minute Timeout & Complete)
 
 import logging
 import sqlite3
@@ -209,8 +209,8 @@ async def websocket_ai_chat(hass, connection, msg):
         inventory_rows = await hass.async_add_executor_job(get_inventory)
         
         # 2. Build Debug Strings
-        sql_debug_lines = [f"SQL Query Results: {len(inventory_rows)} Items found."]
-        inventory_context_lines = ["My Available Inventory:"]
+        sql_debug_lines = [f"SQL Result Count: {len(inventory_rows)}"]
+        inventory_context_lines = ["My Current Inventory:"]
         
         if not inventory_rows:
             sql_debug_str = "Query returned 0 rows (Inventory Empty)."
@@ -239,18 +239,18 @@ async def websocket_ai_chat(hass, connection, msg):
                     cat = r.get('category', '') or ''
                     subcat = r.get('sub_category', '') or ''
                     
-                    # Format as requested: Name (Category > Sub)
-                    cat_display = ""
+                    # Format: Name (Category > Sub)
+                    cat_info = ""
                     if cat and subcat:
-                        cat_display = f"({cat} > {subcat})"
+                        cat_info = f"({cat} > {subcat})"
                     elif cat:
-                        cat_display = f"({cat})"
+                         cat_info = f"({cat})"
                     
                     # Debug Line (Detailed)
-                    sql_debug_lines.append(f"ID:{r.get('id')} | {name} | {qty} | {loc_str}")
+                    sql_debug_lines.append(f"ID:{r.get('id')} | {name} | Qty:{qty} | Loc:[{loc_str}]")
                     
-                    # Context Line (Clean for AI)
-                    inventory_context_lines.append(f"- {name} {cat_display}: {qty}{unit_str} (in {loc_str})")
+                    # Context Line (Structured for AI)
+                    inventory_context_lines.append(f"- {name} {cat_info}: {qty}{unit_str} (in {loc_str})")
                 except Exception as e:
                     sql_debug_lines.append(f"Row Parsing Error: {str(e)}")
                     continue
@@ -261,29 +261,39 @@ async def websocket_ai_chat(hass, connection, msg):
         _LOGGER.info(f"HomeOrganizer AI: Context ready.")
 
         # 3. Call Gemini
+        # Strict prompt to force the exact response format
         system_prompt = (
-            "You are a smart Home Assistant chef and organizer. "
-            "You have the user's FULL inventory list below. "
-            "The user will ask for a recipe or advice. "
+            "You are a smart, friendly Home Assistant chef and organizer. "
+            "You have the user's current inventory list below. "
             "Reply in the SAME LANGUAGE as the user (Hebrew/English). "
-            "Structure your response beautifully with emojis and clear sections: "
-            "1. 'Available Products' (List the relevant items found in the inventory). "
-            "2. 'Recipe Recommendation' (Name of dish). "
-            "3. 'Ingredients' (Quantities). "
-            "4. 'Instructions' (Short steps). "
-            "5. 'Benefits' (Nutritional info). "
-            "Do NOT invent items not in the list unless they are basics like salt/pepper/oil. "
-            "\n\n" + inventory_context
+            "When suggesting a meal, use this EXACT structure with these EXACT Emojis and Headers:"
+            "\n\n"
+            "🍳 [שם המנה / Meal Name]\n"
+            "🧺 **מוצרים זמינים:**\n"
+            "[List of items from inventory used]\n"
+            "🥗 **הצעת ארוחה:**\n"
+            "[Short Description]\n"
+            "📝 **רכיבים:**\n"
+            "[List with quantities]\n"
+            "👩‍🍳 **אופן הכנה:**\n"
+            "[Step by step instructions]\n"
+            "✅ **יתרונות תזונתיים:**\n"
+            "[Short list of benefits]\n"
+            "\n"
+            "Do NOT invent items not in the list (unless basic pantry staples like oil/salt). "
+            "If the list is empty, say so clearly."
+            "\n\n"
+            "User's Inventory:\n" + inventory_context
         )
 
         payload = {
             "contents": [
-                {"role": "user", "parts": [{"text": system_prompt + "\n\nUser Request: " + user_message}]}
+                {"role": "user", "parts": [{"text": system_prompt + "\n\nUser Question: " + user_message}]}
             ]
         }
 
-        # 60 Second Timeout for API call
-        async with session.post(gen_url, json=payload, timeout=ClientTimeout(total=60)) as resp:
+        # 300 Second Timeout for API call (5 Minutes)
+        async with session.post(gen_url, json=payload, timeout=ClientTimeout(total=300)) as resp:
             if resp.status == 200:
                 json_resp = await resp.json()
                 if "candidates" in json_resp and json_resp["candidates"]:
@@ -317,8 +327,9 @@ async def websocket_ai_chat(hass, connection, msg):
                 })
 
     except asyncio.TimeoutError:
+        # TIMEOUT HANDLER - Returns the data anyway!
         connection.send_result(msg["id"], {
-            "error": "Timeout: AI took too long to respond.", 
+            "error": "Timeout: AI took too long to respond. Displaying collected data.", 
             "context": inventory_context, 
             "sql_debug": sql_debug_str
         })
