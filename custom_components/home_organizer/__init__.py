@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 6.9.1 (Cleaned & Fixed)
+# Home Organizer Ultimate - ver 7.0.0 (Two-Step AI Logic)
 
 import logging
 import sqlite3
@@ -7,6 +7,7 @@ import os
 import base64
 import time
 import json
+import re
 import asyncio
 import voluptuous as vol
 from aiohttp import ClientTimeout
@@ -166,58 +167,66 @@ def websocket_get_all_items(hass, connection, msg):
     finally:
         conn.close()
 
-# --- SMART AI CHAT HANDLER ---
+# --- TWO-STEP AI CHAT HANDLER ---
 async def websocket_ai_chat(hass, connection, msg):
-    inventory_context = "Init..."
-    sql_debug_str = "Init..."
+    debug_log = []
     
+    def log_step(step, details=""):
+        debug_log.append(f"{step}: {details}")
+        # Fire event for frontend visibility
+        hass.bus.async_fire("home_organizer_chat_progress", {
+            "step": step,
+            "details": details
+        })
+
     try:
         user_message = msg.get("message", "")
-        _LOGGER.info(f"HomeOrganizer AI: Request received: {user_message}")
-
         entries = hass.config_entries.async_entries(DOMAIN)
-        if not entries:
-            connection.send_result(msg["id"], {"error": "Integration not loaded", "context": "N/A", "sql_debug": "No Config"})
-            return
-            
+        if not entries: return
         entry = entries[0]
         api_key = entry.options.get(CONF_API_KEY, entry.data.get(CONF_API_KEY))
         
         if not api_key:
-            connection.send_result(msg["id"], {"error": "API Key missing.", "context": "N/A", "sql_debug": "No API Key"})
+            connection.send_result(msg["id"], {"error": "API Key missing."})
             return
 
         session = async_get_clientsession(hass)
         gen_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
 
-        # 0. Smart Location Detection
-        def detect_location(message):
-            try:
-                conn = get_db_connection(hass)
-                c = conn.cursor()
-                # Get all unique locations from DB
-                locations = set()
-                for i in range(1, 4): # Check levels 1, 2, 3
-                    c.execute(f"SELECT DISTINCT level_{i} FROM items WHERE level_{i} IS NOT NULL AND level_{i} != ''")
-                    for row in c.fetchall():
-                        locations.add(row[0])
-                conn.close()
-                
-                # Check if message contains any of these locations
-                found_loc = None
-                for loc in locations:
-                    if loc in message:
-                        # If multiple matches, take the longest one (more specific)
-                        if found_loc is None or len(loc) > len(found_loc):
-                            found_loc = loc
-                return found_loc
-            except:
-                return None
+        # --- STEP 1: AI INTERPRETATION ---
+        log_step("Step 1/3", "Asking AI to analyze request...")
+        
+        analysis_prompt = (
+            f"Analyze this request: '{user_message}'. "
+            "Return a JSON object with 2 fields:\n"
+            "1. 'locations': list of strings for potential storage locations mentioned (e.g. 'fridge', 'pantry').\n"
+            "2. 'items': list of strings for specific items mentioned (e.g. 'milk', 'eggs').\n"
+            "If vague, return empty lists. Do NOT output markdown. Just raw JSON."
+        )
+        
+        payload_analysis = {"contents": [{"parts": [{"text": analysis_prompt}]}]}
+        
+        filter_locs = []
+        filter_items = []
+        
+        try:
+            async with session.post(gen_url, json=payload_analysis, timeout=ClientTimeout(total=30)) as resp:
+                if resp.status == 200:
+                    res = await resp.json()
+                    txt = res["candidates"][0]["content"]["parts"][0]["text"].strip()
+                    # Clean markdown code blocks if present
+                    txt = re.sub(r'```json\n|```', '', txt)
+                    data = json.loads(txt)
+                    filter_locs = data.get("locations", [])
+                    filter_items = data.get("items", [])
+                    log_step("AI Analysis", f"Looking for: Locations={filter_locs}, Items={filter_items}")
+        except Exception as e:
+            log_step("AI Analysis Failed", str(e))
 
-        detected_location = await hass.async_add_executor_job(detect_location, user_message)
+        # --- STEP 2: SQL QUERY & CONTEXT BUILDING ---
+        log_step("Step 2/3", "Running Smart SQL Query...")
 
-        # 1. Fetch Inventory (With Filter)
-        def get_inventory(filter_loc):
+        def get_inventory():
             try:
                 conn = get_db_connection(hass)
                 conn.row_factory = sqlite3.Row 
@@ -226,150 +235,93 @@ async def websocket_ai_chat(hass, connection, msg):
                 sql = "SELECT * FROM items WHERE type='item' AND quantity > 0"
                 params = []
                 
-                if filter_loc:
-                    # Filter if location matches level 1, 2, or 3
-                    sql += " AND (level_1 LIKE ? OR level_2 LIKE ? OR level_3 LIKE ?)"
-                    wildcard = f"%{filter_loc}%"
-                    params = [wildcard, wildcard, wildcard]
+                conditions = []
+                
+                # Dynamic Filter Construction
+                if filter_locs:
+                    loc_conditions = []
+                    for loc in filter_locs:
+                        loc_wild = f"%{loc}%"
+                        loc_conditions.append(f"(level_1 LIKE ? OR level_2 LIKE ? OR level_3 LIKE ?)")
+                        params.extend([loc_wild, loc_wild, loc_wild])
+                    if loc_conditions:
+                        conditions.append(f"({' OR '.join(loc_conditions)})")
+                
+                if filter_items:
+                    item_conditions = []
+                    for item in filter_items:
+                        item_wild = f"%{item}%"
+                        item_conditions.append(f"(name LIKE ? OR category LIKE ?)")
+                        params.extend([item_wild, item_wild])
+                    if item_conditions:
+                        conditions.append(f"({' OR '.join(item_conditions)})")
+                
+                if conditions:
+                    sql += " AND " + " AND ".join(conditions)
                 
                 c.execute(sql, tuple(params))
-                items = [dict(row) for row in c.fetchall()]
-                conn.close()
-                return items
+                return [dict(row) for row in c.fetchall()]
             except Exception as e:
-                _LOGGER.error(f"DB Error: {e}")
                 return [{"_error": str(e)}]
 
-        inventory_rows = await hass.async_add_executor_job(get_inventory, detected_location)
+        rows = await hass.async_add_executor_job(get_inventory)
         
-        # 2. Build Debug Strings
-        sql_debug_lines = []
-        if detected_location:
-             sql_debug_lines.append(f"🔍 **Location Found in Query:** {detected_location}")
-             sql_debug_lines.append(f"✓ Filtering results for: '{detected_location}'")
-        else:
-             sql_debug_lines.append("ℹ️ No specific location detected in query. Searching all items.")
-             
-        sql_debug_lines.append(f"📊 **SQL Results:** {len(inventory_rows)} Items found.")
+        context_str = ""
+        debug_sql_str = f"Query found {len(rows)} items.\n"
         
-        inventory_context_lines = [f"Inventory (Filter: {detected_location or 'All'}):"]
-        
-        if not inventory_rows:
-            sql_debug_str = "\n".join(sql_debug_lines) + "\n\nQuery returned 0 rows."
-            inventory_context = "Inventory is empty for this request."
-        elif "_error" in inventory_rows[0]:
-             sql_debug_str = f"SQL Fatal Error: {inventory_rows[0]['_error']}"
-             inventory_context = "Error reading database."
-        else:
-            for r in inventory_rows:
-                try:
-                    name = r.get('name', 'Unknown')
-                    qty = r.get('quantity', 0)
-                    
-                    loc_parts = []
-                    for i in range(1, 4):
-                        val = r.get(f'level_{i}')
-                        if val: loc_parts.append(str(val))
-                    
-                    loc_str = " > ".join(loc_parts) if loc_parts else "General"
-                    unit = r.get('unit', '') or ''
-                    uval = r.get('unit_value', '') or ''
-                    unit_str = f" {uval}{unit}" if unit else ""
-                    
-                    cat = r.get('category', '') or ''
-                    subcat = r.get('sub_category', '') or ''
-                    cat_info = f"({cat} > {subcat})" if (cat and subcat) else (f"({cat})" if cat else "")
-                    
-                    # Debug Line
-                    sql_debug_lines.append(f"• {name} | {qty} | {loc_str}")
-                    
-                    # Context Line
-                    inventory_context_lines.append(f"- {name} {cat_info}: {qty}{unit_str}")
-                except Exception as e:
-                    sql_debug_lines.append(f"Row Parsing Error: {str(e)}")
-                    continue
+        for r in rows:
+            name = r.get('name', 'Unknown')
+            qty = r.get('quantity', 0)
+            locs = [r.get(f'level_{i}') for i in range(1, 4) if r.get(f'level_{i}')]
+            loc_str = " > ".join([str(l) for l in locs])
             
-            sql_debug_str = "\n".join(sql_debug_lines)
-            inventory_context = "\n".join(inventory_context_lines)
+            # Format context for AI
+            cat = r.get('category', '')
+            cat_display = f"({cat})" if cat else ""
+            context_str += f"- {name} {cat_display}: {qty} (in {loc_str})\n"
+            
+            # Format debug for User
+            debug_sql_str += f"• {name} | {qty} | {loc_str}\n"
+
+        log_step("Data Collected", f"Sending {len(rows)} items to AI.")
         
-        # FIRE EVENT BEFORE AI
+        # Pass data to frontend event again to ensure it's visible in "Details"
         hass.bus.async_fire("home_organizer_chat_progress", {
-            "sql_debug": sql_debug_str,
-            "context": inventory_context
+            "sql_debug": debug_sql_str,
+            "context": context_str
         })
 
-        # 3. Call Gemini
-        system_prompt = (
-            "You are a smart, friendly Home Assistant chef and organizer. "
-            "You have the user's specific inventory list below (filtered by their request). "
-            "Reply in the SAME LANGUAGE as the user (Hebrew/English). "
-            "Use this EXACT structure:"
-            "\n\n"
-            "🍳 [Meal Name]\n"
-            "🧺 **מוצרים זמינים:**\n"
-            "[List only items from inventory that are used]\n"
-            "🥗 **הצעת ארוחה:**\n"
-            "[Short Description]\n"
-            "📝 **רכיבים:**\n"
-            "[List with quantities]\n"
-            "👩‍🍳 **אופן הכנה:**\n"
-            "[Instructions]\n"
-            "✅ **יתרונות:**\n"
-            "[Benefits]\n"
+        # --- STEP 3: FINAL AI ANSWER ---
+        log_step("Step 3/3", "Generating final response...")
+        
+        final_prompt = (
+            "You are a home chef. Reply in the SAME LANGUAGE as the user (Hebrew/English). "
+            "Use the inventory list below to answer the user's request.\n"
+            "Format the answer beautifully with emojis:\n"
+            "🍳 [Recipe Name]\n"
+            "🧺 **Available Ingredients:** (List what you found in inventory)\n"
+            "📝 **Recipe:**\n"
             "\n"
-            "Inventory Context:\n" + inventory_context
+            "Inventory:\n" + context_str + "\n\n"
+            "User Request: " + user_message
         )
-
-        payload = {
-            "contents": [
-                {"role": "user", "parts": [{"text": system_prompt + "\n\nUser Question: " + user_message}]}
-            ]
-        }
-
-        async with session.post(gen_url, json=payload, timeout=ClientTimeout(total=300)) as resp:
+        
+        payload_final = {"contents": [{"parts": [{"text": final_prompt}]}]}
+        
+        async with session.post(gen_url, json=payload_final, timeout=ClientTimeout(total=300)) as resp:
             if resp.status == 200:
-                json_resp = await resp.json()
-                if "candidates" in json_resp and json_resp["candidates"]:
-                    content = json_resp["candidates"][0].get("content")
-                    if content and content.get("parts"):
-                        text = content["parts"][0]["text"].strip()
-                        connection.send_result(msg["id"], {
-                            "response": text, 
-                            "context": inventory_context,
-                            "sql_debug": sql_debug_str
-                        })
-                    else:
-                        connection.send_result(msg["id"], {
-                            "error": "AI returned empty text.", 
-                            "context": inventory_context,
-                            "sql_debug": sql_debug_str
-                        })
-                else:
-                    connection.send_result(msg["id"], {
-                        "error": "AI response invalid.", 
-                        "context": inventory_context,
-                        "sql_debug": sql_debug_str
-                    })
-            else:
-                error_text = await resp.text()
+                res = await resp.json()
+                text = res["candidates"][0]["content"]["parts"][0]["text"].strip()
                 connection.send_result(msg["id"], {
-                    "error": f"API Error {resp.status}: {error_text}", 
-                    "context": inventory_context,
-                    "sql_debug": sql_debug_str
+                    "response": text,
+                    "sql_debug": debug_sql_str,
+                    "context": context_str
                 })
+            else:
+                connection.send_result(msg["id"], {"error": f"AI Error {resp.status}"})
 
-    except asyncio.TimeoutError:
-        connection.send_result(msg["id"], {
-            "error": "Timeout: AI took too long. Debug info above.", 
-            "context": inventory_context, 
-            "sql_debug": sql_debug_str
-        })
     except Exception as e:
-        connection.send_result(msg["id"], {
-            "error": f"System Crash: {str(e)}", 
-            "context": inventory_context, 
-            "sql_debug": sql_debug_str
-        })
+        connection.send_result(msg["id"], {"error": str(e)})
 
 def get_view_data(hass, path_parts, query, date_filter, is_shopping):
     enable_ai = False
