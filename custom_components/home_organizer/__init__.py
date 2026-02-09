@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.0.4 (Verbose AI Debug)
+# Home Organizer Ultimate - ver 7.0.5 (Fix: Model Version)
 
 import logging
 import sqlite3
@@ -26,6 +26,9 @@ WS_GET_ALL_ITEMS = "home_organizer/get_all_items"
 WS_AI_CHAT = "home_organizer/ai_chat" 
 
 STATIC_PATH_URL = "/home_organizer_static"
+
+# CHANGED: Switched to stable 1.5-flash model to avoid 429/Quota errors
+GEMINI_MODEL = "gemini-1.5-flash"
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     return True
@@ -168,11 +171,6 @@ def websocket_get_all_items(hass, connection, msg):
         conn.close()
 
 
-# ============================================================
-# FIX: Added @websocket_api.async_response decorator
-# Without this, HA does not await the async function and
-# send_result never reaches the frontend.
-# ============================================================
 @websocket_api.async_response
 async def websocket_ai_chat(hass, connection, msg):
     """Two-step AI chat: 1) Extract keywords via AI, 2) Query DB, 3) Generate answer."""
@@ -193,7 +191,8 @@ async def websocket_ai_chat(hass, connection, msg):
             return
 
         session = async_get_clientsession(hass)
-        gen_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+        # CHANGED: Using GEMINI_MODEL constant (gemini-1.5-flash)
+        gen_url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={api_key}"
 
         # =============================================
         # STEP 1: ANALYZE REQUEST - Extract keywords
@@ -758,7 +757,8 @@ async def register_services(hass, entry):
         if not img_b64 or not api_key: return
         if "," in img_b64: img_b64 = img_b64.split(",")[1]
 
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+        # CHANGED: Using GEMINI_MODEL constant (gemini-1.5-flash)
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={api_key}"
         prompt_text = "Identify this household item. Return ONLY the name in English or Hebrew. 2-3 words max."
         if mode == 'search': prompt_text = "Identify this item. Return only 1 keyword for searching."
 
