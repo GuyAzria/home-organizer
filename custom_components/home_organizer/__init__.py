@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 6.9.0 (Smart Location Filtering)
+# Home Organizer Ultimate - ver 6.9.1 (Cleaned & Fixed)
 
 import logging
 import sqlite3
@@ -326,7 +326,7 @@ async def websocket_ai_chat(hass, connection, msg):
             ]
         }
 
-        async with session.post(gen_url, json=payload, timeout=ClientTimeout(total=60)) as resp:
+        async with session.post(gen_url, json=payload, timeout=ClientTimeout(total=300)) as resp:
             if resp.status == 200:
                 json_resp = await resp.json()
                 if "candidates" in json_resp and json_resp["candidates"]:
