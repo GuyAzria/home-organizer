@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.0.2 (Fixed AI Chat)
+# Home Organizer Ultimate - ver 7.0.3 (Gemini Model Update)
 
 import logging
 import sqlite3
@@ -196,7 +196,7 @@ async def websocket_ai_chat(hass, connection, msg):
             return
 
         session = async_get_clientsession(hass)
-        gen_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        gen_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
 
         # --- STEP 1: ANALYZE REQUEST ---
         hass.bus.async_fire("home_organizer_chat_progress", {
@@ -734,7 +734,7 @@ async def register_services(hass, entry):
         if not img_b64 or not api_key: return
         if "," in img_b64: img_b64 = img_b64.split(",")[1]
 
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
         prompt_text = "Identify this household item. Return ONLY the name in English or Hebrew. 2-3 words max."
         if mode == 'search': prompt_text = "Identify this item. Return only 1 keyword for searching."
 
