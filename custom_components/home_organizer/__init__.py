@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.0.1 (Strict 2-Step AI Flow)
+# Home Organizer Ultimate - ver 7.0.2 (Fixed AI Chat)
 
 import logging
 import sqlite3
@@ -167,15 +167,16 @@ def websocket_get_all_items(hass, connection, msg):
     finally:
         conn.close()
 
-# --- TWO-STEP AI LOGIC ---
+
+# ============================================================
+# FIX: Added @websocket_api.async_response decorator
+# Without this, HA does not await the async function and
+# send_result never reaches the frontend.
+# ============================================================
+@websocket_api.async_response
 async def websocket_ai_chat(hass, connection, msg):
-    # 0. Initial Handshake - Tell frontend we are alive
-    hass.bus.async_fire("home_organizer_chat_progress", {
-        "step": "Backend Connected", 
-        "details": "Initializing AI session..."
-    })
-    
-    # Store Context & Debug for final result
+    """Two-step AI chat: 1) Extract keywords via AI, 2) Query DB, 3) Generate answer."""
+
     inventory_context = ""
     sql_debug_str = ""
 
@@ -203,12 +204,13 @@ async def websocket_ai_chat(hass, connection, msg):
             "details": "Asking AI to extract search keywords..."
         })
         
-        # We ask AI to extract simple keywords to filter SQL
         step1_prompt = (
             f"Analyze this user request: '{user_message}'\n"
-            "Identify the locations (like 'fridge', 'pantry', 'closet') and items (like 'milk', 'eggs').\n"
+            "Identify the locations (like 'fridge', 'pantry', 'closet', 'מקרר', 'מזווה', 'ארון') "
+            "and items (like 'milk', 'eggs', 'חלב', 'ביצים').\n"
             "Return JSON ONLY: {\"locations\": [\"loc1\"], \"items\": [\"item1\"]}\n"
-            "If no specific location/item is mentioned, return empty lists."
+            "If no specific location/item is mentioned, return empty lists.\n"
+            "Do NOT wrap in markdown code blocks. Return raw JSON only."
         )
         
         payload_1 = {"contents": [{"parts": [{"text": step1_prompt}]}]}
@@ -217,21 +219,20 @@ async def websocket_ai_chat(hass, connection, msg):
         filter_items = []
         
         try:
-            # 15 seconds timeout for step 1
             async with session.post(gen_url, json=payload_1, timeout=ClientTimeout(total=15)) as resp:
                 if resp.status == 200:
                     res = await resp.json()
                     raw_txt = res["candidates"][0]["content"]["parts"][0]["text"].strip()
-                    # Clean markdown
-                    clean_txt = re.sub(r'```json\n|```', '', raw_txt).strip()
+                    clean_txt = re.sub(r'```json\s*|```\s*', '', raw_txt).strip()
                     if clean_txt.startswith('{'):
                         parsed = json.loads(clean_txt)
                         filter_locs = parsed.get("locations", [])
                         filter_items = parsed.get("items", [])
+                else:
+                    _LOGGER.warning(f"Step 1 AI returned status {resp.status}")
         except Exception as e:
             _LOGGER.error(f"Step 1 AI Failed: {e}")
-            # Fallback: search everything
-            pass
+            # Fallback: no filters, will search everything
             
         # Report Step 1 Results
         loc_msg = ", ".join(filter_locs) if filter_locs else "All"
@@ -251,10 +252,8 @@ async def websocket_ai_chat(hass, connection, msg):
                 sql = "SELECT * FROM items WHERE type='item' AND quantity > 0"
                 params = []
                 
-                # Dynamic Filtering
                 conditions = []
                 
-                # Filter Locations (OR logic for locations)
                 if filter_locs:
                     sub_cond = []
                     for loc in filter_locs:
@@ -264,7 +263,6 @@ async def websocket_ai_chat(hass, connection, msg):
                     if sub_cond:
                         conditions.append(f"({' OR '.join(sub_cond)})")
 
-                # Filter Items (OR logic for items)
                 if filter_items:
                     sub_cond = []
                     for itm in filter_items:
@@ -278,7 +276,9 @@ async def websocket_ai_chat(hass, connection, msg):
                     sql += " AND " + " AND ".join(conditions)
                 
                 c.execute(sql, tuple(params))
-                return [dict(row) for row in c.fetchall()]
+                rows = [dict(row) for row in c.fetchall()]
+                conn.close()
+                return rows
             except Exception as e:
                 return [{"_error": str(e)}]
 
@@ -307,8 +307,6 @@ async def websocket_ai_chat(hass, connection, msg):
         inventory_context = "\n".join(context_lines)
         sql_debug_str = "\n".join(debug_lines)
         
-        # --- SEND INTERMEDIATE DATA TO FRONTEND ---
-        # This ensures you see the SQL results BEFORE the final AI answer
         hass.bus.async_fire("home_organizer_chat_progress", {
             "step": "Step 3: Generating Answer", 
             "details": f"Sending {len(rows)} items to AI...",
@@ -330,13 +328,11 @@ async def websocket_ai_chat(hass, connection, msg):
         
         payload_3 = {"contents": [{"parts": [{"text": step3_prompt}]}]}
 
-        # 60s timeout for final generation
         async with session.post(gen_url, json=payload_3, timeout=ClientTimeout(total=60)) as resp:
             if resp.status == 200:
                 res = await resp.json()
                 text = res["candidates"][0]["content"]["parts"][0]["text"].strip()
                 
-                # Send Final Result
                 connection.send_result(msg["id"], {
                     "response": text,
                     "sql_debug": sql_debug_str,
@@ -344,10 +340,12 @@ async def websocket_ai_chat(hass, connection, msg):
                 })
             else:
                 err = await resp.text()
-                connection.send_result(msg["id"], {"error": f"AI API Error: {err}"})
+                connection.send_result(msg["id"], {"error": f"AI API Error (status {resp.status}): {err}"})
 
     except Exception as e:
+        _LOGGER.error(f"AI Chat general error: {e}", exc_info=True)
         connection.send_result(msg["id"], {"error": f"General Error: {str(e)}"})
+
 
 def get_view_data(hass, path_parts, query, date_filter, is_shopping):
     enable_ai = False
@@ -429,12 +427,10 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
             for i, p in enumerate(path_parts): sql_where += f" AND level_{i+1} = ?"; params.append(p)
 
             if depth < 2:
-                # 1. Fetch Folders
                 col = f"level_{depth+1}"
                 c.execute(f"SELECT DISTINCT {col} FROM items WHERE {col} IS NOT NULL AND {col} != '' {sql_where} ORDER BY {col} ASC", tuple(params))
                 found_folders = [r[0] for r in c.fetchall()]
                 
-                # 2. Fetch images for these folders
                 for f_name in found_folders:
                     marker_sql = f"SELECT image_path FROM items WHERE type='folder_marker' AND name=? {sql_where} AND {col}=?"
                     marker_params = [f"[Folder] {f_name}"] + params + [f_name]
@@ -444,7 +440,6 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                     img = f"/local/{IMG_DIR}/{row[0]}?v={int(time.time())}" if row and row[0] else None
                     folders.append({"name": f_name, "img": img})
                 
-                # 3. Fetch Items
                 sql = f"SELECT * FROM items WHERE type='item' AND (level_{depth+1} IS NULL OR level_{depth+1} = '') {sql_where} ORDER BY name ASC"
                 c.execute(sql, tuple(params))
                 col_names = [description[0] for description in c.description]
@@ -464,7 +459,6 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                           "unit_value": r_dict.get('unit_value', '')
                       })
             else:
-                # List View Logic
                 sublocations = []
                 col = f"level_{depth+1}"
                 c.execute(f"SELECT DISTINCT {col} FROM items WHERE {col} IS NOT NULL AND {col} != '' {sql_where} ORDER BY {col} ASC", tuple(params))
