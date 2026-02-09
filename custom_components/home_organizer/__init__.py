@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.0.6 (Fix: Model Name 404)
+# Home Organizer Ultimate - ver 7.0.7 (Fix: Upgrade to Gemini 3)
 
 import logging
 import sqlite3
@@ -27,8 +27,8 @@ WS_AI_CHAT = "home_organizer/ai_chat"
 
 STATIC_PATH_URL = "/home_organizer_static"
 
-# CHANGED: Updated model name to 'gemini-1.5-flash-latest' to resolve 404 error
-GEMINI_MODEL = "gemini-1.5-flash-latest"
+# CHANGED: Updated to 'gemini-3-flash-preview' based on 2026 release notes (1.5 is EOL)
+GEMINI_MODEL = "gemini-3-flash-preview"
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     return True
@@ -191,7 +191,7 @@ async def websocket_ai_chat(hass, connection, msg):
             return
 
         session = async_get_clientsession(hass)
-        # CHANGED: Using GEMINI_MODEL constant (gemini-1.5-flash-latest)
+        # CHANGED: Using GEMINI_MODEL constant (gemini-3-flash-preview)
         gen_url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={api_key}"
 
         # =============================================
@@ -757,7 +757,7 @@ async def register_services(hass, entry):
         if not img_b64 or not api_key: return
         if "," in img_b64: img_b64 = img_b64.split(",")[1]
 
-        # CHANGED: Using GEMINI_MODEL constant (gemini-1.5-flash-latest)
+        # CHANGED: Using GEMINI_MODEL constant (gemini-3-flash-preview)
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={api_key}"
         prompt_text = "Identify this household item. Return ONLY the name in English or Hebrew. 2-3 words max."
         if mode == 'search': prompt_text = "Identify this item. Return only 1 keyword for searching."
