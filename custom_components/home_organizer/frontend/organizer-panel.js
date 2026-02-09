@@ -1,7 +1,7 @@
-// Home Organizer Ultimate - Ver 6.6.2 (External CSS)
+// Home Organizer Ultimate - Ver 6.6.6 (Icons Updated)
 // License: MIT
 
-import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=5.6.4';
+import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
 
 const ITEM_CATEGORIES = {
   "Food": { 
@@ -1411,7 +1411,7 @@ class HomeOrganizerPanel extends HTMLElement {
           }, 800); 
 
           let responded = false;
-          // 2 Minute Timeout
+          // 5 Minute Timeout
           const safetyTimeout = setTimeout(() => {
               if(!responded) {
                   clearInterval(stepInterval);
@@ -1419,7 +1419,7 @@ class HomeOrganizerPanel extends HTMLElement {
                   this.render();
                   responded = true;
               }
-          }, 120000); 
+          }, 300000); 
 
           try {
               const result = await this._hass.callWS({
