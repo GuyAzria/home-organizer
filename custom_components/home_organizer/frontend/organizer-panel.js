@@ -30,7 +30,7 @@ class HomeOrganizerPanel extends HTMLElement {
       this.pickerCategory = null; 
       this.pickerPage = 0;
       this.pickerPageSize = 15;
-       
+        
       this.translations = {}; 
       this.availableLangs = [];
       this.allDbItems = []; 
@@ -69,44 +69,7 @@ class HomeOrganizerPanel extends HTMLElement {
     }
   }
 
-  handleChatProgress(data) {
-    if (!this.isChatMode) return;
-    
-    // Append to the last status message, or update it
-    let statusMsg = this.chatHistory.find(msg => msg.isStatus);
-    
-    if (statusMsg) {
-       // Append new step nicely
-       if (data.step) {
-           statusMsg.text += `<br>✔ ${data.step}`;
-       }
-       
-       if (data.sql_debug) {
-           statusMsg.text += `
-             <details class="debug-details">
-                <summary class="debug-summary">▶ SQL Data (Raw)</summary>
-                <div class="debug-content">${data.sql_debug}</div>
-             </details>
-           `;
-       }
-       if (data.context) {
-           statusMsg.text += `
-             <details class="debug-details">
-                <summary class="debug-summary">▶ AI Context (Prompt)</summary>
-                <div class="debug-content">${data.context}</div>
-             </details>
-           `;
-       }
-       
-       this.render(); // Re-render immediately
-       
-       // Auto-scroll
-       setTimeout(() => {
-          const msgs = this.shadowRoot.querySelector('.chat-messages');
-          if(msgs) msgs.scrollTop = msgs.scrollHeight;
-       }, 50);
-    }
-  }
+  // NOTE: Previous handleChatProgress deleted from here as requested.
 
   async fetchAllItems() {
       if (!this._hass) return;
@@ -1333,21 +1296,33 @@ class HomeOrganizerPanel extends HTMLElement {
               });
               
               if (result) {
-                   // Replace status message
+                   // Build debug HTML from final result
                    let debugHTML = "";
-                   if (result.sql_debug) {
+                   
+                   if (result.debug) {
+                       const d = result.debug;
+                       const esc = (s) => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+                       
                        debugHTML += `
                          <details class="debug-details">
-                            <summary class="debug-summary">▶ SQL Data (Raw)</summary>
-                            <div class="debug-content">${result.sql_debug}</div>
+                           <summary class="debug-summary">📤 Step 1 Prompt</summary>
+                           <div class="debug-content">${esc(d.step1_prompt)}</div>
                          </details>
-                       `;
-                   }
-                   if (result.context) {
-                       debugHTML += `
                          <details class="debug-details">
-                            <summary class="debug-summary">▶ AI Context (Prompt)</summary>
-                            <div class="debug-content">${result.context}</div>
+                           <summary class="debug-summary">📥 Step 1 AI Response</summary>
+                           <div class="debug-content">${esc(d.step1_response)}</div>
+                         </details>
+                         <details class="debug-details">
+                           <summary class="debug-summary">🔍 SQL Query</summary>
+                           <div class="debug-content">${esc(d.sql_query)}</div>
+                         </details>
+                         <details class="debug-details">
+                           <summary class="debug-summary">📦 Items Found (${d.items_found})</summary>
+                           <div class="debug-content">${esc(d.inventory_context)}</div>
+                         </details>
+                         <details class="debug-details">
+                           <summary class="debug-summary">📤 Step 3 Prompt</summary>
+                           <div class="debug-content">${esc(d.step3_prompt)}</div>
                          </details>
                        `;
                    }
@@ -1385,11 +1360,9 @@ class HomeOrganizerPanel extends HTMLElement {
       setTimeout(() => messagesDiv.scrollTop = messagesDiv.scrollHeight, 0);
   }
 
-  // Handle the real-time progress event from backend
   handleChatProgress(data) {
     if (!this.isChatMode) return;
-    
-    // Find the active status message (last one)
+     
     let statusMsg = null;
     for (let i = this.chatHistory.length - 1; i >= 0; i--) {
         if (this.chatHistory[i].role === 'system' && this.chatHistory[i].isStatus) {
@@ -1397,31 +1370,59 @@ class HomeOrganizerPanel extends HTMLElement {
             break;
         }
     }
-    
-    if (statusMsg) {
-       // Append the new step
-       if (data.step) {
-           // Prevent duplicate step logging
-           if (!statusMsg.text.includes(data.step)) {
-                statusMsg.text += `<br>✔ ${data.step}`;
-                if (data.details) statusMsg.text += `<br><small style="margin-inline-start:15px;color:#888">${data.details}</small>`;
-           }
-       }
-       
-       this.render(); 
-       
-       // Auto-scroll
-       setTimeout(() => {
-          const msgs = this.shadowRoot.querySelector('.chat-messages');
-          if(msgs) msgs.scrollTop = msgs.scrollHeight;
-       }, 50);
+     
+    if (!statusMsg) return;
+
+    // Add step header
+    if (data.step) {
+        if (!statusMsg.text.includes(data.step)) {
+            statusMsg.text += `<br>✔ <b>${data.step}</b>`;
+            if (data.details) {
+                statusMsg.text += `<br><small style="margin-inline-start:20px;color:#aaa">${data.details}</small>`;
+            }
+        }
     }
+     
+    // Add expandable debug section
+    if (data.debug_label && data.debug_content) {
+        const escaped = data.debug_content
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/\n/g, '<br>');
+         
+        statusMsg.text += `
+          <details class="debug-details">
+            <summary class="debug-summary">▶ ${data.debug_label}</summary>
+            <div class="debug-content">${escaped}</div>
+          </details>
+        `;
+    }
+     
+    // Second debug block (for SQL results page)
+    if (data.debug_label2 && data.debug_content2) {
+        const escaped2 = data.debug_content2
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/\n/g, '<br>');
+         
+        statusMsg.text += `
+          <details class="debug-details">
+            <summary class="debug-summary">▶ ${data.debug_label2}</summary>
+            <div class="debug-content">${escaped2}</div>
+          </details>
+        `;
+    }
+     
+    this.render();
+     
+    setTimeout(() => {
+        const msgs = this.shadowRoot.querySelector('.chat-messages');
+        if(msgs) msgs.scrollTop = msgs.scrollHeight;
+    }, 50);
   }
 
-  // [ ... rest of class methods like resolveRealName, moveSubLoc, etc. must remain ... ]
-  // IMPORTANT: Ensure you include all existing methods from your original file here.
-  // I am putting simplified placeholders for methods required by the updateUI loop.
-  
   resolveRealName(displayName) {
       if (!this.localData) return displayName;
       
@@ -1654,7 +1655,7 @@ class HomeOrganizerPanel extends HTMLElement {
       zones.forEach((z, index) => {
           const newOrder = (index + 1) * 10;
           const paddedOrder = String(newOrder).padStart(3, '0');
-          const newMarkerName = `ZONE_MARKER_${padded}_${z.name}`;
+          const newMarkerName = `ZONE_MARKER_${paddedOrder}_${z.name}`;
           
           if (z.markerName !== newMarkerName) {
               this.callHA('update_item_details', { 
