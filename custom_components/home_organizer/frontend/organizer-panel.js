@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 6.8.0 (Real-Time Events)
+// Home Organizer Ultimate - Ver 6.9.0 (Smart Location Filtering)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
@@ -70,12 +70,16 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   handleChatProgress(data) {
-    // This finds the "status" bubble and updates it with real data from backend
     if (!this.isChatMode) return;
     
-    // We expect the "Starting Process..." system message to be the last one or near last
-    // Let's force an update to the UI directly
-    const statusMsg = this.chatHistory.find(msg => msg.role === 'system' && msg.isStatus === true);
+    // Find the active status message (the last system message with isStatus flag)
+    let statusMsg = null;
+    for (let i = this.chatHistory.length - 1; i >= 0; i--) {
+        if (this.chatHistory[i].role === 'system' && this.chatHistory[i].isStatus) {
+            statusMsg = this.chatHistory[i];
+            break;
+        }
+    }
     
     if (statusMsg) {
        let content = "✔ Data Collected (Waiting for AI...)<br>";
@@ -98,7 +102,7 @@ class HomeOrganizerPanel extends HTMLElement {
        }
        
        statusMsg.text = content;
-       this.render(); // Re-render to show updated status
+       this.render(); // Re-render to update the UI immediately
     }
   }
 
