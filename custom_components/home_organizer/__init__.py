@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 6.7.0 (Real-Time Debugging)
+# Home Organizer Ultimate - ver 6.8.0 (Real-Time Events)
 
 import logging
 import sqlite3
@@ -166,9 +166,8 @@ def websocket_get_all_items(hass, connection, msg):
     finally:
         conn.close()
 
-# --- AI CHAT HANDLER ---
+# --- REAL-TIME AI CHAT HANDLER ---
 async def websocket_ai_chat(hass, connection, msg):
-    # Prepare result containers
     inventory_context = "Init..."
     sql_debug_str = "Init..."
     
@@ -197,7 +196,6 @@ async def websocket_ai_chat(hass, connection, msg):
                 conn = get_db_connection(hass)
                 conn.row_factory = sqlite3.Row 
                 c = conn.cursor()
-                # Select * allows us to not crash if a specific column is missing
                 c.execute("SELECT * FROM items WHERE type='item' AND quantity > 0")
                 items = [dict(row) for row in c.fetchall()]
                 conn.close()
@@ -209,8 +207,8 @@ async def websocket_ai_chat(hass, connection, msg):
         inventory_rows = await hass.async_add_executor_job(get_inventory)
         
         # 2. Build Debug Strings
-        sql_debug_lines = [f"SQL Result Count: {len(inventory_rows)}"]
-        inventory_context_lines = ["My Available Inventory:"]
+        sql_debug_lines = [f"SQL Query Results: {len(inventory_rows)} Items found."]
+        inventory_context_lines = ["My Current Inventory:"]
         
         if not inventory_rows:
             sql_debug_str = "Query returned 0 rows (Inventory Empty)."
@@ -228,8 +226,8 @@ async def websocket_ai_chat(hass, connection, msg):
                     for i in range(1, 4):
                         val = r.get(f'level_{i}')
                         if val: loc_parts.append(str(val))
-                    
                     loc_str = " > ".join(loc_parts) if loc_parts else "General"
+                    
                     unit = r.get('unit', '') or ''
                     uval = r.get('unit_value', '') or ''
                     unit_str = f" {uval}{unit}" if unit else ""
@@ -238,10 +236,7 @@ async def websocket_ai_chat(hass, connection, msg):
                     subcat = r.get('sub_category', '') or ''
                     cat_info = f"({cat} > {subcat})" if (cat and subcat) else (f"({cat})" if cat else "")
                     
-                    # Debug Line
                     sql_debug_lines.append(f"ID:{r.get('id')} | {name} | {qty} | {loc_str}")
-                    
-                    # Context Line
                     inventory_context_lines.append(f"- {name} {cat_info}: {qty}{unit_str} (in {loc_str})")
                 except Exception as e:
                     sql_debug_lines.append(f"Row Parsing Error: {str(e)}")
@@ -250,9 +245,13 @@ async def websocket_ai_chat(hass, connection, msg):
             sql_debug_str = "\n".join(sql_debug_lines)
             inventory_context = "\n".join(inventory_context_lines)
         
-        _LOGGER.info(f"HomeOrganizer AI: Context ready.")
+        # --- CRITICAL: FIRE PROGRESS EVENT TO FRONTEND ---
+        hass.bus.async_fire("home_organizer_chat_progress", {
+            "sql_debug": sql_debug_str,
+            "context": inventory_context
+        })
 
-        # 3. Call Gemini
+        # 3. Call Gemini (May take time)
         system_prompt = (
             "You are a smart, friendly Home Assistant chef and organizer. "
             "You have the user's current inventory list below. "
@@ -283,7 +282,7 @@ async def websocket_ai_chat(hass, connection, msg):
             ]
         }
 
-        # 5 Minute Timeout (300 seconds)
+        # 5 Minute Timeout (300s)
         async with session.post(gen_url, json=payload, timeout=ClientTimeout(total=300)) as resp:
             if resp.status == 200:
                 json_resp = await resp.json()
@@ -317,9 +316,8 @@ async def websocket_ai_chat(hass, connection, msg):
                 })
 
     except asyncio.TimeoutError:
-        # TIMEOUT: Return debug info regardless!
         connection.send_result(msg["id"], {
-            "error": "Timeout: AI took too long. Debug info below.", 
+            "error": "Timeout: AI took too long. Debug info was sent via event.", 
             "context": inventory_context, 
             "sql_debug": sql_debug_str
         })
