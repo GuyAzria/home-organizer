@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.0.0 (Two-Step AI Logic)
+# Home Organizer Ultimate - ver 7.0.1 (Strict 2-Step AI Flow)
 
 import logging
 import sqlite3
@@ -167,22 +167,26 @@ def websocket_get_all_items(hass, connection, msg):
     finally:
         conn.close()
 
-# --- TWO-STEP AI CHAT HANDLER ---
+# --- TWO-STEP AI LOGIC ---
 async def websocket_ai_chat(hass, connection, msg):
-    debug_log = []
+    # 0. Initial Handshake - Tell frontend we are alive
+    hass.bus.async_fire("home_organizer_chat_progress", {
+        "step": "Backend Connected", 
+        "details": "Initializing AI session..."
+    })
     
-    def log_step(step, details=""):
-        debug_log.append(f"{step}: {details}")
-        # Fire event for frontend visibility
-        hass.bus.async_fire("home_organizer_chat_progress", {
-            "step": step,
-            "details": details
-        })
+    # Store Context & Debug for final result
+    inventory_context = ""
+    sql_debug_str = ""
 
     try:
         user_message = msg.get("message", "")
         entries = hass.config_entries.async_entries(DOMAIN)
-        if not entries: return
+        
+        if not entries:
+            connection.send_result(msg["id"], {"error": "Integration not loaded"})
+            return
+            
         entry = entries[0]
         api_key = entry.options.get(CONF_API_KEY, entry.data.get(CONF_API_KEY))
         
@@ -193,39 +197,51 @@ async def websocket_ai_chat(hass, connection, msg):
         session = async_get_clientsession(hass)
         gen_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
 
-        # --- STEP 1: AI INTERPRETATION ---
-        log_step("Step 1/3", "Asking AI to analyze request...")
+        # --- STEP 1: ANALYZE REQUEST ---
+        hass.bus.async_fire("home_organizer_chat_progress", {
+            "step": "Step 1: Analyzing Request", 
+            "details": "Asking AI to extract search keywords..."
+        })
         
-        analysis_prompt = (
-            f"Analyze this request: '{user_message}'. "
-            "Return a JSON object with 2 fields:\n"
-            "1. 'locations': list of strings for potential storage locations mentioned (e.g. 'fridge', 'pantry').\n"
-            "2. 'items': list of strings for specific items mentioned (e.g. 'milk', 'eggs').\n"
-            "If vague, return empty lists. Do NOT output markdown. Just raw JSON."
+        # We ask AI to extract simple keywords to filter SQL
+        step1_prompt = (
+            f"Analyze this user request: '{user_message}'\n"
+            "Identify the locations (like 'fridge', 'pantry', 'closet') and items (like 'milk', 'eggs').\n"
+            "Return JSON ONLY: {\"locations\": [\"loc1\"], \"items\": [\"item1\"]}\n"
+            "If no specific location/item is mentioned, return empty lists."
         )
         
-        payload_analysis = {"contents": [{"parts": [{"text": analysis_prompt}]}]}
+        payload_1 = {"contents": [{"parts": [{"text": step1_prompt}]}]}
         
         filter_locs = []
         filter_items = []
         
         try:
-            async with session.post(gen_url, json=payload_analysis, timeout=ClientTimeout(total=30)) as resp:
+            # 15 seconds timeout for step 1
+            async with session.post(gen_url, json=payload_1, timeout=ClientTimeout(total=15)) as resp:
                 if resp.status == 200:
                     res = await resp.json()
-                    txt = res["candidates"][0]["content"]["parts"][0]["text"].strip()
-                    # Clean markdown code blocks if present
-                    txt = re.sub(r'```json\n|```', '', txt)
-                    data = json.loads(txt)
-                    filter_locs = data.get("locations", [])
-                    filter_items = data.get("items", [])
-                    log_step("AI Analysis", f"Looking for: Locations={filter_locs}, Items={filter_items}")
+                    raw_txt = res["candidates"][0]["content"]["parts"][0]["text"].strip()
+                    # Clean markdown
+                    clean_txt = re.sub(r'```json\n|```', '', raw_txt).strip()
+                    if clean_txt.startswith('{'):
+                        parsed = json.loads(clean_txt)
+                        filter_locs = parsed.get("locations", [])
+                        filter_items = parsed.get("items", [])
         except Exception as e:
-            log_step("AI Analysis Failed", str(e))
+            _LOGGER.error(f"Step 1 AI Failed: {e}")
+            # Fallback: search everything
+            pass
+            
+        # Report Step 1 Results
+        loc_msg = ", ".join(filter_locs) if filter_locs else "All"
+        item_msg = ", ".join(filter_items) if filter_items else "All"
+        hass.bus.async_fire("home_organizer_chat_progress", {
+            "step": "Step 2: Database Search", 
+            "details": f"Looking for items: [{item_msg}] in [{loc_msg}]"
+        })
 
-        # --- STEP 2: SQL QUERY & CONTEXT BUILDING ---
-        log_step("Step 2/3", "Running Smart SQL Query...")
-
+        # --- STEP 2: SQL QUERY ---
         def get_inventory():
             try:
                 conn = get_db_connection(hass)
@@ -235,26 +251,28 @@ async def websocket_ai_chat(hass, connection, msg):
                 sql = "SELECT * FROM items WHERE type='item' AND quantity > 0"
                 params = []
                 
+                # Dynamic Filtering
                 conditions = []
                 
-                # Dynamic Filter Construction
+                # Filter Locations (OR logic for locations)
                 if filter_locs:
-                    loc_conditions = []
+                    sub_cond = []
                     for loc in filter_locs:
-                        loc_wild = f"%{loc}%"
-                        loc_conditions.append(f"(level_1 LIKE ? OR level_2 LIKE ? OR level_3 LIKE ?)")
-                        params.extend([loc_wild, loc_wild, loc_wild])
-                    if loc_conditions:
-                        conditions.append(f"({' OR '.join(loc_conditions)})")
-                
+                        wild = f"%{loc}%"
+                        sub_cond.append(f"(level_1 LIKE ? OR level_2 LIKE ? OR level_3 LIKE ?)")
+                        params.extend([wild, wild, wild])
+                    if sub_cond:
+                        conditions.append(f"({' OR '.join(sub_cond)})")
+
+                # Filter Items (OR logic for items)
                 if filter_items:
-                    item_conditions = []
-                    for item in filter_items:
-                        item_wild = f"%{item}%"
-                        item_conditions.append(f"(name LIKE ? OR category LIKE ?)")
-                        params.extend([item_wild, item_wild])
-                    if item_conditions:
-                        conditions.append(f"({' OR '.join(item_conditions)})")
+                    sub_cond = []
+                    for itm in filter_items:
+                        wild = f"%{itm}%"
+                        sub_cond.append(f"(name LIKE ? OR category LIKE ?)")
+                        params.extend([wild, wild])
+                    if sub_cond:
+                        conditions.append(f"({' OR '.join(sub_cond)})")
                 
                 if conditions:
                     sql += " AND " + " AND ".join(conditions)
@@ -266,62 +284,70 @@ async def websocket_ai_chat(hass, connection, msg):
 
         rows = await hass.async_add_executor_job(get_inventory)
         
-        context_str = ""
-        debug_sql_str = f"Query found {len(rows)} items.\n"
+        # Build Context
+        context_lines = []
+        debug_lines = [f"Filters: Loc={filter_locs}, Items={filter_items}", f"Found {len(rows)} results."]
         
         for r in rows:
+            if "_error" in r:
+                debug_lines.append(f"SQL Error: {r['_error']}")
+                continue
+                
             name = r.get('name', 'Unknown')
             qty = r.get('quantity', 0)
             locs = [r.get(f'level_{i}') for i in range(1, 4) if r.get(f'level_{i}')]
             loc_str = " > ".join([str(l) for l in locs])
             
-            # Format context for AI
-            cat = r.get('category', '')
-            cat_display = f"({cat})" if cat else ""
-            context_str += f"- {name} {cat_display}: {qty} (in {loc_str})\n"
+            unit = r.get('unit', '') or ''
+            uval = r.get('unit_value', '') or ''
             
-            # Format debug for User
-            debug_sql_str += f"• {name} | {qty} | {loc_str}\n"
-
-        log_step("Data Collected", f"Sending {len(rows)} items to AI.")
+            context_lines.append(f"- {name}: {qty} {uval}{unit} ({loc_str})")
+            debug_lines.append(f"{name} | {qty} | {loc_str}")
         
-        # Pass data to frontend event again to ensure it's visible in "Details"
+        inventory_context = "\n".join(context_lines)
+        sql_debug_str = "\n".join(debug_lines)
+        
+        # --- SEND INTERMEDIATE DATA TO FRONTEND ---
+        # This ensures you see the SQL results BEFORE the final AI answer
         hass.bus.async_fire("home_organizer_chat_progress", {
-            "sql_debug": debug_sql_str,
-            "context": context_str
+            "step": "Step 3: Generating Answer", 
+            "details": f"Sending {len(rows)} items to AI...",
+            "sql_debug": sql_debug_str,
+            "context": inventory_context
         })
 
-        # --- STEP 3: FINAL AI ANSWER ---
-        log_step("Step 3/3", "Generating final response...")
-        
-        final_prompt = (
-            "You are a home chef. Reply in the SAME LANGUAGE as the user (Hebrew/English). "
-            "Use the inventory list below to answer the user's request.\n"
-            "Format the answer beautifully with emojis:\n"
-            "🍳 [Recipe Name]\n"
-            "🧺 **Available Ingredients:** (List what you found in inventory)\n"
-            "📝 **Recipe:**\n"
+        # --- STEP 3: FINAL ANSWER ---
+        step3_prompt = (
+            "You are a helpful home assistant. "
+            "Reply in the SAME LANGUAGE as the user (Hebrew/English). "
+            "Use the provided inventory list to answer the user's request.\n"
+            "If suggesting a meal, use emojis like 🍳, 🧺, 📝.\n"
+            "If the list is empty, apologize and say you found no matching items.\n"
             "\n"
-            "Inventory:\n" + context_str + "\n\n"
+            "Inventory List:\n" + inventory_context + "\n\n"
             "User Request: " + user_message
         )
         
-        payload_final = {"contents": [{"parts": [{"text": final_prompt}]}]}
-        
-        async with session.post(gen_url, json=payload_final, timeout=ClientTimeout(total=300)) as resp:
+        payload_3 = {"contents": [{"parts": [{"text": step3_prompt}]}]}
+
+        # 60s timeout for final generation
+        async with session.post(gen_url, json=payload_3, timeout=ClientTimeout(total=60)) as resp:
             if resp.status == 200:
                 res = await resp.json()
                 text = res["candidates"][0]["content"]["parts"][0]["text"].strip()
+                
+                # Send Final Result
                 connection.send_result(msg["id"], {
                     "response": text,
-                    "sql_debug": debug_sql_str,
-                    "context": context_str
+                    "sql_debug": sql_debug_str,
+                    "context": inventory_context
                 })
             else:
-                connection.send_result(msg["id"], {"error": f"AI Error {resp.status}"})
+                err = await resp.text()
+                connection.send_result(msg["id"], {"error": f"AI API Error: {err}"})
 
     except Exception as e:
-        connection.send_result(msg["id"], {"error": str(e)})
+        connection.send_result(msg["id"], {"error": f"General Error: {str(e)}"})
 
 def get_view_data(hass, path_parts, query, date_filter, is_shopping):
     enable_ai = False
