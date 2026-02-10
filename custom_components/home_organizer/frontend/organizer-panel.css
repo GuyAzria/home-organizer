@@ -1,3 +1,4 @@
+/* Home Organizer CSS - Ver 7.1.0 */
 :host { 
     --primary: #03a9f4; --accent: #4caf50; --danger: #f44336; --warning: #ffeb3b; --icon-btn-bg: #444;
     --bg-body: #1c1c1e; --bg-bar: #242426; --bg-sub-bar: #2a2a2c;
@@ -166,41 +167,16 @@ svg { width: 24px; height: 24px; fill: currentColor; }
 .chat-send-btn { background: var(--primary); color: white; border: none; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .chat-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* Added Chat Camera Styles */
+.chat-cam-btn { background: none; border: none; color: var(--primary); cursor: pointer; padding: 0 10px; display: flex; align-items: center; justify-content: center; }
+.chat-cam-btn:hover { color: var(--accent); }
+#chat-img-preview { background: var(--bg-bar); border-top: 1px solid var(--border-color); padding: 10px; display: flex; align-items: center; gap: 10px; }
+
 /* DEBUG PANEL STYLES */
-details.debug-details {
-    margin: 4px 0;
-    border: 1px solid #333;
-    border-radius: 6px;
-    overflow: hidden;
-    font-size: 12px;
-}
-summary.debug-summary {
-    background: #1a1a2e;
-    padding: 6px 10px;
-    cursor: pointer;
-    font-weight: bold;
-    font-size: 11px;
-    color: #8888cc;
-    outline: none;
-    user-select: none;
-}
-summary.debug-summary:hover {
-    background: #222244;
-}
-.debug-content {
-    padding: 8px 10px;
-    background: #0d0d1a;
-    color: #aaa;
-    font-family: monospace;
-    font-size: 11px;
-    line-height: 1.5;
-    max-height: 300px;
-    overflow-y: auto;
-    white-space: pre-wrap;
-    word-break: break-word;
-    border-top: 1px solid #333;
-    direction: ltr;
-}
+details.debug-details { margin: 4px 0; border: 1px solid #333; border-radius: 6px; overflow: hidden; font-size: 12px; }
+summary.debug-summary { background: #1a1a2e; padding: 6px 10px; cursor: pointer; font-weight: bold; font-size: 11px; color: #8888cc; outline: none; user-select: none; }
+summary.debug-summary:hover { background: #222244; }
+.debug-content { padding: 8px 10px; background: #0d0d1a; color: #aaa; font-family: monospace; font-size: 11px; line-height: 1.5; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; border-top: 1px solid #333; direction: ltr; }
 .light-mode details.debug-details { border-color: #ddd; }
 .light-mode summary.debug-summary { background: #e8e8f0; color: #5555aa; }
 .light-mode summary.debug-summary:hover { background: #dddde8; }
