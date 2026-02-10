@@ -1,7 +1,7 @@
 # ⚠️ Beta Version — Use at your own risk
 
 <p align="center">
-  <img src="logo.png" alt="Home Organizer Logo" width="180">
+  <img src=".github/branding/logo.png" alt="Home Organizer Logo" width="180">
 </p>
 
 <h1 align="center">Home Organizer</h1>
@@ -55,23 +55,23 @@ Home Organizer is a dedicated full-screen application for your Home Assistant si
 ## 📥 Installation
 
 ### Option 1: HACS (Recommended)
-1.  In Home Assistant, go to **HACS** > **Integrations**.
-2.  Open the menu (top right) and select **Custom repositories**.
-3.  Add `https://github.com/GuyAzria/home-organizer` as an **Integration**.
-4.  Click **Add**, find **Home Organizer**, and select **Download**.
-5.  **Restart Home Assistant**.
+1. In Home Assistant, go to **HACS** > **Integrations**.
+2. Open the menu (top right) and select **Custom repositories**.
+3. Add `https://github.com/GuyAzria/home-organizer` as an **Integration**.
+4. Click **Add**, find **Home Organizer**, and select **Download**.
+5. **Restart Home Assistant**.
 
 ### Option 2: Manual
-1.  Download the `custom_components/home_organizer` folder.
-2.  Copy it to your `config/custom_components/` directory.
-3.  Restart Home Assistant.
+1. Download the `custom_components/home_organizer` folder.
+2. Copy it to your `config/custom_components/` directory.
+3. Restart Home Assistant.
 
 ## ⚙️ Setup
 
-1.  Navigate to **Settings** > **Devices & Services**.
-2.  Click **Add Integration** and search for **Home Organizer**.
-3.  Enter your API keys when prompted.
-4.  The **Organizer** icon will appear in your sidebar.
+1. Navigate to **Settings** > **Devices & Services**.
+2. Click **Add Integration** and search for **Home Organizer**.
+3. Enter your API keys when prompted.
+4. The **Organizer** icon will appear in your sidebar.
 
 ## 📄 License
 This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
