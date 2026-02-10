@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.0.0 (Two-Step AI UI)
+// Home Organizer Ultimate - Ver 7.1.0 (Two-Step AI UI + Invoice Scan)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
@@ -30,6 +30,7 @@ class HomeOrganizerPanel extends HTMLElement {
       this.pickerCategory = null; 
       this.pickerPage = 0;
       this.pickerPageSize = 15;
+      this.chatImage = null; // NEW: Store chat image
         
       this.translations = {}; 
       this.availableLangs = [];
@@ -125,7 +126,7 @@ class HomeOrganizerPanel extends HTMLElement {
       args.forEach((arg, i) => { text = text.replace(`{${i}}`, arg); });
       return text;
   }
-   
+    
   getPersistentID(scope, itemName) {
       if (!this.persistentIds[scope]) this.persistentIds[scope] = {};
       if (this.persistentIds[scope][itemName]) return this.persistentIds[scope][itemName];
@@ -136,7 +137,7 @@ class HomeOrganizerPanel extends HTMLElement {
       localStorage.setItem('home_organizer_ids', JSON.stringify(this.persistentIds));
       return idx;
   }
-   
+    
   toAlphaId(num) {
       let s = "";
       while (num > 0) {
@@ -1234,12 +1235,12 @@ class HomeOrganizerPanel extends HTMLElement {
           welcome.className = 'message ai';
           welcome.innerHTML = `
             <b>AI Assistant Ready</b><br>
-            I have access to your inventory.<br><br>
+            I can help manage your inventory.<br><br>
             <b>Capabilities:</b><br>
-            • Recipe suggestions based on ingredients<br>
-            • Finding items<br>
-            • Organization tips<br><br>
-            Ask me anything!
+            • Add Items: "Add 3 batteries to kitchen"<br>
+            • Scan Invoices: Tap the camera icon!<br>
+            • Find things: "Where is the milk?"<br>
+            • Reports: "What is in the garage?"
           `;
           messagesDiv.appendChild(welcome);
       }
@@ -1248,83 +1249,116 @@ class HomeOrganizerPanel extends HTMLElement {
           const div = document.createElement('div');
           div.className = `message ${msg.role}`;
           div.innerHTML = msg.text; 
-          
+          if(msg.image) {
+              const img = document.createElement('img');
+              img.src = msg.image;
+              img.style.maxWidth = "100%";
+              img.style.borderRadius = "8px";
+              img.style.marginTop = "5px";
+              div.appendChild(img);
+          }
           if(msg.isStatus) {
               div.id = 'chat-status-msg'; 
           }
-          
           messagesDiv.appendChild(div);
       });
       
       chatContainer.appendChild(messagesDiv);
       
+      // PREVIEW AREA FOR UPLOADED IMAGE
+      const previewArea = document.createElement('div');
+      previewArea.id = "chat-img-preview";
+      previewArea.style.display = "none";
+      previewArea.style.padding = "5px 10px";
+      previewArea.style.background = "#222";
+      previewArea.style.borderTop = "1px solid #444";
+      previewArea.innerHTML = `
+        <div style="display:inline-block; position:relative;">
+            <img id="chat-preview-img" style="height:50px; border-radius:4px; border:1px solid #666">
+            <div id="chat-remove-img" style="position:absolute; top:-5px; right:-5px; background:red; color:white; border-radius:50%; width:15px; height:15px; font-size:10px; text-align:center; cursor:pointer; line-height:15px;">✕</div>
+        </div>
+        <span style="color:#aaa; font-size:12px; margin-inline-start:10px">Image attached (Invoice Scan Mode)</span>
+      `;
+      chatContainer.appendChild(previewArea);
+      
       const inputBar = document.createElement('div');
       inputBar.className = 'chat-input-bar';
+      
+      // CAMERA BUTTON FOR CHAT
+      const camBtn = document.createElement('button');
+      camBtn.className = 'chat-cam-btn';
+      camBtn.innerHTML = ICONS.camera;
+      camBtn.style.background = "none";
+      camBtn.style.border = "none";
+      camBtn.style.color = "var(--primary)";
+      camBtn.style.cursor = "pointer";
+      camBtn.style.padding = "0 10px";
+      camBtn.onclick = () => this.handleChatCamera();
       
       const input = document.createElement('input');
       input.type = 'text';
       input.className = 'chat-input';
-      input.placeholder = "Ask about your inventory...";
+      input.placeholder = "Type message or scan invoice...";
       
       const sendBtn = document.createElement('button');
       sendBtn.className = 'chat-send-btn';
       sendBtn.innerHTML = ICONS.send;
       
+      // HANDLE IMAGE REMOVAL
+      previewArea.querySelector('#chat-remove-img').onclick = () => {
+          this.chatImage = null;
+          previewArea.style.display = 'none';
+      };
+      
+      if (this.chatImage) {
+          previewArea.style.display = 'block';
+          previewArea.querySelector('#chat-preview-img').src = this.chatImage;
+      }
+      
       const sendMessage = async () => {
           const text = input.value.trim();
-          if (!text) return;
+          const imgData = this.chatImage;
           
-          this.chatHistory.push({ role: 'user', text: text });
+          if (!text && !imgData) return;
+          
+          this.chatHistory.push({ role: 'user', text: text || "Scanned Invoice", image: imgData });
+          this.chatImage = null; // Clear after send
           this.render(); 
           
           // Initial Status Message
-          const statusMsg = { role: 'system', text: "Starting Process...<br>Analyzing request...", isStatus: true };
+          const statusText = imgData ? "Scanning Invoice..." : "Analyzing...";
+          const statusMsg = { role: 'system', text: `Starting Process...<br>${statusText}`, isStatus: true };
           this.chatHistory.push(statusMsg);
           this.render();
           
-          // Scroll to bottom
           setTimeout(() => {
               const msgs = this.shadowRoot.querySelector('.chat-messages');
               if(msgs) msgs.scrollTop = msgs.scrollHeight;
           }, 100);
 
           try {
-              // This triggers the 2-step backend flow
               const result = await this._hass.callWS({
                   type: 'home_organizer/ai_chat',
-                  message: text
+                  message: text,
+                  image_data: imgData
               });
               
               if (result) {
-                   // Build debug HTML from final result
+                   // Build debug HTML
                    let debugHTML = "";
-                   
                    if (result.debug) {
                        const d = result.debug;
                        const esc = (s) => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
                        
-                       debugHTML += `
-                         <details class="debug-details">
-                           <summary class="debug-summary">📤 Step 1 Prompt</summary>
-                           <div class="debug-content">${esc(d.step1_prompt)}</div>
-                         </details>
-                         <details class="debug-details">
-                           <summary class="debug-summary">📥 Step 1 AI Response</summary>
-                           <div class="debug-content">${esc(d.step1_response)}</div>
-                         </details>
-                         <details class="debug-details">
-                           <summary class="debug-summary">🔍 SQL Query</summary>
-                           <div class="debug-content">${esc(d.sql_query)}</div>
-                         </details>
-                         <details class="debug-details">
-                           <summary class="debug-summary">📦 Items Found (${d.items_found})</summary>
-                           <div class="debug-content">${esc(d.inventory_context)}</div>
-                         </details>
-                         <details class="debug-details">
-                           <summary class="debug-summary">📤 Step 3 Prompt</summary>
-                           <div class="debug-content">${esc(d.step3_prompt)}</div>
-                         </details>
-                       `;
+                       if (d.raw_json) {
+                            debugHTML += `<details class="debug-details"><summary class="debug-summary">📄 Raw Invoice Data</summary><div class="debug-content">${esc(d.raw_json)}</div></details>`;
+                       }
+                       if (d.intent === "add") {
+                            debugHTML += `<details class="debug-details"><summary class="debug-summary">➕ Items Added</summary><div class="debug-content">${JSON.stringify(d.json, null, 2)}</div></details>`;
+                       }
+                       if (d.sql_query) {
+                            debugHTML += `<details class="debug-details"><summary class="debug-summary">🔍 SQL Query</summary><div class="debug-content">${esc(d.sql_query)}</div></details>`;
+                       }
                    }
                    
                    statusMsg.text = "✔ Complete" + debugHTML;
@@ -1352,12 +1386,32 @@ class HomeOrganizerPanel extends HTMLElement {
       sendBtn.onclick = sendMessage;
       input.onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
       
+      inputBar.appendChild(camBtn);
       inputBar.appendChild(input);
       inputBar.appendChild(sendBtn);
       chatContainer.appendChild(inputBar);
       
       container.appendChild(chatContainer);
       setTimeout(() => messagesDiv.scrollTop = messagesDiv.scrollHeight, 0);
+  }
+  
+  // NEW: Handle Camera for Chat
+  handleChatCamera() {
+      // Create hidden input
+      let input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.capture = 'environment';
+      
+      input.onchange = (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          this.compressImage(file, (dataUrl) => {
+              this.chatImage = dataUrl;
+              this.render(); // Re-render to show preview
+          });
+      };
+      input.click();
   }
 
   handleChatProgress(data) {
@@ -1373,24 +1427,14 @@ class HomeOrganizerPanel extends HTMLElement {
      
     if (!statusMsg) return;
 
-    // Add step header
     if (data.step) {
         if (!statusMsg.text.includes(data.step)) {
             statusMsg.text += `<br>✔ <b>${data.step}</b>`;
-            if (data.details) {
-                statusMsg.text += `<br><small style="margin-inline-start:20px;color:#aaa">${data.details}</small>`;
-            }
         }
     }
      
-    // Add expandable debug section
     if (data.debug_label && data.debug_content) {
-        const escaped = data.debug_content
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/\n/g, '<br>');
-         
+        const escaped = data.debug_content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
         statusMsg.text += `
           <details class="debug-details">
             <summary class="debug-summary">▶ ${data.debug_label}</summary>
@@ -1399,48 +1443,28 @@ class HomeOrganizerPanel extends HTMLElement {
         `;
     }
      
-    // Second debug block (for SQL results page)
-    if (data.debug_label2 && data.debug_content2) {
-        const escaped2 = data.debug_content2
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/\n/g, '<br>');
-         
-        statusMsg.text += `
-          <details class="debug-details">
-            <summary class="debug-summary">▶ ${data.debug_label2}</summary>
-            <div class="debug-content">${escaped2}</div>
-          </details>
-        `;
-    }
-     
     this.render();
-     
     setTimeout(() => {
         const msgs = this.shadowRoot.querySelector('.chat-messages');
         if(msgs) msgs.scrollTop = msgs.scrollHeight;
     }, 50);
   }
-
+  
   resolveRealName(displayName) {
       if (!this.localData) return displayName;
-      
       if (this.localData.folders) {
           const markerRegex = new RegExp(`^ORDER_MARKER_\\d+_${displayName}$`);
           const found = this.localData.folders.find(f => f.name.match(markerRegex));
           if (found) return found.name;
       }
-      
       if (this.localData.items) {
           const markerRegex = new RegExp(`^ORDER_MARKER_\\d+_${displayName}$`);
           const found = this.localData.items.find(i => i.sub_location && i.sub_location.match(markerRegex));
           if (found) return found.sub_location;
       }
-      
       return displayName;
   }
-
+  
   async moveSubLoc(subName, direction) {
       const subGroups = [];
       const markerRegex = /^ORDER_MARKER_(\d+)_(.*)$/;
@@ -1804,7 +1828,7 @@ class HomeOrganizerPanel extends HTMLElement {
       if (this.expandedSublocs.has(name)) this.expandedSublocs.delete(name); else this.expandedSublocs.add(name);
       this.render();
   }
-   
+    
   enableFolderInput(cardEl) {
       const iconContainer = cardEl.querySelector('.android-folder-icon');
       const label = cardEl.querySelector('.folder-label');
@@ -1816,7 +1840,7 @@ class HomeOrganizerPanel extends HTMLElement {
       input.onkeydown = (e) => { if (e.key === 'Enter') this.saveNewFolder(input.value); };
       input.onblur = () => { if (input.value.trim()) this.saveNewFolder(input.value); else this.render(); };
   }
-   
+    
   enableFolderRename(labelEl, oldName) {
       if (!labelEl || labelEl.querySelector('input')) return;
       const input = document.createElement('input');
@@ -1891,7 +1915,7 @@ class HomeOrganizerPanel extends HTMLElement {
       this.shopQuantities[id] = Math.max(0, this.shopQuantities[id] + delta);
       this.render();
   }
-   
+    
   duplicateItem(itemId) {
       if (!itemId) return;
       this.callHA('duplicate_item', { item_id: itemId });
