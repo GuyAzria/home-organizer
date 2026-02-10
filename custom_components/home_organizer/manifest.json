@@ -1,14 +1,12 @@
 {
   "domain": "home_organizer",
-  "name": "Home Organizer Ultimate",
-  "codeowners": [
-    "@GuyAzria"
-  ],
+  "name": "Home Organizer",
+  "codeowners": ["@GuyAzria"],
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/GuyAzria/home-organizer",
-  "iot_class": "local_push",
+  "iot_class": "calculated",
   "issue_tracker": "https://github.com/GuyAzria/home-organizer/issues",
-  "requirements": [],
+  "requirements": ["openai", "google-generativeai"],
   "version": "2.0.3"
 }
