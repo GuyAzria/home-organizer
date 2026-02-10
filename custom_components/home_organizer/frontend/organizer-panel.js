@@ -30,7 +30,9 @@ class HomeOrganizerPanel extends HTMLElement {
       this.pickerCategory = null; 
       this.pickerPage = 0;
       this.pickerPageSize = 15;
-      this.chatImage = null; // NEW: Store chat image
+      
+      // NEW: State for Chat Image Upload
+      this.chatImage = null; 
         
       this.translations = {}; 
       this.availableLangs = [];
@@ -69,8 +71,6 @@ class HomeOrganizerPanel extends HTMLElement {
         this._hass.connection.subscribeEvents(() => this.fetchAllItems(), 'home_organizer_db_update');
     }
   }
-
-  // NOTE: Previous handleChatProgress deleted from here as requested.
 
   async fetchAllItems() {
       if (!this._hass) return;
@@ -181,14 +181,12 @@ class HomeOrganizerPanel extends HTMLElement {
       <link rel="stylesheet" href="/home_organizer_static/organizer-panel.css?v=${timestamp}">
       
       <div class="app-container" id="app">
-        <!-- Main Top Bar (60px) -->
         <div class="top-bar">
             <div class="setup-wrapper">
                 <button class="nav-btn" id="btn-user-setup">
                     ${ICONS.settings}
                 </button>
                 <div class="setup-dropdown" id="setup-dropdown-menu">
-                    <!-- Dynamic Menu Container -->
                     <div id="menu-main">
                         <div class="dropdown-item" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('lang')">
                             ${ICONS.language}
@@ -199,14 +197,12 @@ class HomeOrganizerPanel extends HTMLElement {
                             ${this.t('theme')}
                         </div>
                     </div>
-                    <!-- Language Submenu (Dynamic) -->
                     <div id="menu-lang" style="display:none">
                         <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
                            ${ICONS.back}
                            ${this.t('back')}
                         </div>
                     </div>
-                    <!-- Theme Submenu -->
                     <div id="menu-theme" style="display:none">
                         <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
                            ${ICONS.back}
@@ -314,37 +310,31 @@ class HomeOrganizerPanel extends HTMLElement {
           console.warn("Camera access requires HTTPS.");
     }
 
-    // --- AUTO-DETECT SETTINGS (First Time Only) ---
-    
-    // 1. Language Auto-Detect
+    // --- AUTO-DETECT SETTINGS ---
     let currentLang = localStorage.getItem('home_organizer_lang');
     if (!currentLang && this._hass) {
         if (this._hass.language === 'he') {
             currentLang = 'he';
         } else {
-            currentLang = 'en'; // Default to English for all other langs
+            currentLang = 'en'; 
         }
         localStorage.setItem('home_organizer_lang', currentLang);
     }
     
-    // Apply Language Class
     if (currentLang === 'en') {
         this.shadowRoot.getElementById('app').classList.add('ltr');
     }
 
-    // 2. Theme Auto-Detect
     let currentTheme = localStorage.getItem('home_organizer_theme');
     if (!currentTheme && this._hass) {
         currentTheme = (this._hass.themes && this._hass.themes.darkMode) ? 'dark' : 'light';
         localStorage.setItem('home_organizer_theme', currentTheme);
     }
 
-    // Apply Theme Class
     if (currentTheme === 'light') {
         this.shadowRoot.getElementById('app').classList.add('light-mode');
     }
     
-    // Apply ID Visibility Class based on stored setting
     if (!this.showIds) {
         this.shadowRoot.getElementById('app').classList.add('hide-catalog-ids');
     }
@@ -473,7 +463,6 @@ class HomeOrganizerPanel extends HTMLElement {
         this.render(); 
     });
     
-    // NEW: Chat Button Handler
     click('btn-chat', () => {
         this.isChatMode = !this.isChatMode;
         if(this.isChatMode) { this.isShopMode = false; this.isSearch = false; this.isEditMode = false; }
@@ -703,7 +692,6 @@ class HomeOrganizerPanel extends HTMLElement {
     const attrs = this.localData;
     const root = this.shadowRoot;
     
-    // Update Title & Path
     root.getElementById('display-title').innerText = this.t('app_title');
     root.getElementById('display-path').innerText = 
         this.isChatMode ? "AI Chat Assistant" : 
@@ -715,7 +703,6 @@ class HomeOrganizerPanel extends HTMLElement {
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
     if(attrs.clipboard) root.getElementById('clipboard-name').innerText = attrs.clipboard;
     
-    // NEW: Show/Hide Chat Button
     const chatBtn = root.getElementById('btn-chat');
     if (attrs.enable_ai) {
         chatBtn.style.display = 'flex';
@@ -736,7 +723,6 @@ class HomeOrganizerPanel extends HTMLElement {
     const content = root.getElementById('content');
     content.innerHTML = '';
     
-    // NEW: Chat Mode Logic
     if (this.isChatMode) {
         this.renderChatUI(content);
         return;
