@@ -70,6 +70,8 @@ class HomeOrganizerPanel extends HTMLElement {
     }
   }
 
+  // NOTE: Previous handleChatProgress deleted from here as requested.
+
   async fetchAllItems() {
       if (!this._hass) return;
       try {
@@ -312,13 +314,15 @@ class HomeOrganizerPanel extends HTMLElement {
           console.warn("Camera access requires HTTPS.");
     }
 
-    // --- AUTO-DETECT SETTINGS ---
+    // --- AUTO-DETECT SETTINGS (First Time Only) ---
+    
+    // 1. Language Auto-Detect
     let currentLang = localStorage.getItem('home_organizer_lang');
     if (!currentLang && this._hass) {
         if (this._hass.language === 'he') {
             currentLang = 'he';
         } else {
-            currentLang = 'en'; 
+            currentLang = 'en'; // Default to English for all other langs
         }
         localStorage.setItem('home_organizer_lang', currentLang);
     }
@@ -328,17 +332,19 @@ class HomeOrganizerPanel extends HTMLElement {
         this.shadowRoot.getElementById('app').classList.add('ltr');
     }
 
-    // Theme Auto-Detect
+    // 2. Theme Auto-Detect
     let currentTheme = localStorage.getItem('home_organizer_theme');
     if (!currentTheme && this._hass) {
         currentTheme = (this._hass.themes && this._hass.themes.darkMode) ? 'dark' : 'light';
         localStorage.setItem('home_organizer_theme', currentTheme);
     }
 
+    // Apply Theme Class
     if (currentTheme === 'light') {
         this.shadowRoot.getElementById('app').classList.add('light-mode');
     }
     
+    // Apply ID Visibility Class based on stored setting
     if (!this.showIds) {
         this.shadowRoot.getElementById('app').classList.add('hide-catalog-ids');
     }
