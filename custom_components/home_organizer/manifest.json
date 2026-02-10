@@ -7,6 +7,6 @@
   "documentation": "https://github.com/GuyAzria/home-organizer",
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/GuyAzria/home-organizer/issues",
-  "requirements": ["openai", "google-generativeai"],
+  "requirements": [],
   "version": "2.0.3"
 }
