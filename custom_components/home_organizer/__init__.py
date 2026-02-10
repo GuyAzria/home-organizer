@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.0.7 (Fix: Upgrade to Gemini 3)
+# Home Organizer Ultimate - ver 7.1.0 (AI Actions + Invoice Scanning)
 
 import logging
 import sqlite3
@@ -27,7 +27,6 @@ WS_AI_CHAT = "home_organizer/ai_chat"
 
 STATIC_PATH_URL = "/home_organizer_static"
 
-# CHANGED: Updated to 'gemini-3-flash-preview' based on 2026 release notes (1.5 is EOL)
 GEMINI_MODEL = "gemini-3-flash-preview"
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -84,13 +83,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 vol.Required("type"): WS_GET_ALL_ITEMS
             })
         )
+        # CHANGED: Updated schema to accept optional image_data for Invoice Scanning
         websocket_api.async_register_command(
             hass,
             WS_AI_CHAT,
             websocket_ai_chat,
             websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend({
                 vol.Required("type"): WS_AI_CHAT,
-                vol.Required("message"): str
+                vol.Optional("message", default=""): str,
+                vol.Optional("image_data"): vol.Any(str, None)
             })
         )
     except Exception:
@@ -144,6 +145,34 @@ def init_db(hass):
 
     conn.commit(); conn.close()
 
+# --- HELPER: ADD ITEM TO DB ---
+def add_item_db_safe(hass, name, qty, path_list, category="", sub_category=""):
+    """Internal helper to add items during AI Chat flow."""
+    conn = get_db_connection(hass)
+    c = conn.cursor()
+    try:
+        today = datetime.now().strftime("%Y-%m-%d")
+        cols = ["name", "type", "quantity", "item_date", "category", "sub_category"]
+        vals = [name, "item", qty, today, category, sub_category]
+        qs = ["?", "?", "?", "?", "?", "?"]
+        
+        # Add hierarchy levels
+        for i, p in enumerate(path_list):
+            if i < 10: # Limit to 10 levels
+                cols.append(f"level_{i+1}")
+                vals.append(p)
+                qs.append("?")
+        
+        sql = f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})"
+        c.execute(sql, tuple(vals))
+        conn.commit()
+        return True
+    except Exception as e:
+        _LOGGER.error(f"DB Add Error: {e}")
+        return False
+    finally:
+        conn.close()
+
 @callback
 def websocket_get_data(hass, connection, msg):
     path = msg.get("path", [])
@@ -173,12 +202,13 @@ def websocket_get_all_items(hass, connection, msg):
 
 @websocket_api.async_response
 async def websocket_ai_chat(hass, connection, msg):
-    """Two-step AI chat: 1) Extract keywords via AI, 2) Query DB, 3) Generate answer."""
+    """Updated AI Chat: Handles Text Actions (Add/Search) AND Invoice Scanning."""
 
     try:
         user_message = msg.get("message", "")
-        entries = hass.config_entries.async_entries(DOMAIN)
+        image_data = msg.get("image_data") # Capture optional image
         
+        entries = hass.config_entries.async_entries(DOMAIN)
         if not entries:
             connection.send_result(msg["id"], {"error": "Integration not loaded"})
             return
@@ -191,60 +221,161 @@ async def websocket_ai_chat(hass, connection, msg):
             return
 
         session = async_get_clientsession(hass)
-        # CHANGED: Using GEMINI_MODEL constant (gemini-3-flash-preview)
         gen_url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={api_key}"
 
         # =============================================
-        # STEP 1: ANALYZE REQUEST - Extract keywords
+        # MODE 1: INVOICE / IMAGE PROCESSING
         # =============================================
-        step1_prompt = (
-            f"Analyze this user request: '{user_message}'\n"
-            "Identify the locations (like 'fridge', 'pantry', 'closet', 'מקרר', 'מזווה', 'ארון') "
-            "and items (like 'milk', 'eggs', 'חלב', 'ביצים').\n"
-            "Return JSON ONLY: {\"locations\": [\"loc1\"], \"items\": [\"item1\"]}\n"
-            "If no specific location/item is mentioned, return empty lists.\n"
-            "Do NOT wrap in markdown code blocks. Return raw JSON only."
-        )
+        if image_data:
+            if "," in image_data: image_data = image_data.split(",")[1]
+            
+            # Prompt for receipt/invoice
+            invoice_prompt = (
+                "Analyze this image. It is likely a shopping receipt or invoice. "
+                "Extract all purchased items. For each item:\n"
+                "1. Identify the Name.\n"
+                "2. Identify Quantity (default 1).\n"
+                "3. Infer the best Category (e.g. Food, Tools, Clothes).\n"
+                "4. Infer the best Sub-Category.\n"
+                "5. Infer the best Home Storage Location path (e.g. ['Kitchen', 'Pantry'] or ['Garage', 'Shelf']).\n"
+                "Return JSON ONLY: {\"intent\": \"add_invoice\", \"items\": [{\"name\": \"Milk\", \"qty\": 2, \"category\": \"Food\", \"sub_category\": \"Dairy\", \"path\": [\"Kitchen\", \"Fridge\"]}]}"
+                "\nDo NOT use markdown."
+            )
+
+            hass.bus.async_fire("home_organizer_chat_progress", {
+                "step": "Scanning Invoice...",
+                "debug_type": "image_scan",
+                "debug_label": "Invoice Prompt",
+                "debug_content": invoice_prompt
+            })
+
+            payload = {
+                "contents": [{
+                    "parts": [
+                        {"text": invoice_prompt},
+                        {"inline_data": {"mime_type": "image/jpeg", "data": image_data}}
+                    ]
+                }]
+            }
+
+            async with session.post(gen_url, json=payload, timeout=ClientTimeout(total=45)) as resp:
+                if resp.status != 200:
+                    err = await resp.text()
+                    connection.send_result(msg["id"], {"error": f"AI Error: {err}"})
+                    return
+                
+                res = await resp.json()
+                raw_txt = res["candidates"][0]["content"]["parts"][0]["text"].strip()
+                clean_txt = re.sub(r'```json\s*|```\s*', '', raw_txt).strip()
+                
+                added_count = 0
+                parsed = {}
+                try:
+                    parsed = json.loads(clean_txt)
+                    if parsed.get("intent") == "add_invoice" and "items" in parsed:
+                        for item in parsed["items"]:
+                            # Execute DB add in executor
+                            await hass.async_add_executor_job(
+                                add_item_db_safe, 
+                                hass, 
+                                item.get("name", "Unknown"), 
+                                int(item.get("qty", 1)), 
+                                item.get("path", ["General"]), 
+                                item.get("category", ""), 
+                                item.get("sub_category", "")
+                            )
+                            added_count += 1
+                        
+                        # Notify frontend to refresh
+                        hass.bus.async_fire("home_organizer_db_update")
+                        
+                        response_text = f"✅ I have scanned the invoice and added **{added_count} items** to your inventory.\n\n"
+                        for i in parsed["items"]:
+                            path_str = " > ".join(i.get("path", []))
+                            response_text += f"- **{i.get('name')}** (x{i.get('qty')}) into _{path_str}_\n"
+
+                        connection.send_result(msg["id"], {
+                            "response": response_text,
+                            "debug": {"raw_json": clean_txt}
+                        })
+                        return
+
+                except Exception as e:
+                     connection.send_result(msg["id"], {"response": f"❌ Could not parse invoice data. Error: {str(e)}", "debug": {"raw": clean_txt}})
+                     return
+
+        # =============================================
+        # MODE 2: TEXT ANALYSIS (ADD vs SEARCH)
+        # =============================================
         
+        # Step 1: Analyze Intent
+        step1_prompt = (
+            f"User says: '{user_message}'\n"
+            "Determine if the user wants to ADD items or SEARCH/QUERY.\n"
+            "1. IF ADDING: Return JSON: {\"intent\": \"add\", \"items\": [{\"name\": \"Item\", \"qty\": 1, \"path\": [\"Room\", \"Furniture\"], \"category\": \"Cat\"}]}\n"
+            "   - Infer the location hierarchy if implied (e.g. 'fridge' -> ['Kitchen', 'Fridge']).\n"
+            "2. IF SEARCHING: Return JSON: {\"intent\": \"search\", \"locations\": [\"loc1\"], \"keywords\": [\"item1\"]}\n"
+            "Return JSON ONLY. No markdown."
+        )
+
         hass.bus.async_fire("home_organizer_chat_progress", {
-            "step": "Step 1: Analyzing Request",
+            "step": "Analyzing Intent...",
             "debug_type": "prompt_sent",
-            "debug_label": "Step 1 Prompt (sent to AI)",
+            "debug_label": "Intent Analysis Prompt",
             "debug_content": step1_prompt
         })
-        
-        filter_locs = []
-        filter_items = []
-        step1_raw_response = ""
-        
-        try:
-            payload_1 = {"contents": [{"parts": [{"text": step1_prompt}]}]}
-            async with session.post(gen_url, json=payload_1, timeout=ClientTimeout(total=15)) as resp:
-                if resp.status == 200:
-                    res = await resp.json()
-                    step1_raw_response = res["candidates"][0]["content"]["parts"][0]["text"].strip()
-                    clean_txt = re.sub(r'```json\s*|```\s*', '', step1_raw_response).strip()
-                    if clean_txt.startswith('{'):
-                        parsed = json.loads(clean_txt)
-                        filter_locs = parsed.get("locations", [])
-                        filter_items = parsed.get("items", [])
-                else:
-                    step1_raw_response = f"HTTP Error {resp.status}: {await resp.text()}"
-        except Exception as e:
-            step1_raw_response = f"Exception: {str(e)}"
-            _LOGGER.error(f"Step 1 AI Failed: {e}")
 
-        hass.bus.async_fire("home_organizer_chat_progress", {
-            "step": "Step 1: AI Response Received",
-            "debug_type": "ai_response",
-            "debug_label": "Step 1 AI Response",
-            "debug_content": step1_raw_response,
-            "details": f"Extracted → Locations: {filter_locs or 'All'} | Items: {filter_items or 'All'}"
-        })
+        payload_1 = {"contents": [{"parts": [{"text": step1_prompt}]}]}
+        
+        analysis_json = {}
+        raw_analysis = ""
 
-        # =============================================
-        # STEP 2: SQL QUERY - Search database
-        # =============================================
+        async with session.post(gen_url, json=payload_1, timeout=ClientTimeout(total=15)) as resp:
+            if resp.status == 200:
+                res = await resp.json()
+                raw_analysis = res["candidates"][0]["content"]["parts"][0]["text"].strip()
+                clean_txt = re.sub(r'```json\s*|```\s*', '', raw_analysis).strip()
+                try:
+                    analysis_json = json.loads(clean_txt)
+                except:
+                    pass
+            else:
+                connection.send_result(msg["id"], {"error": "AI API Error"})
+                return
+
+        # HANDLE ADD INTENT
+        if analysis_json.get("intent") == "add":
+            items_to_add = analysis_json.get("items", [])
+            added_log = []
+            
+            for item in items_to_add:
+                nm = item.get("name")
+                qt = item.get("qty", 1)
+                pt = item.get("path", ["General"])
+                cat = item.get("category", "")
+                
+                await hass.async_add_executor_job(add_item_db_safe, hass, nm, qt, pt, cat, "")
+                added_log.append(f"{nm} (x{qt}) to {' > '.join(pt)}")
+            
+            hass.bus.async_fire("home_organizer_db_update")
+            
+            resp_text = f"✅ Added {len(added_log)} items:\n" + "\n".join([f"- {l}" for l in added_log])
+            
+            connection.send_result(msg["id"], {
+                "response": resp_text,
+                "debug": {
+                    "intent": "add",
+                    "json": analysis_json
+                }
+            })
+            return
+
+        # HANDLE SEARCH INTENT (Existing Logic)
+        filter_locs = analysis_json.get("locations", [])
+        filter_items = analysis_json.get("keywords", [])
+        if not filter_items and "items" in analysis_json: filter_items = analysis_json["items"] # Fallback
+
+        # ... (Proceed with existing Search SQL Logic) ...
         final_sql = ""
         final_params = []
         
@@ -292,56 +423,29 @@ async def websocket_ai_chat(hass, connection, msg):
 
         rows = await hass.async_add_executor_job(get_inventory)
         
-        # Build readable SQL debug
-        sql_display = final_sql
-        for p in final_params:
-            sql_display = sql_display.replace("?", f"'{p}'", 1)
-        
         # Build inventory context
         context_lines = []
         for r in rows:
-            if "_error" in r:
-                continue
+            if "_error" in r: continue
             name = r.get('name', 'Unknown')
             qty = r.get('quantity', 0)
             locs = [r.get(f'level_{i}') for i in range(1, 4) if r.get(f'level_{i}')]
             loc_str = " > ".join([str(l) for l in locs])
-            unit = r.get('unit', '') or ''
-            uval = r.get('unit_value', '') or ''
-            context_lines.append(f"- {name}: {qty} {uval}{unit} ({loc_str})")
+            context_lines.append(f"- {name}: {qty} ({loc_str})")
         
         inventory_context = "\n".join(context_lines) if context_lines else "(empty - no items found)"
 
-        hass.bus.async_fire("home_organizer_chat_progress", {
-            "step": f"Step 2: Found {len(rows)} items",
-            "debug_type": "sql",
-            "debug_label": "SQL Query",
-            "debug_content": sql_display,
-            "debug_label2": f"Results ({len(rows)} items)",
-            "debug_content2": inventory_context
-        })
-
-        # =============================================
-        # STEP 3: FINAL ANSWER - Send to AI
-        # =============================================
+        # Step 3: Final Answer
         step3_prompt = (
             "You are a helpful home assistant. "
             "Reply in the SAME LANGUAGE as the user (Hebrew/English). "
             "Use the provided inventory list to answer the user's request.\n"
-            "If suggesting a meal, use emojis like 🍳, 🧺, 📝.\n"
-            "If the list is empty, apologize and say you found no matching items.\n"
+            "If the list is empty, apologize.\n"
             "\n"
             "Inventory List:\n" + inventory_context + "\n\n"
             "User Request: " + user_message
         )
 
-        hass.bus.async_fire("home_organizer_chat_progress", {
-            "step": "Step 3: Generating Answer",
-            "debug_type": "prompt_sent",
-            "debug_label": "Step 3 Prompt (sent to AI)",
-            "debug_content": step3_prompt
-        })
-        
         payload_3 = {"contents": [{"parts": [{"text": step3_prompt}]}]}
 
         async with session.post(gen_url, json=payload_3, timeout=ClientTimeout(total=60)) as resp:
@@ -352,18 +456,15 @@ async def websocket_ai_chat(hass, connection, msg):
                 connection.send_result(msg["id"], {
                     "response": text,
                     "debug": {
-                        "step1_prompt": step1_prompt,
-                        "step1_response": step1_raw_response,
-                        "filters": {"locations": filter_locs, "items": filter_items},
-                        "sql_query": sql_display,
+                        "intent": "search",
+                        "sql_query": final_sql,
                         "items_found": len(rows),
-                        "inventory_context": inventory_context,
-                        "step3_prompt": step3_prompt
+                        "inventory_context": inventory_context
                     }
                 })
             else:
                 err = await resp.text()
-                connection.send_result(msg["id"], {"error": f"AI API Error (status {resp.status}): {err}"})
+                connection.send_result(msg["id"], {"error": f"AI API Error: {err}"})
 
     except Exception as e:
         _LOGGER.error(f"AI Chat general error: {e}", exc_info=True)
@@ -757,7 +858,6 @@ async def register_services(hass, entry):
         if not img_b64 or not api_key: return
         if "," in img_b64: img_b64 = img_b64.split(",")[1]
 
-        # CHANGED: Using GEMINI_MODEL constant (gemini-3-flash-preview)
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={api_key}"
         prompt_text = "Identify this household item. Return ONLY the name in English or Hebrew. 2-3 words max."
         if mode == 'search': prompt_text = "Identify this item. Return only 1 keyword for searching."
