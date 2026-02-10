@@ -31,7 +31,7 @@ class HomeOrganizerPanel extends HTMLElement {
       this.pickerPage = 0;
       this.pickerPageSize = 15;
       
-      // NEW: State for Chat Image Upload
+      // --- NEW: State for Chat Image Upload ---
       this.chatImage = null; 
         
       this.translations = {}; 
@@ -181,12 +181,14 @@ class HomeOrganizerPanel extends HTMLElement {
       <link rel="stylesheet" href="/home_organizer_static/organizer-panel.css?v=${timestamp}">
       
       <div class="app-container" id="app">
+        <!-- Main Top Bar (60px) -->
         <div class="top-bar">
             <div class="setup-wrapper">
                 <button class="nav-btn" id="btn-user-setup">
                     ${ICONS.settings}
                 </button>
                 <div class="setup-dropdown" id="setup-dropdown-menu">
+                    <!-- Dynamic Menu Container -->
                     <div id="menu-main">
                         <div class="dropdown-item" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('lang')">
                             ${ICONS.language}
@@ -197,12 +199,14 @@ class HomeOrganizerPanel extends HTMLElement {
                             ${this.t('theme')}
                         </div>
                     </div>
+                    <!-- Language Submenu (Dynamic) -->
                     <div id="menu-lang" style="display:none">
                         <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
                            ${ICONS.back}
                            ${this.t('back')}
                         </div>
                     </div>
+                    <!-- Theme Submenu -->
                     <div id="menu-theme" style="display:none">
                         <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
                            ${ICONS.back}
@@ -321,10 +325,12 @@ class HomeOrganizerPanel extends HTMLElement {
         localStorage.setItem('home_organizer_lang', currentLang);
     }
     
+    // Apply Language Class
     if (currentLang === 'en') {
         this.shadowRoot.getElementById('app').classList.add('ltr');
     }
 
+    // Theme Auto-Detect
     let currentTheme = localStorage.getItem('home_organizer_theme');
     if (!currentTheme && this._hass) {
         currentTheme = (this._hass.themes && this._hass.themes.darkMode) ? 'dark' : 'light';
@@ -463,6 +469,7 @@ class HomeOrganizerPanel extends HTMLElement {
         this.render(); 
     });
     
+    // NEW: Chat Button Handler
     click('btn-chat', () => {
         this.isChatMode = !this.isChatMode;
         if(this.isChatMode) { this.isShopMode = false; this.isSearch = false; this.isEditMode = false; }
@@ -692,6 +699,7 @@ class HomeOrganizerPanel extends HTMLElement {
     const attrs = this.localData;
     const root = this.shadowRoot;
     
+    // Update Title & Path
     root.getElementById('display-title').innerText = this.t('app_title');
     root.getElementById('display-path').innerText = 
         this.isChatMode ? "AI Chat Assistant" : 
@@ -703,6 +711,7 @@ class HomeOrganizerPanel extends HTMLElement {
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
     if(attrs.clipboard) root.getElementById('clipboard-name').innerText = attrs.clipboard;
     
+    // NEW: Show/Hide Chat Button
     const chatBtn = root.getElementById('btn-chat');
     if (attrs.enable_ai) {
         chatBtn.style.display = 'flex';
@@ -723,6 +732,7 @@ class HomeOrganizerPanel extends HTMLElement {
     const content = root.getElementById('content');
     content.innerHTML = '';
     
+    // NEW: Chat Mode Logic
     if (this.isChatMode) {
         this.renderChatUI(content);
         return;
@@ -1436,6 +1446,12 @@ class HomeOrganizerPanel extends HTMLElement {
     }, 50);
   }
   
+  // ... (Keep existing methods: resolveRealName, moveSubLoc, createNewZone, enableZoneRoomInput, saveNewRoomInZone, setupRoomDragSource, setupZoneDropTarget, moveRoomToZone, moveZone, enableZoneRename, batchUpdateZone, deleteZone, showItemDetails, showImg, toggleSubloc, enableFolderInput, enableFolderRename, saveNewFolder, addQuickItem, setupDragSource, setupDropTarget, handleDropAction, triggerCameraEdit, adjustShopQty, duplicateItem, createItemRow, updateItemCategory, autoSaveItem, updateLocationDropdown, updateSublocDropdown, handleMoveToPath, deleteFolder, del, deleteSubloc, render, navigate, toggleRow, updateQty, submitShopStock, openIconPicker, getCurrentPickerLib, renderIconPickerGrid, selectLibraryIcon, handleUrlIcon, handleIconUpload, compressImage, pasteItem, cut, callHA)
+  
+  // Re-include the rest of the utility methods from your previous code here 
+  // to ensure the file is complete. For brevity in this response, assume standard methods
+  // from version 7.0.0 are retained below this line.
+  
   resolveRealName(displayName) {
       if (!this.localData) return displayName;
       if (this.localData.folders) {
@@ -1452,6 +1468,7 @@ class HomeOrganizerPanel extends HTMLElement {
   }
   
   async moveSubLoc(subName, direction) {
+      // (Implementation identical to V7.0.0)
       const subGroups = [];
       const markerRegex = /^ORDER_MARKER_(\d+)_(.*)$/;
       const seen = new Set();
