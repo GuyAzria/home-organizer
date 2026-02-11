@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.1.0 (Two-Step AI UI + Invoice Scan)
+// Home Organizer Ultimate - Ver 7.1.2 (Two-Step AI UI + Invoice Scan)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
@@ -1294,15 +1294,27 @@ class HomeOrganizerPanel extends HTMLElement {
       const inputBar = document.createElement('div');
       inputBar.className = 'chat-input-bar';
       
-      // CAMERA BUTTON FOR CHAT
+      // CAMERA BUTTON FOR CHAT - Explicit Styling to ensure visibility
       const camBtn = document.createElement('button');
+      camBtn.id = 'chat-camera-btn'; // Add ID for easier debugging/selection
       camBtn.className = 'chat-cam-btn';
-      camBtn.innerHTML = ICONS.camera;
+      // Use fallback SVG if ICONS.camera fails, ensuring icon visibility
+      camBtn.innerHTML = ICONS.camera || '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>'; 
+      camBtn.type = 'button';
+      
+      // Inline styles to guarantee visibility regardless of external CSS
       camBtn.style.background = "none";
       camBtn.style.border = "none";
-      camBtn.style.color = "var(--primary)";
+      camBtn.style.color = "var(--primary, #03a9f4)";
       camBtn.style.cursor = "pointer";
       camBtn.style.padding = "0 10px";
+      camBtn.style.height = "40px"; // Match send button
+      camBtn.style.width = "40px";
+      camBtn.style.display = "flex";
+      camBtn.style.alignItems = "center";
+      camBtn.style.justifyContent = "center";
+      camBtn.style.flexShrink = "0"; 
+      
       camBtn.onclick = () => this.handleChatCamera();
       
       const input = document.createElement('input');
@@ -1313,6 +1325,7 @@ class HomeOrganizerPanel extends HTMLElement {
       const sendBtn = document.createElement('button');
       sendBtn.className = 'chat-send-btn';
       sendBtn.innerHTML = ICONS.send;
+      sendBtn.style.flexShrink = "0";
       
       // HANDLE IMAGE REMOVAL
       previewArea.querySelector('#chat-remove-img').onclick = () => {
@@ -1396,7 +1409,7 @@ class HomeOrganizerPanel extends HTMLElement {
       sendBtn.onclick = sendMessage;
       input.onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
       
-      inputBar.appendChild(camBtn);
+      inputBar.appendChild(camBtn); // Appended BEFORE input to appear on START side (Left in LTR, Right in RTL)
       inputBar.appendChild(input);
       inputBar.appendChild(sendBtn);
       chatContainer.appendChild(inputBar);
@@ -1407,6 +1420,7 @@ class HomeOrganizerPanel extends HTMLElement {
   
   // NEW: Handle Camera for Chat
   handleChatCamera() {
+      // Re-use standard openCamera logic which handles secure context check
       this.openCamera('chat');
   }
 
