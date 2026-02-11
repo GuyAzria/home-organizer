@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.1.6 (Two-Step AI UI + Invoice Scan + File Upload)
+// Home Organizer Ultimate - Ver 7.1.7 (Two-Step AI UI + High-Res Invoice Scan + File Upload)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
@@ -31,6 +31,7 @@ class HomeOrganizerPanel extends HTMLElement {
       this.pickerPage = 0;
       this.pickerPageSize = 15;
       
+      // State for Chat Image Upload
       this.chatImage = null; 
         
       this.translations = {}; 
@@ -60,9 +61,10 @@ class HomeOrganizerPanel extends HTMLElement {
         this.subscribed = true;
         this._hass.connection.subscribeEvents((e) => this.fetchData(), 'home_organizer_db_update');
         this._hass.connection.subscribeEvents((e) => {
-              if (e.data.mode === 'identify') { /* AI logic */ }
+              if (e.data.mode === 'identify') { /* Identify logic if needed */ }
         }, 'home_organizer_ai_result');
         
+        // Subscribe to chat progress
         this._hass.connection.subscribeEvents((e) => this.handleChatProgress(e.data), 'home_organizer_chat_progress');
         
         this.fetchData();
@@ -113,7 +115,7 @@ class HomeOrganizerPanel extends HTMLElement {
           }
       }
       if (!this.translations['duplicate']) {
-          this.translations['duplicate'] = { "en": "Duplicate", "he": "שכפל", "it": "Duplica", "es": "Duplicar", "fr": "Dupliquer", "ar": "تקראר" };
+          this.translations['duplicate'] = { "en": "Duplicate", "he": "שכפל", "it": "Duplica", "es": "Duplicar", "fr": "Dupliquer", "ar": "תקרר" };
       }
       this.changeLanguage(this.currentLang);
   }
@@ -179,7 +181,7 @@ class HomeOrganizerPanel extends HTMLElement {
       <link rel="stylesheet" href="/home_organizer_static/organizer-panel.css?v=${timestamp}">
       
       <div class="app-container" id="app">
-        <!-- Main Top Bar (60px) -->
+        <!-- Main Top Bar -->
         <div class="top-bar">
             <div class="setup-wrapper">
                 <button class="nav-btn" id="btn-user-setup">
@@ -188,24 +190,20 @@ class HomeOrganizerPanel extends HTMLElement {
                 <div class="setup-dropdown" id="setup-dropdown-menu">
                     <div id="menu-main">
                         <div class="dropdown-item" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('lang')">
-                            ${ICONS.language}
-                            ${this.t('language')}
+                            ${ICONS.language} ${this.t('language')}
                         </div>
                         <div class="dropdown-item" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('theme')">
-                            ${ICONS.theme}
-                            ${this.t('theme')}
+                            ${ICONS.theme} ${this.t('theme')}
                         </div>
                     </div>
                     <div id="menu-lang" style="display:none">
                         <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
-                           ${ICONS.back}
-                           ${this.t('back')}
+                           ${ICONS.back} ${this.t('back')}
                         </div>
                     </div>
                     <div id="menu-theme" style="display:none">
                         <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
-                           ${ICONS.back}
-                           ${this.t('back')}
+                           ${ICONS.back} ${this.t('back')}
                         </div>
                         <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('light')">${this.t('light')}</div>
                         <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('dark')">${this.t('dark')}</div>
@@ -700,7 +698,7 @@ class HomeOrganizerPanel extends HTMLElement {
       const messagesDiv = document.createElement('div'); messagesDiv.className = 'chat-messages';
       if (this.chatHistory.length === 0) {
           const welcome = document.createElement('div'); welcome.className = 'message ai';
-          welcome.innerHTML = `<b>AI Assistant Ready</b><br>I can help manage your inventory.<br><br><b>Capabilities:</b><br>• Add Items: "Add 3 batteries to kitchen"<br>• Scan Invoices: Tap the camera icon!<br>• Find things: "Where is the milk?"<br>• Reports: "What is in the garage?"`;
+          welcome.innerHTML = `<b>AI Assistant Ready</b><br>I can help manage your inventory.<br><br><b>Capabilities:</b><br>• Add Items: "Add 3 batteries to kitchen"<br>• Scan Invoices: Tap the camera or upload icons!<br>• Find things: "Where is the milk?"<br>• Reports: "What is in the garage?"`;
           messagesDiv.appendChild(welcome);
       }
       this.chatHistory.forEach(msg => {
@@ -820,7 +818,7 @@ class HomeOrganizerPanel extends HTMLElement {
       input.onblur = () => { if (input.value.trim()) this.saveNewRoomInZone(input.value, zoneName); else this.render(); };
   }
 
-  saveNewRoomInZone(name, zoneName) { if(!name) return; this.callHA('add_item', { item_name: zoneName !== "General Rooms" ? `[${zoneName}] ${name}` : name, item_type: 'folder', current_path: [] }); }
+  saveNewRoomInZone(name, zoneName) { if(!name) return; let finalName = zoneName !== "General Rooms" ? `[${zoneName}] ${name}` : name; this.callHA('add_item', { item_name: finalName, item_type: 'folder', current_path: [] }); }
   setupRoomDragSource(el, roomName) { el.draggable = true; el.ondragstart = (e) => { e.dataTransfer.setData("text/plain", roomName); e.dataTransfer.effectAllowed = "move"; el.classList.add('dragging'); }; el.ondragend = () => el.classList.remove('dragging'); }
   setupZoneDropTarget(el, zoneName) { el.ondragover = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drag-over'); }; el.ondragleave = () => el.classList.remove('drag-over'); el.ondrop = (e) => { e.preventDefault(); el.classList.remove('drag-over'); const roomName = e.dataTransfer.getData("text/plain"); if (roomName) this.moveRoomToZone(roomName, zoneName); }; }
   async moveRoomToZone(roomName, zoneName) { try { const cleanName = roomName.replace(/^\[(.*?)\]\s*/, ""); let newName = zoneName !== "General Rooms" ? `[${zoneName}] ${cleanName}` : cleanName; if (newName !== roomName) { await this.callHA('update_item_details', { original_name: roomName, new_name: newName, current_path: [], is_folder: true }); this.fetchData(); } } catch (err) { console.error(err); } }
