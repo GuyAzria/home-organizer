@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.1.2 (Two-Step AI UI + Invoice Scan)
+// Home Organizer Ultimate - Ver 7.1.4 (Two-Step AI UI + Invoice Scan)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
@@ -31,7 +31,7 @@ class HomeOrganizerPanel extends HTMLElement {
       this.pickerPage = 0;
       this.pickerPageSize = 15;
       
-      // --- NEW: State for Chat Image Upload ---
+      // --- State for Chat Image Upload ---
       this.chatImage = null; 
         
       this.translations = {}; 
@@ -115,7 +115,7 @@ class HomeOrganizerPanel extends HTMLElement {
           }
       }
       if (!this.translations['duplicate']) {
-          this.translations['duplicate'] = { "en": "Duplicate", "he": "שכפל", "it": "Duplica", "es": "Duplicar", "fr": "Dupliquer", "ar": "تكرار" };
+          this.translations['duplicate'] = { "en": "Duplicate", "he": "שכפל", "it": "Duplica", "es": "Duplicar", "fr": "Dupliquer", "ar": "تקרار" };
       }
       this.changeLanguage(this.currentLang);
   }
@@ -469,7 +469,6 @@ class HomeOrganizerPanel extends HTMLElement {
         this.render(); 
     });
     
-    // NEW: Chat Button Handler
     click('btn-chat', () => {
         this.isChatMode = !this.isChatMode;
         if(this.isChatMode) { this.isShopMode = false; this.isSearch = false; this.isEditMode = false; }
@@ -602,9 +601,10 @@ class HomeOrganizerPanel extends HTMLElement {
           const file = e.target.files[0];
           if (!file) return;
           
+          // INCREASE RESOLUTION FOR CHAT
+          const maxRes = context === 'chat' ? 2048 : 1024;
+          
           this.compressImage(file, async (dataUrl) => {
-              const targetId = this.pendingItemId || this.pendingItem;
-              const isSearch = context === 'search';
               const isChat = context === 'chat';
 
               if (isChat) {
@@ -612,6 +612,9 @@ class HomeOrganizerPanel extends HTMLElement {
                   this.render();
                   return;
               }
+
+              const targetId = this.pendingItemId || this.pendingItem;
+              const isSearch = context === 'search';
 
               if (!isSearch && targetId) {
                   this.setLoading(targetId, true);
@@ -633,7 +636,7 @@ class HomeOrganizerPanel extends HTMLElement {
                   this.pendingItemId = null;
                   this.pendingItem = null;
               }
-          }, this.useAiBg); 
+          }, this.useAiBg, maxRes); 
           
           input.value = ''; 
       };
@@ -673,10 +676,11 @@ class HomeOrganizerPanel extends HTMLElement {
           context.putImageData(imageData, 0, 0);
       }
       
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
+      // QUALITY 0.8 FOR CHAT
+      const quality = this.cameraContext === 'chat' ? 0.8 : 0.5;
+      const dataUrl = canvas.toDataURL('image/jpeg', quality);
       this.stopCamera();
       
-      // NEW: Handle Chat Photo
       if (this.cameraContext === 'chat') {
           this.chatImage = dataUrl;
           this.render();
@@ -713,7 +717,6 @@ class HomeOrganizerPanel extends HTMLElement {
     const attrs = this.localData;
     const root = this.shadowRoot;
     
-    // Update Title & Path
     root.getElementById('display-title').innerText = this.t('app_title');
     root.getElementById('display-path').innerText = 
         this.isChatMode ? "AI Chat Assistant" : 
@@ -725,7 +728,6 @@ class HomeOrganizerPanel extends HTMLElement {
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
     if(attrs.clipboard) root.getElementById('clipboard-name').innerText = attrs.clipboard;
     
-    // NEW: Show/Hide Chat Button
     const chatBtn = root.getElementById('btn-chat');
     if (attrs.enable_ai) {
         chatBtn.style.display = 'flex';
@@ -746,7 +748,6 @@ class HomeOrganizerPanel extends HTMLElement {
     const content = root.getElementById('content');
     content.innerHTML = '';
     
-    // NEW: Chat Mode Logic
     if (this.isChatMode) {
         this.renderChatUI(content);
         return;
@@ -805,80 +806,41 @@ class HomeOrganizerPanel extends HTMLElement {
     if (attrs.depth === 0) {
         const zoneContainer = document.createElement('div');
         zoneContainer.className = 'item-list';
-
         const groupedRooms = {};
         const knownZones = new Set();
-        
         const zoneRegex = /^\[(.*?)\] (.*)$/;
         const markerRegex = /^ZONE_MARKER_(\d+)_+(.*)$/;
-
         const zonesList = [];
-
         if (attrs.folders) {
             attrs.folders.forEach(f => {
                 let zone = "General Rooms";
                 let displayName = f.name;
-
                 if (f.name.startsWith("ZONE_MARKER_")) {
                     let zOrder = 9999;
                     let zName = f.name.replace("ZONE_MARKER_", "").trim();
-                    
                     const match = f.name.match(markerRegex);
-                    if (match) {
-                        zOrder = parseInt(match[1]);
-                        zName = match[2];
-                    }
-                    
-                    if (zName) {
-                        knownZones.add(zName);
-                        zonesList.push({ name: zName, order: zOrder, markerName: f.name });
-                    }
+                    if (match) { zOrder = parseInt(match[1]); zName = match[2]; }
+                    if (zName) { knownZones.add(zName); zonesList.push({ name: zName, order: zOrder, markerName: f.name }); }
                     return; 
                 }
-
                 const match = f.name.match(zoneRegex);
-                if (match) {
-                    zone = match[1];
-                    displayName = match[2];
-                } else if (f.zone) {
-                    zone = f.zone;
-                }
-
+                if (match) { zone = match[1]; displayName = match[2]; } else if (f.zone) { zone = f.zone; }
                 if (!groupedRooms[zone]) groupedRooms[zone] = [];
-                
-                groupedRooms[zone].push({
-                    originalName: f.name,
-                    displayName: displayName,
-                    img: f.img
-                });
+                groupedRooms[zone].push({ originalName: f.name, displayName: displayName, img: f.img });
             });
         }
-        
         knownZones.forEach(z => { if (!groupedRooms[z]) groupedRooms[z] = []; });
         if (!groupedRooms["General Rooms"]) groupedRooms["General Rooms"] = [];
-
         const hasGeneral = zonesList.find(z => z.name === "General Rooms");
-        if (!hasGeneral && groupedRooms["General Rooms"].length > 0) {
-            zonesList.push({ name: "General Rooms", order: -1, markerName: null });
-        }
-
-        Object.keys(groupedRooms).forEach(z => {
-            if (!zonesList.find(i => i.name === z)) {
-                zonesList.push({ name: z, order: 9999, markerName: null });
-            }
-        });
-
+        if (!hasGeneral && groupedRooms["General Rooms"].length > 0) { zonesList.push({ name: "General Rooms", order: -1, markerName: null }); }
+        Object.keys(groupedRooms).forEach(z => { if (!zonesList.find(i => i.name === z)) { zonesList.push({ name: z, order: 9999, markerName: null }); } });
         zonesList.sort((a, b) => a.order - b.order);
-
         zonesList.forEach(zoneObj => {
             const zoneName = zoneObj.name;
             const rooms = groupedRooms[zoneName] || [];
-            
             if (zoneName === "General Rooms" && rooms.length === 0 && !this.isEditMode) return;
-
             const header = document.createElement('div');
             header.className = 'group-separator';
-            
             let headerContent = `<span>${this.t('zone_' + zoneName) === ('zone_' + zoneName) ? zoneName : this.t('zone_' + zoneName)}</span>`; 
             if (this.isEditMode && zoneName !== "General Rooms") {
                 headerContent = `
@@ -886,60 +848,38 @@ class HomeOrganizerPanel extends HTMLElement {
                         <span class="subloc-title">${zoneName}</span>
                     </div>
                     <div style="display:flex;gap:5px;align-items:center">
-                        <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveZone('${zoneName}', -1)" title="Move Up">${ICONS.arrow_up}</button>
-                        <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveZone('${zoneName}', 1)" style="transform:rotate(180deg)" title="Move Down">${ICONS.arrow_up}</button>
-                        <div style="width:1px;height:15px;background:#444;margin:0 5px"></div>
+                        <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveZone('${zoneName}', -1)">${ICONS.arrow_up}</button>
+                        <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveZone('${zoneName}', 1)" style="transform:rotate(180deg)">${ICONS.arrow_up}</button>
                         <button class="edit-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableZoneRename(this, '${zoneName}')">${ICONS.edit}</button>
                         <button class="delete-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteZone('${zoneName}')">${ICONS.delete}</button>
                     </div>`;
             }
             header.innerHTML = headerContent;
-            
             this.setupZoneDropTarget(header, zoneName);
             zoneContainer.appendChild(header);
-
             const grid = document.createElement('div');
             grid.className = 'folder-grid';
-            
             rooms.forEach(folder => {
                 const rawID = this.getPersistentID('root', folder.originalName);
                 const catalogID = this.toAlphaId(rawID);
-
                 const el = document.createElement('div');
                 el.className = 'folder-item';
-                
                 this.setupRoomDragSource(el, folder.originalName);
-
                 el.onclick = () => { if (!this.isEditMode) this.navigate('down', folder.originalName, catalogID); };
-                
                 let folderContent = ICONS.folder;
                 if (folder.img) {
                     const isLoading = this.loadingSet.has(folder.originalName);
                     const ver = this.imageVersions[folder.originalName] || '';
                     const src = folder.img + (folder.img.includes('?') ? '&' : '?') + 'v=' + ver;
-                    
-                    let loaderHtml = '';
-                    if (isLoading) {
-                        loaderHtml = `<div class="loader-container"><span class="loader"></span></div>`;
-                    }
+                    let loaderHtml = isLoading ? `<div class="loader-container"><span class="loader"></span></div>` : '';
                     folderContent = `<div style="position:relative;width:100%;height:100%"><img src="${src}" style="width:100%;height:100%;object-fit:contain;border-radius:4px">${loaderHtml}</div>`;
                 }
-
                 const deleteBtnHtml = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.originalName}')">✕</div>` : '';
                 const editBtnHtml = this.isEditMode ? `<div class="folder-edit-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'), '${folder.originalName}')">${ICONS.edit}</div>` : '';
                 const imgBtnHtml = this.isEditMode ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${folder.originalName}', 'room')">${ICONS.image}</div>` : '';
-
-                el.innerHTML = `
-                    <div class="android-folder-icon">
-                        ${folderContent}
-                        <div class="catalog-badge">${catalogID}</div>
-                        ${editBtnHtml}${deleteBtnHtml}${imgBtnHtml}
-                    </div>
-                    <div class="folder-label">${folder.displayName}</div>
-                `;
+                el.innerHTML = `<div class="android-folder-icon">${folderContent}<div class="catalog-badge">${catalogID}</div>${editBtnHtml}${deleteBtnHtml}${imgBtnHtml}</div><div class="folder-label">${folder.displayName}</div>`;
                 grid.appendChild(el);
             });
-
             if (this.isEditMode) {
                 const addBtn = document.createElement('div');
                 addBtn.className = 'folder-item add-folder-card';
@@ -947,10 +887,8 @@ class HomeOrganizerPanel extends HTMLElement {
                 addBtn.onclick = (e) => this.enableZoneRoomInput(e.currentTarget, zoneName);
                 grid.appendChild(addBtn);
             }
-
             zoneContainer.appendChild(grid);
         });
-
         if (this.isEditMode) {
             const addZoneBtn = document.createElement('button');
             addZoneBtn.className = 'add-item-btn';
@@ -959,7 +897,6 @@ class HomeOrganizerPanel extends HTMLElement {
             addZoneBtn.onclick = () => this.createNewZone();
             zoneContainer.appendChild(addZoneBtn);
         }
-
         content.appendChild(zoneContainer);
         return;
     }
@@ -968,45 +905,26 @@ class HomeOrganizerPanel extends HTMLElement {
         if (attrs.folders && attrs.folders.length > 0 || this.isEditMode) {
             const grid = document.createElement('div');
             grid.className = 'folder-grid';
-            
             const parentID = this.catalogPath[0] || "";
-
             if (attrs.folders) {
                 attrs.folders.forEach(folder => {
                     const rawID = this.getPersistentID(this.currentPath[0], folder.name);
                     const catalogID = parentID + rawID;
-
                     const el = document.createElement('div');
                     el.className = 'folder-item';
-                    
                     el.onclick = () => this.navigate('down', folder.name, catalogID);
-                    
                     let folderContent = ICONS.folder;
                     if (folder.img) {
                         const isLoading = this.loadingSet.has(folder.name);
                         const ver = this.imageVersions[folder.name] || '';
                         const src = folder.img + (folder.img.includes('?') ? '&' : '?') + 'v=' + ver;
-                        
-                        let loaderHtml = '';
-                        if (isLoading) {
-                            loaderHtml = `<div class="loader-container"><span class="loader"></span></div>`;
-                        }
+                        let loaderHtml = isLoading ? `<div class="loader-container"><span class="loader"></span></div>` : '';
                         folderContent = `<div style="position:relative;width:100%;height:100%"><img src="${src}" style="width:100%;height:100%;object-fit:contain;border-radius:4px">${loaderHtml}</div>`;
                     }
-
                     const deleteBtnHtml = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` : '';
                     const editBtnHtml = this.isEditMode ? `<div class="folder-edit-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'), '${folder.name}')">${ICONS.edit}</div>` : '';
-                    const context = attrs.depth === 0 ? 'room' : 'location';
-                    const imgBtnHtml = this.isEditMode ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${folder.name}', '${context}')">${ICONS.image}</div>` : '';
-
-                    el.innerHTML = `
-                        <div class="android-folder-icon">
-                            ${folderContent}
-                            <div class="catalog-badge">${catalogID}</div>
-                            ${editBtnHtml}${deleteBtnHtml}${imgBtnHtml}
-                        </div>
-                        <div class="folder-label">${folder.name}</div>
-                    `;
+                    const imgBtnHtml = this.isEditMode ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${folder.name}', attrs.depth === 0 ? 'room' : 'location')">${ICONS.image}</div>` : '';
+                    el.innerHTML = `<div class="android-folder-icon">${folderContent}<div class="catalog-badge">${catalogID}</div>${editBtnHtml}${deleteBtnHtml}${imgBtnHtml}</div><div class="folder-label">${folder.name}</div>`;
                     grid.appendChild(el);
                 });
             }
@@ -1019,14 +937,12 @@ class HomeOrganizerPanel extends HTMLElement {
             }
             content.appendChild(grid);
         }
-        
         if (attrs.items && attrs.items.length > 0) {
             const list = document.createElement('div');
             list.className = 'item-list';
             attrs.items.forEach(item => list.appendChild(this.createItemRow(item, false)));
             content.appendChild(list);
         }
-        
         if (this.isEditMode && attrs.depth === 1) {
              const addBtn = document.createElement('div');
              addBtn.className = 'add-item-btn-row';
@@ -1039,11 +955,9 @@ class HomeOrganizerPanel extends HTMLElement {
         const inStock = [], outOfStock = [];
         if (attrs.items) attrs.items.forEach(item => (item.qty === 0 ? outOfStock : inStock).push(item));
         const grouped = {};
-        
         const markerRegex = /^ORDER_MARKER_(\d+)_(.*)$/;
         const orderedGroups = []; 
         const foundMarkers = new Set();
-
         const rawGroups = new Set();
         if (attrs.folders) attrs.folders.forEach(f => {
              if (f.name.startsWith("ORDER_MARKER_")) {
@@ -1054,11 +968,8 @@ class HomeOrganizerPanel extends HTMLElement {
                      orderedGroups.push({ name: realName, order: order, markerKey: f.name });
                      foundMarkers.add(realName);
                  }
-             } else {
-                 rawGroups.add(f.name);
-             }
+             } else { rawGroups.add(f.name); }
         });
-        
         inStock.forEach(item => {
             const sub = item.sub_location || "General";
             if (sub.startsWith("ORDER_MARKER_")) {
@@ -1066,97 +977,37 @@ class HomeOrganizerPanel extends HTMLElement {
                  if (match) {
                      const order = parseInt(match[1]);
                      const realName = match[2];
-                     if (!orderedGroups.find(g => g.markerKey === sub)) {
-                         orderedGroups.push({ name: realName, order: order, markerKey: sub });
-                         foundMarkers.add(realName);
-                     }
+                     if (!orderedGroups.find(g => g.markerKey === sub)) { orderedGroups.push({ name: realName, order: order, markerKey: sub }); foundMarkers.add(realName); }
                  }
-            } else {
-                rawGroups.add(sub);
-            }
+            } else { rawGroups.add(sub); }
         });
-
-        rawGroups.forEach(g => {
-            if (!foundMarkers.has(g)) {
-                let order = 9999;
-                if (g === "General") order = -1; 
-                orderedGroups.push({ name: g, order: order, markerKey: null });
-            }
-        });
-
-        orderedGroups.sort((a,b) => {
-            if (a.order !== b.order) return a.order - b.order;
-            return a.name.localeCompare(b.name);
-        });
-
+        rawGroups.forEach(g => { if (!foundMarkers.has(g)) { let order = g === "General" ? -1 : 9999; orderedGroups.push({ name: g, order: order, markerKey: null }); } });
+        orderedGroups.sort((a,b) => (a.order !== b.order) ? a.order - b.order : a.name.localeCompare(b.name));
         orderedGroups.forEach(g => grouped[g.name] = []);
-        
-        inStock.forEach(item => {
-            const sub = item.sub_location || "General";
-            if (!sub.startsWith("ORDER_MARKER_")) {
-                if(!grouped[sub]) grouped[sub] = []; 
-                grouped[sub].push(item);
-            }
-        });
-
+        inStock.forEach(item => { const sub = item.sub_location || "General"; if (!sub.startsWith("ORDER_MARKER_")) { if(!grouped[sub]) grouped[sub] = []; grouped[sub].push(item); } });
         const parentID = this.catalogPath[1] || "";
-
         orderedGroups.forEach(groupObj => {
             const subName = groupObj.name;
             const items = grouped[subName] || [];
             const count = items.length;
-            
             const rawID = this.getPersistentID(this.currentPath.join('_'), subName);
             const catalogID = parentID ? `${parentID}.${rawID}` : "";
-
             if (subName === "General" && count === 0 && !this.isEditMode) return;
             if (this.viewMode === 'grid' && count === 0) return;
-            
             const isExpanded = (this.viewMode === 'grid') ? true : this.expandedSublocs.has(subName);
             const icon = isExpanded ? ICONS.chevron_down : ICONS.chevron_right;
             const countBadge = `<span style="font-size:12px; background:var(--bg-badge); color:var(--text-badge); padding:2px 6px; border-radius:10px; margin-inline-start:8px;">${count}</span>`;
-            
             const header = document.createElement('div');
             header.className = 'group-separator';
             this.setupDropTarget(header, subName);
-            
-            if (this.viewMode === 'list') {
-                header.onclick = () => this.toggleSubloc(subName);
-            } else {
-                header.style.cursor = 'default';
-            }
-            
+            if (this.viewMode === 'list') { header.onclick = () => this.toggleSubloc(subName); }
             const idHtml = catalogID ? `<span class="catalog-id-text">${catalogID}</span>` : '';
-
             if (this.isEditMode && subName !== "General") {
-                header.innerHTML = `
-                    <div style="display:flex;align-items:center;">
-                        <span style="margin-inline-end:5px;display:flex;align-items:center">${icon}</span>
-                        <span class="subloc-title">${subName}</span>
-                        ${countBadge}
-                    </div>
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        ${idHtml}
-                        <div style="display:flex;gap:5px;align-items:center">
-                            <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveSubLoc('${subName}', -1)" title="Move Up">${ICONS.arrow_up}</button>
-                            <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveSubLoc('${subName}', 1)" style="transform:rotate(180deg)" title="Move Down">${ICONS.arrow_up}</button>
-                            <div style="width:1px;height:15px;background:#444;margin:0 5px"></div>
-                            <button class="edit-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableSublocRename(this, '${subName}')">${ICONS.edit}</button>
-                            <button class="delete-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button>
-                        </div>
-                    </div>`;
+                header.innerHTML = `<div style="display:flex;align-items:center;"><span style="margin-inline-end:5px;display:flex;align-items:center">${icon}</span><span class="subloc-title">${subName}</span>${countBadge}</div><div style="display:flex;align-items:center;gap:10px;">${idHtml}<div style="display:flex;gap:5px;align-items:center"><button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveSubLoc('${subName}', -1)">${ICONS.arrow_up}</button><button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveSubLoc('${subName}', 1)" style="transform:rotate(180deg)">${ICONS.arrow_up}</button><button class="edit-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableSublocRename(this, '${subName}')">${ICONS.edit}</button><button class="delete-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button></div></div>`;
             } else {
-                header.innerHTML = `
-                    <div style="display:flex;align-items:center;">
-                        <span style="margin-inline-end:5px;display:flex;align-items:center">${icon}</span>
-                        <span>${subName}</span>
-                        ${countBadge}
-                    </div>
-                    ${idHtml}
-                `;
+                header.innerHTML = `<div style="display:flex;align-items:center;"><span style="margin-inline-end:5px;display:flex;align-items:center">${icon}</span><span>${subName}</span>${countBadge}</div>${idHtml}`;
             }
             listContainer.appendChild(header);
-
             if (isExpanded) {
                 if (this.viewMode === 'grid' && count > 0) {
                       const gridDiv = document.createElement('div');
@@ -1169,39 +1020,17 @@ class HomeOrganizerPanel extends HTMLElement {
                               const isLoading = this.loadingSet.has(item.id);
                               const ver = this.imageVersions[item.id] || '';
                               const src = item.img + (item.img.includes('?') ? '&' : '?') + 'v=' + ver;
-                              let loaderHtml = '';
-                              if (isLoading) {
-                                  loaderHtml = `<div class="loader-container"><span class="loader"></span></div>`;
-                              }
+                              let loaderHtml = isLoading ? `<div class="loader-container"><span class="loader"></span></div>` : '';
                               iconHtml = `<div style="position:relative;width:80%;height:80%"><img src="${src}" style="width:100%;height:100%;object-fit:contain;border-radius:8px">${loaderHtml}</div>`;
                           }
-                          card.innerHTML = `
-                              <div class="xl-icon-area">${iconHtml}</div>
-                              <div class="xl-badge">${item.qty}</div>
-                              <div class="xl-info">
-                                  <div class="xl-name">${item.name}</div>
-                                  <div class="xl-date">${item.date || ''}</div>
-                              </div>
-                          `;
+                          card.innerHTML = `<div class="xl-icon-area">${iconHtml}</div><div class="xl-badge">${item.qty}</div><div class="xl-info"><div class="xl-name">${item.name}</div><div class="xl-date">${item.date || ''}</div></div>`;
                           const iconArea = card.querySelector('.xl-icon-area');
-                          if(iconArea) {
-                              iconArea.onclick = (e) => {
-                                  e.stopPropagation();
-                                  this.showItemDetails(item);
-                              };
-                          }
-                          card.onclick = () => { 
-                              this.viewMode = 'list';
-                              this.expandedIdx = item.id;
-                              this.render();
-                          };
+                          if(iconArea) iconArea.onclick = (e) => { e.stopPropagation(); this.showItemDetails(item); };
+                          card.onclick = () => { this.viewMode = 'list'; this.expandedIdx = item.id; this.render(); };
                           gridDiv.appendChild(card);
                       });
                       listContainer.appendChild(gridDiv);
-                } else {
-                    items.forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
-                }
-
+                } else { items.forEach(item => listContainer.appendChild(this.createItemRow(item, false))); }
                 if (this.isEditMode) {
                       const addRow = document.createElement('div');
                       addRow.className = "group-add-row";
@@ -1232,29 +1061,17 @@ class HomeOrganizerPanel extends HTMLElement {
     }
   }
 
-  // --- UPDATED CHAT UI ---
   renderChatUI(container) {
       const chatContainer = document.createElement('div');
       chatContainer.className = 'chat-container';
-      
       const messagesDiv = document.createElement('div');
       messagesDiv.className = 'chat-messages';
-      
       if (this.chatHistory.length === 0) {
           const welcome = document.createElement('div');
           welcome.className = 'message ai';
-          welcome.innerHTML = `
-            <b>AI Assistant Ready</b><br>
-            I can help manage your inventory.<br><br>
-            <b>Capabilities:</b><br>
-            • Add Items: "Add 3 batteries to kitchen"<br>
-            • Scan Invoices: Tap the camera icon!<br>
-            • Find things: "Where is the milk?"<br>
-            • Reports: "What is in the garage?"
-          `;
+          welcome.innerHTML = `<b>AI Assistant Ready</b><br>I can help manage your inventory.<br><br><b>Capabilities:</b><br>• Add Items: "Add 3 batteries to kitchen"<br>• Scan Invoices: Tap the camera icon!<br>• Find things: "Where is the milk?"<br>• Reports: "What is in the garage?"`;
           messagesDiv.appendChild(welcome);
       }
-      
       this.chatHistory.forEach(msg => {
           const div = document.createElement('div');
           div.className = `message ${msg.role}`;
@@ -1267,1141 +1084,209 @@ class HomeOrganizerPanel extends HTMLElement {
               img.style.marginTop = "5px";
               div.appendChild(img);
           }
-          if(msg.isStatus) {
-              div.id = 'chat-status-msg'; 
-          }
+          if(msg.isStatus) { div.id = 'chat-status-msg'; }
           messagesDiv.appendChild(div);
       });
-      
       chatContainer.appendChild(messagesDiv);
-      
-      // PREVIEW AREA FOR UPLOADED IMAGE
       const previewArea = document.createElement('div');
       previewArea.id = "chat-img-preview";
-      previewArea.style.display = "none";
-      previewArea.style.padding = "5px 10px";
+      previewArea.style.display = this.chatImage ? "flex" : "none";
+      previewArea.style.padding = "10px";
       previewArea.style.background = "#222";
       previewArea.style.borderTop = "1px solid #444";
+      previewArea.style.alignItems = "center";
+      previewArea.style.gap = "10px";
       previewArea.innerHTML = `
         <div style="display:inline-block; position:relative;">
-            <img id="chat-preview-img" style="height:50px; border-radius:4px; border:1px solid #666">
+            <img id="chat-preview-img" src="${this.chatImage || ''}" style="height:50px; border-radius:4px; border:1px solid #666">
             <div id="chat-remove-img" style="position:absolute; top:-5px; right:-5px; background:red; color:white; border-radius:50%; width:15px; height:15px; font-size:10px; text-align:center; cursor:pointer; line-height:15px;">✕</div>
         </div>
-        <span style="color:#aaa; font-size:12px; margin-inline-start:10px">Image attached (Invoice Scan Mode)</span>
+        <span style="color:#aaa; font-size:12px;">Image attached (Invoice Scan Mode)</span>
       `;
       chatContainer.appendChild(previewArea);
-      
       const inputBar = document.createElement('div');
       inputBar.className = 'chat-input-bar';
       
-      // CAMERA BUTTON FOR CHAT - Explicit Styling to ensure visibility
-      const camBtn = document.createElement('button');
-      camBtn.id = 'chat-camera-btn'; // Add ID for easier debugging/selection
-      camBtn.className = 'chat-cam-btn';
-      // Use fallback SVG if ICONS.camera fails, ensuring icon visibility
-      camBtn.innerHTML = ICONS.camera || '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>'; 
-      camBtn.type = 'button';
+      const cameraIcon = ICONS.camera || `<svg viewBox="0 0 24 24" style="width:24px; height:24px;"><path fill="currentColor" d="M4,4H7L9,2H15L17,4H20A2,2 0 0,1 22,6V18A2,2 0 0,1 20,20H4A2,2 0 0,1 2,18V6A2,2 0 0,1 4,4M12,7A5,5 0 0,0 7,12A5,5 0 0,0 12,17A5,5 0 0,0 17,12A5,5 0 0,0 12,7M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,3 0 0,1 12,9Z" /></svg>`;
+      inputBar.innerHTML = `
+        <button id="chat-camera-btn" type="button" style="background:none; border:none; color:var(--primary, #03a9f4); cursor:pointer; padding:0 10px; height:40px; width:40px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            ${cameraIcon}
+        </button>
+        <input type="text" class="chat-input" placeholder="Type message or scan invoice..." style="flex:1; padding:10px; border-radius:20px; border:1px solid var(--border-input); background:var(--bg-input); color:var(--text-main); outline:none;">
+        <button id="chat-send-btn" class="chat-send-btn" style="flex-shrink:0; background:var(--primary); color:white; border:none; border-radius:50%; width:40px; height:40px; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+            ${ICONS.send}
+        </button>
+      `;
+
+      const camBtn = inputBar.querySelector('#chat-camera-btn');
+      const input = inputBar.querySelector('input');
+      const sendBtn = inputBar.querySelector('#chat-send-btn');
       
-      // Inline styles to guarantee visibility regardless of external CSS
-      camBtn.style.background = "none";
-      camBtn.style.border = "none";
-      camBtn.style.color = "var(--primary, #03a9f4)";
-      camBtn.style.cursor = "pointer";
-      camBtn.style.padding = "0 10px";
-      camBtn.style.height = "40px"; // Match send button
-      camBtn.style.width = "40px";
-      camBtn.style.display = "flex";
-      camBtn.style.alignItems = "center";
-      camBtn.style.justifyContent = "center";
-      camBtn.style.flexShrink = "0"; 
-      
-      camBtn.onclick = () => this.handleChatCamera();
-      
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.className = 'chat-input';
-      input.placeholder = "Type message or scan invoice...";
-      
-      const sendBtn = document.createElement('button');
-      sendBtn.className = 'chat-send-btn';
-      sendBtn.innerHTML = ICONS.send;
-      sendBtn.style.flexShrink = "0";
-      
-      // HANDLE IMAGE REMOVAL
-      previewArea.querySelector('#chat-remove-img').onclick = () => {
-          this.chatImage = null;
-          previewArea.style.display = 'none';
-      };
-      
-      if (this.chatImage) {
-          previewArea.style.display = 'block';
-          previewArea.querySelector('#chat-preview-img').src = this.chatImage;
-      }
+      previewArea.querySelector('#chat-remove-img').onclick = () => { this.chatImage = null; previewArea.style.display = 'none'; };
       
       const sendMessage = async () => {
           const text = input.value.trim();
           const imgData = this.chatImage;
-          
           if (!text && !imgData) return;
-          
           this.chatHistory.push({ role: 'user', text: text || "Scanned Invoice", image: imgData });
-          this.chatImage = null; // Clear after send
+          this.chatImage = null;
           this.render(); 
-          
-          // Initial Status Message
           const statusText = imgData ? "Scanning Invoice..." : "Analyzing...";
           const statusMsg = { role: 'system', text: `Starting Process...<br>${statusText}`, isStatus: true };
           this.chatHistory.push(statusMsg);
           this.render();
-          
-          setTimeout(() => {
-              const msgs = this.shadowRoot.querySelector('.chat-messages');
-              if(msgs) msgs.scrollTop = msgs.scrollHeight;
-          }, 100);
-
           try {
-              const result = await this._hass.callWS({
-                  type: 'home_organizer/ai_chat',
-                  message: text,
-                  image_data: imgData
-              });
-              
+              const result = await this._hass.callWS({ type: 'home_organizer/ai_chat', message: text, image_data: imgData });
               if (result) {
-                    // Build debug HTML
                     let debugHTML = "";
                     if (result.debug) {
                         const d = result.debug;
                         const esc = (s) => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
-                        
-                        if (d.raw_json) {
-                            debugHTML += `<details class="debug-details"><summary class="debug-summary">📄 Raw Invoice Data</summary><div class="debug-content">${esc(d.raw_json)}</div></details>`;
-                        }
-                        if (d.intent === "add") {
-                            debugHTML += `<details class="debug-details"><summary class="debug-summary">➕ Items Added</summary><div class="debug-content">${JSON.stringify(d.json, null, 2)}</div></details>`;
-                        }
-                        if (d.sql_query) {
-                            debugHTML += `<details class="debug-details"><summary class="debug-summary">🔍 SQL Query</summary><div class="debug-content">${esc(d.sql_query)}</div></details>`;
-                        }
+                        if (d.raw_json) debugHTML += `<details class="debug-details"><summary class="debug-summary">📄 Raw Invoice Data</summary><div class="debug-content">${esc(d.raw_json)}</div></details>`;
+                        if (d.intent === "add") debugHTML += `<details class="debug-details"><summary class="debug-summary">➕ Items Added</summary><div class="debug-content">${JSON.stringify(d.json, null, 2)}</div></details>`;
+                        if (d.sql_query) debugHTML += `<details class="debug-details"><summary class="debug-summary">🔍 SQL Query</summary><div class="debug-content">${esc(d.sql_query)}</div></details>`;
                     }
-                    
                     statusMsg.text = "✔ Complete" + debugHTML;
-
-                    if (result.error) {
-                        this.chatHistory.push({ role: 'ai', text: "<b>Error:</b> " + result.error });
-                    } else if (result.response) {
-                        let formatted = result.response.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
-                        formatted = formatted.replace(/\n/g, '<br>');
+                    if (result.error) this.chatHistory.push({ role: 'ai', text: "<b>Error:</b> " + result.error });
+                    else if (result.response) {
+                        let formatted = result.response.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
                         this.chatHistory.push({ role: 'ai', text: formatted });
                     }
               }
-          } catch (e) {
-              statusMsg.text += "<br>❌ Failed";
-              this.chatHistory.push({ role: 'ai', text: "Error: " + e.message });
-          }
-          
+          } catch (e) { statusMsg.text += "<br>❌ Failed"; this.chatHistory.push({ role: 'ai', text: "Error: " + e.message }); }
           this.render();
-          setTimeout(() => {
-              const msgs = this.shadowRoot.querySelector('.chat-messages');
-              if(msgs) msgs.scrollTop = msgs.scrollHeight;
-          }, 100);
       };
 
+      camBtn.onclick = () => this.handleChatCamera();
       sendBtn.onclick = sendMessage;
       input.onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
       
-      inputBar.appendChild(camBtn); // Appended BEFORE input to appear on START side (Left in LTR, Right in RTL)
-      inputBar.appendChild(input);
-      inputBar.appendChild(sendBtn);
       chatContainer.appendChild(inputBar);
-      
       container.appendChild(chatContainer);
-      setTimeout(() => messagesDiv.scrollTop = messagesDiv.scrollHeight, 0);
+      setTimeout(() => messagesDiv.scrollTop = messagesDiv.scrollHeight, 50);
   }
   
-  // NEW: Handle Camera for Chat
   handleChatCamera() {
-      // Re-use standard openCamera logic which handles secure context check
       this.openCamera('chat');
   }
 
   handleChatProgress(data) {
     if (!this.isChatMode) return;
-      
     let statusMsg = null;
-    for (let i = this.chatHistory.length - 1; i >= 0; i--) {
-        if (this.chatHistory[i].role === 'system' && this.chatHistory[i].isStatus) {
-            statusMsg = this.chatHistory[i];
-            break;
-        }
-    }
-      
+    for (let i = this.chatHistory.length - 1; i >= 0; i--) { if (this.chatHistory[i].role === 'system' && this.chatHistory[i].isStatus) { statusMsg = this.chatHistory[i]; break; } }
     if (!statusMsg) return;
-
-    if (data.step) {
-        if (!statusMsg.text.includes(data.step)) {
-            statusMsg.text += `<br>✔ <b>${data.step}</b>`;
-        }
-    }
-      
+    if (data.step && !statusMsg.text.includes(data.step)) { statusMsg.text += `<br>✔ <b>${data.step}</b>`; }
     if (data.debug_label && data.debug_content) {
         const escaped = data.debug_content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
-        statusMsg.text += `
-          <details class="debug-details">
-            <summary class="debug-summary">▶ ${data.debug_label}</summary>
-            <div class="debug-content">${escaped}</div>
-          </details>
-        `;
+        statusMsg.text += `<details class="debug-details"><summary class="debug-summary">▶ ${data.debug_label}</summary><div class="debug-content">${escaped}</div></details>`;
     }
-      
     this.render();
-    setTimeout(() => {
-        const msgs = this.shadowRoot.querySelector('.chat-messages');
-        if(msgs) msgs.scrollTop = msgs.scrollHeight;
-    }, 50);
+    setTimeout(() => { const msgs = this.shadowRoot.querySelector('.chat-messages'); if(msgs) msgs.scrollTop = msgs.scrollHeight; }, 50);
   }
   
   resolveRealName(displayName) {
       if (!this.localData) return displayName;
-      if (this.localData.folders) {
-          const markerRegex = new RegExp(`^ORDER_MARKER_\\d+_${displayName}$`);
-          const found = this.localData.folders.find(f => f.name.match(markerRegex));
-          if (found) return found.name;
-      }
-      if (this.localData.items) {
-          const markerRegex = new RegExp(`^ORDER_MARKER_\\d+_${displayName}$`);
-          const found = this.localData.items.find(i => i.sub_location && i.sub_location.match(markerRegex));
-          if (found) return found.sub_location;
-      }
+      if (this.localData.folders) { const markerRegex = new RegExp(`^ORDER_MARKER_\\d+_${displayName}$`); const found = this.localData.folders.find(f => f.name.match(markerRegex)); if (found) return found.name; }
+      if (this.localData.items) { const markerRegex = new RegExp(`^ORDER_MARKER_\\d+_${displayName}$`); const found = this.localData.items.find(i => i.sub_location && i.sub_location.match(markerRegex)); if (found) return found.sub_location; }
       return displayName;
   }
   
   async moveSubLoc(subName, direction) {
-      const subGroups = [];
-      const markerRegex = /^ORDER_MARKER_(\d+)_(.*)$/;
-      const seen = new Set();
-      const currentMarkers = {}; 
-
-      if (this.localData.folders) this.localData.folders.forEach(f => {
-          if (f.name.startsWith("ORDER_MARKER_")) {
-              const match = f.name.match(markerRegex);
-              if (match) {
-                  const realName = match[2];
-                  if (!seen.has(realName)) {
-                      subGroups.push({ name: realName, order: parseInt(match[1]) });
-                      seen.add(realName);
-                      currentMarkers[realName] = f.name;
-                  }
-              }
-          } else {
-              if (!seen.has(f.name)) { subGroups.push({ name: f.name, order: 9999 }); seen.add(f.name); }
-          }
-      });
-      if (this.localData.items) this.localData.items.forEach(i => {
-          const s = i.sub_location || "General";
-          if (s.startsWith("ORDER_MARKER_")) {
-              const match = s.match(markerRegex);
-              if (match) {
-                  const realName = match[2];
-                  if (!seen.has(realName)) {
-                      subGroups.push({ name: realName, order: parseInt(match[1]) });
-                      seen.add(realName);
-                      currentMarkers[realName] = s;
-                  }
-              }
-          } else {
-              if (!seen.has(s)) { 
-                  let ord = 9999; if(s==="General") ord = -1;
-                  subGroups.push({ name: s, order: ord }); seen.add(s); 
-              }
-          }
-      });
-
-      subGroups.sort((a,b) => {
-          if (a.order !== b.order) return a.order - b.order;
-          return a.name.localeCompare(b.name);
-      });
-      
-      const idx = subGroups.findIndex(g => g.name === subName);
-      if (idx === -1) return;
-      const newIdx = idx + direction;
-      if (newIdx < 0 || newIdx >= subGroups.length) return;
-
+      const subGroups = []; const markerRegex = /^ORDER_MARKER_(\d+)_(.*)$/; const seen = new Set(); const currentMarkers = {}; 
+      if (this.localData.folders) this.localData.folders.forEach(f => { if (f.name.startsWith("ORDER_MARKER_")) { const match = f.name.match(markerRegex); if (match) { const realName = match[2]; if (!seen.has(realName)) { subGroups.push({ name: realName, order: parseInt(match[1]) }); seen.add(realName); currentMarkers[realName] = f.name; } } } else { if (!seen.has(f.name)) { subGroups.push({ name: f.name, order: 9999 }); seen.add(f.name); } } });
+      if (this.localData.items) this.localData.items.forEach(i => { const s = i.sub_location || "General"; if (s.startsWith("ORDER_MARKER_")) { const match = s.match(markerRegex); if (match) { const realName = match[2]; if (!seen.has(realName)) { subGroups.push({ name: realName, order: parseInt(match[1]) }); seen.add(realName); currentMarkers[realName] = s; } } } else { if (!seen.has(s)) { let ord = s==="General" ? -1 : 9999; subGroups.push({ name: s, order: ord }); seen.add(s); } } });
+      orderedGroups.sort((a,b) => (a.order !== b.order) ? a.order - b.order : a.name.localeCompare(b.name));
+      const idx = subGroups.findIndex(g => g.name === subName); if (idx === -1) return;
+      const newIdx = idx + direction; if (newIdx < 0 || newIdx >= subGroups.length) return;
       [subGroups[idx], subGroups[newIdx]] = [subGroups[newIdx], subGroups[idx]];
-
       for (let i = 0; i < subGroups.length; i++) {
-          const g = subGroups[i];
-          const newOrder = (i + 1) * 10;
-          const padded = String(newOrder).padStart(3, '0');
-          const newMarkerName = `ORDER_MARKER_${padded}_${g.name}`;
-          const oldMarkerName = currentMarkers[g.name];
-
-          if (g.name !== "General") {
-              if (oldMarkerName && oldMarkerName !== newMarkerName) {
-                  await this.callHA('update_item_details', { 
-                      original_name: oldMarkerName, 
-                      new_name: newMarkerName,
-                      current_path: this.currentPath, 
-                      is_folder: true 
-                  });
-              } else if (!oldMarkerName) {
-                  await this.callHA('add_item', { 
-                      item_name: "OrderMarker", 
-                      item_type: 'item', 
-                      current_path: [...this.currentPath, newMarkerName]
-                  });
-              }
-          }
+          const g = subGroups[i]; const newOrder = (i + 1) * 10; const padded = String(newOrder).padStart(3, '0'); const newMarkerName = `ORDER_MARKER_${padded}_${g.name}`; const oldMarkerName = currentMarkers[g.name];
+          if (g.name !== "General") { if (oldMarkerName && oldMarkerName !== newMarkerName) { await this.callHA('update_item_details', { original_name: oldMarkerName, new_name: newMarkerName, current_path: this.currentPath, is_folder: true }); } else if (!oldMarkerName) { await this.callHA('add_item', { item_name: "OrderMarker", item_type: 'item', current_path: [...this.currentPath, newMarkerName] }); } }
       }
       this.fetchData();
   }
 
   createNewZone() {
-      let base = "New Zone";
-      let name = base;
-      let count = 1;
-      const existingZones = new Set();
-      if (this.localData && this.localData.folders) {
-          this.localData.folders.forEach(f => { 
-              if(f.zone) existingZones.add(f.zone);
-              if(f.name.startsWith("ZONE_MARKER_")) existingZones.add(f.name.replace(/^ZONE_MARKER_\d+_/, "").trim());
-          });
-      }
-      while (existingZones.has(name)) {
-          name = `${base} ${count++}`;
-      }
-      
-      const markerName = "ZONE_MARKER_999_" + name;
-      this.callHA('add_item', { item_name: markerName, item_type: 'folder', zone: name, current_path: [] });
+      let base = "New Zone"; let name = base; let count = 1; const existingZones = new Set();
+      if (this.localData && this.localData.folders) { this.localData.folders.forEach(f => { if(f.zone) existingZones.add(f.zone); if(f.name.startsWith("ZONE_MARKER_")) existingZones.add(f.name.replace(/^ZONE_MARKER_\d+_/, "").trim()); }); }
+      while (existingZones.has(name)) { name = `${base} ${count++}`; }
+      const markerName = "ZONE_MARKER_999_" + name; this.callHA('add_item', { item_name: markerName, item_type: 'folder', zone: name, current_path: [] });
   }
 
   enableZoneRoomInput(cardEl, zoneName) {
-      const iconContainer = cardEl.querySelector('.android-folder-icon');
-      const label = cardEl.querySelector('.folder-label');
-      if(iconContainer.querySelector('input')) return;
-      
-      iconContainer.innerHTML = `<input type="text" class="add-folder-input" placeholder="Name">`;
-      const input = iconContainer.querySelector('input');
-      label.innerText = this.t('save_to') + " " + zoneName;
-      
-      input.focus();
-      input.onkeydown = (e) => { 
-          if (e.key === 'Enter') this.saveNewRoomInZone(input.value, zoneName); 
-      };
-      input.onblur = () => { 
-          if (input.value.trim()) this.saveNewRoomInZone(input.value, zoneName); 
-          else this.render(); 
-      };
+      const iconContainer = cardEl.querySelector('.android-folder-icon'); const label = cardEl.querySelector('.folder-label'); if(iconContainer.querySelector('input')) return;
+      iconContainer.innerHTML = `<input type="text" class="add-folder-input" placeholder="Name">`; const input = iconContainer.querySelector('input'); label.innerText = this.t('save_to') + " " + zoneName;
+      input.focus(); input.onkeydown = (e) => { if (e.key === 'Enter') this.saveNewRoomInZone(input.value, zoneName); };
+      input.onblur = () => { if (input.value.trim()) this.saveNewRoomInZone(input.value, zoneName); else this.render(); };
   }
 
-  saveNewRoomInZone(name, zoneName) {
-      if(!name) return;
-      
-      let finalName = name;
-      if (zoneName !== "General Rooms") {
-          finalName = `[${zoneName}] ${name}`;
-      }
-      
-      this.callHA('add_item', { item_name: finalName, item_type: 'folder', current_path: [] });
-  }
-
-  setupRoomDragSource(el, roomName) {
-      el.draggable = true;
-      el.ondragstart = (e) => { 
-          e.dataTransfer.setData("text/plain", roomName); 
-          e.dataTransfer.effectAllowed = "move"; 
-          el.classList.add('dragging'); 
-      };
-      el.ondragend = () => el.classList.remove('dragging');
-  }
-
-  setupZoneDropTarget(el, zoneName) {
-      el.ondragover = (e) => { 
-          e.preventDefault(); 
-          e.dataTransfer.dropEffect = 'move'; 
-          el.classList.add('drag-over'); 
-      };
-      el.ondragleave = () => el.classList.remove('drag-over');
-      el.ondrop = (e) => { 
-          e.preventDefault(); 
-          el.classList.remove('drag-over'); 
-          const roomName = e.dataTransfer.getData("text/plain"); 
-          if (roomName) this.moveRoomToZone(roomName, zoneName); 
-      };
-  }
-
-  async moveRoomToZone(roomName, zoneName) {
-      try {
-          const cleanName = roomName.replace(/^\[(.*?)\]\s*/, "");
-          let newName = cleanName;
-          if (zoneName !== "General Rooms") {
-              newName = `[${zoneName}] ${cleanName}`;
-          }
-          
-          if (newName !== roomName) {
-              await this.callHA('update_item_details', { 
-                  original_name: roomName, 
-                  new_name: newName,
-                  current_path: [], 
-                  is_folder: true 
-              });
-              this.fetchData();
-          }
-      } catch (err) { console.error("Zone move failed", err); }
-  }
-
+  saveNewRoomInZone(name, zoneName) { if(!name) return; let finalName = zoneName !== "General Rooms" ? `[${zoneName}] ${name}` : name; this.callHA('add_item', { item_name: finalName, item_type: 'folder', current_path: [] }); }
+  setupRoomDragSource(el, roomName) { el.draggable = true; el.ondragstart = (e) => { e.dataTransfer.setData("text/plain", roomName); e.dataTransfer.effectAllowed = "move"; el.classList.add('dragging'); }; el.ondragend = () => el.classList.remove('dragging'); }
+  setupZoneDropTarget(el, zoneName) { el.ondragover = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drag-over'); }; el.ondragleave = () => el.classList.remove('drag-over'); el.ondrop = (e) => { e.preventDefault(); el.classList.remove('drag-over'); const roomName = e.dataTransfer.getData("text/plain"); if (roomName) this.moveRoomToZone(roomName, zoneName); }; }
+  async moveRoomToZone(roomName, zoneName) { try { const cleanName = roomName.replace(/^\[(.*?)\]\s*/, ""); let newName = zoneName !== "General Rooms" ? `[${zoneName}] ${cleanName}` : cleanName; if (newName !== roomName) { await this.callHA('update_item_details', { original_name: roomName, new_name: newName, current_path: [], is_folder: true }); this.fetchData(); } } catch (err) { console.error("Zone move failed", err); } }
   moveZone(zoneName, direction) {
-      const zones = [];
-      const markerRegex = /^ZONE_MARKER_(\d+)_(.*)$/;
-      const seen = new Set();
-
-      if (this.localData && this.localData.folders) {
-          this.localData.folders.forEach(f => {
-              if (f.name.startsWith("ZONE_MARKER_")) {
-                  const match = f.name.match(markerRegex);
-                  let zOrder = 9999;
-                  let zName = f.name.replace("ZONE_MARKER_", "");
-                  if (match) {
-                      zOrder = parseInt(match[1]);
-                      zName = match[2];
-                  } else {
-                      zName = f.name.replace("ZONE_MARKER_", "").trim();
-                  }
-                  if (!seen.has(zName)) {
-                      zones.push({ name: zName, order: zOrder, markerName: f.name });
-                      seen.add(zName);
-                  }
-              }
-          });
-      }
-      
-      zones.sort((a,b) => a.order - b.order);
-      
-      const idx = zones.findIndex(z => z.name === zoneName);
-      if (idx === -1) return; 
-      
-      const newIdx = idx + direction;
-      if (newIdx < 0 || newIdx >= zones.length) return; 
-      
-      const temp = zones[idx];
-      zones[idx] = zones[newIdx];
-      zones[newIdx] = temp;
-      
-      zones.forEach((z, index) => {
-          const newOrder = (index + 1) * 10;
-          const paddedOrder = String(newOrder).padStart(3, '0');
-          const newMarkerName = `ZONE_MARKER_${paddedOrder}_${z.name}`;
-          
-          if (z.markerName !== newMarkerName) {
-              this.callHA('update_item_details', { 
-                  original_name: z.markerName, 
-                  new_name: newMarkerName,
-                  current_path: [], 
-                  is_folder: true 
-              });
-          }
-      });
-      
+      const zones = []; const markerRegex = /^ZONE_MARKER_(\d+)_(.*)$/; const seen = new Set();
+      if (this.localData && this.localData.folders) { this.localData.folders.forEach(f => { if (f.name.startsWith("ZONE_MARKER_")) { const match = f.name.match(markerRegex); let zOrder = 9999; let zName = f.name.replace("ZONE_MARKER_", ""); if (match) { zOrder = parseInt(match[1]); zName = match[2]; } else { zName = f.name.replace("ZONE_MARKER_", "").trim(); } if (!seen.has(zName)) { zones.push({ name: zName, order: zOrder, markerName: f.name }); seen.add(zName); } } }); }
+      zones.sort((a,b) => a.order - b.order); const idx = zones.findIndex(z => z.name === zoneName); if (idx === -1) return; 
+      const newIdx = idx + direction; if (newIdx < 0 || newIdx >= zones.length) return; 
+      const temp = zones[idx]; zones[idx] = zones[newIdx]; zones[newIdx] = temp;
+      zones.forEach((z, index) => { const newOrder = (index + 1) * 10; const paddedOrder = String(newOrder).padStart(3, '0'); const newMarkerName = `ZONE_MARKER_${paddedOrder}_${z.name}`; if (z.markerName !== newMarkerName) { this.callHA('update_item_details', { original_name: z.markerName, new_name: newMarkerName, current_path: [], is_folder: true }); } });
       setTimeout(() => this.fetchData(), 600);
   }
 
   enableZoneRename(btn, oldName) {
-      const header = btn.closest('.group-separator');
-      if (header.querySelector('input')) return; 
-      const titleSpan = header.querySelector('.subloc-title') || header.querySelector('span');
-      if(!titleSpan) return;
-      
-      const input = document.createElement('input');
-      input.value = oldName;
-      input.style.background = 'var(--bg-input-edit)';
-      input.style.color = 'var(--text-main)';
-      input.style.border = '1px solid var(--primary)';
-      input.style.borderRadius = '4px';
-      input.style.padding = '4px';
-      input.style.fontSize = '14px';
-      input.style.width = '200px'; 
-      input.onclick = (e) => e.stopPropagation();
-      titleSpan.replaceWith(input);
-      input.focus();
-      
+      const header = btn.closest('.group-separator'); if (header.querySelector('input')) return; const titleSpan = header.querySelector('.subloc-title') || header.querySelector('span'); if(!titleSpan) return;
+      const input = document.createElement('input'); input.value = oldName; input.style.background = 'var(--bg-input-edit)'; input.style.color = 'var(--text-main)'; input.style.border = '1px solid var(--primary)'; input.style.borderRadius = '4px'; input.style.padding = '4px'; input.style.fontSize = '14px'; input.style.width = '200px'; input.onclick = (e) => e.stopPropagation(); titleSpan.replaceWith(input); input.focus();
       let isSaving = false;
-      const save = () => {
-          if (isSaving) return;
-          isSaving = true;
-          const newVal = input.value.trim();
-          if (newVal && newVal !== oldName) {
-              const newSpan = document.createElement('span');
-              newSpan.className = 'subloc-title';
-              newSpan.innerText = newVal;
-              input.replaceWith(newSpan);
-              this.batchUpdateZone(oldName, newVal);
-          } else {
-              const originalSpan = document.createElement('span');
-              originalSpan.className = 'subloc-title'; 
-              originalSpan.innerText = oldName; 
-              input.replaceWith(originalSpan);
-          }
-      };
-      input.onkeydown = (e) => { if (e.key === 'Enter') input.blur(); };
-      input.onblur = () => save();
+      const save = () => { if (isSaving) return; isSaving = true; const newVal = input.value.trim(); if (newVal && newVal !== oldName) { const newSpan = document.createElement('span'); newSpan.className = 'subloc-title'; newSpan.innerText = newVal; input.replaceWith(newSpan); this.batchUpdateZone(oldName, newVal); } else { const originalSpan = document.createElement('span'); originalSpan.className = 'subloc-title'; originalSpan.innerText = oldName; input.replaceWith(originalSpan); } };
+      input.onkeydown = (e) => { if (e.key === 'Enter') input.blur(); }; input.onblur = () => save();
   }
 
   batchUpdateZone(oldZone, newZone) {
       if (this.localData && this.localData.folders) {
-          const markerRegex = new RegExp(`^ZONE_MARKER_\\d+_${oldZone}$`); 
-          
           this.localData.folders.forEach(f => {
-              if (f.name.startsWith("ZONE_MARKER_") && f.name.endsWith(`_${oldZone}`)) {
-                    const prefix = f.name.substring(0, f.name.lastIndexOf(`_${oldZone}`)); 
-                    this.callHA('update_item_details', { 
-                        original_name: f.name, 
-                        new_name: `${prefix}_${newZone}`,
-                        current_path: [], 
-                        is_folder: true 
-                    });
-              } 
-              else if (f.name.startsWith(`[${oldZone}] `)) {
-                    const cleanName = f.name.replace(`[${oldZone}] `, "");
-                    const newName = `[${newZone}] ${cleanName}`;
-                    this.callHA('update_item_details', { 
-                        original_name: f.name, 
-                        new_name: newName,
-                        current_path: [], 
-                        is_folder: true 
-                    });
-              }
+              if (f.name.startsWith("ZONE_MARKER_") && f.name.endsWith(`_${oldZone}`)) { const prefix = f.name.substring(0, f.name.lastIndexOf(`_${oldZone}`)); this.callHA('update_item_details', { original_name: f.name, new_name: `${prefix}_${newZone}`, current_path: [], is_folder: true }); } 
+              else if (f.name.startsWith(`[${oldZone}] `)) { const cleanName = f.name.replace(`[${oldZone}] `, ""); const newName = `[${newZone}] ${cleanName}`; this.callHA('update_item_details', { original_name: f.name, new_name: newName, current_path: [], is_folder: true }); }
           });
           setTimeout(() => this.fetchData(), 800);
       }
   }
 
-  deleteZone(zoneName) {
-      if(confirm(this.t('confirm_del_zone', zoneName))) {
-          if (this.localData && this.localData.folders) {
-              this.localData.folders.forEach(f => {
-                  if (f.name.startsWith("ZONE_MARKER_") && f.name.endsWith(`_${zoneName}`)) {
-                      this.callHA('delete_item', { item_name: f.name, current_path: [], is_folder: true });
-                  } else if (f.name.startsWith(`[${zoneName}] `)) {
-                      const cleanName = f.name.replace(`[${zoneName}] `, "");
-                      this.callHA('update_item_details', { 
-                          original_name: f.name, 
-                          new_name: cleanName,
-                          current_path: [], 
-                          is_folder: true 
-                      });
-                  }
-              });
-          }
-          setTimeout(() => this.fetchData(), 800);
-      }
-  }
-
-  showItemDetails(item) {
-      const ov = this.shadowRoot.getElementById('img-overlay');
-      const img = this.shadowRoot.getElementById('overlay-img');
-      const det = this.shadowRoot.getElementById('overlay-details');
-      const iconBig = this.shadowRoot.getElementById('overlay-icon-big');
-      
-      ov.style.display = 'flex';
-      det.style.display = 'block';
-      
-      if(item.img) {
-          img.src = item.img;
-          img.style.display = 'block';
-          iconBig.style.display = 'none';
-      } else {
-          img.style.display = 'none';
-          iconBig.style.display = 'block';
-      }
-      
-      det.innerHTML = `
-          <div style="font-size:20px;font-weight:bold;margin-bottom:8px">${item.name}</div>
-          <div style="font-size:16px;color:#aaa;margin-bottom:15px">${item.date || this.t('no_date')}</div>
-          <div style="font-size:18px;font-weight:bold;color:var(--accent);background:#333;padding:8px 20px;border-radius:20px;display:inline-block">${this.t('quantity')}: ${item.qty}</div>
-      `;
-  }
-
-  showImg(src) { 
-      const ov = this.shadowRoot.getElementById('img-overlay'); 
-      const img = this.shadowRoot.getElementById('overlay-img'); 
-      const det = this.shadowRoot.getElementById('overlay-details');
-      const iconBig = this.shadowRoot.getElementById('overlay-icon-big');
-      if(ov && img) { 
-          img.src = src; 
-          img.style.display = 'block';
-          if(det) det.style.display = 'none'; 
-          if(iconBig) iconBig.style.display = 'none';
-          ov.style.display = 'flex'; 
-      } 
-  }
-
-  toggleSubloc(name) {
-      if (this.expandedSublocs.has(name)) this.expandedSublocs.delete(name); else this.expandedSublocs.add(name);
-      this.render();
-  }
-    
-  enableFolderInput(cardEl) {
-      const iconContainer = cardEl.querySelector('.android-folder-icon');
-      const label = cardEl.querySelector('.folder-label');
-      if(iconContainer.querySelector('input')) return;
-      iconContainer.innerHTML = `<input type="text" class="add-folder-input" placeholder="Name">`;
-      const input = iconContainer.querySelector('input');
-      label.innerText = this.t('saving');
-      input.focus();
-      input.onkeydown = (e) => { if (e.key === 'Enter') this.saveNewFolder(input.value); };
-      input.onblur = () => { if (input.value.trim()) this.saveNewFolder(input.value); else this.render(); };
-  }
-    
-  enableFolderRename(labelEl, oldName) {
-      if (!labelEl || labelEl.querySelector('input')) return;
-      const input = document.createElement('input');
-      input.value = oldName;
-      input.style.width = '100%';
-      input.style.background = 'var(--bg-input-edit)';
-      input.style.color = 'var(--text-main)';
-      input.style.border = '1px solid var(--primary)';
-      input.style.borderRadius = '4px';
-      input.style.textAlign = 'center';
-      input.style.fontSize = '12px';
-      input.onclick = (e) => e.stopPropagation();
-      labelEl.innerHTML = '';
-      labelEl.appendChild(input);
-      input.focus();
-      let isSaving = false;
-      const save = () => {
-          if (isSaving) return; 
-          isSaving = true;
-          const newVal = input.value.trim();
-          if (newVal && newVal !== oldName) {
-              this.callHA('update_item_details', { original_name: oldName, new_name: newVal, new_date: "", current_path: this.currentPath, is_folder: true });
-          } else this.render();
-      };
-      input.onkeydown = (e) => { if (e.key === 'Enter') input.blur(); };
-      input.onblur = () => save();
-  }
-
-  saveNewFolder(name) {
-      if(!name) return;
-      this._hass.callService('home_organizer', 'add_item', { item_name: name, item_type: 'folder', item_date: '', image_data: null, current_path: this.currentPath });
-  }
-
-  addQuickItem(targetSubloc) {
-      const tempName = this.t('new_item') + " " + new Date().toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'});
-      const today = new Date().toISOString().split('T')[0];
-      let usePath = [...this.currentPath];
-      if (targetSubloc && targetSubloc !== "General") usePath.push(targetSubloc);
-      this._hass.callService('home_organizer', 'add_item', { item_name: tempName, item_type: 'item', item_date: today, image_data: null, current_path: usePath });
-  }
-
-  setupDragSource(el, itemName) {
-      el.draggable = true;
-      el.ondragstart = (e) => { e.dataTransfer.setData("text/plain", itemName); e.dataTransfer.effectAllowed = "move"; el.classList.add('dragging'); };
-      el.ondragend = () => el.classList.remove('dragging');
-  }
-
-  setupDropTarget(el, subName) {
-      el.dataset.subloc = subName;
-      el.ondragover = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drag-over'); };
-      el.ondragleave = () => el.classList.remove('drag-over');
-      el.ondrop = (e) => { e.preventDefault(); el.classList.remove('drag-over'); const itemName = e.dataTransfer.getData("text/plain"); this.handleDropAction(subName, itemName); };
-  }
-
-  async handleDropAction(targetSubloc, itemName) {
-      if (!itemName) return;
-      let targetPath = [...this.currentPath];
-      if (targetSubloc !== "General") targetPath.push(targetSubloc);
-      try {
-          await this.callHA('clipboard_action', {action: 'cut', item_name: itemName});
-          await this.callHA('paste_item', {target_path: targetPath});
-      } catch (err) { console.error("Drop failed:", err); }
-  }
-
-  triggerCameraEdit(id, name) { 
-      this.pendingItemId = id; 
-      this.pendingItemName = name;
-      this.openCamera('update'); 
-  }
-  adjustShopQty(id, delta) {
-      if (this.shopQuantities[id] === undefined) this.shopQuantities[id] = 0;
-      this.shopQuantities[id] = Math.max(0, this.shopQuantities[id] + delta);
-      this.render();
-  }
-    
-  duplicateItem(itemId) {
-      if (!itemId) return;
-      this.callHA('duplicate_item', { item_id: itemId });
-  }
-
-  createItemRow(item, isShopMode) {
-     const div = document.createElement('div');
-     const oosClass = (item.qty === 0) ? 'out-of-stock-frame' : '';
-     div.className = `item-row ${this.expandedIdx === item.id ? 'expanded' : ''} ${oosClass}`;
-     this.setupDragSource(div, item.name);
-     const appEl = this.shadowRoot.getElementById('app');
-     const isRTL = appEl && !appEl.classList.contains('ltr');
-
-     let controls = '';
-     if (isShopMode) {
-         const localQty = (this.shopQuantities[item.id] !== undefined) ? this.shopQuantities[item.id] : 0;
-         const checkStyle = (localQty === 0) ? "background:#555;color:#888;cursor:not-allowed;width:40px;height:40px;margin-inline-start:8px;" : "background:var(--accent);width:40px;height:40px;margin-inline-start:8px;";
-         const checkDisabled = (localQty === 0) ? "disabled" : "";
-         const minusBtn = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.id}', -1)">${ICONS.minus}</button>`;
-         const plusBtn = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.id}', 1)">${ICONS.plus}</button>`;
-         const qtySpan = `<span class="qty-val" style="margin:0 8px">${localQty}</span>`;
-         const checkBtn = `<button class="qty-btn" style="${checkStyle}" ${checkDisabled} title="Complete" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.id}')">${ICONS.check}</button>`;
-         if (isRTL) { controls = `${plusBtn}${qtySpan}${minusBtn}${checkBtn}`; } else { controls = `${minusBtn}${qtySpan}${plusBtn}${checkBtn}`; }
-     } else {
-         controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.id}', 1)">${ICONS.plus}</button><span class="qty-val">${item.qty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.id}', -1)">${ICONS.minus}</button>`;
-     }
-     const subText = isShopMode ? `${item.main_location} > ${item.sub_location || ''}` : `${item.date || ''}`;
-     
-     let iconHtml = `<span class="item-icon">${ICONS.item}</span>`;
-     if (item.img) {
-         const isLoading = this.loadingSet.has(item.id);
-         const ver = this.imageVersions[item.id] || '';
-         const src = item.img + (item.img.includes('?') ? '&' : '?') + 'v=' + ver;
-         
-         let loaderHtml = '';
-         if (isLoading) {
-             loaderHtml = `<div class="loader-container"><span class="loader"></span></div>`;
-         }
-         iconHtml = `<div style="position:relative;width:40px;height:40px"><img src="${src}" class="item-thumbnail" alt="${item.name}" onclick="event.stopPropagation(); this.getRootNode().host.showImg('${item.img}')">${loaderHtml}</div>`;
-     }
-
-     div.innerHTML = `
-        <div class="item-main" onclick="this.getRootNode().host.toggleRow('${item.id}')">
-            <div class="item-left">${iconHtml}<div><div>${item.name}</div><div class="sub-title">${subText}</div></div></div>
-            <div class="item-qty-ctrl">${controls}</div>
-        </div>
-     `;
-     
-     if (this.expandedIdx === item.id) {
-         const details = document.createElement('div');
-         details.className = 'expanded-details';
-         
-         let roomOptions = `<option value="">-- ${this.t('move_to')} --</option>`;
-         if(this.localData.hierarchy) Object.keys(this.localData.hierarchy).forEach(room => { roomOptions += `<option value="${room}">${room}</option>`; });
-
-         let mainCatOptions = `<option value="">${this.t('select_cat')}</option>`;
-         Object.keys(ITEM_CATEGORIES).forEach(cat => {
-             const selected = (item.category === cat) ? 'selected' : '';
-             mainCatOptions += `<option value="${cat}" ${selected}>${this.t('cat_' + cat.replace(/[^a-zA-Z0-9]+/g, '_')) || cat}</option>`;
-         });
-
-         let subCatOptions = `<option value="">${this.t('select_sub')}</option>`;
-         let currentUnit = "";
-         if (item.category && ITEM_CATEGORIES[item.category]) {
-             const subs = ITEM_CATEGORIES[item.category];
-             Object.keys(subs).forEach(sub => {
-                 const selected = (item.sub_category === sub) ? 'selected' : '';
-                 const transKey = 'sub_' + sub.replace(/[^a-zA-Z0-9]+/g, '_');
-                 subCatOptions += `<option value="${sub}" ${selected}>${this.t(transKey) || sub}</option>`;
-                 if (selected) currentUnit = subs[sub];
-             });
-         }
-         
-         const COPY_SVG = ICONS.copy || ICONS.paste;
-
-         details.innerHTML = `
-            <div class="detail-row">
-                <div style="position:relative; flex:1;">
-                    <input type="text" id="name-${item.id}" value="${item.name}" 
-                        style="width:100%;padding:8px;background:var(--bg-input-edit);color:var(--text-main);border:1px solid var(--border-light);border-radius:4px;margin-inline-start:5px"
-                        autocomplete="off"
-                        oninput="this.getRootNode().host.handleNameInput(this, '${item.id}')"
-                        onblur="setTimeout(() => { if(this.parentElement.querySelector('.suggestions-box')) this.parentElement.querySelector('.suggestions-box').remove() }, 200)"
-                        onkeydown="if(event.key==='Enter') { this.blur(); this.getRootNode().host.autoSaveItem('${item.id}', 'name', '${item.name}') }">
-                </div>
-
-                <div style="position:relative; width:120px; height:36px; margin-inline-start:5px;">
-                    <button class="action-btn" style="width:100%; height:100%; text-align:center; padding:0; display:flex; align-items:center; justify-content:center; background:var(--bg-input-edit); color:var(--text-main); border:1px solid var(--border-light);"
-                        onclick="this.nextElementSibling.showPicker()">
-                        ${item.date || this.t('set_date')}
-                    </button>
-                    <input type="date" id="date-${item.id}" value="${item.date}" 
-                        style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;"
-                        onchange="this.previousElementSibling.innerText = this.value || '${this.t('set_date')}'; this.getRootNode().host.autoSaveItem('${item.id}', 'date', '${item.name}')">
-                </div>
-            </div>
-            
-            <div class="detail-row" style="margin-top:10px; gap:5px; align-items:center;">
-                <select class="move-select" id="cat-main-${item.id}" onchange="this.getRootNode().host.updateItemCategory('${item.id}', this.value, 'main', '${item.name}')">
-                    ${mainCatOptions}
-                </select>
-                <select class="move-select" id="cat-sub-${item.id}" onchange="this.getRootNode().host.updateItemCategory('${item.id}', this.value, 'sub', '${item.name}')">
-                    ${subCatOptions}
-                </select>
-                <input type="text" id="unit-val-${item.id}" value="${item.unit_value || ''}" placeholder="Val" 
-                    style="width:60px;padding:8px;background:var(--bg-input-edit);color:var(--text-main);border:1px solid var(--border-light);border-radius:4px;text-align:center"
-                    onchange="this.getRootNode().host.updateItemCategory('${item.id}', null, 'val', '${item.name}')">
-                <div id="unit-disp-${item.id}" style="background:var(--bg-badge);color:var(--text-badge);padding:4px 8px;border-radius:4px;font-size:11px;min-width:30px;text-align:center;">
-                    ${this.t('unit_' + currentUnit) || currentUnit || '-'}
-                </div>
-            </div>
-
-            <div class="detail-row" style="justify-content:space-between; margin-top:10px;">
-                 <div style="display:flex;gap:10px;">
-                    <button class="action-btn" title="${this.t('take_photo')}" onclick="this.getRootNode().host.triggerCameraEdit('${item.id}', '${item.name}')">${ICONS.camera}</button>
-                    <button class="action-btn" title="${this.t('change_img')}" onclick="this.getRootNode().host.openIconPicker('${item.id}', 'item')">${ICONS.image}</button>
-                 </div>
-                 <div style="display:flex;gap:10px;">
-                    <button class="action-btn" title="${this.t('duplicate')}" onclick="this.getRootNode().host.duplicateItem('${item.id}')">${COPY_SVG}</button>
-                    <button class="action-btn btn-danger" title="${this.t('delete')}" onclick="this.getRootNode().host.del('${item.id}')">${ICONS.delete}</button>
-                 </div>
-            </div>
-            <div class="detail-row" style="margin-top:10px; border-top:1px solid #444; padding-top:10px; flex-direction:column; gap:8px;">
-                <div class="move-container" style="width:100%"><span style="font-size:12px;color:#aaa;width:60px">${this.t('move_to')}</span><select class="move-select" id="room-select-${item.id}" onchange="this.getRootNode().host.updateLocationDropdown('${item.id}', this.value)">${roomOptions}</select></div>
-                <div class="move-container" style="width:100%; display:none;" id="loc-container-${item.id}"><span style="font-size:12px;color:#aaa;width:60px">${this.t('loc_label')}</span><select class="move-select" id="loc-select-${item.id}" onchange="this.getRootNode().host.updateSublocDropdown('${item.id}', this.value)"><option value="">-- Select --</option></select></div>
-                <div class="move-container" style="width:100%; display:none;" id="subloc-container-${item.id}"><span style="font-size:12px;color:#aaa;width:60px">${this.t('sub_label')}</span><select class="move-select" id="target-subloc-${item.id}" onchange="this.getRootNode().host.handleMoveToPath('${item.id}')"><option value="">-- Select --</option></select></div>
-            </div>
-         `;
-         div.appendChild(details);
-     }
-     return div;
-  }
-  
-  updateItemCategory(itemId, value, type, itemName) {
-      const mainSelect = this.shadowRoot.getElementById(`cat-main-${itemId}`);
-      const subSelect = this.shadowRoot.getElementById(`cat-sub-${itemId}`);
-      const valInput = this.shadowRoot.getElementById(`unit-val-${itemId}`);
-      const unitDisp = this.shadowRoot.getElementById(`unit-disp-${itemId}`);
-      
-      let mainCat = (type === 'main') ? value : mainSelect.value;
-      let subCat = (type === 'sub') ? value : (type === 'main' ? "" : subSelect.value);
-      let unitVal = valInput ? valInput.value : "";
-      let unit = "";
-
-      if (type === 'main') {
-          let html = `<option value="">${this.t('select_sub')}</option>`;
-          if (mainCat && ITEM_CATEGORIES[mainCat]) {
-              Object.keys(ITEM_CATEGORIES[mainCat]).forEach(sub => {
-                  const transKey = 'sub_' + sub.replace(/[^a-zA-Z0-9]+/g, '_');
-                  html += `<option value="${sub}">${this.t(transKey) || sub}</option>`;
-              });
-          }
-          subSelect.innerHTML = html;
-          subCat = ""; 
-          unitDisp.innerText = "-";
-      }
-
-      if (mainCat && subCat && ITEM_CATEGORIES[mainCat] && ITEM_CATEGORIES[mainCat][subCat]) {
-          unit = ITEM_CATEGORIES[mainCat][subCat];
-          unitDisp.innerText = this.t('unit_' + unit) || unit;
-      } else {
-          unitDisp.innerText = "-";
-      }
-
-      this.callHA('update_item_details', { 
-          item_id: itemId, 
-          original_name: itemName, 
-          category: mainCat, 
-          sub_category: subCat, 
-          unit: unit,
-          unit_value: unitVal,
-          current_path: this.currentPath
-      });
-  }
-  
-  autoSaveItem(itemId, triggerType, oldName) {
-      const nameEl = this.shadowRoot.getElementById(`name-${itemId}`);
-      const dateEl = this.shadowRoot.getElementById(`date-${itemId}`);
-      if(!nameEl || !dateEl) return;
-      const newName = nameEl.value.trim();
-      const newDate = dateEl.value;
-      this.callHA('update_item_details', { item_id: itemId, original_name: oldName, new_name: newName, new_date: newDate });
-  }
-
-  updateLocationDropdown(itemId, roomName) {
-      const locContainer = this.shadowRoot.getElementById(`loc-container-${itemId}`);
-      const locSelect = this.shadowRoot.getElementById(`loc-select-${itemId}`);
-      const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemId}`);
-      subContainer.style.display = 'none';
-      locSelect.innerHTML = '<option value="">-- Select --</option>';
-      if(!roomName) { locContainer.style.display = 'none'; return; }
-      let html = `<option value="">-- Select Location --</option>`;
-      if(this.localData.hierarchy && this.localData.hierarchy[roomName]) Object.keys(this.localData.hierarchy[roomName]).forEach(loc => { html += `<option value="${loc}">${loc}</option>`; });
-      locSelect.innerHTML = html;
-      locContainer.style.display = 'flex';
-      locSelect.dataset.room = roomName;
-  }
-  
-  updateSublocDropdown(itemId, locationName) {
-      const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemId}`);
-      const subSelect = this.shadowRoot.getElementById(`target-subloc-${itemId}`);
-      const roomName = this.shadowRoot.getElementById(`room-select-${itemId}`).value;
-      if(!locationName) { subContainer.style.display = 'none'; return; }
-      let html = `<option value="">-- Select Sublocation --</option>`;
-      html += `<option value="__ROOT__">Main ${locationName}</option>`;
-      if(this.localData.hierarchy && this.localData.hierarchy[roomName] && this.localData.hierarchy[roomName][locationName]) this.localData.hierarchy[roomName][locationName].forEach(sub => { html += `<option value="${sub}">${sub}</option>`; });
-      subSelect.innerHTML = html;
-      subContainer.style.display = 'flex';
-  }
-  
-  handleMoveToPath(itemId) {
-      const room = this.shadowRoot.getElementById(`room-select-${itemId}`).value;
-      const loc = this.shadowRoot.getElementById(`loc-select-${itemId}`).value;
-      const sub = this.shadowRoot.getElementById(`target-subloc-${itemId}`).value;
-      if(!room || !loc || !sub) return;
-      let targetPath = [room, loc];
-      if(sub !== "__ROOT__") targetPath.push(sub);
-      this.callHA('clipboard_action', {action: 'cut', item_id: itemId});
-      setTimeout(() => { this.callHA('paste_item', {target_path: targetPath}); }, 100);
-  }
-
+  deleteZone(zoneName) { if(confirm(this.t('confirm_del_zone', zoneName))) { if (this.localData && this.localData.folders) { this.localData.folders.forEach(f => { if (f.name.startsWith("ZONE_MARKER_") && f.name.endsWith(`_${zoneName}`)) { this.callHA('delete_item', { item_name: f.name, current_path: [], is_folder: true }); } else if (f.name.startsWith(`[${zoneName}] `)) { const cleanName = f.name.replace(`[${zoneName}] `, ""); this.callHA('update_item_details', { original_name: f.name, new_name: cleanName, current_path: [], is_folder: true }); } }); } setTimeout(() => this.fetchData(), 800); } }
+  showItemDetails(item) { const ov = this.shadowRoot.getElementById('img-overlay'); const img = this.shadowRoot.getElementById('overlay-img'); const det = this.shadowRoot.getElementById('overlay-details'); const iconBig = this.shadowRoot.getElementById('overlay-icon-big'); ov.style.display = 'flex'; det.style.display = 'block'; if(item.img) { img.src = item.img; img.style.display = 'block'; iconBig.style.display = 'none'; } else { img.style.display = 'none'; iconBig.style.display = 'block'; } det.innerHTML = `<div style="font-size:20px;font-weight:bold;margin-bottom:8px">${item.name}</div><div style="font-size:16px;color:#aaa;margin-bottom:15px">${item.date || this.t('no_date')}</div><div style="font-size:18px;font-weight:bold;color:var(--accent);background:#333;padding:8px 20px;border-radius:20px;display:inline-block">${this.t('quantity')}: ${item.qty}</div>`; }
+  showImg(src) { const ov = this.shadowRoot.getElementById('img-overlay'); const img = this.shadowRoot.getElementById('overlay-img'); const det = this.shadowRoot.getElementById('overlay-details'); const iconBig = this.shadowRoot.getElementById('overlay-icon-big'); if(ov && img) { img.src = src; img.style.display = 'block'; if(det) det.style.display = 'none'; if(iconBig) iconBig.style.display = 'none'; ov.style.display = 'flex'; } }
+  toggleSubloc(name) { if (this.expandedSublocs.has(name)) this.expandedSublocs.delete(name); else this.expandedSublocs.add(name); this.render(); }
+  enableFolderInput(cardEl) { const iconContainer = cardEl.querySelector('.android-folder-icon'); const label = cardEl.querySelector('.folder-label'); if(iconContainer.querySelector('input')) return; iconContainer.innerHTML = `<input type="text" class="add-folder-input" placeholder="Name">`; const input = iconContainer.querySelector('input'); label.innerText = this.t('saving'); input.focus(); input.onkeydown = (e) => { if (e.key === 'Enter') this.saveNewFolder(input.value); }; input.onblur = () => { if (input.value.trim()) this.saveNewFolder(input.value); else this.render(); }; }
+  enableFolderRename(labelEl, oldName) { if (!labelEl || labelEl.querySelector('input')) return; const input = document.createElement('input'); input.value = oldName; input.style.width = '100%'; input.style.background = 'var(--bg-input-edit)'; input.style.color = 'var(--text-main)'; input.style.border = '1px solid var(--primary)'; input.style.borderRadius = '4px'; input.style.textAlign = 'center'; input.style.fontSize = '12px'; input.onclick = (e) => e.stopPropagation(); labelEl.innerHTML = ''; labelEl.appendChild(input); input.focus(); let isSaving = false; const save = () => { if (isSaving) return; isSaving = true; const newVal = input.value.trim(); if (newVal && newVal !== oldName) { this.callHA('update_item_details', { original_name: oldName, new_name: newVal, new_date: "", current_path: this.currentPath, is_folder: true }); } else this.render(); }; input.onkeydown = (e) => { if (e.key === 'Enter') input.blur(); }; input.onblur = () => save(); }
+  saveNewFolder(name) { if(!name) return; this._hass.callService('home_organizer', 'add_item', { item_name: name, item_type: 'folder', item_date: '', image_data: null, current_path: this.currentPath }); }
+  addQuickItem(targetSubloc) { const tempName = this.t('new_item') + " " + new Date().toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'}); const today = new Date().toISOString().split('T')[0]; let usePath = [...this.currentPath]; if (targetSubloc && targetSubloc !== "General") usePath.push(targetSubloc); this._hass.callService('home_organizer', 'add_item', { item_name: tempName, item_type: 'item', item_date: today, image_data: null, current_path: usePath }); }
+  setupDragSource(el, itemName) { el.draggable = true; el.ondragstart = (e) => { e.dataTransfer.setData("text/plain", itemName); e.dataTransfer.effectAllowed = "move"; el.classList.add('dragging'); }; el.ondragend = () => el.classList.remove('dragging'); }
+  setupDropTarget(el, subName) { el.dataset.subloc = subName; el.ondragover = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drag-over'); }; el.ondragleave = () => el.classList.remove('drag-over'); el.ondrop = (e) => { e.preventDefault(); el.classList.remove('drag-over'); const itemName = e.dataTransfer.getData("text/plain"); this.handleDropAction(subName, itemName); }; }
+  async handleDropAction(targetSubloc, itemName) { if (!itemName) return; let targetPath = [...this.currentPath]; if (targetSubloc !== "General") targetPath.push(targetSubloc); try { await this.callHA('clipboard_action', {action: 'cut', item_name: itemName}); await this.callHA('paste_item', {target_path: targetPath}); } catch (err) { console.error("Drop failed:", err); } }
+  triggerCameraEdit(id, name) { this.pendingItemId = id; this.pendingItemName = name; this.openCamera('update'); }
+  adjustShopQty(id, delta) { if (this.shopQuantities[id] === undefined) this.shopQuantities[id] = 0; this.shopQuantities[id] = Math.max(0, this.shopQuantities[id] + delta); this.render(); }
+  duplicateItem(itemId) { if (!itemId) return; this.callHA('duplicate_item', { item_id: itemId }); }
+  createItemRow(item, isShopMode) { const div = document.createElement('div'); const oosClass = (item.qty === 0) ? 'out-of-stock-frame' : ''; div.className = `item-row ${this.expandedIdx === item.id ? 'expanded' : ''} ${oosClass}`; this.setupDragSource(div, item.name); const appEl = this.shadowRoot.getElementById('app'); const isRTL = appEl && !appEl.classList.contains('ltr'); let controls = ''; if (isShopMode) { const localQty = (this.shopQuantities[item.id] !== undefined) ? this.shopQuantities[item.id] : 0; const checkStyle = (localQty === 0) ? "background:#555;color:#888;cursor:not-allowed;width:40px;height:40px;margin-inline-start:8px;" : "background:var(--accent);width:40px;height:40px;margin-inline-start:8px;"; const checkDisabled = (localQty === 0) ? "disabled" : ""; const minusBtn = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.id}', -1)">${ICONS.minus}</button>`; const plusBtn = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.adjustShopQty('${item.id}', 1)">${ICONS.plus}</button>`; const qtySpan = `<span class="qty-val" style="margin:0 8px">${localQty}</span>`; const checkBtn = `<button class="qty-btn" style="${checkStyle}" ${checkDisabled} title="Complete" onclick="event.stopPropagation();this.getRootNode().host.submitShopStock('${item.id}')">${ICONS.check}</button>`; if (isRTL) { controls = `${plusBtn}${qtySpan}${minusBtn}${checkBtn}`; } else { controls = `${minusBtn}${qtySpan}${plusBtn}${checkBtn}`; } } else { controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.id}', 1)">${ICONS.plus}</button><span class="qty-val">${item.qty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.id}', -1)">${ICONS.minus}</button>`; } const subText = isShopMode ? `${item.main_location} > ${item.sub_location || ''}` : `${item.date || ''}`; let iconHtml = `<span class="item-icon">${ICONS.item}</span>`; if (item.img) { const isLoading = this.loadingSet.has(item.id); const ver = this.imageVersions[item.id] || ''; const src = item.img + (item.img.includes('?') ? '&' : '?') + 'v=' + ver; let loaderHtml = isLoading ? `<div class="loader-container"><span class="loader"></span></div>` : ''; iconHtml = `<div style="position:relative;width:40px;height:40px"><img src="${src}" class="item-thumbnail" alt="${item.name}" onclick="event.stopPropagation(); this.getRootNode().host.showImg('${item.img}')">${loaderHtml}</div>`; } div.innerHTML = `<div class="item-main" onclick="this.getRootNode().host.toggleRow('${item.id}')"><div class="item-left">${iconHtml}<div><div>${item.name}</div><div class="sub-title">${subText}</div></div></div><div class="item-qty-ctrl">${controls}</div></div>`; if (this.expandedIdx === item.id) { const details = document.createElement('div'); details.className = 'expanded-details'; let roomOptions = `<option value="">-- ${this.t('move_to')} --</option>`; if(this.localData.hierarchy) Object.keys(this.localData.hierarchy).forEach(room => { roomOptions += `<option value="${room}">${room}</option>`; }); let mainCatOptions = `<option value="">${this.t('select_cat')}</option>`; Object.keys(ITEM_CATEGORIES).forEach(cat => { const selected = (item.category === cat) ? 'selected' : ''; mainCatOptions += `<option value="${cat}" ${selected}>${this.t('cat_' + cat.replace(/[^a-zA-Z0-9]+/g, '_')) || cat}</option>`; }); let subCatOptions = `<option value="">${this.t('select_sub')}</option>`; let currentUnit = ""; if (item.category && ITEM_CATEGORIES[item.category]) { const subs = ITEM_CATEGORIES[item.category]; Object.keys(subs).forEach(sub => { const selected = (item.sub_category === sub) ? 'selected' : ''; const transKey = 'sub_' + sub.replace(/[^a-zA-Z0-9]+/g, '_'); subCatOptions += `<option value="${sub}" ${selected}>${this.t(transKey) || sub}</option>`; if (selected) currentUnit = subs[sub]; }); } const COPY_SVG = ICONS.copy || ICONS.paste; details.innerHTML = `<div class="detail-row"><div style="position:relative; flex:1;"><input type="text" id="name-${item.id}" value="${item.name}" style="width:100%;padding:8px;background:var(--bg-input-edit);color:var(--text-main);border:1px solid var(--border-light);border-radius:4px;margin-inline-start:5px" autocomplete="off" oninput="this.getRootNode().host.handleNameInput(this, '${item.id}')" onblur="setTimeout(() => { if(this.parentElement.querySelector('.suggestions-box')) this.parentElement.querySelector('.suggestions-box').remove() }, 200)" onkeydown="if(event.key==='Enter') { this.blur(); this.getRootNode().host.autoSaveItem('${item.id}', 'name', '${item.name}') }"></div><div style="position:relative; width:120px; height:36px; margin-inline-start:5px;"><button class="action-btn" style="width:100%; height:100%; text-align:center; padding:0; display:flex; align-items:center; justify-content:center; background:var(--bg-input-edit); color:var(--text-main); border:1px solid var(--border-light);" onclick="this.nextElementSibling.showPicker()">${item.date || this.t('set_date')}</button><input type="date" id="date-${item.id}" value="${item.date}" style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;" onchange="this.previousElementSibling.innerText = this.value || '${this.t('set_date')}'; this.getRootNode().host.autoSaveItem('${item.id}', 'date', '${item.name}')"></div></div><div class="detail-row" style="margin-top:10px; gap:5px; align-items:center;"><select class="move-select" id="cat-main-${item.id}" onchange="this.getRootNode().host.updateItemCategory('${item.id}', this.value, 'main', '${item.name}')">${mainCatOptions}</select><select class="move-select" id="cat-sub-${item.id}" onchange="this.getRootNode().host.updateItemCategory('${item.id}', this.value, 'sub', '${item.name}')">${subCatOptions}</select><input type="text" id="unit-val-${item.id}" value="${item.unit_value || ''}" placeholder="Val" style="width:60px;padding:8px;background:var(--bg-input-edit);color:var(--text-main);border:1px solid var(--border-light);border-radius:4px;text-align:center" onchange="this.getRootNode().host.updateItemCategory('${item.id}', null, 'val', '${item.name}')"><div id="unit-disp-${item.id}" style="background:var(--bg-badge);color:var(--text-badge);padding:4px 8px;border-radius:4px;font-size:11px;min-width:30px;text-align:center;">${this.t('unit_' + currentUnit) || currentUnit || '-'}</div></div><div class="detail-row" style="justify-content:space-between; margin-top:10px;"><div style="display:flex;gap:10px;"><button class="action-btn" title="${this.t('take_photo')}" onclick="this.getRootNode().host.triggerCameraEdit('${item.id}', '${item.name}')">${ICONS.camera}</button><button class="action-btn" title="${this.t('change_img')}" onclick="this.getRootNode().host.openIconPicker('${item.id}', 'item')">${ICONS.image}</button></div><div style="display:flex;gap:10px;"><button class="action-btn" title="${this.t('duplicate')}" onclick="this.getRootNode().host.duplicateItem('${item.id}')">${COPY_SVG}</button><button class="action-btn btn-danger" title="${this.t('delete')}" onclick="this.getRootNode().host.del('${item.id}')">${ICONS.delete}</button></div></div><div class="detail-row" style="margin-top:10px; border-top:1px solid #444; padding-top:10px; flex-direction:column; gap:8px;"><div class="move-container" style="width:100%"><span style="font-size:12px;color:#aaa;width:60px">${this.t('move_to')}</span><select class="move-select" id="room-select-${item.id}" onchange="this.getRootNode().host.updateLocationDropdown('${item.id}', this.value)">${roomOptions}</select></div><div class="move-container" style="width:100%; display:none;" id="loc-container-${item.id}"><span style="font-size:12px;color:#aaa;width:60px">${this.t('loc_label')}</span><select class="move-select" id="loc-select-${item.id}" onchange="this.getRootNode().host.updateSublocDropdown('${item.id}', this.value)"><option value="">-- Select --</option></select></div><div class="move-container" style="width:100%; display:none;" id="subloc-container-${item.id}"><span style="font-size:12px;color:#aaa;width:60px">${this.t('sub_label')}</span><select class="move-select" id="target-subloc-${item.id}" onchange="this.getRootNode().host.handleMoveToPath('${item.id}')"><option value="">-- Select --</option></select></div></div>`; div.appendChild(details); } return div; }
+  updateItemCategory(itemId, value, type, itemName) { const mainSelect = this.shadowRoot.getElementById(`cat-main-${itemId}`); const subSelect = this.shadowRoot.getElementById(`cat-sub-${itemId}`); const valInput = this.shadowRoot.getElementById(`unit-val-${itemId}`); const unitDisp = this.shadowRoot.getElementById(`unit-disp-${itemId}`); let mainCat = (type === 'main') ? value : mainSelect.value; let subCat = (type === 'sub') ? value : (type === 'main' ? "" : subSelect.value); let unitVal = valInput ? valInput.value : ""; let unit = ""; if (type === 'main') { let html = `<option value="">${this.t('select_sub')}</option>`; if (mainCat && ITEM_CATEGORIES[mainCat]) { Object.keys(ITEM_CATEGORIES[mainCat]).forEach(sub => { const transKey = 'sub_' + sub.replace(/[^a-zA-Z0-9]+/g, '_'); html += `<option value="${sub}">${this.t(transKey) || sub}</option>`; }); } subSelect.innerHTML = html; subCat = ""; unitDisp.innerText = "-"; } if (mainCat && subCat && ITEM_CATEGORIES[mainCat] && ITEM_CATEGORIES[mainCat][subCat]) { unit = ITEM_CATEGORIES[mainCat][subCat]; unitDisp.innerText = this.t('unit_' + unit) || unit; } else { unitDisp.innerText = "-"; } this.callHA('update_item_details', { item_id: itemId, original_name: itemName, category: mainCat, sub_category: subCat, unit: unit, unit_value: unitVal, current_path: this.currentPath }); }
+  autoSaveItem(itemId, triggerType, oldName) { const nameEl = this.shadowRoot.getElementById(`name-${itemId}`); const dateEl = this.shadowRoot.getElementById(`date-${itemId}`); if(!nameEl || !dateEl) return; const newName = nameEl.value.trim(); const newDate = dateEl.value; this.callHA('update_item_details', { item_id: itemId, original_name: oldName, new_name: newName, new_date: newDate }); }
+  updateLocationDropdown(itemId, roomName) { const locContainer = this.shadowRoot.getElementById(`loc-container-${itemId}`); const locSelect = this.shadowRoot.getElementById(`loc-select-${itemId}`); const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemId}`); subContainer.style.display = 'none'; locSelect.innerHTML = '<option value="">-- Select --</option>'; if(!roomName) { locContainer.style.display = 'none'; return; } let html = `<option value="">-- Select Location --</option>`; if(this.localData.hierarchy && this.localData.hierarchy[roomName]) Object.keys(this.localData.hierarchy[roomName]).forEach(loc => { html += `<option value="${loc}">${loc}</option>`; }); locSelect.innerHTML = html; locContainer.style.display = 'flex'; locSelect.dataset.room = roomName; }
+  updateSublocDropdown(itemId, locationName) { const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemId}`); const subSelect = this.shadowRoot.getElementById(`target-subloc-${itemId}`); const roomName = this.shadowRoot.getElementById(`room-select-${itemId}`).value; if(!locationName) { subContainer.style.display = 'none'; return; } let html = `<option value="">-- Select Sublocation --</option>`; html += `<option value="__ROOT__">Main ${locationName}</option>`; if(this.localData.hierarchy && this.localData.hierarchy[roomName] && this.localData.hierarchy[roomName][locationName]) this.localData.hierarchy[roomName][locationName].forEach(sub => { html += `<option value="${sub}">${sub}</option>`; }); subSelect.innerHTML = html; subContainer.style.display = 'flex'; }
+  handleMoveToPath(itemId) { const room = this.shadowRoot.getElementById(`room-select-${itemId}`).value; const loc = this.shadowRoot.getElementById(`loc-select-${itemId}`).value; const sub = this.shadowRoot.getElementById(`target-subloc-${itemId}`).value; if(!room || !loc || !sub) return; let targetPath = [room, loc]; if(sub !== "__ROOT__") targetPath.push(sub); this.callHA('clipboard_action', {action: 'cut', item_id: itemId}); setTimeout(() => { this.callHA('paste_item', {target_path: targetPath}); }, 100); }
   deleteFolder(name) { if(confirm(this.t('confirm_del_folder', name))) this._hass.callService('home_organizer', 'delete_item', { item_name: name, current_path: this.currentPath, is_folder: true }); }
-  
-  del(id) { 
-      if(confirm(this.t('confirm_del_item'))) this._hass.callService('home_organizer', 'delete_item', { item_id: id, current_path: this.currentPath, is_folder: false }); 
-  }
-  
-  deleteSubloc(name) { 
-      const realName = this.resolveRealName(name);
-      if(confirm(this.t('confirm_del_item', name))) this._hass.callService('home_organizer', 'delete_item', { item_name: realName, current_path: this.currentPath, is_folder: true }); 
-  }
-
+  del(id) { if(confirm(this.t('confirm_del_item'))) this._hass.callService('home_organizer', 'delete_item', { item_id: id, current_path: this.currentPath, is_folder: false }); }
+  deleteSubloc(name) { const realName = this.resolveRealName(name); if(confirm(this.t('confirm_del_item', name))) this._hass.callService('home_organizer', 'delete_item', { item_name: realName, current_path: this.currentPath, is_folder: true }); }
   render() { this.updateUI(); }
-  
-  navigate(dir, name, catalogId) { 
-      if (dir === 'root') {
-          this.currentPath = []; 
-          this.catalogPath = [];
-      } else if (dir === 'up') {
-          this.currentPath.pop(); 
-          this.catalogPath.pop();
-      } else if (dir === 'down') {
-          this.currentPath.push(name); 
-          this.catalogPath.push(catalogId);
-      }
-      this.expandedSublocs.clear();
-      this.fetchData(); 
-  }
-
-  toggleRow(id) { 
-      const nId = Number(id);
-      this.expandedIdx = (this.expandedIdx === nId) ? null : nId; 
-      this.render(); 
-  }
+  navigate(dir, name, catalogId) { if (dir === 'root') { this.currentPath = []; this.catalogPath = []; } else if (dir === 'up') { this.currentPath.pop(); this.catalogPath.pop(); } else if (dir === 'down') { this.currentPath.push(name); this.catalogPath.push(catalogId); } this.expandedSublocs.clear(); this.fetchData(); }
+  toggleRow(id) { const nId = Number(id); this.expandedIdx = (this.expandedIdx === nId) ? null : nId; this.render(); }
   updateQty(id, d) { this.callHA('update_qty', { item_id: id, change: d }); }
-  submitShopStock(id) { 
-      const qty = this.shopQuantities[id] || 1;
-      this.callHA('update_stock', { item_id: id, quantity: qty }); 
-      delete this.shopQuantities[id];
-  }
-  
-  openIconPicker(target, context) {
-      if (context === 'item') {
-           this.pendingItemId = target;
-           this.pendingFolderIcon = null; 
-      } else {
-           this.pendingFolderIcon = target;
-           this.pendingItemId = null;
-      }
-      
-      this.pickerContext = context; 
-      this.pickerPage = 0; 
-      if (context === 'item') { this.pickerCategory = Object.keys(ICON_LIB_ITEM)[0]; } else { this.pickerCategory = null; }
-      this.renderIconPickerGrid();
-      this.shadowRoot.getElementById('icon-modal').style.display = 'flex';
-  }
-
-  getCurrentPickerLib() {
-      if (this.pickerContext === 'room') return ICON_LIB_ROOM;
-      if (this.pickerContext === 'location') return ICON_LIB_LOCATION;
-      if (this.pickerContext === 'item') { return ICON_LIB_ITEM[this.pickerCategory] || {}; }
-      return ICON_LIB;
-  }
-
-  renderIconPickerGrid() {
-      const lib = this.getCurrentPickerLib();
-      const keys = Object.keys(lib);
-      const totalPages = Math.ceil(keys.length / this.pickerPageSize);
-      const grid = this.shadowRoot.getElementById('icon-lib-grid');
-      const categoryBar = this.shadowRoot.getElementById('picker-categories');
-      const pageInfo = this.shadowRoot.getElementById('picker-page-info');
-      const prevBtn = this.shadowRoot.getElementById('picker-prev');
-      const nextBtn = this.shadowRoot.getElementById('picker-next');
-
-      if (this.pickerContext === 'item') {
-          categoryBar.style.display = 'flex';
-          categoryBar.innerHTML = '';
-          Object.keys(ICON_LIB_ITEM).forEach(cat => {
-              const btn = document.createElement('button');
-              btn.className = `cat-btn ${this.pickerCategory === cat ? 'active' : ''}`;
-              const firstIconKey = Object.keys(ICON_LIB_ITEM[cat])[0];
-              const sampleIcon = ICON_LIB_ITEM[cat][firstIconKey] || '';
-              btn.innerHTML = `${sampleIcon}<span>${cat}</span>`;
-              btn.onclick = () => { this.pickerCategory = cat; this.pickerPage = 0; this.renderIconPickerGrid(); };
-              categoryBar.appendChild(btn);
-          });
-      } else { categoryBar.style.display = 'none'; }
-
-      grid.innerHTML = '';
-      const start = this.pickerPage * this.pickerPageSize;
-      const end = Math.min(start + this.pickerPageSize, keys.length);
-      const pageKeys = keys.slice(start, end);
-
-      pageKeys.forEach(key => {
-          const div = document.createElement('div');
-          div.className = 'lib-icon';
-          div.innerHTML = `${lib[key]}<span>${key}</span>`;
-          div.onclick = () => this.selectLibraryIcon(lib[key]);
-          grid.appendChild(div);
-      });
-
-      pageInfo.innerText = `Page ${this.pickerPage + 1} of ${totalPages || 1}`;
-      prevBtn.disabled = this.pickerPage === 0;
-      nextBtn.disabled = this.pickerPage >= totalPages - 1;
-  }
-
-  async selectLibraryIcon(svgHtml) {
-      let source = svgHtml;
-      const size = 140; 
-      if (!source.includes('xmlns')) source = source.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
-      if (source.includes('width=')) { source = source.replace(/width="[^"]*"/, `width="${size}"`).replace(/height="[^"]*"/, `height="${size}"`); } 
-      else { source = source.replace('<svg', `<svg width="${size}" height="${size}"`); }
-      source = source.replace('<svg', '<svg fill="#4fc3f7"');
-      
-      const loadImage = (src) => new Promise((resolve) => {
-          const img = new Image();
-          img.onload = () => resolve(img);
-          img.src = src;
-      });
-
-      const blob = new Blob([source], {type: 'image/svg+xml;charset=utf-8'});
-      const url = URL.createObjectURL(blob);
-      const img = await loadImage(url);
-      
-      const canvas = document.createElement('canvas');
-      canvas.width = size; canvas.height = size;
-      const ctx = canvas.getContext('2d');
-      
-      if (this.pickerContext === 'item') { 
-          ctx.fillStyle = '#000'; 
-          ctx.fillRect(0, 0, size, size);
-          const padding = size * 0.15; 
-          const drawSize = size * 0.7; 
-          ctx.drawImage(img, padding, padding, drawSize, drawSize);
-      } else {
-          ctx.drawImage(img, 0, 0, size, size);
-      }
-
-      const dataUrl = canvas.toDataURL('image/png');
-      
-      const target = this.pendingItemId || this.pendingFolderIcon;
-      if (target) this.setLoading(target, true);
-      this.shadowRoot.getElementById('icon-modal').style.display = 'none';
-
-      try {
-          if(this.pendingItemId) {
-              await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
-              this.refreshImageVersion(this.pendingItemId);
-          } else if(this.pendingFolderIcon) {
-              const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
-              const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
-              await this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
-              this.refreshImageVersion(this.pendingFolderIcon);
-          }
-      } catch(e) { console.error(e); }
-      finally {
-          if(target) this.setLoading(target, false);
-          URL.revokeObjectURL(url);
-      }
-  }
-
-  async handleUrlIcon(url) {
-      const loadImage = (src) => new Promise((resolve, reject) => {
-          const img = new Image();
-          img.crossOrigin = "Anonymous";
-          img.onload = () => resolve(img);
-          img.onerror = reject;
-          img.src = src;
-      });
-
-      try {
-          const img = await loadImage(url);
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width; canvas.height = img.height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0);
-          const dataUrl = canvas.toDataURL('image/jpeg');
-          
-          this.shadowRoot.getElementById('icon-modal').style.display = 'none';
-          this.shadowRoot.getElementById('icon-url-input').value = '';
-
-          const target = this.pendingItemId || this.pendingFolderIcon;
-          if (target) this.setLoading(target, true);
-
-          try {
-              if(this.pendingItemId) {
-                   await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
-                   this.refreshImageVersion(this.pendingItemId);
-              } else if(this.pendingFolderIcon) {
-                  const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
-                  const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
-                  await this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
-                  this.refreshImageVersion(this.pendingFolderIcon);
-              }
-          } finally {
-              if(target) this.setLoading(target, false);
-          }
-      } catch(e) { alert("Error loading image (CORS or Invalid URL)."); }
-  }
-
-  handleIconUpload(input) {
-      const file = input.files[0]; if (!file) return;
-      this.compressImage(file, async (dataUrl) => {
-          this.shadowRoot.getElementById('icon-modal').style.display = 'none';
-          
-          const target = this.pendingItemId || this.pendingFolderIcon;
-          if (target) this.setLoading(target, true);
-
-          try {
-              if(this.pendingItemId) {
-                   await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
-                   this.refreshImageVersion(this.pendingItemId);
-              } else if(this.pendingFolderIcon) {
-                  const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
-                  const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
-                  await this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
-                  this.refreshImageVersion(this.pendingFolderIcon);
-              }
-          } catch(e) { console.error(e); }
-          finally {
-              if(target) this.setLoading(target, false);
-          }
-      });
-      input.value = '';
-  }
-
-  compressImage(file, callback, applyBgFilter = false) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-          const img = new Image();
-          img.onload = () => {
-              const canvas = document.createElement('canvas');
-              const ctx = canvas.getContext('2d');
-              const MAX = 1024;
-              let w = img.width, h = img.height;
-              if (w > h) { if (w > MAX) { h *= MAX/w; w = MAX; } } else { if (h > MAX) { w *= MAX/h; h = MAX; } }
-              canvas.width = w; canvas.height = h;
-              ctx.drawImage(img, 0, 0, w, h);
-              
-              if (applyBgFilter) {
-                  let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                  let data = imageData.data;
-                  for (let i = 0; i < data.length; i += 4) {
-                      let r = data[i], g = data[i+1], b = data[i+2];
-                      if (r > 190 && g > 190 && b > 190) { data[i] = 255; data[i+1] = 255; data[i+2] = 255; }
-                  }
-                  ctx.putImageData(imageData, 0, 0);
-              }
-
-              callback(canvas.toDataURL('image/jpeg', 0.5));
-          };
-          img.src = e.target.result;
-      };
-      reader.readAsDataURL(file);
-  }
-
+  submitShopStock(id) { const qty = this.shopQuantities[id] || 1; this.callHA('update_stock', { item_id: id, quantity: qty }); delete this.shopQuantities[id]; }
+  openIconPicker(target, context) { if (context === 'item') { this.pendingItemId = target; this.pendingFolderIcon = null; } else { this.pendingFolderIcon = target; this.pendingItemId = null; } this.pickerContext = context; this.pickerPage = 0; if (context === 'item') { this.pickerCategory = Object.keys(ICON_LIB_ITEM)[0]; } else { this.pickerCategory = null; } this.renderIconPickerGrid(); this.shadowRoot.getElementById('icon-modal').style.display = 'flex'; }
+  getCurrentPickerLib() { if (this.pickerContext === 'room') return ICON_LIB_ROOM; if (this.pickerContext === 'location') return ICON_LIB_LOCATION; if (this.pickerContext === 'item') { return ICON_LIB_ITEM[this.pickerCategory] || {}; } return ICON_LIB; }
+  renderIconPickerGrid() { const lib = this.getCurrentPickerLib(); const keys = Object.keys(lib); const totalPages = Math.ceil(keys.length / this.pickerPageSize); const grid = this.shadowRoot.getElementById('icon-lib-grid'); const categoryBar = this.shadowRoot.getElementById('picker-categories'); const pageInfo = this.shadowRoot.getElementById('picker-page-info'); const prevBtn = this.shadowRoot.getElementById('picker-prev'); const nextBtn = this.shadowRoot.getElementById('picker-next'); if (this.pickerContext === 'item') { categoryBar.style.display = 'flex'; categoryBar.innerHTML = ''; Object.keys(ICON_LIB_ITEM).forEach(cat => { const btn = document.createElement('button'); btn.className = `cat-btn ${this.pickerCategory === cat ? 'active' : ''}`; const firstIconKey = Object.keys(ICON_LIB_ITEM[cat])[0]; const sampleIcon = ICON_LIB_ITEM[cat][firstIconKey] || ''; btn.innerHTML = `${sampleIcon}<span>${cat}</span>`; btn.onclick = () => { this.pickerCategory = cat; this.pickerPage = 0; this.renderIconPickerGrid(); }; categoryBar.appendChild(btn); }); } else { categoryBar.style.display = 'none'; } grid.innerHTML = ''; const start = this.pickerPage * this.pickerPageSize; const end = Math.min(start + this.pickerPageSize, keys.length); const pageKeys = keys.slice(start, end); pageKeys.forEach(key => { const div = document.createElement('div'); div.className = 'lib-icon'; div.innerHTML = `${lib[key]}<span>${key}</span>`; div.onclick = () => this.selectLibraryIcon(lib[key]); grid.appendChild(div); }); pageInfo.innerText = `Page ${this.pickerPage + 1} of ${totalPages || 1}`; prevBtn.disabled = this.pickerPage === 0; nextBtn.disabled = this.pickerPage >= totalPages - 1; }
+  async selectLibraryIcon(svgHtml) { let source = svgHtml; const size = 140; if (!source.includes('xmlns')) source = source.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"'); if (source.includes('width=')) { source = source.replace(/width="[^"]*"/, `width="${size}"`).replace(/height="[^"]*"/, `height="${size}"`); } else { source = source.replace('<svg', `<svg width="${size}" height="${size}"`); } source = source.replace('<svg', '<svg fill="#4fc3f7"'); const loadImage = (src) => new Promise((resolve) => { const img = new Image(); img.onload = () => resolve(img); img.src = src; }); const blob = new Blob([source], {type: 'image/svg+xml;charset=utf-8'}); const url = URL.createObjectURL(blob); const img = await loadImage(url); const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size; const ctx = canvas.getContext('2d'); if (this.pickerContext === 'item') { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, size, size); const padding = size * 0.15; const drawSize = size * 0.7; ctx.drawImage(img, padding, padding, drawSize, drawSize); } else { ctx.drawImage(img, 0, 0, size, size); } const dataUrl = canvas.toDataURL('image/png'); const target = this.pendingItemId || this.pendingFolderIcon; if (target) this.setLoading(target, true); this.shadowRoot.getElementById('icon-modal').style.display = 'none'; try { if(this.pendingItemId) { await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl }); this.refreshImageVersion(this.pendingItemId); } else if(this.pendingFolderIcon) { const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location'); const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon; await this.callHA('update_image', { item_name: markerName, image_data: dataUrl }); this.refreshImageVersion(this.pendingFolderIcon); } } catch(e) { console.error(e); } finally { if(target) this.setLoading(target, false); URL.revokeObjectURL(url); } }
+  async handleUrlIcon(url) { const loadImage = (src) => new Promise((resolve, reject) => { const img = new Image(); img.crossOrigin = "Anonymous"; img.onload = () => resolve(img); img.onerror = reject; img.src = src; }); try { const img = await loadImage(url); const canvas = document.createElement('canvas'); canvas.width = img.width; canvas.height = img.height; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0); const dataUrl = canvas.toDataURL('image/jpeg'); this.shadowRoot.getElementById('icon-modal').style.display = 'none'; this.shadowRoot.getElementById('icon-url-input').value = ''; const target = this.pendingItemId || this.pendingFolderIcon; if (target) this.setLoading(target, true); try { if(this.pendingItemId) { await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl }); this.refreshImageVersion(this.pendingItemId); } else if(this.pendingFolderIcon) { const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location'); const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon; await this.callHA('update_image', { item_name: markerName, image_data: dataUrl }); this.refreshImageVersion(this.pendingFolderIcon); } } finally { if(target) this.setLoading(target, false); } } catch(e) { alert("Error loading image (CORS or Invalid URL)."); } }
+  handleIconUpload(input) { const file = input.files[0]; if (!file) return; this.compressImage(file, async (dataUrl) => { this.shadowRoot.getElementById('icon-modal').style.display = 'none'; const target = this.pendingItemId || this.pendingFolderIcon; if (target) this.setLoading(target, true); try { if(this.pendingItemId) { await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl }); this.refreshImageVersion(this.pendingItemId); } else if(this.pendingFolderIcon) { const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location'); const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon; await this.callHA('update_image', { item_name: markerName, image_data: dataUrl }); this.refreshImageVersion(this.pendingFolderIcon); } } catch(e) { console.error(e); } finally { if(target) this.setLoading(target, false); } }); input.value = ''; }
+  compressImage(file, callback, applyBgFilter = false, maxRes = 1024) { const reader = new FileReader(); reader.onload = (e) => { const img = new Image(); img.onload = () => { const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d'); let w = img.width, h = img.height; if (w > h) { if (w > maxRes) { h *= maxRes/w; w = maxRes; } } else { if (h > maxRes) { w *= maxRes/h; h = maxRes; } } canvas.width = w; canvas.height = h; ctx.drawImage(img, 0, 0, w, h); if (applyBgFilter) { let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height); let data = imageData.data; for (let i = 0; i < data.length; i += 4) { let r = data[i], g = data[i+1], b = data[i+2]; if (r > 190 && g > 190 && b > 190) { data[i] = 255; data[i+1] = 255; data[i+2] = 255; } } ctx.putImageData(imageData, 0, 0); } callback(canvas.toDataURL('image/jpeg', 0.8)); }; img.src = e.target.result; }; reader.readAsDataURL(file); }
   pasteItem() { this.callHA('paste_item', { target_path: this.currentPath }); }
   cut(name) { this.callHA('clipboard_action', {action: 'cut', item_name: name}); }
   callHA(service, data) { return this._hass.callService('home_organizer', service, data); }
