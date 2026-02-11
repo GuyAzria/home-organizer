@@ -1340,32 +1340,32 @@ class HomeOrganizerPanel extends HTMLElement {
               });
               
               if (result) {
-                   // Build debug HTML
-                   let debugHTML = "";
-                   if (result.debug) {
-                       const d = result.debug;
-                       const esc = (s) => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
-                       
-                       if (d.raw_json) {
+                    // Build debug HTML
+                    let debugHTML = "";
+                    if (result.debug) {
+                        const d = result.debug;
+                        const esc = (s) => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+                        
+                        if (d.raw_json) {
                             debugHTML += `<details class="debug-details"><summary class="debug-summary">📄 Raw Invoice Data</summary><div class="debug-content">${esc(d.raw_json)}</div></details>`;
-                       }
-                       if (d.intent === "add") {
+                        }
+                        if (d.intent === "add") {
                             debugHTML += `<details class="debug-details"><summary class="debug-summary">➕ Items Added</summary><div class="debug-content">${JSON.stringify(d.json, null, 2)}</div></details>`;
-                       }
-                       if (d.sql_query) {
+                        }
+                        if (d.sql_query) {
                             debugHTML += `<details class="debug-details"><summary class="debug-summary">🔍 SQL Query</summary><div class="debug-content">${esc(d.sql_query)}</div></details>`;
-                       }
-                   }
-                   
-                   statusMsg.text = "✔ Complete" + debugHTML;
+                        }
+                    }
+                    
+                    statusMsg.text = "✔ Complete" + debugHTML;
 
-                   if (result.error) {
-                       this.chatHistory.push({ role: 'ai', text: "<b>Error:</b> " + result.error });
-                   } else if (result.response) {
-                       let formatted = result.response.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
-                       formatted = formatted.replace(/\n/g, '<br>');
-                       this.chatHistory.push({ role: 'ai', text: formatted });
-                   }
+                    if (result.error) {
+                        this.chatHistory.push({ role: 'ai', text: "<b>Error:</b> " + result.error });
+                    } else if (result.response) {
+                        let formatted = result.response.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+                        formatted = formatted.replace(/\n/g, '<br>');
+                        this.chatHistory.push({ role: 'ai', text: formatted });
+                    }
               }
           } catch (e) {
               statusMsg.text += "<br>❌ Failed";
@@ -1412,7 +1412,7 @@ class HomeOrganizerPanel extends HTMLElement {
 
   handleChatProgress(data) {
     if (!this.isChatMode) return;
-     
+      
     let statusMsg = null;
     for (let i = this.chatHistory.length - 1; i >= 0; i--) {
         if (this.chatHistory[i].role === 'system' && this.chatHistory[i].isStatus) {
@@ -1420,7 +1420,7 @@ class HomeOrganizerPanel extends HTMLElement {
             break;
         }
     }
-     
+      
     if (!statusMsg) return;
 
     if (data.step) {
@@ -1428,7 +1428,7 @@ class HomeOrganizerPanel extends HTMLElement {
             statusMsg.text += `<br>✔ <b>${data.step}</b>`;
         }
     }
-     
+      
     if (data.debug_label && data.debug_content) {
         const escaped = data.debug_content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
         statusMsg.text += `
@@ -1438,19 +1438,13 @@ class HomeOrganizerPanel extends HTMLElement {
           </details>
         `;
     }
-     
+      
     this.render();
     setTimeout(() => {
         const msgs = this.shadowRoot.querySelector('.chat-messages');
         if(msgs) msgs.scrollTop = msgs.scrollHeight;
     }, 50);
   }
-  
-  // ... (Keep existing methods: resolveRealName, moveSubLoc, createNewZone, enableZoneRoomInput, saveNewRoomInZone, setupRoomDragSource, setupZoneDropTarget, moveRoomToZone, moveZone, enableZoneRename, batchUpdateZone, deleteZone, showItemDetails, showImg, toggleSubloc, enableFolderInput, enableFolderRename, saveNewFolder, addQuickItem, setupDragSource, setupDropTarget, handleDropAction, triggerCameraEdit, adjustShopQty, duplicateItem, createItemRow, updateItemCategory, autoSaveItem, updateLocationDropdown, updateSublocDropdown, handleMoveToPath, deleteFolder, del, deleteSubloc, render, navigate, toggleRow, updateQty, submitShopStock, openIconPicker, getCurrentPickerLib, renderIconPickerGrid, selectLibraryIcon, handleUrlIcon, handleIconUpload, compressImage, pasteItem, cut, callHA)
-  
-  // Re-include the rest of the utility methods from your previous code here 
-  // to ensure the file is complete. For brevity in this response, assume standard methods
-  // from version 7.0.0 are retained below this line.
   
   resolveRealName(displayName) {
       if (!this.localData) return displayName;
@@ -1468,7 +1462,6 @@ class HomeOrganizerPanel extends HTMLElement {
   }
   
   async moveSubLoc(subName, direction) {
-      // (Implementation identical to V7.0.0)
       const subGroups = [];
       const markerRegex = /^ORDER_MARKER_(\d+)_(.*)$/;
       const seen = new Set();
