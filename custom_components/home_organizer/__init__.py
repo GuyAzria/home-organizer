@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.1.6 (AI Actions + Invoice Scanning)
+# Home Organizer Ultimate - ver 7.1.8 (AI Actions + High-Res Invoice Scan + PDF Support)
 # License: MIT
 
 import logging
@@ -28,7 +28,7 @@ WS_AI_CHAT = "home_organizer/ai_chat"
 
 STATIC_PATH_URL = "/home_organizer_static"
 
-# Using gemini-3-flash-preview for high resolution scanning
+# Use gemini-3-flash-preview as requested
 GEMINI_MODEL = "gemini-3-flash-preview"
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -111,7 +111,7 @@ def websocket_get_all_items(hass, connection, msg):
 
 @websocket_api.async_response
 async def websocket_ai_chat(hass, connection, msg):
-    """AI Chat v7.1.6: Optimized for High-Res Invoice Scanning with language detection and location matching."""
+    """AI Chat v7.1.8: Optimized for High-Res Image/PDF Invoice Scanning with language detection and location matching."""
     try:
         user_message, image_data = msg.get("message", ""), msg.get("image_data")
         entries = hass.config_entries.async_entries(DOMAIN)
@@ -134,20 +134,24 @@ async def websocket_ai_chat(hass, connection, msg):
         items_context = ", ".join(list(existing_items_map.keys())[:50])
 
         if image_data:
+            mime_type = "image/jpeg"
+            if "data:application/pdf" in image_data:
+                mime_type = "application/pdf"
+            
             if "," in image_data: image_data = image_data.split(",")[1]
             invoice_prompt = (
-                "Task: Extract items from this invoice.\n"
+                "Task: Extract items from this invoice document/image.\n"
                 "CRITICAL RULES:\n"
                 "1. LANGUAGE: Match the language of the invoice. If Hebrew, use Hebrew names. If English, use English names.\n"
                 "2. NO NEW ROOMS: DO NOT create new rooms. Use only existing paths from the list.\n"
-                "3. MATCHING: Match items to existing locations logically.\n"
+                "3. MATCHING: Match items to existing locations logically. If a similar item exists, use its path.\n"
                 "4. FALLBACK: Use path ['General'] if no match.\n"
                 "\nEXISTING PATHS:\n" + paths_context + "\n"
-                "\nEXISTING ITEMS:\n" + items_context + "\n"
+                "\nEXISTING ITEMS SAMPLE:\n" + items_context + "\n"
                 "\nResponse format JSON only: {\"intent\": \"add_invoice\", \"items\": [{\"name\": \"...\", \"qty\": 1, \"path\": [\"Room\", \"Sub\"]}]}"
             )
-            hass.bus.async_fire("home_organizer_chat_progress", {"step": "Scanning Invoice..."})
-            payload = {"contents": [{"parts": [{"text": invoice_prompt}, {"inline_data": {"mime_type": "image/jpeg", "data": image_data}}]}]}
+            hass.bus.async_fire("home_organizer_chat_progress", {"step": "Processing File..."})
+            payload = {"contents": [{"parts": [{"text": invoice_prompt}, {"inline_data": {"mime_type": mime_type, "data": image_data}}]}]}
             async with session.post(gen_url, json=payload, timeout=ClientTimeout(total=45)) as resp:
                 if resp.status != 200: connection.send_result(msg["id"], {"error": "AI API Error"}); return
                 res = await resp.json(); raw_txt = res["candidates"][0]["content"]["parts"][0]["text"].strip()
@@ -158,11 +162,13 @@ async def websocket_ai_chat(hass, connection, msg):
                         for item in parsed.get("items", []):
                             await hass.async_add_executor_job(add_item_db_safe, hass, item.get("name"), int(item.get("qty", 1)), item.get("path", ["General"]))
                         hass.bus.async_fire("home_organizer_db_update")
-                        response_text = f"✅ Added **{len(parsed.get('items', []))} items** based on your existing setup.\n\n"
+                        count = len(parsed.get('items', []))
+                        response_text = f"✅ Added **{count} items** from the {mime_type.split('/')[-1].upper()} invoice.\n\n"
                         for i in parsed.get("items", []): response_text += f"- **{i.get('name')}** (x{i.get('qty')}) → _{' > '.join(i.get('path'))}_\n"
                         connection.send_result(msg["id"], {"response": response_text, "debug": {"raw_json": clean_txt}}); return
                 except Exception as e: connection.send_result(msg["id"], {"error": str(e)}); return
 
+        # Text Analysis Logic preserved
         step1_prompt = f"User message: '{user_message}'\nAnalyze intent. Match to EXISTING PATHS only.\n\nEXISTING PATHS:\n{paths_context}\nJSON only."
         async with session.post(gen_url, json={"contents": [{"parts": [{"text": step1_prompt}]}]}, timeout=ClientTimeout(total=15)) as resp:
             if resp.status == 200:
@@ -171,9 +177,10 @@ async def websocket_ai_chat(hass, connection, msg):
                 if analysis.get("intent") == "add":
                     for item in analysis.get("items", []): await hass.async_add_executor_job(add_item_db_safe, hass, item.get("name"), int(item.get("qty", 1)), item.get("path", ["General"]))
                     hass.bus.async_fire("home_organizer_db_update"); connection.send_result(msg["id"], {"response": "✅ Items added."}); return
-        connection.send_result(msg["id"], {"response": "How can I help you today?"})
+        connection.send_result(msg["id"], {"response": "I'm ready! Snap a photo, upload an image, or a PDF invoice."})
     except Exception as e: connection.send_result(msg["id"], {"error": str(e)})
 
+# ... rest of the helper functions from previous versions preserved ...
 def get_view_data(hass, path_parts, query, date_filter, is_shopping):
     enable_ai = False; entries = hass.config_entries.async_entries(DOMAIN)
     if entries:
