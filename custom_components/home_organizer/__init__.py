@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.1.0 (AI Actions + Invoice Scanning)
+# Home Organizer Ultimate - ver 7.2.0 (AI Actions + Language Consistency + Location Context)
 
 import logging
 import sqlite3
@@ -223,29 +223,60 @@ async def websocket_ai_chat(hass, connection, msg):
         session = async_get_clientsession(hass)
         gen_url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={api_key}"
 
+        # --- NEW: CONTEXT FETCHING (Fix for AI guessing locations) ---
+        existing_locs_str = ""
+        existing_cats_str = ""
+        
+        def fetch_context():
+            nonlocal existing_locs_str, existing_cats_str
+            try:
+                c_conn = get_db_connection(hass)
+                cc = c_conn.cursor()
+                # Get Locations (Hierarchy)
+                cc.execute("SELECT DISTINCT level_1, level_2 FROM items WHERE type='item' OR type='folder'")
+                locs = set()
+                for r in cc.fetchall():
+                    l1, l2 = r[0], r[1]
+                    if l1:
+                        locs.add(l1)
+                        if l2: locs.add(f"{l1} > {l2}")
+                existing_locs_str = ", ".join(sorted(list(locs)))
+                
+                # Get Categories
+                cc.execute("SELECT DISTINCT category FROM items WHERE category IS NOT NULL AND category != ''")
+                cats = [r[0] for r in cc.fetchall()]
+                existing_cats_str = ", ".join(sorted(cats))
+                c_conn.close()
+            except: pass
+            
+        await hass.async_add_executor_job(fetch_context)
+
         # =============================================
         # MODE 1: INVOICE / IMAGE PROCESSING
         # =============================================
         if image_data:
             if "," in image_data: image_data = image_data.split(",")[1]
             
-            # Prompt for receipt/invoice
+            # UPDATED: Prompt to enforce Language and Location Context
             invoice_prompt = (
-                "Analyze this image. It is likely a shopping receipt or invoice. "
-                "Extract all purchased items. For each item:\n"
-                "1. Identify the Name.\n"
-                "2. Identify Quantity (default 1).\n"
-                "3. Infer the best Category (e.g. Food, Tools, Clothes).\n"
-                "4. Infer the best Sub-Category.\n"
-                "5. Infer the best Home Storage Location path (e.g. ['Kitchen', 'Pantry'] or ['Garage', 'Shelf']).\n"
-                "Return JSON ONLY: {\"intent\": \"add_invoice\", \"items\": [{\"name\": \"Milk\", \"qty\": 2, \"category\": \"Food\", \"sub_category\": \"Dairy\", \"path\": [\"Kitchen\", \"Fridge\"]}]}"
+                f"Analyze this receipt image. Context:\n"
+                f"EXISTING LOCATIONS: [{existing_locs_str}]\n"
+                f"EXISTING CATEGORIES: [{existing_cats_str}]\n\n"
+                "RULES:\n"
+                "1. LANGUAGE: Detect the language of the item names on the receipt (e.g. Hebrew or English). "
+                "   EXTRACT ITEMS STRICTLY IN THE ORIGINAL LANGUAGE. Do NOT translate.\n"
+                "2. MAPPING: Map items to the EXISTING LOCATIONS provided above. "
+                "   Do NOT create new root locations. If an item doesn't fit, use 'General' or ask for clarification.\n"
+                "3. OUTPUT JSON ONLY:\n"
+                "   - If items are clear: {{\"intent\": \"add_invoice\", \"items\": [{\"name\": \"...\", \"qty\": 1, \"path\": [\"ExistingRoom\", \"ExistingSub\"], \"category\": \"...\"}]}}\n"
+                "   - If ambiguous/unknown: {{\"intent\": \"clarify\", \"question\": \"...\"}}\n"
                 "\nDo NOT use markdown."
             )
 
             hass.bus.async_fire("home_organizer_chat_progress", {
                 "step": "Scanning Invoice...",
                 "debug_type": "image_scan",
-                "debug_label": "Invoice Prompt",
+                "debug_label": "Invoice Prompt (v7.2)",
                 "debug_content": invoice_prompt
             })
 
@@ -272,6 +303,16 @@ async def websocket_ai_chat(hass, connection, msg):
                 parsed = {}
                 try:
                     parsed = json.loads(clean_txt)
+                    
+                    # CASE A: CLARIFICATION NEEDED
+                    if parsed.get("intent") == "clarify":
+                        connection.send_result(msg["id"], {
+                            "response": parsed.get("question", "I am not sure where to file these items. Please guide me."),
+                            "debug": {"intent": "clarify", "raw_json": clean_txt}
+                        })
+                        return
+
+                    # CASE B: ADD ITEMS
                     if parsed.get("intent") == "add_invoice" and "items" in parsed:
                         for item in parsed["items"]:
                             # Execute DB add in executor
@@ -296,7 +337,7 @@ async def websocket_ai_chat(hass, connection, msg):
 
                         connection.send_result(msg["id"], {
                             "response": response_text,
-                            "debug": {"raw_json": clean_txt}
+                            "debug": {"raw_json": clean_txt, "intent": "add_invoice"}
                         })
                         return
 
