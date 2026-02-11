@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.1.4 (AI Actions + Invoice Scanning)
+# Home Organizer Ultimate - ver 7.1.5 (AI Actions + Invoice Scanning)
 # License: MIT
 
 import logging
@@ -28,8 +28,8 @@ WS_AI_CHAT = "home_organizer/ai_chat"
 
 STATIC_PATH_URL = "/home_organizer_static"
 
-# Use the latest flash model for high-resolution vision support
-GEMINI_MODEL = "gemini-2.0-flash-exp"
+# REVERTED: Using the gemini-3 series model as requested
+GEMINI_MODEL = "gemini-3-flash-preview"
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     return True
@@ -156,7 +156,6 @@ def add_item_db_safe(hass, name, qty, path_list, category="", sub_category=""):
         vals = [name, "item", qty, today, category, sub_category]
         qs = ["?", "?", "?", "?", "?", "?"]
         
-        # Add hierarchy levels
         for i, p in enumerate(path_list):
             if i < 10: 
                 cols.append(f"level_{i+1}")
@@ -201,7 +200,7 @@ def websocket_get_all_items(hass, connection, msg):
 
 @websocket_api.async_response
 async def websocket_ai_chat(hass, connection, msg):
-    """AI Chat v7.1.4: Handles text and High-Res Invoice scanning with existing location context."""
+    """AI Chat v7.1.5: Optimized for High-Res Hebrew/English Invoice Scanning with existing location context."""
     try:
         user_message = msg.get("message", "")
         image_data = msg.get("image_data")
@@ -221,19 +220,15 @@ async def websocket_ai_chat(hass, connection, msg):
         session = async_get_clientsession(hass)
         gen_url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={api_key}"
 
-        # =============================================
-        # FETCH DATABASE CONTEXT (Rooms and Items)
-        # =============================================
+        # Fetch Database Context to provide to AI
         def get_db_context():
             conn = get_db_connection(hass)
             c = conn.cursor()
-            # 1. Existing Hierarchy
             c.execute("SELECT DISTINCT level_1, level_2, level_3 FROM items WHERE level_1 != ''")
             paths = []
             for r in c.fetchall():
                 p = " > ".join([str(x) for x in r if x])
                 if p not in paths: paths.append(p)
-            # 2. Existing Item names and their paths for matching
             c.execute("SELECT name, level_1, level_2, level_3 FROM items WHERE type='item'")
             items_locs = {}
             for r in c.fetchall():
@@ -241,31 +236,27 @@ async def websocket_ai_chat(hass, connection, msg):
             conn.close()
             return paths, items_locs
 
-        existing_paths, existing_items = await hass.async_add_executor_job(get_db_context)
-        paths_str = "\n".join([f"- {p}" for p in existing_paths])
-        items_str = ", ".join(list(existing_items.keys())[:50]) # Sample for context
+        existing_paths, existing_items_map = await hass.async_add_executor_job(get_db_context)
+        paths_context = "\n".join([f"- {p}" for p in existing_paths])
+        items_context = ", ".join(list(existing_items_map.keys())[:50])
 
-        # =============================================
-        # MODE 1: INVOICE / IMAGE PROCESSING
-        # =============================================
         if image_data:
             if "," in image_data: image_data = image_data.split(",")[1]
             
             invoice_prompt = (
-                "Identify items in this invoice image.\n"
-                "RULES:\n"
-                "1. LANGUAGE: Preserve invoice language. If Hebrew, use Hebrew for item names. If English, use English.\n"
-                "2. NO NEW ROOMS: Only use paths from 'EXISTING PATHS' list below.\n"
-                "3. MATCHING: If an item name (or similar) already exists in 'EXISTING ITEMS', use its specific path.\n"
-                "4. LOGIC: Match items to existing locations (e.g. Dairy items to 'Kitchen > Fridge').\n"
-                "5. FALLBACK: If no logical match found, use path ['General'].\n"
-                "\nEXISTING PATHS:\n" + paths_str + "\n"
-                "\nEXISTING ITEMS SAMPLE:\n" + items_str + "\n"
-                "\nReturn JSON ONLY: {\"intent\": \"add_invoice\", \"items\": [{\"name\": \"...\", \"qty\": 1, \"path\": [\"Room\", \"Sub\"]}]}"
+                "Task: Extract items from this invoice.\n"
+                "CRITICAL RULES:\n"
+                "1. LANGUAGE: Match the language of the invoice. If Hebrew, use Hebrew names. If English, use English names.\n"
+                "2. NO NEW ROOMS: DO NOT create new rooms or sub-locations. Use only existing paths from the 'EXISTING PATHS' list below.\n"
+                "3. MATCHING: If a similar item already exists in the system or logic implies a location (e.g., milk goes to Kitchen > Fridge), use that specific existing path.\n"
+                "4. FALLBACK: Use path ['General'] only if no other match is possible.\n"
+                "\nEXISTING PATHS IN SYSTEM:\n" + paths_context + "\n"
+                "\nEXISTING ITEMS IN SYSTEM:\n" + items_context + "\n"
+                "\nResponse format JSON only: {\"intent\": \"add_invoice\", \"items\": [{\"name\": \"...\", \"qty\": 1, \"path\": [\"Room\", \"Sub\"]}]}"
             )
 
             hass.bus.async_fire("home_organizer_chat_progress", {
-                "step": "Analyzing High-Res Invoice...",
+                "step": "Scanning Invoice...",
                 "debug_type": "image_scan",
                 "debug_label": "System Context Prompt",
                 "debug_content": invoice_prompt
@@ -305,24 +296,22 @@ async def websocket_ai_chat(hass, connection, msg):
                             added_count += 1
                         
                         hass.bus.async_fire("home_organizer_db_update")
-                        response_text = f"✅ Added **{added_count} items** to inventory based on your existing locations.\n\n"
+                        response_text = f"✅ Added **{added_count} items** based on your existing setup.\n\n"
                         for i in parsed["items"]:
                             response_text += f"- **{i.get('name')}** (x{i.get('qty')}) → _{' > '.join(i.get('path'))}_\n"
 
                         connection.send_result(msg["id"], {"response": response_text, "debug": {"raw_json": clean_txt}})
                         return
                 except Exception as e:
-                     connection.send_result(msg["id"], {"response": f"❌ Error processing invoice data.", "debug": {"error": str(e), "raw": clean_txt}})
+                     connection.send_result(msg["id"], {"response": "❌ Could not process invoice data automatically.", "debug": {"error": str(e), "raw": clean_txt}})
                      return
 
-        # =============================================
-        # MODE 2: TEXT ANALYSIS (ADD vs SEARCH)
-        # =============================================
+        # Text Analysis Logic
         step1_prompt = (
-            f"User says: '{user_message}'\n"
-            "Analyze intent. IF ADDING: Use EXISTING PATHS only. IF SEARCHING: Find match in DB.\n"
-            "\nEXISTING PATHS:\n" + paths_str + "\n"
-            "Return JSON ONLY. No markdown."
+            f"User message: '{user_message}'\n"
+            "Analyze intent. IF ADDING: Match items to EXISTING PATHS only. IF SEARCHING: Check DB.\n"
+            "\nEXISTING PATHS:\n" + paths_context + "\n"
+            "JSON response only."
         )
 
         payload_1 = {"contents": [{"parts": [{"text": step1_prompt}]}]}
@@ -332,25 +321,20 @@ async def websocket_ai_chat(hass, connection, msg):
                 raw_analysis = res["candidates"][0]["content"]["parts"][0]["text"].strip()
                 clean_txt = re.sub(r'```json\s*|```\s*', '', raw_analysis).strip()
                 analysis_json = json.loads(clean_txt)
-            else:
-                connection.send_result(msg["id"], {"error": "AI API Connection Failed"})
-                return
-
-        if analysis_json.get("intent") == "add":
-            added_log = []
-            for item in analysis_json.get("items", []):
-                nm, qt, pt = item.get("name"), item.get("qty", 1), item.get("path", ["General"])
-                await hass.async_add_executor_job(add_item_db_safe, hass, nm, qt, pt)
-                added_log.append(f"{nm} (x{qt}) to {' > '.join(pt)}")
+                
+                if analysis_json.get("intent") == "add":
+                    added_log = []
+                    for item in analysis_json.get("items", []):
+                        nm, qt, pt = item.get("name"), item.get("qty", 1), item.get("path", ["General"])
+                        await hass.async_add_executor_job(add_item_db_safe, hass, nm, qt, pt)
+                        added_log.append(f"{nm} (x{qt}) to {' > '.join(pt)}")
+                    
+                    hass.bus.async_fire("home_organizer_db_update")
+                    resp_text = f"✅ Added {len(added_log)} items:\n" + "\n".join([f"- {l}" for l in added_log])
+                    connection.send_result(msg["id"], {"response": resp_text})
+                    return
             
-            hass.bus.async_fire("home_organizer_db_update")
-            resp_text = f"✅ Added {len(added_log)} items:\n" + "\n".join([f"- {l}" for l in added_log])
-            connection.send_result(msg["id"], {"response": resp_text, "debug": {"intent": "add", "json": analysis_json}})
-            return
-
-        # Handle Query/Search
-        # (Standard search implementation using SQLite filters based on keywords in user message)
-        connection.send_result(msg["id"], {"response": "I'm ready to help! Ask me to scan an invoice or find an item."})
+        connection.send_result(msg["id"], {"response": "I'm ready! Snap a photo of an invoice or ask me where something is."})
 
     except Exception as e:
         _LOGGER.error(f"AI Chat Error: {e}")
@@ -405,7 +389,6 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
             for r in c.fetchall():
                 r_dict = dict(zip(col_names, r))
                 items.append({"id": r_dict['id'], "name": r_dict['name'], "qty": r_dict['quantity']})
-
     finally: conn.close()
 
     return {
@@ -416,7 +399,6 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
 
 async def register_services(hass, entry):
     def broadcast(): hass.bus.async_fire("home_organizer_db_update")
-
     async def handle_add(call):
         name, itype, parts = call.data.get("item_name"), call.data.get("item_type", "item"), call.data.get("current_path", [])
         def db_ins():
@@ -429,7 +411,6 @@ async def register_services(hass, entry):
             c.execute(f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})", tuple(vals))
             conn.commit(); conn.close()
         await hass.async_add_executor_job(db_ins); broadcast()
-
     async def handle_delete(call):
         item_id = call.data.get("item_id")
         def db_del():
@@ -437,7 +418,6 @@ async def register_services(hass, entry):
             c.execute("DELETE FROM items WHERE id = ?", (item_id,))
             conn.commit(); conn.close()
         await hass.async_add_executor_job(db_del); broadcast()
-
     async def handle_update_qty(call):
         item_id, change = call.data.get("item_id"), int(call.data.get("change"))
         def db_q():
@@ -445,6 +425,5 @@ async def register_services(hass, entry):
             c.execute("UPDATE items SET quantity = MAX(0, quantity + ?) WHERE id = ?", (change, item_id))
             conn.commit(); conn.close()
         await hass.async_add_executor_job(db_q); broadcast()
-
     for n, h in [("add_item", handle_add), ("delete_item", handle_delete), ("update_qty", handle_update_qty)]:
         hass.services.async_register(DOMAIN, n, h)
