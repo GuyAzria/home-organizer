@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.1.2 (Two-Step AI UI + Invoice Scan)
+// Home Organizer Ultimate - Ver 7.2.0 (Language Consistency + Smart Location Mapping)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
@@ -1381,6 +1381,9 @@ class HomeOrganizerPanel extends HTMLElement {
                         }
                         if (d.sql_query) {
                             debugHTML += `<details class="debug-details"><summary class="debug-summary">🔍 SQL Query</summary><div class="debug-content">${esc(d.sql_query)}</div></details>`;
+                        }
+                        if (d.intent === "clarify") {
+                             debugHTML += `<details class="debug-details"><summary class="debug-summary">❓ Clarification Needed</summary><div class="debug-content">AI requested clarification on item locations.</div></details>`;
                         }
                     }
                     
