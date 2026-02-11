@@ -605,6 +605,13 @@ class HomeOrganizerPanel extends HTMLElement {
           this.compressImage(file, async (dataUrl) => {
               const targetId = this.pendingItemId || this.pendingItem;
               const isSearch = context === 'search';
+              const isChat = context === 'chat';
+
+              if (isChat) {
+                  this.chatImage = dataUrl;
+                  this.render();
+                  return;
+              }
 
               if (!isSearch && targetId) {
                   this.setLoading(targetId, true);
@@ -668,6 +675,13 @@ class HomeOrganizerPanel extends HTMLElement {
       
       const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
       this.stopCamera();
+      
+      // NEW: Handle Chat Photo
+      if (this.cameraContext === 'chat') {
+          this.chatImage = dataUrl;
+          this.render();
+          return;
+      }
       
       const targetId = this.pendingItemId || this.pendingItem;
       const isSearch = this.cameraContext === 'search';
@@ -1393,21 +1407,7 @@ class HomeOrganizerPanel extends HTMLElement {
   
   // NEW: Handle Camera for Chat
   handleChatCamera() {
-      // Create hidden input
-      let input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'image/*';
-      input.capture = 'environment';
-      
-      input.onchange = (e) => {
-          const file = e.target.files[0];
-          if (!file) return;
-          this.compressImage(file, (dataUrl) => {
-              this.chatImage = dataUrl;
-              this.render(); // Re-render to show preview
-          });
-      };
-      input.click();
+      this.openCamera('chat');
   }
 
   handleChatProgress(data) {
