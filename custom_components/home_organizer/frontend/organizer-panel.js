@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.1.8 (Two-Step AI UI + High-Res Invoice Scan + PDF Support)
+// Home Organizer Ultimate - Ver 7.1.9 (Two-Step AI UI + High-Res Invoice Scan + PDF Support)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
@@ -488,7 +488,7 @@ class HomeOrganizerPanel extends HTMLElement {
           input = document.createElement('input');
           input.id = 'native-camera-input';
           input.type = 'file';
-          input.accept = 'image/*,application/pdf'; // Support PDF choosing
+          input.accept = 'image/*,application/pdf'; 
           input.capture = 'environment';
           input.style.display = 'none';
           this.shadowRoot.appendChild(input);
@@ -497,10 +497,7 @@ class HomeOrganizerPanel extends HTMLElement {
           const file = e.target.files[0]; if (!file) return;
           if (file.type === 'application/pdf') {
               const reader = new FileReader();
-              reader.onload = (e) => {
-                  this.chatImage = e.target.result;
-                  this.render();
-              };
+              reader.onload = (ev) => { this.chatImage = ev.target.result; this.render(); };
               reader.readAsDataURL(file);
               return;
           }
@@ -514,7 +511,7 @@ class HomeOrganizerPanel extends HTMLElement {
                   if (isSearch) await this.callHA('ai_action', { mode: 'search', image_data: dataUrl });
                   else if (this.pendingItemId) { await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl }); this.refreshImageVersion(this.pendingItemId); }
                   else if (this.pendingItem) { await this.callHA('update_image', { item_name: this.pendingItem, image_data: dataUrl }); this.refreshImageVersion(this.pendingItem); }
-              } catch(e) { console.error(e); }
+              } catch(err) { console.error(err); }
               finally { if (!isSearch && targetId) this.setLoading(targetId, false); this.pendingItemId = null; this.pendingItem = null; }
           }, this.useAiBg, maxRes); 
           input.value = ''; 
@@ -575,26 +572,38 @@ class HomeOrganizerPanel extends HTMLElement {
     root.getElementById('search-box').style.display = this.isSearch ? 'flex' : 'none';
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
     if(attrs.clipboard) root.getElementById('clipboard-name').innerText = attrs.clipboard;
+    
     const chatBtn = root.getElementById('btn-chat');
     if (attrs.enable_ai) { chatBtn.style.display = 'flex'; chatBtn.classList.toggle('active', this.isChatMode); } else { chatBtn.style.display = 'none'; }
+    
     const app = root.getElementById('app');
     if(this.isEditMode) app.classList.add('edit-mode'); else app.classList.remove('edit-mode');
+    
     const editBtn = root.getElementById('btn-edit');
     if (editBtn) { if (this.isEditMode) editBtn.classList.add('edit-active'); else editBtn.classList.remove('edit-active'); }
+    
     const content = root.getElementById('content');
     content.innerHTML = '';
+    
     if (this.isChatMode) { this.renderChatUI(content); return; }
+
     const upBtn = root.getElementById('btn-up');
     if (upBtn) { upBtn.style.display = attrs.depth === 0 ? 'none' : 'flex'; }
+    
     const viewBtn = root.getElementById('btn-view-toggle');
     viewBtn.style.display = attrs.depth >= 2 ? 'block' : 'none';
+    
     const toggleBtn = root.getElementById('btn-toggle-ids');
     if (toggleBtn) { if (attrs.depth >= 2) toggleBtn.style.display = 'none'; else { toggleBtn.style.display = 'flex'; toggleBtn.style.color = this.showIds ? 'var(--catalog-bg)' : 'var(--primary)'; } }
-    
-    // ... items rendering logic ...
-    // (Preserved from v7.1.7)
+
+    if (attrs.shopping_list && attrs.shopping_list.length > 0) {
+        const listContainer = document.createElement('div'); listContainer.className = 'item-list';
+        const grouped = {}; attrs.shopping_list.forEach(item => { const loc = item.main_location || "Other"; if(!grouped[loc]) grouped[loc] = []; grouped[loc].push(item); });
+        Object.keys(grouped).sort().forEach(locName => { const header = document.createElement('div'); header.className = 'group-separator'; header.innerText = locName; listContainer.appendChild(header); grouped[locName].forEach(item => listContainer.appendChild(this.createItemRow(item, true))); });
+        content.appendChild(listContainer); return;
+    }
+
     if (attrs.depth === 0) {
-        // Rooms view logic
         const zoneContainer = document.createElement('div'); zoneContainer.className = 'item-list';
         const groupedRooms = {}; const knownZones = new Set(); const markerRegex = /^ZONE_MARKER_(\d+)_+(.*)$/; const zonesList = [];
         if (attrs.folders) {
@@ -616,34 +625,69 @@ class HomeOrganizerPanel extends HTMLElement {
         zonesList.forEach(zoneObj => {
             const zoneName = zoneObj.name, rooms = groupedRooms[zoneName] || []; if (zoneName === "General Rooms" && rooms.length === 0 && !this.isEditMode) return;
             const header = document.createElement('div'); header.className = 'group-separator';
-            header.innerHTML = `<span>${this.t('zone_' + zoneName) === ('zone_' + zoneName) ? zoneName : this.t('zone_' + zoneName)}</span>`; 
-            zoneContainer.appendChild(header);
+            let headerContent = `<span>${this.t('zone_' + zoneName) === ('zone_' + zoneName) ? zoneName : this.t('zone_' + zoneName)}</span>`; 
+            if (this.isEditMode && zoneName !== "General Rooms") {
+                headerContent = `<div style="display:flex;align-items:center;"><span class="subloc-title">${zoneName}</span></div><div style="display:flex;gap:5px;align-items:center"><button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveZone('${zoneName}', -1)">${ICONS.arrow_up}</button><button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveZone('${zoneName}', 1)" style="transform:rotate(180deg)">${ICONS.arrow_up}</button><button class="edit-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableZoneRename(this, '${zoneName}')">${ICONS.edit}</button><button class="delete-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteZone('${zoneName}')">${ICONS.delete}</button></div>`;
+            }
+            header.innerHTML = headerContent; this.setupZoneDropTarget(header, zoneName); zoneContainer.appendChild(header);
             const grid = document.createElement('div'); grid.className = 'folder-grid';
             rooms.forEach(folder => {
-                const catalogID = this.toAlphaId(this.getPersistentID('root', folder.originalName));
+                const rawID = this.getPersistentID('root', folder.originalName), catalogID = this.toAlphaId(rawID);
                 const el = document.createElement('div'); el.className = 'folder-item'; this.setupRoomDragSource(el, folder.originalName);
                 el.onclick = () => { if (!this.isEditMode) this.navigate('down', folder.originalName, catalogID); };
-                let folderContent = ICONS.folder; if (folder.img) { const isLoading = this.loadingSet.has(folder.originalName); folderContent = `<div style="position:relative;width:100%;height:100%"><img src="${folder.img}" style="width:100%;height:100%;object-fit:contain;border-radius:4px">${isLoading ? `<div class="loader-container"><span class="loader"></span></div>` : ''}</div>`; }
-                el.innerHTML = `<div class="android-folder-icon">${folderContent}<div class="catalog-badge">${catalogID}</div></div><div class="folder-label">${folder.displayName}</div>`; grid.appendChild(el);
+                let folderContent = ICONS.folder; if (folder.img) { const isLoading = this.loadingSet.has(folder.originalName), ver = this.imageVersions[folder.originalName] || '', src = folder.img + (folder.img.includes('?') ? '&' : '?') + 'v=' + ver; folderContent = `<div style="position:relative;width:100%;height:100%"><img src="${src}" style="width:100%;height:100%;object-fit:contain;border-radius:4px">${isLoading ? `<div class="loader-container"><span class="loader"></span></div>` : ''}</div>`; }
+                const delBtn = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.originalName}')">✕</div>` : '';
+                const edBtn = this.isEditMode ? `<div class="folder-edit-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'), '${folder.originalName}')">${ICONS.edit}</div>` : '';
+                const imBtn = this.isEditMode ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${folder.originalName}', 'room')">${ICONS.image}</div>` : '';
+                el.innerHTML = `<div class="android-folder-icon">${folderContent}<div class="catalog-badge">${catalogID}</div>${edBtn}${delBtn}${imBtn}</div><div class="folder-label">${folder.displayName}</div>`; grid.appendChild(el);
             });
+            if (this.isEditMode) { const addBtn = document.createElement('div'); addBtn.className = 'folder-item add-folder-card'; addBtn.innerHTML = `<div class="android-folder-icon">${ICONS.plus}</div><div class="folder-label">${this.t('add_room')}</div>`; addBtn.onclick = (e) => this.enableZoneRoomInput(e.currentTarget, zoneName); grid.appendChild(addBtn); }
             zoneContainer.appendChild(grid);
         });
-        content.appendChild(zoneContainer);
-    } else {
-        // Items and sublocations view logic (Preserved)
-        if (attrs.folders) {
+        if (this.isEditMode) { const addZoneBtn = document.createElement('button'); addZoneBtn.className = 'add-item-btn'; addZoneBtn.style.marginTop = '20px'; addZoneBtn.innerHTML = this.t('add_zone_btn'); addZoneBtn.onclick = () => this.createNewZone(); zoneContainer.appendChild(addZoneBtn); }
+        content.appendChild(zoneContainer); return;
+    }
+
+    if (attrs.depth < 2) {
+        if ((attrs.folders && attrs.folders.length > 0) || this.isEditMode) {
             const grid = document.createElement('div'); grid.className = 'folder-grid';
-            attrs.folders.forEach(folder => {
-                const el = document.createElement('div'); el.className = 'folder-item'; el.onclick = () => this.navigate('down', folder.name, "");
-                el.innerHTML = `<div class="android-folder-icon">${ICONS.folder}</div><div class="folder-label">${folder.name}</div>`; grid.appendChild(el);
-            });
+            if (attrs.folders) {
+                attrs.folders.forEach(folder => {
+                    const catalogID = this.toAlphaId(this.getPersistentID(this.currentPath[0] || 'root', folder.name));
+                    const el = document.createElement('div'); el.className = 'folder-item'; el.onclick = () => this.navigate('down', folder.name, catalogID);
+                    let folderContent = ICONS.folder; if (folder.img) { const isLoading = this.loadingSet.has(folder.name); folderContent = `<div style="position:relative;width:100%;height:100%"><img src="${folder.img}" style="width:100%;height:100%;object-fit:contain;border-radius:4px">${isLoading ? `<div class="loader-container"><span class="loader"></span></div>` : ''}</div>`; }
+                    el.innerHTML = `<div class="android-folder-icon">${folderContent}<div class="catalog-badge">${catalogID}</div></div><div class="folder-label">${folder.name}</div>`; grid.appendChild(el);
+                });
+            }
+            if (this.isEditMode) {
+                const addBtn = document.createElement('div'); addBtn.className = 'folder-item add-folder-card'; addBtn.innerHTML = `<div class="android-folder-icon">${ICONS.plus}</div><div class="folder-label">${this.t('add')}</div>`; addBtn.onclick = (e) => this.enableFolderInput(e.currentTarget); grid.appendChild(addBtn);
+            }
             content.appendChild(grid);
         }
-        if (attrs.items) {
-            const list = document.createElement('div'); list.className = 'item-list';
-            attrs.items.forEach(item => list.appendChild(this.createItemRow(item, false)));
-            content.appendChild(list);
-        }
+    } else {
+        const listContainer = document.createElement('div'); listContainer.className = 'item-list';
+        const markerRegex = /^ORDER_MARKER_(\d+)_(.*)$/;
+        const grouped = {}; const orderedGroups = []; const foundMarkers = new Set();
+        if (attrs.folders) attrs.folders.forEach(f => { if (f.name.startsWith("ORDER_MARKER_")) { const match = f.name.match(markerRegex); if (match) { orderedGroups.push({ name: match[2], order: parseInt(match[1]), markerKey: f.name }); foundMarkers.add(match[2]); } } });
+        if (attrs.items) attrs.items.forEach(item => { const sub = item.sub_location || "General"; if (!foundMarkers.has(sub)) { orderedGroups.push({ name: sub, order: sub === "General" ? -1 : 9999, markerKey: null }); foundMarkers.add(sub); } });
+        orderedGroups.sort((a,b) => a.order - b.order).forEach(g => grouped[g.name] = []);
+        if (attrs.items) attrs.items.forEach(item => { const sub = item.sub_location || "General"; if(grouped[sub]) grouped[sub].push(item); });
+        
+        orderedGroups.forEach(groupObj => {
+            const subName = groupObj.name, items = grouped[subName] || [], count = items.length;
+            if (subName === "General" && count === 0 && !this.isEditMode) return;
+            const icon = this.expandedSublocs.has(subName) ? ICONS.chevron_down : ICONS.chevron_right;
+            const header = document.createElement('div'); header.className = 'group-separator'; header.onclick = () => this.toggleSubloc(subName);
+            header.innerHTML = `<span>${icon} ${subName} <small>(${count})</small></span>`; listContainer.appendChild(header);
+            if (this.expandedSublocs.has(subName)) { items.forEach(item => listContainer.appendChild(this.createItemRow(item, false))); }
+        });
+        content.appendChild(listContainer);
+    }
+
+    if (attrs.items && attrs.depth < 2) {
+        const list = document.createElement('div'); list.className = 'item-list';
+        attrs.items.forEach(item => list.appendChild(this.createItemRow(item, false)));
+        content.appendChild(list);
     }
   }
 
@@ -661,8 +705,7 @@ class HomeOrganizerPanel extends HTMLElement {
           if(msg.image) { 
               const isPdf = msg.image.startsWith('data:application/pdf');
               if (isPdf) {
-                  const pdfIcon = `<div style="height:80px; width:80px; background:#f44336; color:white; display:flex; align-items:center; justify-content:center; border-radius:8px; font-weight:bold; margin-top:5px;">PDF</div>`;
-                  div.innerHTML += pdfIcon;
+                  div.innerHTML += `<div style="height:80px; width:80px; background:#f44336; color:white; display:flex; align-items:center; justify-content:center; border-radius:8px; font-weight:bold; margin-top:5px;">PDF</div>`;
               } else {
                   const img = document.createElement('img'); img.src = msg.image; img.style.maxWidth = "100%"; img.style.borderRadius = "8px"; img.style.marginTop = "5px"; div.appendChild(img); 
               }
@@ -672,11 +715,10 @@ class HomeOrganizerPanel extends HTMLElement {
       chatContainer.appendChild(messagesDiv);
       
       const previewArea = document.createElement('div'); previewArea.id = "chat-img-preview"; previewArea.style.display = this.chatImage ? "flex" : "none"; previewArea.style.padding = "10px"; previewArea.style.background = "#222"; previewArea.style.borderTop = "1px solid #444"; previewArea.style.alignItems = "center"; previewArea.style.gap = "10px";
-      
       const isPdfAttached = this.chatImage && this.chatImage.startsWith('data:application/pdf');
       previewArea.innerHTML = `
         <div style="display:inline-block; position:relative;">
-            ${isPdfAttached ? `<div style="height:50px; width:50px; background:#f44336; color:white; display:flex; align-items:center; justify-content:center; border-radius:4px; font-weight:bold; font-size:10px;">PDF</div>` : `<img id="chat-preview-img" src="${this.chatImage || ''}" style="height:50px; border-radius:4px; border:1px solid #666">`}
+            ${isPdfAttached ? `<div style="height:50px; width:50px; background:#f44336; color:white; display:flex; align-items:center; justify-content:center; border-radius:4px; font-weight:bold; font-size:10px;">PDF</div>` : `<img src="${this.chatImage || ''}" style="height:50px; border-radius:4px; border:1px solid #666">`}
             <div id="chat-remove-img" style="position:absolute; top:-5px; right:-5px; background:red; color:white; border-radius:50%; width:15px; height:15px; font-size:10px; text-align:center; cursor:pointer; line-height:15px;">✕</div>
         </div>
         <span style="color:#aaa; font-size:12px;">File attached (Scan Mode)</span>
@@ -731,7 +773,7 @@ class HomeOrganizerPanel extends HTMLElement {
               const file = e.target.files[0]; if (!file) return;
               if (file.type === 'application/pdf') {
                   const reader = new FileReader();
-                  reader.onload = (e) => { this.chatImage = e.target.result; this.render(); };
+                  reader.onload = (ev) => { this.chatImage = ev.target.result; this.render(); };
                   reader.readAsDataURL(file);
               } else {
                   this.compressImage(file, (dataUrl) => { this.chatImage = dataUrl; this.render(); }, false, 2048);
@@ -745,6 +787,7 @@ class HomeOrganizerPanel extends HTMLElement {
   }
   
   handleChatCamera() { this.openCamera('chat'); }
+  
   handleChatProgress(data) {
     if (!this.isChatMode) return; let statusMsg = null;
     for (let i = this.chatHistory.length - 1; i >= 0; i--) { if (this.chatHistory[i].role === 'system' && this.chatHistory[i].isStatus) { statusMsg = this.chatHistory[i]; break; } }
@@ -759,32 +802,83 @@ class HomeOrganizerPanel extends HTMLElement {
       return displayName;
   }
   
-  async moveSubLoc(subName, direction) { /* logic preserved */ }
-  createNewZone() { /* logic preserved */ }
-  enableZoneRoomInput(cardEl, zoneName) { /* logic preserved */ }
+  async moveSubLoc(subName, direction) {
+      const subGroups = []; const seen = new Set(); const currentMarkers = {}; 
+      if (this.localData.folders) this.localData.folders.forEach(f => { if (f.name.startsWith("ORDER_MARKER_")) { const match = f.name.match(/^ORDER_MARKER_(\d+)_(.*)$/); if (match) { const realName = match[2]; if (!seen.has(realName)) { subGroups.push({ name: realName, order: parseInt(match[1]) }); seen.add(realName); currentMarkers[realName] = f.name; } } } else if (!seen.has(f.name)) { subGroups.push({ name: f.name, order: 9999 }); seen.add(f.name); } });
+      if (this.localData.items) this.localData.items.forEach(i => { const s = i.sub_location || "General"; if (s.startsWith("ORDER_MARKER_")) { const match = s.match(/^ORDER_MARKER_(\d+)_(.*)$/); if (match) { const realName = match[2]; if (!seen.has(realName)) { subGroups.push({ name: realName, order: parseInt(match[1]) }); seen.add(realName); currentMarkers[realName] = s; } } } else if (!seen.has(s)) { subGroups.push({ name: s, order: s==="General" ? -1 : 9999 }); seen.add(s); } });
+      subGroups.sort((a,b) => a.order - b.order);
+      const idx = subGroups.findIndex(g => g.name === subName); if (idx === -1) return;
+      const newIdx = idx + direction; if (newIdx < 0 || newIdx >= subGroups.length) return;
+      [subGroups[idx], subGroups[newIdx]] = [subGroups[newIdx], subGroups[idx]];
+      for (let i = 0; i < subGroups.length; i++) {
+          const ord = String((i + 1) * 10).padStart(3, '0'), nm = `ORDER_MARKER_${ord}_${subGroups[i].name}`, old = currentMarkers[subGroups[i].name];
+          if (subGroups[i].name !== "General") { if (old && old !== nm) await this.callHA('update_item_details', { original_name: old, new_name: nm, current_path: this.currentPath, is_folder: true }); else if (!old) await this.callHA('add_item', { item_name: "OrderMarker", item_type: 'item', current_path: [...this.currentPath, nm] }); }
+      }
+      this.fetchData();
+  }
+
+  createNewZone() {
+      let base = "New Zone", name = base, count = 1; const seen = new Set();
+      if (this.localData && this.localData.folders) this.localData.folders.forEach(f => { if(f.zone) seen.add(f.zone); if(f.name.startsWith("ZONE_MARKER_")) seen.add(f.name.replace(/^ZONE_MARKER_\d+_/, "").trim()); });
+      while (seen.has(name)) name = `${base} ${count++}`;
+      this.callHA('add_item', { item_name: "ZONE_MARKER_999_" + name, item_type: 'folder', zone: name, current_path: [] });
+  }
+
+  enableZoneRoomInput(cardEl, zoneName) {
+      const iconContainer = cardEl.querySelector('.android-folder-icon'), label = cardEl.querySelector('.folder-label'); if(iconContainer.querySelector('input')) return;
+      iconContainer.innerHTML = `<input type="text" class="add-folder-input" placeholder="Name">`; const input = iconContainer.querySelector('input'); label.innerText = this.t('save_to') + " " + zoneName;
+      input.focus(); input.onkeydown = (e) => { if (e.key === 'Enter') this.saveNewRoomInZone(input.value, zoneName); };
+      input.onblur = () => { if (input.value.trim()) this.saveNewRoomInZone(input.value, zoneName); else this.render(); };
+  }
+
   saveNewRoomInZone(name, zoneName) { if(!name) return; let finalName = zoneName !== "General Rooms" ? `[${zoneName}] ${name}` : name; this.callHA('add_item', { item_name: finalName, item_type: 'folder', current_path: [] }); }
   setupRoomDragSource(el, roomName) { el.draggable = true; el.ondragstart = (e) => { e.dataTransfer.setData("text/plain", roomName); e.dataTransfer.effectAllowed = "move"; el.classList.add('dragging'); }; el.ondragend = () => el.classList.remove('dragging'); }
   setupZoneDropTarget(el, zoneName) { el.ondragover = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drag-over'); }; el.ondragleave = () => el.classList.remove('drag-over'); el.ondrop = (e) => { e.preventDefault(); el.classList.remove('drag-over'); const roomName = e.dataTransfer.getData("text/plain"); if (roomName) this.moveRoomToZone(roomName, zoneName); }; }
   async moveRoomToZone(roomName, zoneName) { try { const cleanName = roomName.replace(/^\[(.*?)\]\s*/, ""); let newName = zoneName !== "General Rooms" ? `[${zoneName}] ${cleanName}` : cleanName; if (newName !== roomName) { await this.callHA('update_item_details', { original_name: roomName, new_name: newName, current_path: [], is_folder: true }); this.fetchData(); } } catch (err) { console.error(err); } }
-  moveZone(zoneName, direction) { /* logic preserved */ }
-  enableZoneRename(btn, oldName) { /* logic preserved */ }
-  batchUpdateZone(oldZone, newZone) { /* logic preserved */ }
-  deleteZone(zoneName) { if(confirm(this.t('confirm_del_zone', zoneName))) { /* del logic */ } }
-  showItemDetails(item) { /* logic preserved */ }
-  showImg(src) { /* logic preserved */ }
+  
+  moveZone(zoneName, direction) {
+      const zones = []; const seen = new Set();
+      if (this.localData && this.localData.folders) { this.localData.folders.forEach(f => { if (f.name.startsWith("ZONE_MARKER_")) { const match = f.name.match(/^ZONE_MARKER_(\d+)_(.*)$/); let zOrder = match ? parseInt(match[1]) : 9999, zName = match ? match[2] : f.name.replace("ZONE_MARKER_", "").trim(); if (!seen.has(zName)) { zones.push({ name: zName, order: zOrder, markerName: f.name }); seen.add(zName); } } }); }
+      zones.sort((a,b) => a.order - b.order); const idx = zones.findIndex(z => z.name === zoneName); if (idx === -1) return; 
+      const newIdx = idx + direction; if (newIdx < 0 || newIdx >= zones.length) return; 
+      [zones[idx], zones[newIdx]] = [zones[newIdx], zones[idx]];
+      zones.forEach((z, index) => { const nm = `ZONE_MARKER_${String((index + 1) * 10).padStart(3, '0')}_${z.name}`; if (z.markerName !== nm) this.callHA('update_item_details', { original_name: z.markerName, new_name: nm, current_path: [], is_folder: true }); });
+      setTimeout(() => this.fetchData(), 600);
+  }
+
+  enableZoneRename(btn, oldName) {
+      const header = btn.closest('.group-separator'); if (header.querySelector('input')) return; const titleSpan = header.querySelector('.subloc-title') || header.querySelector('span'); if(!titleSpan) return;
+      const input = document.createElement('input'); input.value = oldName; input.style.background = 'var(--bg-input-edit)'; input.style.color = 'var(--text-main)'; input.style.border = '1px solid var(--primary)'; input.style.borderRadius = '4px'; input.style.padding = '4px'; input.style.fontSize = '14px'; input.style.width = '200px'; input.onclick = (e) => e.stopPropagation(); titleSpan.replaceWith(input); input.focus();
+      let isSaving = false; input.onkeydown = (e) => { if (e.key === 'Enter') input.blur(); }; 
+      input.onblur = () => { if (isSaving) return; isSaving = true; const newVal = input.value.trim(); if (newVal && newVal !== oldName) { const newSpan = document.createElement('span'); newSpan.className = 'subloc-title'; newSpan.innerText = newVal; input.replaceWith(newSpan); this.batchUpdateZone(oldName, newVal); } else { const originalSpan = document.createElement('span'); originalSpan.className = 'subloc-title'; originalSpan.innerText = oldName; input.replaceWith(originalSpan); } };
+  }
+
+  batchUpdateZone(oldZone, newZone) {
+      if (this.localData && this.localData.folders) {
+          this.localData.folders.forEach(f => {
+              if (f.name.startsWith("ZONE_MARKER_") && f.name.endsWith(`_${oldZone}`)) this.callHA('update_item_details', { original_name: f.name, new_name: f.name.replace(`_${oldZone}`, `_${newZone}`), current_path: [], is_folder: true }); 
+              else if (f.name.startsWith(`[${oldZone}] `)) this.callHA('update_item_details', { original_name: f.name, new_name: f.name.replace(`[${oldZone}] `, `[${newZone}] `), current_path: [], is_folder: true });
+          });
+          setTimeout(() => this.fetchData(), 800);
+      }
+  }
+
+  deleteZone(zoneName) { if(confirm(this.t('confirm_del_zone', zoneName))) { if (this.localData && this.localData.folders) { this.localData.folders.forEach(f => { if (f.name.startsWith("ZONE_MARKER_") && f.name.endsWith(`_${zoneName}`)) this.callHA('delete_item', { item_name: f.name, current_path: [], is_folder: true }); else if (f.name.startsWith(`[${zoneName}] `)) this.callHA('update_item_details', { original_name: f.name, new_name: f.name.replace(`[${zoneName}] `, ""), current_path: [], is_folder: true }); }); } setTimeout(() => this.fetchData(), 800); } }
+  showItemDetails(item) { const ov = this.shadowRoot.getElementById('img-overlay'), img = this.shadowRoot.getElementById('overlay-img'), det = this.shadowRoot.getElementById('overlay-details'), iconBig = this.shadowRoot.getElementById('overlay-icon-big'); ov.style.display = 'flex'; det.style.display = 'block'; if(item.img) { img.src = item.img; img.style.display = 'block'; iconBig.style.display = 'none'; } else { img.style.display = 'none'; iconBig.style.display = 'block'; } det.innerHTML = `<div style="font-size:20px;font-weight:bold;margin-bottom:8px">${item.name}</div><div style="font-size:16px;color:#aaa;margin-bottom:15px">${item.date || this.t('no_date')}</div><div style="font-size:18px;font-weight:bold;color:var(--accent);background:#333;padding:8px 20px;border-radius:20px;display:inline-block">${this.t('quantity')}: ${item.qty}</div>`; }
+  showImg(src) { const ov = this.shadowRoot.getElementById('img-overlay'), img = this.shadowRoot.getElementById('overlay-img'), det = this.shadowRoot.getElementById('overlay-details'), iconBig = this.shadowRoot.getElementById('overlay-icon-big'); if(ov && img) { img.src = src; img.style.display = 'block'; if(det) det.style.display = 'none'; if(iconBig) iconBig.style.display = 'none'; ov.style.display = 'flex'; } }
   toggleSubloc(name) { if (this.expandedSublocs.has(name)) this.expandedSublocs.delete(name); else this.expandedSublocs.add(name); this.render(); }
-  enableFolderInput(cardEl) { /* logic preserved */ }
-  enableFolderRename(labelEl, oldName) { /* logic preserved */ }
+  enableFolderInput(cardEl) { const iconContainer = cardEl.querySelector('.android-folder-icon'), label = cardEl.querySelector('.folder-label'); if(iconContainer.querySelector('input')) return; iconContainer.innerHTML = `<input type="text" class="add-folder-input" placeholder="Name">`; const input = iconContainer.querySelector('input'); label.innerText = this.t('saving'); input.focus(); input.onkeydown = (e) => { if (e.key === 'Enter') this.saveNewFolder(input.value); }; input.onblur = () => { if (input.value.trim()) this.saveNewFolder(input.value); else this.render(); }; }
+  enableFolderRename(labelEl, oldName) { if (!labelEl || labelEl.querySelector('input')) return; const input = document.createElement('input'); input.value = oldName; input.style.width = '100%'; input.style.background = 'var(--bg-input-edit)'; input.style.color = 'var(--text-main)'; input.style.border = '1px solid var(--primary)'; input.style.borderRadius = '4px'; input.style.textAlign = 'center'; input.style.fontSize = '12px'; input.onclick = (e) => e.stopPropagation(); labelEl.innerHTML = ''; labelEl.appendChild(input); input.focus(); let isSaving = false; input.onkeydown = (e) => { if (e.key === 'Enter') input.blur(); }; input.onblur = () => { if (isSaving) return; isSaving = true; const newVal = input.value.trim(); if (newVal && newVal !== oldName) this.callHA('update_item_details', { original_name: oldName, new_name: newVal, new_date: "", current_path: this.currentPath, is_folder: true }); else this.render(); }; }
   saveNewFolder(name) { if(!name) return; this._hass.callService('home_organizer', 'add_item', { item_name: name, item_type: 'folder', item_date: '', image_data: null, current_path: this.currentPath }); }
-  addQuickItem(targetSubloc) { /* logic preserved */ }
+  addQuickItem(targetSubloc) { const tempName = this.t('new_item') + " " + new Date().toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'}), today = new Date().toISOString().split('T')[0]; let usePath = [...this.currentPath]; if (targetSubloc && targetSubloc !== "General") usePath.push(targetSubloc); this._hass.callService('home_organizer', 'add_item', { item_name: tempName, item_type: 'item', item_date: today, image_data: null, current_path: usePath }); }
   setupDragSource(el, itemName) { el.draggable = true; el.ondragstart = (e) => { e.dataTransfer.setData("text/plain", itemName); e.dataTransfer.effectAllowed = "move"; el.classList.add('dragging'); }; el.ondragend = () => el.classList.remove('dragging'); }
   setupDropTarget(el, subName) { el.dataset.subloc = subName; el.ondragover = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drag-over'); }; el.ondragleave = () => el.classList.remove('drag-over'); el.ondrop = (e) => { e.preventDefault(); el.classList.remove('drag-over'); const itemName = e.dataTransfer.getData("text/plain"); if (itemName) this.handleDropAction(subName, itemName); }; }
-  async handleDropAction(targetSubloc, itemName) { /* logic preserved */ }
+  async handleDropAction(targetSubloc, itemName) { let targetPath = [...this.currentPath]; if (targetSubloc !== "General") targetPath.push(targetSubloc); try { await this.callHA('clipboard_action', {action: 'cut', item_name: itemName}); await this.callHA('paste_item', {target_path: targetPath}); } catch (err) { console.error(err); } }
   triggerCameraEdit(id, name) { this.pendingItemId = id; this.pendingItemName = name; this.openCamera('update'); }
   adjustShopQty(id, delta) { if (this.shopQuantities[id] === undefined) this.shopQuantities[id] = 0; this.shopQuantities[id] = Math.max(0, this.shopQuantities[id] + delta); this.render(); }
   duplicateItem(itemId) { if (itemId) this.callHA('duplicate_item', { item_id: itemId }); }
-  createItemRow(item, isShopMode) { /* logic preserved from v7.1.7 */ 
-    const div = document.createElement('div'), oosClass = item.qty === 0 ? 'out-of-stock-frame' : '', appEl = this.shadowRoot.getElementById('app'), isRTL = appEl && !appEl.classList.contains('ltr');
+  createItemRow(item, isShopMode) {
+     const div = document.createElement('div'), oosClass = item.qty === 0 ? 'out-of-stock-frame' : '', appEl = this.shadowRoot.getElementById('app'), isRTL = appEl && !appEl.classList.contains('ltr');
      div.className = `item-row ${this.expandedIdx === item.id ? 'expanded' : ''} ${oosClass}`; this.setupDragSource(div, item.name);
      let controls = ''; if (isShopMode) {
          const localQty = this.shopQuantities[item.id] || 0, checkStyle = localQty === 0 ? "background:#555;color:#888;cursor:not-allowed;" : "background:var(--accent);";
@@ -835,6 +929,101 @@ class HomeOrganizerPanel extends HTMLElement {
   pasteItem() { this.callHA('paste_item', { target_path: this.currentPath }); }
   cut(n) { this.callHA('clipboard_action', {action: 'cut', item_name: n}); }
   callHA(s, d) { return this._hass.callService('home_organizer', s, d); }
+
+  renderChatUI(container) {
+      const chatContainer = document.createElement('div'); chatContainer.className = 'chat-container';
+      const messagesDiv = document.createElement('div'); messagesDiv.className = 'chat-messages';
+      
+      if (this.chatHistory.length === 0) {
+          const welcome = document.createElement('div'); welcome.className = 'message ai';
+          welcome.innerHTML = `<b>AI Assistant Ready</b><br>I can scan invoices from photos or PDFs.<br><br><b>Capabilities:</b><br>• Add Items: "Add 3 batteries to kitchen"<br>• Scan Invoices: Choose a photo or a <b>PDF</b> file!<br>• Find things: "Where is the milk?"`;
+          messagesDiv.appendChild(welcome);
+      }
+      this.chatHistory.forEach(msg => {
+          const div = document.createElement('div'); div.className = `message ${msg.role}`; div.innerHTML = msg.text; 
+          if(msg.image) { 
+              const isPdf = msg.image.startsWith('data:application/pdf');
+              if (isPdf) {
+                  div.innerHTML += `<div style="height:80px; width:80px; background:#f44336; color:white; display:flex; align-items:center; justify-content:center; border-radius:8px; font-weight:bold; margin-top:5px;">PDF</div>`;
+              } else {
+                  const img = document.createElement('img'); img.src = msg.image; img.style.maxWidth = "100%"; img.style.borderRadius = "8px"; img.style.marginTop = "5px"; div.appendChild(img); 
+              }
+          }
+          if(msg.isStatus) div.id = 'chat-status-msg'; messagesDiv.appendChild(div);
+      });
+      chatContainer.appendChild(messagesDiv);
+      
+      const previewArea = document.createElement('div'); previewArea.id = "chat-img-preview"; previewArea.style.display = this.chatImage ? "flex" : "none"; previewArea.style.padding = "10px"; previewArea.style.background = "#222"; previewArea.style.borderTop = "1px solid #444"; previewArea.style.alignItems = "center"; previewArea.style.gap = "10px";
+      const isPdfAttached = this.chatImage && this.chatImage.startsWith('data:application/pdf');
+      previewArea.innerHTML = `
+        <div style="display:inline-block; position:relative;">
+            ${isPdfAttached ? `<div style="height:50px; width:50px; background:#f44336; color:white; display:flex; align-items:center; justify-content:center; border-radius:4px; font-weight:bold; font-size:10px;">PDF</div>` : `<img src="${this.chatImage || ''}" style="height:50px; border-radius:4px; border:1px solid #666">`}
+            <div id="chat-remove-img" style="position:absolute; top:-5px; right:-5px; background:red; color:white; border-radius:50%; width:15px; height:15px; font-size:10px; text-align:center; cursor:pointer; line-height:15px;">✕</div>
+        </div>
+        <span style="color:#aaa; font-size:12px;">File attached (Scan Mode)</span>
+      `;
+      chatContainer.appendChild(previewArea);
+      
+      const inputBar = document.createElement('div'); inputBar.className = 'chat-input-bar';
+      const cameraIcon = ICONS.camera || `<svg viewBox="0 0 24 24" style="width:24px; height:24px;"><path fill="currentColor" d="M4,4H7L9,2H15L17,4H20A2,2 0 0,1 22,6V18A2,2 0 0,1 20,20H4A2,2 0 0,1 2,18V6A2,2 0 0,1 4,4M12,7A5,5 0 0,0 7,12A5,5 0 0,0 12,17A5,5 0 0,0 17,12A5,5 0 0,0 12,7M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,3 0 0,1 12,9Z" /></svg>`;
+      const uploadIcon = ICONS.image || `<svg viewBox="0 0 24 24" style="width:24px; height:24px;"><path fill="currentColor" d="M21,19V5c0-1.1-0.9-2-2-2H5C3.9,3,3,3.9,3,5v14c0,1.1,0.9,2,2,2h14C20.1,21,21,20.1,21,19z M8.5,13.5l2.5,3.01L14.5,12l4.5,6H5L8.5,13.5z" /></svg>`;
+      
+      inputBar.innerHTML = `
+        <button id="chat-camera-btn" type="button" style="background:none; border:none; color:var(--primary, #03a9f4); cursor:pointer; padding:0 10px; height:40px; width:40px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">${cameraIcon}</button>
+        <button id="chat-file-btn" type="button" style="background:none; border:none; color:var(--primary, #03a9f4); cursor:pointer; padding:0 10px; height:40px; width:40px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">${uploadIcon}</button>
+        <input type="text" class="chat-input" placeholder="Type message or scan file..." style="flex:1; padding:10px; border-radius:20px; border:1px solid var(--border-input); background:var(--bg-input); color:var(--text-main); outline:none;">
+        <button id="chat-send-btn" class="chat-send-btn" style="flex-shrink:0; background:var(--primary); color:white; border:none; border-radius:50%; width:40px; height:40px; display:flex; align-items:center; justify-content:center; cursor:pointer;">${ICONS.send}</button>
+      `;
+
+      const camBtn = inputBar.querySelector('#chat-camera-btn');
+      const fileBtn = inputBar.querySelector('#chat-file-btn');
+      const input = inputBar.querySelector('input');
+      const sendBtn = inputBar.querySelector('#chat-send-btn');
+      
+      previewArea.querySelector('#chat-remove-img').onclick = () => { this.chatImage = null; this.render(); };
+      
+      const sendMessage = async () => {
+          const text = input.value.trim(), fileData = this.chatImage; if (!text && !fileData) return;
+          this.chatHistory.push({ role: 'user', text: text || (fileData.startsWith('data:application/pdf') ? "Scanned PDF Invoice" : "Scanned Photo Invoice"), image: fileData });
+          this.chatImage = null; this.render(); 
+          const statusMsg = { role: 'system', text: `Starting Process...<br>${fileData ? "Reading Document..." : "Analyzing..."}`, isStatus: true };
+          this.chatHistory.push(statusMsg); this.render();
+          try {
+              const result = await this._hass.callWS({ type: 'home_organizer/ai_chat', message: text, image_data: fileData });
+              if (result) {
+                    let debugHTML = "";
+                    if (result.debug) {
+                        const d = result.debug, esc = (s) => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+                        if (d.raw_json) debugHTML += `<details class="debug-details"><summary class="debug-summary">📄 Raw Data</summary><div class="debug-content">${esc(d.raw_json)}</div></details>`;
+                        if (d.intent === "add_invoice") debugHTML += `<details class="debug-details"><summary class="debug-summary">➕ Items List</summary><div class="debug-content">${JSON.stringify(d, null, 2)}</div></details>`;
+                    }
+                    statusMsg.text = "✔ Complete" + debugHTML;
+                    if (result.error) this.chatHistory.push({ role: 'ai', text: "<b>Error:</b> " + result.error });
+                    else if (result.response) { this.chatHistory.push({ role: 'ai', text: result.response.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>') }); }
+              }
+          } catch (e) { statusMsg.text += "<br>❌ Failed"; this.chatHistory.push({ role: 'ai', text: "Error: " + e.message }); }
+          this.render();
+      };
+
+      camBtn.onclick = () => this.handleChatCamera();
+      fileBtn.onclick = () => {
+          let fileInput = document.createElement('input'); fileInput.type = 'file'; fileInput.accept = 'image/*,application/pdf';
+          fileInput.onchange = (e) => {
+              const file = e.target.files[0]; if (!file) return;
+              if (file.type === 'application/pdf') {
+                  const reader = new FileReader();
+                  reader.onload = (ev) => { this.chatImage = ev.target.result; this.render(); };
+                  reader.readAsDataURL(file);
+              } else {
+                  this.compressImage(file, (dataUrl) => { this.chatImage = dataUrl; this.render(); }, false, 2048);
+              }
+          };
+          fileInput.click();
+      };
+      sendBtn.onclick = sendMessage; input.onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
+      chatContainer.appendChild(inputBar); container.appendChild(chatContainer);
+      setTimeout(() => messagesDiv.scrollTop = messagesDiv.scrollHeight, 50);
+  }
 }
 
 if (!customElements.get('home-organizer-panel')) {
