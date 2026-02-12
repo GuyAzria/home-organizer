@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.2.0 (AI Actions + Language Consistency + Location Context)
+# Home Organizer Ultimate - ver 7.3.0 (Zone Hierarchy Fix)
 
 import logging
 import sqlite3
@@ -145,9 +145,34 @@ def init_db(hass):
 
     conn.commit(); conn.close()
 
+# --- ADDED: Centralized Zone Normalizer to fix hierarchy duplication ---
+def normalize_zone_path(hass, path_list):
+    if not path_list or len(path_list) < 2:
+        return path_list
+    try:
+        path_list = list(path_list)
+        z_name = path_list[0]
+        r_name = path_list[1]
+        if str(z_name).startswith("[") and "] " in str(z_name):
+            return path_list
+        conn = get_db_connection(hass)
+        c = conn.cursor()
+        c.execute("SELECT 1 FROM items WHERE (type='folder_marker' AND name LIKE ?) OR (level_1 LIKE ?)", (f"%_{z_name}", f"[{z_name}]%"))
+        is_zone = c.fetchone()
+        conn.close()
+        if is_zone:
+            return [f"[{z_name}] {r_name}"] + path_list[2:]
+    except Exception as e:
+        _LOGGER.error(f"Zone normalization error: {e}")
+    return path_list
+# -----------------------------------------------------------------------
+
 # --- HELPER: ADD ITEM TO DB ---
 def add_item_db_safe(hass, name, qty, path_list, category="", sub_category=""):
     """Internal helper to add items during AI Chat flow."""
+    # --- APPLIED ZONE FIX ---
+    path_list = normalize_zone_path(hass, path_list)
+    # ------------------------
     conn = get_db_connection(hass)
     c = conn.cursor()
     try:
@@ -240,6 +265,13 @@ async def websocket_ai_chat(hass, connection, msg):
                     if l1:
                         locs.add(l1)
                         if l2: locs.add(f"{l1} > {l2}")
+                        # --- ADDITIVE FIX FOR ZONE CONTEXT ---
+                        if str(l1).startswith("[") and "] " in str(l1):
+                            try:
+                                _z_part, _r_part = str(l1).split("] ", 1)
+                                locs.add(f"{_z_part.replace('[', '')} > {_r_part}")
+                            except: pass
+                        # -------------------------------------
                 existing_locs_str = ", ".join(sorted(list(locs)))
                 
                 # Get Categories
@@ -686,6 +718,9 @@ async def register_services(hass, entry):
             except: pass
 
         parts = call.data.get("current_path", [])
+        # --- APPLIED ZONE FIX ---
+        parts = normalize_zone_path(hass, parts)
+        # ------------------------
         depth = len(parts)
         cols = ["name", "type", "quantity", "item_date", "image_path"]
         
@@ -753,6 +788,9 @@ async def register_services(hass, entry):
         item_id = call.data.get("item_id")
         name = call.data.get("item_name")
         parts = call.data.get("current_path", [])
+        # --- APPLIED ZONE FIX ---
+        parts = normalize_zone_path(hass, parts)
+        # ------------------------
         is_folder = call.data.get("is_folder", False)
 
         def db_del(): 
@@ -776,6 +814,9 @@ async def register_services(hass, entry):
 
     async def handle_paste(call):
         target_path = call.data.get("target_path")
+        # --- APPLIED ZONE FIX ---
+        target_path = normalize_zone_path(hass, target_path)
+        # ------------------------
         clipboard = hass.data.get(DOMAIN, {}).get("clipboard") 
         if not clipboard: return
         
@@ -820,6 +861,9 @@ async def register_services(hass, entry):
         image_path = call.data.get("image_path")
 
         parts = call.data.get("current_path", [])
+        # --- APPLIED ZONE FIX ---
+        parts = normalize_zone_path(hass, parts)
+        # ------------------------
         is_folder = call.data.get("is_folder", False)
 
         def db_u():
