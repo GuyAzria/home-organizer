@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.4.1 (Fix: Chat User Instructions with PDFs + Timeout Handling)
+# Home Organizer Ultimate - ver 7.4.2 (Fix: Global Fallback for Inventory Queries)
 
 import logging
 import sqlite3
@@ -492,6 +492,28 @@ async def websocket_ai_chat(hass, connection, msg):
                 return [{"_error": str(e)}]
 
         rows = await hass.async_add_executor_job(get_inventory)
+        
+        # --- ADDITIVE FIX FOR REGRESSION: Global Fallback ---
+        # If the strict AI-generated SQL query returns 0 rows (e.g., due to overly specific 
+        # keywords like "breakfast" or nested zones), we fall back to providing the full inventory.
+        if not rows:
+            def get_all_inventory_fallback():
+                nonlocal final_sql
+                try:
+                    conn = get_db_connection(hass)
+                    conn.row_factory = sqlite3.Row 
+                    c = conn.cursor()
+                    sql = "SELECT * FROM items WHERE type='item' AND quantity > 0"
+                    final_sql = sql + " -- (Fallback applied: strict search yielded 0 items)"
+                    c.execute(sql)
+                    f_rows = [dict(row) for row in c.fetchall()]
+                    conn.close()
+                    return f_rows
+                except Exception as e:
+                    return [{"_error": str(e)}]
+            
+            rows = await hass.async_add_executor_job(get_all_inventory_fallback)
+        # ----------------------------------------------------
         
         context_lines = []
         for r in rows:
