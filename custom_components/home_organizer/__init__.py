@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.4.2 (Fix: Global Fallback for Inventory Queries)
+# Home Organizer Ultimate - ver 7.4.3 (Fix: Dynamic Category Filters & Strict Language Enforcement)
 
 import logging
 import sqlite3
@@ -382,7 +382,9 @@ async def websocket_ai_chat(hass, connection, msg):
             "Determine if the user wants to ADD items or SEARCH/QUERY.\n"
             "1. IF ADDING: Return JSON: {\"intent\": \"add\", \"items\": [{\"name\": \"Item\", \"qty\": 1, \"path\": [\"Room\", \"Furniture\"], \"category\": \"Cat\"}]}\n"
             "   - Infer the location hierarchy if implied (e.g. 'fridge' -> ['Kitchen', 'Fridge']).\n"
-            "2. IF SEARCHING: Return JSON: {\"intent\": \"search\", \"locations\": [\"loc1\"], \"keywords\": [\"item1\"]}\n"
+            "2. IF SEARCHING: Return JSON: {\"intent\": \"search\", \"locations\": [\"loc1\"], \"keywords\": [\"item1\"], \"category_filter\": \"\"}\n"
+            "   - CRITICAL: Only extract physical item names as 'keywords'. For general advice/recipes (e.g., 'breakfast'), leave 'keywords' empty [].\n"
+            "   - IF the request is general advice (meal, outfit, repair, etc.) AND no location is specified, set 'category_filter' to the best matching main category (e.g., 'Food', 'Clothing', 'Tools', 'Cleaning Supplies').\n"
             "Return JSON ONLY. No markdown."
         )
 
@@ -446,6 +448,10 @@ async def websocket_ai_chat(hass, connection, msg):
         filter_items = analysis_json.get("keywords", [])
         if not filter_items and "items" in analysis_json: filter_items = analysis_json["items"] 
 
+        # --- ADDITIVE: Extract category filter for general requests ---
+        filter_cat = analysis_json.get("category_filter", "")
+        # ------------------------------------------------------------------
+
         final_sql = ""
         final_params = []
         
@@ -477,6 +483,17 @@ async def websocket_ai_chat(hass, connection, msg):
                         params.extend([wild, wild])
                     if sub_cond:
                         conditions.append(f"({' OR '.join(sub_cond)})")
+
+                # --- ADDITIVE: Apply dynamic category filter for meals, outfits, or generic requests ---
+                if filter_cat and not filter_locs:
+                    if filter_cat.lower() == "food":
+                        conditions.append("(category LIKE '%Food%' OR category LIKE '%אוכל%' OR category LIKE '%food%')")
+                    elif filter_cat.lower() == "clothing":
+                        conditions.append("(category LIKE '%Clothing%' OR category LIKE '%בגדים%' OR category LIKE '%ביגוד%')")
+                    else:
+                        conditions.append("category LIKE ?")
+                        params.append(f"%{filter_cat}%")
+                # ------------------------------------------------------------------------
                 
                 if conditions:
                     sql += " AND " + " AND ".join(conditions)
@@ -493,28 +510,23 @@ async def websocket_ai_chat(hass, connection, msg):
 
         rows = await hass.async_add_executor_job(get_inventory)
         
-        # --- ADDITIVE FIX FOR REGRESSION: Global Fallback ---
-        # If the strict AI-generated SQL query returns 0 rows (e.g., due to overly specific 
-        # keywords like "breakfast" or nested zones), we fall back to providing the full inventory.
-        if not rows:
-            def get_all_inventory_fallback():
-                nonlocal final_sql
-                try:
-                    conn = get_db_connection(hass)
-                    conn.row_factory = sqlite3.Row 
-                    c = conn.cursor()
-                    sql = "SELECT * FROM items WHERE type='item' AND quantity > 0"
-                    final_sql = sql + " -- (Fallback applied: strict search yielded 0 items)"
-                    c.execute(sql)
-                    f_rows = [dict(row) for row in c.fetchall()]
-                    conn.close()
-                    return f_rows
-                except Exception as e:
-                    return [{"_error": str(e)}]
+        # --- ADDITIVE FIX FOR REGRESSION: Smart Fallback Layers ---
+        if not rows and filter_items:
+            filter_items = []
+            rows = await hass.async_add_executor_job(get_inventory)
+            final_sql += " -- (Fallback 1 applied: dropped strict keywords)"
             
-            rows = await hass.async_add_executor_job(get_all_inventory_fallback)
-        # ----------------------------------------------------
-        
+        if not rows and filter_locs:
+            filter_locs = []
+            rows = await hass.async_add_executor_job(get_inventory)
+            final_sql += " -- (Fallback 2 applied: dropped strict locations)"
+            
+        if not rows and filter_cat:
+            filter_cat = ""
+            rows = await hass.async_add_executor_job(get_inventory)
+            final_sql += " -- (Fallback 3 applied: dropped strict category)"
+        # ----------------------------------------------------------
+
         context_lines = []
         for r in rows:
             if "_error" in r: continue
@@ -528,9 +540,12 @@ async def websocket_ai_chat(hass, connection, msg):
 
         step3_prompt = (
             "You are a helpful home assistant. "
-            "Reply in the SAME LANGUAGE as the user (Hebrew/English). "
+            "CRITICAL LANGUAGE RULE: Automatically detect the exact language of the 'User Request' below. "
+            "You MUST generate your ENTIRE response ONLY in that detected language. Do NOT mix languages. "
+            "Do NOT default to English unless the request itself is in English. "
+            "(e.g., If Hebrew -> respond ONLY in Hebrew. If Arabic -> respond ONLY in Arabic).\n"
             "Use the provided inventory list to answer the user's request.\n"
-            "If the list is empty, apologize.\n"
+            "If the list is empty, apologize IN THE DETECTED LANGUAGE.\n"
             "\n"
             "Inventory List:\n" + inventory_context + "\n\n"
             "User Request: " + user_message
