@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.3.0 (Zone Hierarchy Fix)
+# Home Organizer Ultimate - ver 7.4.0 (Additive File Upload Support)
 
 import logging
 import sqlite3
@@ -91,7 +91,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend({
                 vol.Required("type"): WS_AI_CHAT,
                 vol.Optional("message", default=""): str,
-                vol.Optional("image_data"): vol.Any(str, None)
+                vol.Optional("image_data"): vol.Any(str, None),
+                # --- ADDITIVE: Extended schema to accept generic MIME types explicitly for PDF ---
+                vol.Optional("mime_type", default="image/jpeg"): str
             })
         )
     except Exception:
@@ -233,6 +235,10 @@ async def websocket_ai_chat(hass, connection, msg):
         user_message = msg.get("message", "")
         image_data = msg.get("image_data") # Capture optional image
         
+        # --- ADDITIVE: Capture optional mime_type natively to handle PDFs correctly ---
+        mime_val = msg.get("mime_type", "image/jpeg") 
+        # ----------------------------------------------------------------------------
+        
         entries = hass.config_entries.async_entries(DOMAIN)
         if not entries:
             connection.send_result(msg["id"], {"error": "Integration not loaded"})
@@ -316,7 +322,8 @@ async def websocket_ai_chat(hass, connection, msg):
                 "contents": [{
                     "parts": [
                         {"text": invoice_prompt},
-                        {"inline_data": {"mime_type": "image/jpeg", "data": image_data}}
+                        # --- ADDITIVE: Dynamic mime parsing instead of fixed image/jpeg for PDF flow ---
+                        {"inline_data": {"mime_type": mime_val, "data": image_data}}
                     ]
                 }]
             }
@@ -923,8 +930,15 @@ async def register_services(hass, entry):
         item_id = call.data.get("item_id")
         name = call.data.get("item_name")
         img_b64 = call.data.get("image_data")
+        
+        # --- ADDITIVE: Fetch mime to support correct PDF/Img extensions ---
+        mime_type = call.data.get("mime_type", "image/jpeg")
+        ext = ".pdf" if "pdf" in mime_type else ".jpg"
+        # ------------------------------------------------------------------
+        
         if "," in img_b64: img_b64 = img_b64.split(",")[1]
-        fname = f"{name}_{int(time.time())}.jpg"
+        fname = f"{name}_{int(time.time())}{ext}"
+        
         def save():
             open(hass.config.path("www", IMG_DIR, fname), "wb").write(base64.b64decode(img_b64))
             conn = get_db_connection(hass); c = conn.cursor()
@@ -940,6 +954,11 @@ async def register_services(hass, entry):
         if not use_ai: return
         mode = call.data.get("mode")
         img_b64 = call.data.get("image_data")
+        
+        # --- ADDITIVE: Extract mime_type natively ---
+        mime_val = call.data.get("mime_type", "image/jpeg")
+        # ------------------------------------------
+        
         if not img_b64 or not api_key: return
         if "," in img_b64: img_b64 = img_b64.split(",")[1]
 
@@ -947,7 +966,8 @@ async def register_services(hass, entry):
         prompt_text = "Identify this household item. Return ONLY the name in English or Hebrew. 2-3 words max."
         if mode == 'search': prompt_text = "Identify this item. Return only 1 keyword for searching."
 
-        payload = {"contents": [{"parts": [{"text": prompt_text}, {"inline_data": {"mime_type": "image/jpeg", "data": img_b64}}]}]}
+        # --- APPLIED: Dynamic Mime Type for compatibility ---
+        payload = {"contents": [{"parts": [{"text": prompt_text}, {"inline_data": {"mime_type": mime_val, "data": img_b64}}]}]}
 
         try:
             session = async_get_clientsession(hass)
