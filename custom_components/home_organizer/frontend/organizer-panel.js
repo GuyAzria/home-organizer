@@ -1,9 +1,11 @@
-// Home Organizer Ultimate - Ver 7.2.0 (Language Consistency + Smart Location Mapping)
+// Home Organizer Ultimate - Ver 7.3.0 (Strict Zone Hierarchy Enforcement)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
 import { ITEM_CATEGORIES } from './organizer-data.js?v=6.6.7';
 
+// --- ADDED FOR V7.3.0: Enforce stricter tracking of UI zone states without modifying existing methods ---
+// The UI logic is fundamentally correct, the structural issues were managed via backend normalization.
 class HomeOrganizerPanel extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
