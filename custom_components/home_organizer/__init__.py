@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.4.3 (Fix: Dynamic Category Filters & Strict Language Enforcement)
+# Home Organizer Ultimate - ver 7.4.4 (Fix: Final Absolute Fallback for Inventory Queries)
 
 import logging
 import sqlite3
@@ -292,7 +292,6 @@ async def websocket_ai_chat(hass, connection, msg):
                 "   - If ambiguous/unknown: {{\"intent\": \"clarify\", \"question\": \"...\"}}\n"
             )
 
-            # --- ADDITIVE: Force AI to listen to the user_message when a file is uploaded ---
             if user_message and user_message.strip() != "" and user_message != "Scanned Invoice":
                 invoice_prompt += f"\n\nSPECIAL USER INSTRUCTION:\nThe user added this specific request: '{user_message}'. \nPlease strictly apply this instruction (e.g. if they specified a location, force that location for the items).\n"
             
@@ -301,7 +300,7 @@ async def websocket_ai_chat(hass, connection, msg):
             hass.bus.async_fire("home_organizer_chat_progress", {
                 "step": "Scanning Document...",
                 "debug_type": "image_scan",
-                "debug_label": "Invoice Prompt (v7.4.1)",
+                "debug_label": "Invoice Prompt (v7.4.4)",
                 "debug_content": invoice_prompt
             })
 
@@ -314,7 +313,6 @@ async def websocket_ai_chat(hass, connection, msg):
                 }]
             }
 
-            # --- INCREASED TIMEOUT: From 45s to 120s specifically to handle slow PDF extractions ---
             async with session.post(gen_url, json=payload, timeout=ClientTimeout(total=120)) as resp:
                 if resp.status != 200:
                     err = await resp.text()
@@ -323,7 +321,6 @@ async def websocket_ai_chat(hass, connection, msg):
                 
                 res = await resp.json()
                 
-                # Prevent silent crashes if AI returns an empty candidate list due to safety blocks
                 if "candidates" not in res or not res["candidates"]:
                     connection.send_result(msg["id"], {"error": f"AI Response Format Error (Content may be blocked or invalid): {res}"})
                     return
@@ -448,9 +445,7 @@ async def websocket_ai_chat(hass, connection, msg):
         filter_items = analysis_json.get("keywords", [])
         if not filter_items and "items" in analysis_json: filter_items = analysis_json["items"] 
 
-        # --- ADDITIVE: Extract category filter for general requests ---
         filter_cat = analysis_json.get("category_filter", "")
-        # ------------------------------------------------------------------
 
         final_sql = ""
         final_params = []
@@ -484,7 +479,6 @@ async def websocket_ai_chat(hass, connection, msg):
                     if sub_cond:
                         conditions.append(f"({' OR '.join(sub_cond)})")
 
-                # --- ADDITIVE: Apply dynamic category filter for meals, outfits, or generic requests ---
                 if filter_cat and not filter_locs:
                     if filter_cat.lower() == "food":
                         conditions.append("(category LIKE '%Food%' OR category LIKE '%אוכל%' OR category LIKE '%food%')")
@@ -493,7 +487,6 @@ async def websocket_ai_chat(hass, connection, msg):
                     else:
                         conditions.append("category LIKE ?")
                         params.append(f"%{filter_cat}%")
-                # ------------------------------------------------------------------------
                 
                 if conditions:
                     sql += " AND " + " AND ".join(conditions)
@@ -525,6 +518,24 @@ async def websocket_ai_chat(hass, connection, msg):
             filter_cat = ""
             rows = await hass.async_add_executor_job(get_inventory)
             final_sql += " -- (Fallback 3 applied: dropped strict category)"
+            
+        # --- ADDITIVE: Final Absolute Fallback ---
+        # If absolutely NO rows were returned despite dropping previous filters,
+        # ignore all AI SQL assumptions and fetch the entire available inventory.
+        if not rows:
+            def get_all_inventory_fallback():
+                try:
+                    conn = get_db_connection(hass)
+                    conn.row_factory = sqlite3.Row 
+                    c = conn.cursor()
+                    c.execute("SELECT * FROM items WHERE type='item' AND quantity > 0")
+                    f_rows = [dict(row) for row in c.fetchall()]
+                    conn.close()
+                    return f_rows
+                except Exception as e:
+                    return [{"_error": str(e)}]
+            rows = await hass.async_add_executor_job(get_all_inventory_fallback)
+            final_sql += " -- (Fallback 4 applied: forced fetch of ALL available items)"
         # ----------------------------------------------------------
 
         context_lines = []
@@ -575,7 +586,6 @@ async def websocket_ai_chat(hass, connection, msg):
                 err = await resp.text()
                 connection.send_result(msg["id"], {"error": f"AI API Error: {err}"})
 
-    # --- ADDITIVE: Properly catch aiohttp Timeout to prevent silent 'General Error' exceptions ---
     except asyncio.TimeoutError:
         _LOGGER.error("AI Chat Timeout Processing Document", exc_info=True)
         connection.send_result(msg["id"], {"error": "שגיאת פסק-זמן (Timeout): הקובץ שהועלה גדול מדי או שלקח ל-AI יותר מדי זמן לעבד אותו (מעל 120 שניות). אנא נסה קובץ קטן יותר."})
