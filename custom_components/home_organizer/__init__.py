@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.4.0 (Additive File Upload Support)
+# Home Organizer Ultimate - ver 7.4.1 (Fix: Chat User Instructions with PDFs + Timeout Handling)
 
 import logging
 import sqlite3
@@ -83,7 +83,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 vol.Required("type"): WS_GET_ALL_ITEMS
             })
         )
-        # CHANGED: Updated schema to accept optional image_data for Invoice Scanning
         websocket_api.async_register_command(
             hass,
             WS_AI_CHAT,
@@ -92,7 +91,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 vol.Required("type"): WS_AI_CHAT,
                 vol.Optional("message", default=""): str,
                 vol.Optional("image_data"): vol.Any(str, None),
-                # --- ADDITIVE: Extended schema to accept generic MIME types explicitly for PDF ---
                 vol.Optional("mime_type", default="image/jpeg"): str
             })
         )
@@ -147,7 +145,6 @@ def init_db(hass):
 
     conn.commit(); conn.close()
 
-# --- ADDED: Centralized Zone Normalizer to fix hierarchy duplication ---
 def normalize_zone_path(hass, path_list):
     if not path_list or len(path_list) < 2:
         return path_list
@@ -167,14 +164,10 @@ def normalize_zone_path(hass, path_list):
     except Exception as e:
         _LOGGER.error(f"Zone normalization error: {e}")
     return path_list
-# -----------------------------------------------------------------------
 
-# --- HELPER: ADD ITEM TO DB ---
 def add_item_db_safe(hass, name, qty, path_list, category="", sub_category=""):
     """Internal helper to add items during AI Chat flow."""
-    # --- APPLIED ZONE FIX ---
     path_list = normalize_zone_path(hass, path_list)
-    # ------------------------
     conn = get_db_connection(hass)
     c = conn.cursor()
     try:
@@ -183,9 +176,8 @@ def add_item_db_safe(hass, name, qty, path_list, category="", sub_category=""):
         vals = [name, "item", qty, today, category, sub_category]
         qs = ["?", "?", "?", "?", "?", "?"]
         
-        # Add hierarchy levels
         for i, p in enumerate(path_list):
-            if i < 10: # Limit to 10 levels
+            if i < 10:
                 cols.append(f"level_{i+1}")
                 vals.append(p)
                 qs.append("?")
@@ -226,18 +218,14 @@ def websocket_get_all_items(hass, connection, msg):
     finally:
         conn.close()
 
-
 @websocket_api.async_response
 async def websocket_ai_chat(hass, connection, msg):
     """Updated AI Chat: Handles Text Actions (Add/Search) AND Invoice Scanning."""
 
     try:
         user_message = msg.get("message", "")
-        image_data = msg.get("image_data") # Capture optional image
-        
-        # --- ADDITIVE: Capture optional mime_type natively to handle PDFs correctly ---
+        image_data = msg.get("image_data") 
         mime_val = msg.get("mime_type", "image/jpeg") 
-        # ----------------------------------------------------------------------------
         
         entries = hass.config_entries.async_entries(DOMAIN)
         if not entries:
@@ -254,7 +242,6 @@ async def websocket_ai_chat(hass, connection, msg):
         session = async_get_clientsession(hass)
         gen_url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={api_key}"
 
-        # --- NEW: CONTEXT FETCHING (Fix for AI guessing locations) ---
         existing_locs_str = ""
         existing_cats_str = ""
         
@@ -263,7 +250,6 @@ async def websocket_ai_chat(hass, connection, msg):
             try:
                 c_conn = get_db_connection(hass)
                 cc = c_conn.cursor()
-                # Get Locations (Hierarchy)
                 cc.execute("SELECT DISTINCT level_1, level_2 FROM items WHERE type='item' OR type='folder'")
                 locs = set()
                 for r in cc.fetchall():
@@ -271,16 +257,13 @@ async def websocket_ai_chat(hass, connection, msg):
                     if l1:
                         locs.add(l1)
                         if l2: locs.add(f"{l1} > {l2}")
-                        # --- ADDITIVE FIX FOR ZONE CONTEXT ---
                         if str(l1).startswith("[") and "] " in str(l1):
                             try:
                                 _z_part, _r_part = str(l1).split("] ", 1)
                                 locs.add(f"{_z_part.replace('[', '')} > {_r_part}")
                             except: pass
-                        # -------------------------------------
                 existing_locs_str = ", ".join(sorted(list(locs)))
                 
-                # Get Categories
                 cc.execute("SELECT DISTINCT category FROM items WHERE category IS NOT NULL AND category != ''")
                 cats = [r[0] for r in cc.fetchall()]
                 existing_cats_str = ", ".join(sorted(cats))
@@ -295,9 +278,8 @@ async def websocket_ai_chat(hass, connection, msg):
         if image_data:
             if "," in image_data: image_data = image_data.split(",")[1]
             
-            # UPDATED: Prompt to enforce Language and Location Context
             invoice_prompt = (
-                f"Analyze this receipt image. Context:\n"
+                f"Analyze this document/receipt. Context:\n"
                 f"EXISTING LOCATIONS: [{existing_locs_str}]\n"
                 f"EXISTING CATEGORIES: [{existing_cats_str}]\n\n"
                 "RULES:\n"
@@ -308,13 +290,18 @@ async def websocket_ai_chat(hass, connection, msg):
                 "3. OUTPUT JSON ONLY:\n"
                 "   - If items are clear: {{\"intent\": \"add_invoice\", \"items\": [{\"name\": \"...\", \"qty\": 1, \"path\": [\"ExistingRoom\", \"ExistingSub\"], \"category\": \"...\"}]}}\n"
                 "   - If ambiguous/unknown: {{\"intent\": \"clarify\", \"question\": \"...\"}}\n"
-                "\nDo NOT use markdown."
             )
 
+            # --- ADDITIVE: Force AI to listen to the user_message when a file is uploaded ---
+            if user_message and user_message.strip() != "" and user_message != "Scanned Invoice":
+                invoice_prompt += f"\n\nSPECIAL USER INSTRUCTION:\nThe user added this specific request: '{user_message}'. \nPlease strictly apply this instruction (e.g. if they specified a location, force that location for the items).\n"
+            
+            invoice_prompt += "\nDo NOT use markdown."
+
             hass.bus.async_fire("home_organizer_chat_progress", {
-                "step": "Scanning Invoice...",
+                "step": "Scanning Document...",
                 "debug_type": "image_scan",
-                "debug_label": "Invoice Prompt (v7.2)",
+                "debug_label": "Invoice Prompt (v7.4.1)",
                 "debug_content": invoice_prompt
             })
 
@@ -322,19 +309,25 @@ async def websocket_ai_chat(hass, connection, msg):
                 "contents": [{
                     "parts": [
                         {"text": invoice_prompt},
-                        # --- ADDITIVE: Dynamic mime parsing instead of fixed image/jpeg for PDF flow ---
                         {"inline_data": {"mime_type": mime_val, "data": image_data}}
                     ]
                 }]
             }
 
-            async with session.post(gen_url, json=payload, timeout=ClientTimeout(total=45)) as resp:
+            # --- INCREASED TIMEOUT: From 45s to 120s specifically to handle slow PDF extractions ---
+            async with session.post(gen_url, json=payload, timeout=ClientTimeout(total=120)) as resp:
                 if resp.status != 200:
                     err = await resp.text()
                     connection.send_result(msg["id"], {"error": f"AI Error: {err}"})
                     return
                 
                 res = await resp.json()
+                
+                # Prevent silent crashes if AI returns an empty candidate list due to safety blocks
+                if "candidates" not in res or not res["candidates"]:
+                    connection.send_result(msg["id"], {"error": f"AI Response Format Error (Content may be blocked or invalid): {res}"})
+                    return
+                    
                 raw_txt = res["candidates"][0]["content"]["parts"][0]["text"].strip()
                 clean_txt = re.sub(r'```json\s*|```\s*', '', raw_txt).strip()
                 
@@ -343,7 +336,6 @@ async def websocket_ai_chat(hass, connection, msg):
                 try:
                     parsed = json.loads(clean_txt)
                     
-                    # CASE A: CLARIFICATION NEEDED
                     if parsed.get("intent") == "clarify":
                         connection.send_result(msg["id"], {
                             "response": parsed.get("question", "I am not sure where to file these items. Please guide me."),
@@ -351,10 +343,8 @@ async def websocket_ai_chat(hass, connection, msg):
                         })
                         return
 
-                    # CASE B: ADD ITEMS
                     if parsed.get("intent") == "add_invoice" and "items" in parsed:
                         for item in parsed["items"]:
-                            # Execute DB add in executor
                             await hass.async_add_executor_job(
                                 add_item_db_safe, 
                                 hass, 
@@ -366,10 +356,9 @@ async def websocket_ai_chat(hass, connection, msg):
                             )
                             added_count += 1
                         
-                        # Notify frontend to refresh
                         hass.bus.async_fire("home_organizer_db_update")
                         
-                        response_text = f"✅ I have scanned the invoice and added **{added_count} items** to your inventory.\n\n"
+                        response_text = f"✅ I have scanned the document and added **{added_count} items** to your inventory.\n\n"
                         for i in parsed["items"]:
                             path_str = " > ".join(i.get("path", []))
                             response_text += f"- **{i.get('name')}** (x{i.get('qty')}) into _{path_str}_\n"
@@ -388,7 +377,6 @@ async def websocket_ai_chat(hass, connection, msg):
         # MODE 2: TEXT ANALYSIS (ADD vs SEARCH)
         # =============================================
         
-        # Step 1: Analyze Intent
         step1_prompt = (
             f"User says: '{user_message}'\n"
             "Determine if the user wants to ADD items or SEARCH/QUERY.\n"
@@ -413,6 +401,11 @@ async def websocket_ai_chat(hass, connection, msg):
         async with session.post(gen_url, json=payload_1, timeout=ClientTimeout(total=15)) as resp:
             if resp.status == 200:
                 res = await resp.json()
+                
+                if "candidates" not in res or not res["candidates"]:
+                    connection.send_result(msg["id"], {"error": f"AI Response Format Error (Content may be blocked): {res}"})
+                    return
+                    
                 raw_analysis = res["candidates"][0]["content"]["parts"][0]["text"].strip()
                 clean_txt = re.sub(r'```json\s*|```\s*', '', raw_analysis).strip()
                 try:
@@ -423,7 +416,6 @@ async def websocket_ai_chat(hass, connection, msg):
                 connection.send_result(msg["id"], {"error": "AI API Error"})
                 return
 
-        # HANDLE ADD INTENT
         if analysis_json.get("intent") == "add":
             items_to_add = analysis_json.get("items", [])
             added_log = []
@@ -450,12 +442,10 @@ async def websocket_ai_chat(hass, connection, msg):
             })
             return
 
-        # HANDLE SEARCH INTENT (Existing Logic)
         filter_locs = analysis_json.get("locations", [])
         filter_items = analysis_json.get("keywords", [])
-        if not filter_items and "items" in analysis_json: filter_items = analysis_json["items"] # Fallback
+        if not filter_items and "items" in analysis_json: filter_items = analysis_json["items"] 
 
-        # ... (Proceed with existing Search SQL Logic) ...
         final_sql = ""
         final_params = []
         
@@ -503,7 +493,6 @@ async def websocket_ai_chat(hass, connection, msg):
 
         rows = await hass.async_add_executor_job(get_inventory)
         
-        # Build inventory context
         context_lines = []
         for r in rows:
             if "_error" in r: continue
@@ -515,7 +504,6 @@ async def websocket_ai_chat(hass, connection, msg):
         
         inventory_context = "\n".join(context_lines) if context_lines else "(empty - no items found)"
 
-        # Step 3: Final Answer
         step3_prompt = (
             "You are a helpful home assistant. "
             "Reply in the SAME LANGUAGE as the user (Hebrew/English). "
@@ -531,6 +519,10 @@ async def websocket_ai_chat(hass, connection, msg):
         async with session.post(gen_url, json=payload_3, timeout=ClientTimeout(total=60)) as resp:
             if resp.status == 200:
                 res = await resp.json()
+                if "candidates" not in res or not res["candidates"]:
+                    connection.send_result(msg["id"], {"error": f"AI Response Format Error (Content may be blocked): {res}"})
+                    return
+                    
                 text = res["candidates"][0]["content"]["parts"][0]["text"].strip()
                 
                 connection.send_result(msg["id"], {
@@ -546,10 +538,13 @@ async def websocket_ai_chat(hass, connection, msg):
                 err = await resp.text()
                 connection.send_result(msg["id"], {"error": f"AI API Error: {err}"})
 
+    # --- ADDITIVE: Properly catch aiohttp Timeout to prevent silent 'General Error' exceptions ---
+    except asyncio.TimeoutError:
+        _LOGGER.error("AI Chat Timeout Processing Document", exc_info=True)
+        connection.send_result(msg["id"], {"error": "שגיאת פסק-זמן (Timeout): הקובץ שהועלה גדול מדי או שלקח ל-AI יותר מדי זמן לעבד אותו (מעל 120 שניות). אנא נסה קובץ קטן יותר."})
     except Exception as e:
         _LOGGER.error(f"AI Chat general error: {e}", exc_info=True)
         connection.send_result(msg["id"], {"error": f"General Error: {str(e)}"})
-
 
 def get_view_data(hass, path_parts, query, date_filter, is_shopping):
     enable_ai = False
@@ -725,9 +720,7 @@ async def register_services(hass, entry):
             except: pass
 
         parts = call.data.get("current_path", [])
-        # --- APPLIED ZONE FIX ---
         parts = normalize_zone_path(hass, parts)
-        # ------------------------
         depth = len(parts)
         cols = ["name", "type", "quantity", "item_date", "image_path"]
         
@@ -795,9 +788,7 @@ async def register_services(hass, entry):
         item_id = call.data.get("item_id")
         name = call.data.get("item_name")
         parts = call.data.get("current_path", [])
-        # --- APPLIED ZONE FIX ---
         parts = normalize_zone_path(hass, parts)
-        # ------------------------
         is_folder = call.data.get("is_folder", False)
 
         def db_del(): 
@@ -821,9 +812,7 @@ async def register_services(hass, entry):
 
     async def handle_paste(call):
         target_path = call.data.get("target_path")
-        # --- APPLIED ZONE FIX ---
         target_path = normalize_zone_path(hass, target_path)
-        # ------------------------
         clipboard = hass.data.get(DOMAIN, {}).get("clipboard") 
         if not clipboard: return
         
@@ -868,9 +857,7 @@ async def register_services(hass, entry):
         image_path = call.data.get("image_path")
 
         parts = call.data.get("current_path", [])
-        # --- APPLIED ZONE FIX ---
         parts = normalize_zone_path(hass, parts)
-        # ------------------------
         is_folder = call.data.get("is_folder", False)
 
         def db_u():
@@ -931,10 +918,8 @@ async def register_services(hass, entry):
         name = call.data.get("item_name")
         img_b64 = call.data.get("image_data")
         
-        # --- ADDITIVE: Fetch mime to support correct PDF/Img extensions ---
         mime_type = call.data.get("mime_type", "image/jpeg")
         ext = ".pdf" if "pdf" in mime_type else ".jpg"
-        # ------------------------------------------------------------------
         
         if "," in img_b64: img_b64 = img_b64.split(",")[1]
         fname = f"{name}_{int(time.time())}{ext}"
@@ -955,9 +940,7 @@ async def register_services(hass, entry):
         mode = call.data.get("mode")
         img_b64 = call.data.get("image_data")
         
-        # --- ADDITIVE: Extract mime_type natively ---
         mime_val = call.data.get("mime_type", "image/jpeg")
-        # ------------------------------------------
         
         if not img_b64 or not api_key: return
         if "," in img_b64: img_b64 = img_b64.split(",")[1]
@@ -966,7 +949,6 @@ async def register_services(hass, entry):
         prompt_text = "Identify this household item. Return ONLY the name in English or Hebrew. 2-3 words max."
         if mode == 'search': prompt_text = "Identify this item. Return only 1 keyword for searching."
 
-        # --- APPLIED: Dynamic Mime Type for compatibility ---
         payload = {"contents": [{"parts": [{"text": prompt_text}, {"inline_data": {"mime_type": mime_val, "data": img_b64}}]}]}
 
         try:
