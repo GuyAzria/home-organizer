@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.3.0 (Strict Zone Hierarchy Enforcement)
+// Home Organizer Ultimate - Ver 7.4.0 (Additive File Upload Feature)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
@@ -35,6 +35,8 @@ class HomeOrganizerPanel extends HTMLElement {
       
       // --- NEW: State for Chat Image Upload ---
       this.chatImage = null; 
+      // --- ADDITIVE: Track dynamic Mime Type for PDF support ---
+      this.chatMimeType = "image/jpeg";
         
       this.translations = {}; 
       this.availableLangs = [];
@@ -179,6 +181,10 @@ class HomeOrganizerPanel extends HTMLElement {
     this.content = true;
     this.attachShadow({mode: 'open'});
     const timestamp = new Date().getTime();
+    
+    // --- ADDITIVE: File Upload Icon ---
+    const UPLOAD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>';
+    
     this.shadowRoot.innerHTML = `
       <link rel="stylesheet" href="/home_organizer_static/organizer-panel.css?v=${timestamp}">
       
@@ -250,9 +256,13 @@ class HomeOrganizerPanel extends HTMLElement {
         
         <div class="search-box" id="search-box">
             <div style="position:relative; flex:1;">
-                <input type="text" id="search-input" placeholder="${this.t('search_placeholder')}" style="width:100%;padding:8px;padding-inline-start:35px;border-radius:8px;background:var(--bg-input);color:var(--text-main);border:1px solid var(--border-input)">
+                <input type="text" id="search-input" placeholder="${this.t('search_placeholder')}" style="width:100%;padding:8px;padding-inline-start:65px;border-radius:8px;background:var(--bg-input);color:var(--text-main);border:1px solid var(--border-input)">
                 <button class="nav-btn ai-btn" id="btn-ai-search" style="position:absolute;inset-inline-start:0;top:0;height:100%;background:none;border:none;">
                     ${ICONS.camera}
+                </button>
+                <!-- ADDITIVE: New Upload Button Next to Camera -->
+                <button class="nav-btn ai-btn" id="btn-ai-upload" style="position:absolute;inset-inline-start:30px;top:0;height:100%;background:none;border:none;" title="Upload File">
+                    ${UPLOAD_SVG}
                 </button>
             </div>
             <button class="nav-btn" id="search-close">${ICONS.close}</button>
@@ -310,6 +320,9 @@ class HomeOrganizerPanel extends HTMLElement {
               <div id="overlay-details" style="color:white;text-align:center;background:#2a2a2a;padding:20px;border-radius:12px;width:100%;max-width:300px;box-shadow:0 4px 15px rgba(0,0,0,0.7);display:none;border:1px solid #444"></div>
           </div>
       </div>
+      
+      <!-- ADDITIVE: Hidden Universal File Input for PDFs/Images -->
+      <input type="file" id="universal-file-upload" accept="image/*,application/pdf" style="display:none">
     `;
 
     if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
@@ -509,12 +522,81 @@ class HomeOrganizerPanel extends HTMLElement {
     });
 
     click('btn-ai-search', () => this.openCamera('search'));
+    // --- ADDITIVE: Bind new upload button in search ---
+    click('btn-ai-upload', () => this.openFileUpload('search'));
+    
     click('btn-cam-close', () => this.stopCamera());
     click('btn-cam-snap', () => this.snapPhoto());
     click('btn-cam-switch', () => this.switchCamera());
     click('btn-cam-wb', () => this.toggleWhiteBG());
   }
   
+  // --- ADDITIVE: Centralized Universal File Upload Processor ---
+  openFileUpload(context) {
+      const input = this.shadowRoot.getElementById('universal-file-upload');
+      if (!input) return;
+      
+      input.onchange = (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          
+          if (file.size > 10 * 1024 * 1024) {
+              alert("File is too large. Max size is 10MB.");
+              input.value = '';
+              return;
+          }
+
+          if (file.type === 'application/pdf') {
+              const reader = new FileReader();
+              reader.onload = async (re) => {
+                  this.processUploadedFile(re.target.result, context, 'application/pdf');
+              };
+              reader.readAsDataURL(file);
+          } else {
+              this.compressImage(file, (dataUrl) => {
+                  this.processUploadedFile(dataUrl, context, 'image/jpeg');
+              }, this.useAiBg);
+          }
+          input.value = ''; 
+      };
+      input.click();
+  }
+
+  async processUploadedFile(dataUrl, context, mimeType) {
+      const isSearch = context === 'search';
+      const isChat = context === 'chat';
+      
+      if (isChat) {
+          this.chatImage = dataUrl;
+          this.chatMimeType = mimeType;
+          this.render();
+          return;
+      }
+
+      const targetId = this.pendingItemId || this.pendingItem;
+      if (!isSearch && targetId) {
+          this.setLoading(targetId, true);
+      }
+
+      try {
+          if (isSearch) {
+              await this.callHA('ai_action', { mode: 'search', image_data: dataUrl, mime_type: mimeType });
+          } else if (this.pendingItemId) {
+              await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl, mime_type: mimeType });
+              this.refreshImageVersion(this.pendingItemId);
+          } else if (this.pendingItem) {
+              await this.callHA('update_image', { item_name: this.pendingItem, image_data: dataUrl, mime_type: mimeType });
+              this.refreshImageVersion(this.pendingItem);
+          }
+      } catch(e) { console.error(e); }
+      finally {
+          if (!isSearch && targetId) this.setLoading(targetId, false);
+          this.pendingItemId = null;
+          this.pendingItem = null;
+      }
+  }
+  // -----------------------------------------------------------
+
   toggleIds() {
       this.showIds = !this.showIds;
       localStorage.setItem('home_organizer_show_ids', this.showIds);
@@ -611,6 +693,7 @@ class HomeOrganizerPanel extends HTMLElement {
 
               if (isChat) {
                   this.chatImage = dataUrl;
+                  this.chatMimeType = "image/jpeg"; // Default from native camera wrapper
                   this.render();
                   return;
               }
@@ -621,12 +704,12 @@ class HomeOrganizerPanel extends HTMLElement {
 
               try {
                   if (isSearch) {
-                      await this.callHA('ai_action', { mode: 'search', image_data: dataUrl });
+                      await this.callHA('ai_action', { mode: 'search', image_data: dataUrl, mime_type: 'image/jpeg' });
                   } else if (this.pendingItemId) {
-                      await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
+                      await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl, mime_type: 'image/jpeg' });
                       this.refreshImageVersion(this.pendingItemId);
                   } else if (this.pendingItem) {
-                      await this.callHA('update_image', { item_name: this.pendingItem, image_data: dataUrl });
+                      await this.callHA('update_image', { item_name: this.pendingItem, image_data: dataUrl, mime_type: 'image/jpeg' });
                       this.refreshImageVersion(this.pendingItem);
                   }
               } catch(e) { console.error(e); }
@@ -681,6 +764,7 @@ class HomeOrganizerPanel extends HTMLElement {
       // NEW: Handle Chat Photo
       if (this.cameraContext === 'chat') {
           this.chatImage = dataUrl;
+          this.chatMimeType = "image/jpeg";
           this.render();
           return;
       }
@@ -694,12 +778,12 @@ class HomeOrganizerPanel extends HTMLElement {
 
       try {
           if (isSearch) {
-              await this.callHA('ai_action', { mode: 'search', image_data: dataUrl });
+              await this.callHA('ai_action', { mode: 'search', image_data: dataUrl, mime_type: 'image/jpeg' });
           } else if (this.pendingItemId) {
-              await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
+              await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl, mime_type: 'image/jpeg' });
               this.refreshImageVersion(this.pendingItemId);
           } else if (this.pendingItem) {
-              await this.callHA('update_image', { item_name: this.pendingItem, image_data: dataUrl });
+              await this.callHA('update_image', { item_name: this.pendingItem, image_data: dataUrl, mime_type: 'image/jpeg' });
               this.refreshImageVersion(this.pendingItem);
           }
       } catch(e) { console.error(e); }
@@ -1263,7 +1347,12 @@ class HomeOrganizerPanel extends HTMLElement {
           div.innerHTML = msg.text; 
           if(msg.image) {
               const img = document.createElement('img');
-              img.src = msg.image;
+              // --- ADDITIVE: Check if image is PDF preview text or SVG ---
+              if (msg.mime_type === 'application/pdf') {
+                  img.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 24 24"><path fill="gray" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h6v6h6v10H6z"/></svg>';
+              } else {
+                  img.src = msg.image;
+              }
               img.style.maxWidth = "100%";
               img.style.borderRadius = "8px";
               img.style.marginTop = "5px";
@@ -1289,7 +1378,7 @@ class HomeOrganizerPanel extends HTMLElement {
             <img id="chat-preview-img" style="height:50px; border-radius:4px; border:1px solid #666">
             <div id="chat-remove-img" style="position:absolute; top:-5px; right:-5px; background:red; color:white; border-radius:50%; width:15px; height:15px; font-size:10px; text-align:center; cursor:pointer; line-height:15px;">✕</div>
         </div>
-        <span style="color:#aaa; font-size:12px; margin-inline-start:10px">Image attached (Invoice Scan Mode)</span>
+        <span style="color:#aaa; font-size:12px; margin-inline-start:10px">File attached (Invoice Scan Mode)</span>
       `;
       chatContainer.appendChild(previewArea);
       
@@ -1319,6 +1408,27 @@ class HomeOrganizerPanel extends HTMLElement {
       
       camBtn.onclick = () => this.handleChatCamera();
       
+      // --- ADDITIVE: Upload File Button for Chat ---
+      const uploadBtn = document.createElement('button');
+      uploadBtn.id = 'chat-upload-btn';
+      uploadBtn.className = 'chat-cam-btn';
+      const UPLOAD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>';
+      uploadBtn.innerHTML = UPLOAD_SVG;
+      uploadBtn.type = 'button';
+      uploadBtn.style.background = "none";
+      uploadBtn.style.border = "none";
+      uploadBtn.style.color = "var(--primary, #03a9f4)";
+      uploadBtn.style.cursor = "pointer";
+      uploadBtn.style.padding = "0 10px";
+      uploadBtn.style.height = "40px";
+      uploadBtn.style.width = "40px";
+      uploadBtn.style.display = "flex";
+      uploadBtn.style.alignItems = "center";
+      uploadBtn.style.justifyContent = "center";
+      uploadBtn.style.flexShrink = "0";
+      uploadBtn.onclick = () => this.openFileUpload('chat');
+      // -------------------------------------------
+
       const input = document.createElement('input');
       input.type = 'text';
       input.className = 'chat-input';
@@ -1332,22 +1442,31 @@ class HomeOrganizerPanel extends HTMLElement {
       // HANDLE IMAGE REMOVAL
       previewArea.querySelector('#chat-remove-img').onclick = () => {
           this.chatImage = null;
+          this.chatMimeType = "image/jpeg";
           previewArea.style.display = 'none';
       };
       
       if (this.chatImage) {
           previewArea.style.display = 'block';
-          previewArea.querySelector('#chat-preview-img').src = this.chatImage;
+          const preImg = previewArea.querySelector('#chat-preview-img');
+          // --- ADDITIVE: Visual PDF Preview handling ---
+          if (this.chatMimeType === 'application/pdf') {
+              preImg.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 24 24"><path fill="gray" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h6v6h6v10H6z"/></svg>';
+          } else {
+              preImg.src = this.chatImage;
+          }
       }
       
       const sendMessage = async () => {
           const text = input.value.trim();
           const imgData = this.chatImage;
+          const currentMime = this.chatMimeType;
           
           if (!text && !imgData) return;
           
-          this.chatHistory.push({ role: 'user', text: text || "Scanned Invoice", image: imgData });
+          this.chatHistory.push({ role: 'user', text: text || "Scanned Invoice", image: imgData, mime_type: currentMime });
           this.chatImage = null; // Clear after send
+          this.chatMimeType = "image/jpeg";
           this.render(); 
           
           // Initial Status Message
@@ -1365,7 +1484,8 @@ class HomeOrganizerPanel extends HTMLElement {
               const result = await this._hass.callWS({
                   type: 'home_organizer/ai_chat',
                   message: text,
-                  image_data: imgData
+                  image_data: imgData,
+                  mime_type: currentMime // --- ADDITIVE ---
               });
               
               if (result) {
@@ -1415,6 +1535,7 @@ class HomeOrganizerPanel extends HTMLElement {
       input.onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
       
       inputBar.appendChild(camBtn); // Appended BEFORE input to appear on START side (Left in LTR, Right in RTL)
+      inputBar.appendChild(uploadBtn); // --- ADDITIVE: Button appended dynamically ---
       inputBar.appendChild(input);
       inputBar.appendChild(sendBtn);
       chatContainer.appendChild(inputBar);
@@ -1925,6 +2046,15 @@ class HomeOrganizerPanel extends HTMLElement {
       this.pendingItemName = name;
       this.openCamera('update'); 
   }
+  
+  // --- ADDITIVE: Dedicated file upload trigger for individual items ---
+  triggerFileUploadEdit(id, name) {
+      this.pendingItemId = id;
+      this.pendingItemName = name;
+      this.openFileUpload('update');
+  }
+  // ------------------------------------------------------------------
+  
   adjustShopQty(id, delta) {
       if (this.shopQuantities[id] === undefined) this.shopQuantities[id] = 0;
       this.shopQuantities[id] = Math.max(0, this.shopQuantities[id] + delta);
@@ -2005,6 +2135,7 @@ class HomeOrganizerPanel extends HTMLElement {
          }
          
          const COPY_SVG = ICONS.copy || ICONS.paste;
+         const UPLOAD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>';
 
          details.innerHTML = `
             <div class="detail-row">
@@ -2046,6 +2177,8 @@ class HomeOrganizerPanel extends HTMLElement {
             <div class="detail-row" style="justify-content:space-between; margin-top:10px;">
                  <div style="display:flex;gap:10px;">
                     <button class="action-btn" title="${this.t('take_photo')}" onclick="this.getRootNode().host.triggerCameraEdit('${item.id}', '${item.name}')">${ICONS.camera}</button>
+                    <!-- ADDITIVE: Extra Upload Button in Item Modifier -->
+                    <button class="action-btn" title="Upload File" onclick="this.getRootNode().host.triggerFileUploadEdit('${item.id}', '${item.name}')">${UPLOAD_SVG}</button>
                     <button class="action-btn" title="${this.t('change_img')}" onclick="this.getRootNode().host.openIconPicker('${item.id}', 'item')">${ICONS.image}</button>
                  </div>
                  <div style="display:flex;gap:10px;">
