@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.6.0 (Update: Localized Sidebar Titles & Path Editing)
+# Home Organizer Ultimate - ver 7.6.1 (Update: Localized Sidebar Titles & Path Editing)
 
 import logging
 import sqlite3
