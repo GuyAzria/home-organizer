@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.6.2 (Hierarchy Editor Fixes & Delayed Save)
+// Home Organizer Ultimate - Ver 7.6.3 (Hierarchy Editor & Placeholder Fixes)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
@@ -602,7 +602,7 @@ class HomeOrganizerPanel extends HTMLElement {
   // -----------------------------------------------------------
 
   // [ADDED v7.6.0 | 2026-02-15] Purpose: Location Edit Logic - Refactored v7.6.2 for 3-button select
-  // [MODIFIED v7.6.2] Purpose: Initialize edit state on toggle to fix Fix #3
+  // [MODIFIED v7.6.3] Purpose: Enhanced initialization with explicit level fields (Fix #3)
   toggleRow(id) { 
       const nId = Number(id);
       this.expandedIdx = (this.expandedIdx === nId) ? null : nId; 
@@ -613,9 +613,10 @@ class HomeOrganizerPanel extends HTMLElement {
           if (item) {
               const path = item.location ? item.location.split(' > ') : [];
               this.locationEditState[id] = {
-                  l1: item.main_location || path[0] || "",
-                  l2: item.sub_location || path[1] || "",
-                  l3: path[2] || ""
+                  // Prefer explicit levels from backend (v7.4.6) over parsing
+                  l1: item.level_1 || item.main_location || path[0] || "",
+                  l2: item.level_2 || item.sub_location || path[1] || "",
+                  l3: item.level_3 || path[2] || ""
               };
           }
       }
@@ -662,40 +663,76 @@ class HomeOrganizerPanel extends HTMLElement {
       return `<div class="sub-title">${item.location || ''}</div>`;
   }
     
-  // [MODIFIED v7.6.2] Purpose: Render the 3-button hierarchy editor with Save button (Fix #1 & #2)
+  // [MODIFIED v7.6.3] Purpose: Render 3-button hierarchy editor, forcing current value display (Fix #3)
   renderHierarchyControl(item) {
       const hierarchy = this.localData.hierarchy || {};
       
       // Use edit state if available, else fallback to item data
       const state = this.locationEditState[item.id] || {};
-      const l1 = state.l1 !== undefined ? state.l1 : (item.main_location || '');
-      const l2 = state.l2 !== undefined ? state.l2 : (item.sub_location || '');
-      const l3 = state.l3 !== undefined ? state.l3 : '';
+      // Fallback chain: state -> explicit levels -> legacy mapped fields -> empty
+      const l1 = state.l1 !== undefined ? state.l1 : (item.level_1 || item.main_location || '');
+      const l2 = state.l2 !== undefined ? state.l2 : (item.level_2 || item.sub_location || '');
+      const l3 = state.l3 !== undefined ? state.l3 : (item.level_3 || '');
       
-      // Generate Level 1 Options (Room) - Show selected name as default option
+      // Generate Level 1 Options (Room) - Force add current value if missing
       let l1Opts = `<option value="" disabled ${!l1 ? 'selected' : ''}>${this.t('select')} Room</option>`;
-      Object.keys(hierarchy).sort().forEach(k => {
-          l1Opts += `<option value="${k}" ${l1 === k ? 'selected' : ''}>${k}</option>`;
+      let l1Found = false;
+      const sortedL1 = Object.keys(hierarchy).sort();
+      sortedL1.forEach(k => {
+          const isSel = l1 === k;
+          if(isSel) l1Found = true;
+          l1Opts += `<option value="${k}" ${isSel ? 'selected' : ''}>${k}</option>`;
       });
+      // [FIX #3] Force display current value even if not in hierarchy
+      if (l1 && !l1Found) {
+          l1Opts += `<option value="${l1}" selected>${l1}</option>`;
+      }
       
       // Generate Level 2 Options (Location)
       let l2Opts = `<option value="" disabled ${!l2 ? 'selected' : ''}>${this.t('select')} Loc</option>`;
       let l2Disabled = true;
-      if (l1 && hierarchy[l1]) {
+      let l2Found = false;
+
+      // Allow L2 selection if L1 exists (even if forced)
+      if (l1) {
           l2Disabled = false;
-          Object.keys(hierarchy[l1]).sort().forEach(k => {
-              l2Opts += `<option value="${k}" ${l2 === k ? 'selected' : ''}>${k}</option>`;
+          const subHier = hierarchy[l1] || {};
+          // If L1 was forced, subHier might be empty or array if structure differs, handle gracefully
+          const sortedL2 = Array.isArray(subHier) ? [] : Object.keys(subHier).sort(); 
+          
+          sortedL2.forEach(k => {
+              const isSel = l2 === k;
+              if(isSel) l2Found = true;
+              l2Opts += `<option value="${k}" ${isSel ? 'selected' : ''}>${k}</option>`;
           });
+      }
+      // [FIX #3] Force display current value
+      if (l2 && !l2Found) {
+          l2Opts += `<option value="${l2}" selected>${l2}</option>`;
       }
 
       // Generate Level 3 Options (Sublocation)
       let l3Opts = `<option value="" disabled ${!l3 ? 'selected' : ''}>${this.t('select')} Sub</option>`;
       let l3Disabled = true;
-      if (l1 && l2 && hierarchy[l1][l2]) {
+      let l3Found = false;
+
+      if (l1 && l2) {
           l3Disabled = false;
-          hierarchy[l1][l2].sort().forEach(k => {
-              l3Opts += `<option value="${k}" ${l3 === k ? 'selected' : ''}>${k}</option>`;
+          // Robust check for L3 array
+          let subSubList = [];
+          if (hierarchy[l1] && !Array.isArray(hierarchy[l1]) && hierarchy[l1][l2]) {
+              subSubList = hierarchy[l1][l2];
+          }
+          
+          subSubList.sort().forEach(k => {
+              const isSel = l3 === k;
+              if(isSel) l3Found = true;
+              l3Opts += `<option value="${k}" ${isSel ? 'selected' : ''}>${k}</option>`;
           });
+      }
+      // [FIX #3] Force display current value
+      if (l3 && !l3Found) {
+          l3Opts += `<option value="${l3}" selected>${l3}</option>`;
       }
       
       const sep = `<span class="hierarchy-sep">&gt;</span>`;
@@ -2432,114 +2469,11 @@ class HomeOrganizerPanel extends HTMLElement {
       this.expandedSublocs.clear();
       this.fetchData(); 
   }
-
-  toggleRow(id) { 
-      const nId = Number(id);
-      this.expandedIdx = (this.expandedIdx === nId) ? null : nId; 
-      
-      if (this.expandedIdx === nId) {
-          // Initialize edit state when opening the row so dropdowns show current location
-          const item = this.localData.items.find(i => i.id == id) || this.localData.shopping_list.find(i => i.id == id);
-          if (item) {
-              const path = item.location ? item.location.split(' > ') : [];
-              this.locationEditState[id] = {
-                  l1: item.main_location || path[0] || "",
-                  l2: item.sub_location || path[1] || "",
-                  l3: path[2] || ""
-              };
-          }
-      }
-      this.render(); 
-  }
-
-  // [MODIFIED v7.6.2] Purpose: Only update local state, do not call backend yet (Fix #2)
-  updateHierarchyState(itemId, level, newValue) {
-      if (!this.locationEditState[itemId]) return;
-      
-      this.locationEditState[itemId][`l${level}`] = newValue;
-      
-      // Clear lower levels to ensure validity
-      if (level === 1) {
-          this.locationEditState[itemId].l2 = "";
-          this.locationEditState[itemId].l3 = "";
-      } else if (level === 2) {
-          this.locationEditState[itemId].l3 = "";
-      }
-      this.render();
-  }
   
-  // [ADDED v7.6.2] Purpose: Commit changes to backend (Fix #2)
-  saveHierarchy(itemId) {
-      const state = this.locationEditState[itemId];
-      if (!state) return;
-      
-      const newPath = [];
-      if (state.l1) newPath.push(state.l1);
-      if (state.l2) newPath.push(state.l2);
-      if (state.l3) newPath.push(state.l3);
-      
-      if (newPath.length > 0) {
-           this.callHA('update_item_details', { 
-              item_id: itemId, 
-              new_path: newPath 
-          });
-      }
-  }
-
-  // [MODIFIED v7.6.2] Purpose: Return simple text for collapsed item view (Fix #1)
-  renderLocationControl(item, isShopMode) {
-      if (!isShopMode) return `<div class="sub-title">${item.date || ''}</div>`;
-      return `<div class="sub-title">${item.location || ''}</div>`;
-  }
-    
-  // [MODIFIED v7.6.2] Purpose: Render the 3-button hierarchy editor with Save button (Fix #1 & #2)
-  renderHierarchyControl(item) {
-      const hierarchy = this.localData.hierarchy || {};
-      
-      // Use edit state if available, else fallback to item data
-      const state = this.locationEditState[item.id] || {};
-      const l1 = state.l1 !== undefined ? state.l1 : (item.main_location || '');
-      const l2 = state.l2 !== undefined ? state.l2 : (item.sub_location || '');
-      const l3 = state.l3 !== undefined ? state.l3 : '';
-      
-      // Generate Level 1 Options (Room) - Show selected name as default option
-      let l1Opts = `<option value="" disabled ${!l1 ? 'selected' : ''}>${this.t('select')} Room</option>`;
-      Object.keys(hierarchy).sort().forEach(k => {
-          l1Opts += `<option value="${k}" ${l1 === k ? 'selected' : ''}>${k}</option>`;
-      });
-      
-      // Generate Level 2 Options (Location)
-      let l2Opts = `<option value="" disabled ${!l2 ? 'selected' : ''}>${this.t('select')} Loc</option>`;
-      let l2Disabled = true;
-      if (l1 && hierarchy[l1]) {
-          l2Disabled = false;
-          Object.keys(hierarchy[l1]).sort().forEach(k => {
-              l2Opts += `<option value="${k}" ${l2 === k ? 'selected' : ''}>${k}</option>`;
-          });
-      }
-
-      // Generate Level 3 Options (Sublocation)
-      let l3Opts = `<option value="" disabled ${!l3 ? 'selected' : ''}>${this.t('select')} Sub</option>`;
-      let l3Disabled = true;
-      if (l1 && l2 && hierarchy[l1][l2]) {
-          l3Disabled = false;
-          hierarchy[l1][l2].sort().forEach(k => {
-              l3Opts += `<option value="${k}" ${l3 === k ? 'selected' : ''}>${k}</option>`;
-          });
-      }
-      
-      const sep = `<span class="hierarchy-sep">&gt;</span>`;
-
-      return `
-        <div class="hierarchy-container">
-            <select class="hierarchy-select" onchange="this.getRootNode().host.updateHierarchyState('${item.id}', 1, this.value)">${l1Opts}</select>
-            ${sep}
-            <select class="hierarchy-select" ${l2Disabled ? 'disabled' : ''} onchange="this.getRootNode().host.updateHierarchyState('${item.id}', 2, this.value)">${l2Opts}</select>
-            ${sep}
-            <select class="hierarchy-select" ${l3Disabled ? 'disabled' : ''} onchange="this.getRootNode().host.updateHierarchyState('${item.id}', 3, this.value)">${l3Opts}</select>
-            <button class="hierarchy-update-btn" title="Save Location" onclick="this.getRootNode().host.saveHierarchy('${item.id}')">${ICONS.check}</button>
-        </div>
-      `;
+  // ... (Call HA Helper)
+  callHA(service, data) {
+      if(!this._hass) return;
+      this._hass.callService('home_organizer', service, data);
   }
 }
 
