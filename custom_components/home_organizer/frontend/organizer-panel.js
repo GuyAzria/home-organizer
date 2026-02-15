@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.6.3 (Hierarchy Editor & Placeholder Fixes)
+// Home Organizer Ultimate - Ver 7.6.4 (Dropdown Filtering)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
@@ -663,7 +663,7 @@ class HomeOrganizerPanel extends HTMLElement {
       return `<div class="sub-title">${item.location || ''}</div>`;
   }
     
-  // [MODIFIED v7.6.3] Purpose: Render 3-button hierarchy editor, forcing current value display (Fix #3)
+  // [MODIFIED v7.6.4] Purpose: Render 3-button hierarchy editor with filtering (Fix #4)
   renderHierarchyControl(item) {
       const hierarchy = this.localData.hierarchy || {};
       
@@ -679,6 +679,9 @@ class HomeOrganizerPanel extends HTMLElement {
       let l1Found = false;
       const sortedL1 = Object.keys(hierarchy).sort();
       sortedL1.forEach(k => {
+          // [ADDED v7.6.4] Filter Zone Markers from dropdown
+          if (k.startsWith("ZONE_MARKER_")) return;
+
           const isSel = l1 === k;
           if(isSel) l1Found = true;
           l1Opts += `<option value="${k}" ${isSel ? 'selected' : ''}>${k}</option>`;
@@ -701,6 +704,9 @@ class HomeOrganizerPanel extends HTMLElement {
           const sortedL2 = Array.isArray(subHier) ? [] : Object.keys(subHier).sort(); 
           
           sortedL2.forEach(k => {
+              // [ADDED v7.6.4] Filter Order Markers from dropdown
+              if (k.startsWith("ORDER_MARKER_")) return;
+
               const isSel = l2 === k;
               if(isSel) l2Found = true;
               l2Opts += `<option value="${k}" ${isSel ? 'selected' : ''}>${k}</option>`;
@@ -725,6 +731,9 @@ class HomeOrganizerPanel extends HTMLElement {
           }
           
           subSubList.sort().forEach(k => {
+              // [ADDED v7.6.4] Filter Order Markers from dropdown
+              if (k.startsWith("ORDER_MARKER_")) return;
+
               const isSel = l3 === k;
               if(isSel) l3Found = true;
               l3Opts += `<option value="${k}" ${isSel ? 'selected' : ''}>${k}</option>`;
