@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.4.0 (Additive File Upload Feature)
+// Home Organizer Ultimate - Ver 7.6.0 (Editable Item Location + Mobile UI)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
@@ -37,6 +37,10 @@ class HomeOrganizerPanel extends HTMLElement {
       this.chatImage = null; 
       // --- ADDITIVE: Track dynamic Mime Type for PDF support ---
       this.chatMimeType = "image/jpeg";
+      
+      // [ADDED v7.5.0] State for inline location editing
+      this.locationEditIds = new Set();
+      this.locationEditState = {};
         
       this.translations = {}; 
       this.availableLangs = [];
@@ -596,6 +600,126 @@ class HomeOrganizerPanel extends HTMLElement {
       }
   }
   // -----------------------------------------------------------
+
+  // [ADDED v7.6.0 | 2026-02-15] Purpose: Location Edit Logic
+  toggleLocationEdit(id, currentItem) {
+      if (this.locationEditIds.has(id)) {
+          this.locationEditIds.delete(id);
+          delete this.locationEditState[id];
+      } else {
+          this.locationEditIds.add(id);
+          // Initialize state with current path
+          const path = currentItem.location ? currentItem.location.split(' > ') : [];
+          this.locationEditState[id] = {
+              l1: currentItem.main_location || (path[0] || ''),
+              l2: currentItem.sub_location || (path[1] || ''),
+              l3: path[2] || ''
+          };
+      }
+      this.render();
+  }
+
+  updateLocationEditState(id, level, value) {
+      if (!this.locationEditState[id]) return;
+      this.locationEditState[id][level] = value;
+      // Reset lower levels on change to maintain hierarchy validity
+      if (level === 'l1') {
+          this.locationEditState[id].l2 = '';
+          this.locationEditState[id].l3 = '';
+      } else if (level === 'l2') {
+          this.locationEditState[id].l3 = '';
+      }
+      this.render();
+  }
+
+  saveLocationEdit(id) {
+      const state = this.locationEditState[id];
+      if (!state) return;
+      
+      const newPath = [];
+      if (state.l1) newPath.push(state.l1);
+      if (state.l2) newPath.push(state.l2);
+      if (state.l3) newPath.push(state.l3);
+      
+      if (newPath.length > 0) {
+          this.callHA('update_item_details', { 
+              item_id: id, 
+              new_path: newPath 
+          });
+      }
+      
+      this.locationEditIds.delete(id);
+      delete this.locationEditState[id];
+      // Optimistic update will happen via HA event, but we clear state now
+      this.render();
+  }
+
+  cancelLocationEdit(id) {
+      this.locationEditIds.delete(id);
+      delete this.locationEditState[id];
+      this.render();
+  }
+
+  renderLocationControl(item, isShopMode) {
+      if (!isShopMode) return `<div class="sub-title">${item.date || ''}</div>`;
+      
+      const isEditing = this.locationEditIds.has(item.id);
+      
+      if (isEditing) {
+          const state = this.locationEditState[item.id] || { l1: '', l2: '', l3: '' };
+          const hierarchy = this.localData.hierarchy || {};
+          
+          // Generate L1 Options (Rooms)
+          let l1Opts = `<option value="">-- ${this.t('select')} --</option>`;
+          Object.keys(hierarchy).forEach(k => {
+              l1Opts += `<option value="${k}" ${state.l1 === k ? 'selected' : ''}>${k}</option>`;
+          });
+          
+          // Generate L2 Options (Sub-areas) based on selected L1
+          let l2Opts = `<option value="">-- ${this.t('select')} --</option>`;
+          if (state.l1 && hierarchy[state.l1]) {
+              Object.keys(hierarchy[state.l1]).forEach(k => {
+                  l2Opts += `<option value="${k}" ${state.l2 === k ? 'selected' : ''}>${k}</option>`;
+              });
+          }
+          
+          // Generate L3 Options (Spots) based on selected L1->L2
+          let l3Opts = `<option value="">-- ${this.t('select')} --</option>`;
+          if (state.l1 && state.l2 && hierarchy[state.l1][state.l2]) {
+              hierarchy[state.l1][state.l2].forEach(k => {
+                  l3Opts += `<option value="${k}" ${state.l3 === k ? 'selected' : ''}>${k}</option>`;
+              });
+          }
+
+          return `
+            <div class="loc-edit-container" onclick="event.stopPropagation()">
+                <select class="loc-select" onchange="this.getRootNode().host.updateLocationEditState('${item.id}', 'l1', this.value)">${l1Opts}</select>
+                <select class="loc-select" onchange="this.getRootNode().host.updateLocationEditState('${item.id}', 'l2', this.value)">${l2Opts}</select>
+                <select class="loc-select" onchange="this.getRootNode().host.updateLocationEditState('${item.id}', 'l3', this.value)">${l3Opts}</select>
+                <div class="loc-actions">
+                    <button class="loc-btn loc-btn-save" onclick="this.getRootNode().host.saveLocationEdit('${item.id}')">${ICONS.check} Save</button>
+                    <button class="loc-btn loc-btn-cancel" onclick="this.getRootNode().host.cancelLocationEdit('${item.id}')">Cancel</button>
+                </div>
+            </div>
+          `;
+      } else {
+          // View Mode: Segments
+          const parts = item.location ? item.location.split(' > ') : [];
+          let segmentsHtml = '';
+          if (parts.length === 0) segmentsHtml = `<span class="loc-segment">Unknown</span>`;
+          else parts.forEach(p => segmentsHtml += `<span class="loc-segment">${p}</span>`);
+          
+          return `
+            <div class="sub-title" style="display:flex;align-items:center;flex-wrap:wrap;gap:2px;margin-top:2px;">
+                ${segmentsHtml}
+                <div style="margin-inline-start:6px;cursor:pointer;color:var(--primary)" onclick="event.stopPropagation();this.getRootNode().host.toggleLocationEdit('${item.id}', {location: '${item.location}', main_location: '${item.main_location}', sub_location: '${item.sub_location}'})">
+                    ${ICONS.edit}
+                </div>
+            </div>
+          `;
+      }
+  }
+  // -------------------------------------------------------------
 
   toggleIds() {
       this.showIds = !this.showIds;
@@ -2087,7 +2211,10 @@ class HomeOrganizerPanel extends HTMLElement {
      } else {
          controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.id}', 1)">${ICONS.plus}</button><span class="qty-val">${item.qty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.id}', -1)">${ICONS.minus}</button>`;
      }
-     const subText = isShopMode ? `${item.main_location} > ${item.sub_location || ''}` : `${item.date || ''}`;
+     
+     // [ADDED v7.6.0] Use renderLocationControl instead of simple string for Shopping List mode
+     const subText = this.renderLocationControl(item, isShopMode);
+     // -------------------------------------------------------------
      
      let iconHtml = `<span class="item-icon">${ICONS.item}</span>`;
      if (item.img) {
@@ -2102,9 +2229,10 @@ class HomeOrganizerPanel extends HTMLElement {
          iconHtml = `<div style="position:relative;width:40px;height:40px"><img src="${src}" class="item-thumbnail" alt="${item.name}" onclick="event.stopPropagation(); this.getRootNode().host.showImg('${item.img}')">${loaderHtml}</div>`;
      }
 
+     // [MODIFIED v7.6.0] Use subText directly as it now contains HTML from renderLocationControl
      div.innerHTML = `
         <div class="item-main" onclick="this.getRootNode().host.toggleRow('${item.id}')">
-            <div class="item-left">${iconHtml}<div><div>${item.name}</div><div class="sub-title">${subText}</div></div></div>
+            <div class="item-left">${iconHtml}<div><div>${item.name}</div>${typeof subText === 'string' && subText.startsWith('<') ? subText : `<div class="sub-title">${subText}</div>`}</div></div>
             <div class="item-qty-ctrl">${controls}</div>
         </div>
      `;
