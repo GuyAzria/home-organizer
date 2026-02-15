@@ -1,4 +1,4 @@
-/* Home Organizer CSS - Ver 7.6.0 */
+/* Home Organizer CSS - Ver 7.6.1 */
 /* Ensure UI properly displays normalized structural zones */
 :host { 
     --primary: #03a9f4; --accent: #4caf50; --danger: #f44336; --warning: #ffeb3b; --icon-btn-bg: #444;
@@ -173,14 +173,11 @@ svg { width: 24px; height: 24px; fill: currentColor; }
 .chat-cam-btn:hover { color: var(--accent); }
 #chat-img-preview { background: var(--bg-bar); border-top: 1px solid var(--border-color); padding: 10px; display: flex; align-items: center; gap: 10px; }
 
-/* [ADDED v7.6.0] Location Editor Styles */
-.loc-segment { display: inline-block; padding: 2px 8px; border-radius: 12px; background: var(--bg-badge); color: var(--text-badge); font-size: 11px; margin-inline-end: 2px; font-weight: bold; border: 1px solid var(--border-light); cursor: default; }
-.loc-edit-container { display: flex; flex-direction: column; gap: 5px; padding: 5px; background: var(--bg-input-edit); border-radius: 6px; border: 1px solid var(--primary); margin-top: 5px; }
-.loc-select { width: 100%; padding: 8px; background: var(--bg-dropdown); color: var(--text-main); border: 1px solid var(--border-light); border-radius: 4px; font-size: 14px; }
-.loc-actions { display: flex; gap: 10px; margin-top: 5px; }
-.loc-btn { flex: 1; padding: 8px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
-.loc-btn-save { background: var(--accent); color: white; }
-.loc-btn-cancel { background: var(--icon-btn-bg); color: var(--text-sub); }
+/* [ADDED v7.6.1] Hierarchy Editor Styles */
+.hierarchy-container { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; width: 100%; }
+.hierarchy-select { flex: 1; min-width: 100px; height: 35px; border-radius: 8px; background: var(--bg-badge); color: var(--text-main); border: 1px solid var(--border-light); font-size: 12px; text-align: center; appearance: none; cursor: pointer; font-weight: bold; }
+.hierarchy-select:disabled { opacity: 0.5; cursor: not-allowed; }
+.hierarchy-sep { color: var(--text-sub); font-size: 12px; font-weight: bold; }
 
 /* DEBUG PANEL STYLES */
 details.debug-details { margin: 4px 0; border: 1px solid #333; border-radius: 6px; overflow: hidden; font-size: 12px; }
