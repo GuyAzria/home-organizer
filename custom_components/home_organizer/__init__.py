@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.4.5 (Localized Titles)
+# Home Organizer Ultimate - ver 7.4.6 (Location Hierarchy Fix)
 
 import logging
 import sqlite3
@@ -646,7 +646,11 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                     "img": img, 
                     "location": " > ".join([p for p in fp if p]),
                     "main_location": r_dict.get("level_2", "General"),
-                    "sub_location": r_dict.get("level_3", "")
+                    "sub_location": r_dict.get("level_3", ""),
+                    # [ADDED v7.4.6 | 2026-02-15] Purpose: Provide raw hierarchy levels for reliable UI edit mode
+                    "level_1": r_dict.get("level_1", ""),
+                    "level_2": r_dict.get("level_2", ""),
+                    "level_3": r_dict.get("level_3", "")
                 })
 
         elif query or date_filter != "All":
@@ -677,7 +681,11 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                         "category": r_dict.get('category', ''),
                         "sub_category": r_dict.get('sub_category', ''),
                         "unit": r_dict.get('unit', ''),
-                        "unit_value": r_dict.get('unit_value', '')
+                        "unit_value": r_dict.get('unit_value', ''),
+                        # [ADDED v7.4.6 | 2026-02-15] Purpose: Provide raw hierarchy levels for reliable UI edit mode
+                        "level_1": r_dict.get("level_1", ""),
+                        "level_2": r_dict.get("level_2", ""),
+                        "level_3": r_dict.get("level_3", "")
                     })
 
         else:
@@ -715,7 +723,11 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                           "category": r_dict.get('category', ''),
                           "sub_category": r_dict.get('sub_category', ''),
                           "unit": r_dict.get('unit', ''),
-                          "unit_value": r_dict.get('unit_value', '')
+                          "unit_value": r_dict.get('unit_value', ''),
+                          # [ADDED v7.4.6 | 2026-02-15] Purpose: Provide raw hierarchy levels for reliable UI edit mode
+                          "level_1": r_dict.get("level_1", ""),
+                          "level_2": r_dict.get("level_2", ""),
+                          "level_3": r_dict.get("level_3", "")
                       })
             else:
                 sublocations = []
@@ -743,7 +755,11 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                         "category": r_dict.get('category', ''),
                         "sub_category": r_dict.get('sub_category', ''),
                         "unit": r_dict.get('unit', ''),
-                        "unit_value": r_dict.get('unit_value', '')
+                        "unit_value": r_dict.get('unit_value', ''),
+                        # [ADDED v7.4.6 | 2026-02-15] Purpose: Provide raw hierarchy levels for reliable UI edit mode
+                        "level_1": r_dict.get("level_1", ""),
+                        "level_2": r_dict.get("level_2", ""),
+                        "level_3": r_dict.get("level_3", "")
                     })
                 
                 for s in sublocations: folders.append({"name": s})
