@@ -1,4 +1,4 @@
-/* Home Organizer CSS - Ver 7.6.1 */
+/* Home Organizer CSS - Ver 7.6.2 */
 /* Ensure UI properly displays normalized structural zones */
 :host { 
     --primary: #03a9f4; --accent: #4caf50; --danger: #f44336; --warning: #ffeb3b; --icon-btn-bg: #444;
@@ -173,11 +173,12 @@ svg { width: 24px; height: 24px; fill: currentColor; }
 .chat-cam-btn:hover { color: var(--accent); }
 #chat-img-preview { background: var(--bg-bar); border-top: 1px solid var(--border-color); padding: 10px; display: flex; align-items: center; gap: 10px; }
 
-/* [ADDED v7.6.1] Hierarchy Editor Styles */
+/* [ADDED v7.6.2] Hierarchy Editor Styles */
 .hierarchy-container { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; width: 100%; }
 .hierarchy-select { flex: 1; min-width: 100px; height: 35px; border-radius: 8px; background: var(--bg-badge); color: var(--text-main); border: 1px solid var(--border-light); font-size: 12px; text-align: center; appearance: none; cursor: pointer; font-weight: bold; }
 .hierarchy-select:disabled { opacity: 0.5; cursor: not-allowed; }
 .hierarchy-sep { color: var(--text-sub); font-size: 12px; font-weight: bold; }
+.hierarchy-update-btn { width: 35px; height: 35px; border-radius: 50%; border: none; background: var(--accent); color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.3); flex-shrink: 0; }
 
 /* DEBUG PANEL STYLES */
 details.debug-details { margin: 4px 0; border: 1px solid #333; border-radius: 6px; overflow: hidden; font-size: 12px; }
