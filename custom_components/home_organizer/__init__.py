@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.4.5 (Update: Localized Sidebar Titles)
+# Home Organizer Ultimate - ver 7.6.0 (Update: Localized Sidebar Titles & Path Editing)
 
 import logging
 import sqlite3
@@ -913,8 +913,10 @@ async def register_services(hass, entry):
         sub_cat = call.data.get("sub_category")
         unit = call.data.get("unit")
         unit_value = call.data.get("unit_value")
-        
         image_path = call.data.get("image_path")
+        
+        # [ADDED v7.6.0 | 2026-02-15] Purpose: Support direct path updates from location editor
+        new_path = call.data.get("new_path") 
 
         parts = call.data.get("current_path", [])
         parts = normalize_zone_path(hass, parts)
@@ -947,6 +949,16 @@ async def register_services(hass, entry):
                 sql = "UPDATE items SET "
                 updates = []
                 params = []
+                
+                # [ADDED v7.6.0 | 2026-02-15] Purpose: Handle direct path update logic
+                if new_path is not None:
+                    # Normalize first to ensure Zone compliance
+                    safe_path = normalize_zone_path(hass, new_path)
+                    for i in range(1, 11):
+                        val = safe_path[i-1] if i <= len(safe_path) else ""
+                        updates.append(f"level_{i} = ?")
+                        params.append(val)
+                # -----------------------------------------------------------
                 
                 if nn: updates.append("name = ?"); params.append(nn)
                 if nd is not None: updates.append("item_date = ?"); params.append(nd)
