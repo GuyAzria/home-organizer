@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.4.4 (Fix: Final Absolute Fallback for Inventory Queries)
+# Home Organizer Ultimate - ver 7.4.5 (Update: Localized Sidebar Titles)
 
 import logging
 import sqlite3
@@ -45,13 +45,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
     ])
 
+    # [ADDED v7.4.5 | 2026-02-15] Purpose: Dictionary mapping language codes to localized sidebar titles
+    sidebar_translations = {
+        "he": "ארגונית",
+        "it": "Organizzatore",
+        "es": "Organizador",
+        "fr": "Organisateur",
+        "ar": "المنظم",
+        "en": "Home Organizer"
+    }
+
+    # [ADDED v7.4.5 | 2026-02-15] Purpose: Determine sidebar title based on HA system language, default to English
+    sidebar_label = sidebar_translations.get(hass.config.language, "Home Organizer")
+
     try:
         await panel_custom.async_register_panel(
             hass,
             webcomponent_name="home-organizer-panel",
             frontend_url_path="organizer",
             module_url=f"{STATIC_PATH_URL}/organizer-panel.js?v={int(time.time())}",
-            sidebar_title="Organizr",
+            sidebar_title=sidebar_label, # [MODIFIED v7.4.5 | 2026-02-15] Purpose: Use localized variable
             sidebar_icon="mdi:package-variant-closed",
             require_admin=False
         )
