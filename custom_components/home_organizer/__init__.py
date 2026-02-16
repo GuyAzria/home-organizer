@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.4.6 (Location Hierarchy Fix)
+# Home Organizer Ultimate - ver 7.4.7 (AI Timeouts Increased)
 
 import logging
 import sqlite3
@@ -27,7 +27,7 @@ WS_AI_CHAT = "home_organizer/ai_chat"
 
 STATIC_PATH_URL = "/home_organizer_static"
 
-# [MODIFIED v7.4.7 | 2026-02-16] Purpose: Ensure correct model version for extended context
+# [MODIFIED v7.4.7 | 2026-02-16] Purpose: Ensure using Gemini 3 Flash Preview as requested
 GEMINI_MODEL = "gemini-3-flash-preview"
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
