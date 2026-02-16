@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.6.8 (Filter Markers & Fix Shopping List Edit)
+// Home Organizer Ultimate - Ver 7.6.9 (Fix Button Mapping Priority)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
@@ -2459,6 +2459,7 @@ class HomeOrganizerPanel extends HTMLElement {
   // [MODIFIED v7.6.6 | 2026-02-16] Purpose: Enhanced path parsing to ensure dropdowns pre-select correctly
   // [MODIFIED v7.6.7 | 2026-02-16] Purpose: Added fallback to this.currentPath if item location details are missing
   // [MODIFIED v7.6.8 | 2026-02-16] Purpose: Ensure Shopping List items (with potential location string mismatch) are parsed correctly
+  // [MODIFIED v7.6.9 | 2026-02-16] Purpose: Fix button labeling by prioritizing parsed location string over item properties
   toggleRow(id) { 
       const nId = Number(id);
       this.expandedIdx = (this.expandedIdx === nId) ? null : nId; 
@@ -2466,8 +2467,15 @@ class HomeOrganizerPanel extends HTMLElement {
       if (this.expandedIdx === nId) {
           const item = this.localData.items.find(i => i.id == id) || this.localData.shopping_list.find(i => i.id == id);
           if (item) {
-              // [ADDED v7.6.6 | 2026-02-16] Purpose: Robust split of location string to handle spacing variations
-              const path = item.location ? item.location.split('>').map(s => s.trim()) : [];
+              // [MODIFIED v7.6.9] Purpose: Robust split and prioritization of visual path to fix mismatched buttons in Edit/Shop modes
+              // Note: We use the visual string 'location' as the source of truth for the dropdown initial state.
+              // This prevents issues where backend property 'sub_location' might refer to Level 3 but gets mapped to Level 2 slot.
+              let path = [];
+              if (item.location) {
+                  // Handle potentially html encoded separators or just standard ones
+                  let cleanLoc = item.location.replace(/&gt;/g, '>'); 
+                  path = cleanLoc.split('>').map(s => s.trim());
+              }
               
               // [ADDED v7.6.7 | 2026-02-16] Purpose: Use current view context if item location is missing
               const contextL1 = this.currentPath[0] || "";
@@ -2475,8 +2483,8 @@ class HomeOrganizerPanel extends HTMLElement {
               const contextL3 = this.currentPath[2] || "";
 
               this.locationEditState[id] = {
-                  l1: item.main_location || path[0] || contextL1,
-                  l2: item.sub_location || path[1] || contextL2,
+                  l1: path[0] || item.main_location || contextL1,
+                  l2: path[1] || item.sub_location || contextL2,
                   l3: path[2] || contextL3 
               };
           }
