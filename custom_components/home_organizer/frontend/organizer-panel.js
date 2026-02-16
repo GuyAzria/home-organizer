@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.6.3 (Hierarchy Editor & Placeholder Fixes)
+// Home Organizer Ultimate - Ver 7.6.1 (Hierarchy Editor Update)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
@@ -601,150 +601,95 @@ class HomeOrganizerPanel extends HTMLElement {
   }
   // -----------------------------------------------------------
 
-  // [ADDED v7.6.0 | 2026-02-15] Purpose: Location Edit Logic - Refactored v7.6.2 for 3-button select
-  // [MODIFIED v7.6.3] Purpose: Enhanced initialization with explicit level fields (Fix #3)
-  toggleRow(id) { 
-      const nId = Number(id);
-      this.expandedIdx = (this.expandedIdx === nId) ? null : nId; 
-      
-      if (this.expandedIdx === nId) {
-          // Initialize edit state when opening the row so dropdowns show current location
-          const item = this.localData.items.find(i => i.id == id) || this.localData.shopping_list.find(i => i.id == id);
-          if (item) {
-              const path = item.location ? item.location.split(' > ') : [];
-              this.locationEditState[id] = {
-                  // Prefer explicit levels from backend (v7.4.6) over parsing
-                  l1: item.level_1 || item.main_location || path[0] || "",
-                  l2: item.level_2 || item.sub_location || path[1] || "",
-                  l3: item.level_3 || path[2] || ""
-              };
-          }
-      }
-      this.render(); 
-  }
-
-  // [MODIFIED v7.6.2] Purpose: Only update local state, do not call backend yet (Fix #2)
-  updateHierarchyState(itemId, level, newValue) {
-      if (!this.locationEditState[itemId]) return;
-      
-      this.locationEditState[itemId][`l${level}`] = newValue;
-      
-      // Clear lower levels to ensure validity
-      if (level === 1) {
-          this.locationEditState[itemId].l2 = "";
-          this.locationEditState[itemId].l3 = "";
-      } else if (level === 2) {
-          this.locationEditState[itemId].l3 = "";
-      }
-      this.render();
-  }
+  // [ADDED v7.5.0] State for inline location editing (Still used if needed, but UI is changing)
+  // [MODIFIED v7.6.1 | 2026-02-15] Purpose: New 3-Button Hierarchy Logic
   
-  // [ADDED v7.6.2] Purpose: Commit changes to backend (Fix #2)
-  saveHierarchy(itemId) {
-      const state = this.locationEditState[itemId];
-      if (!state) return;
+  updateHierarchyLevel(itemId, level, newValue) {
+      // 1. Get current path for this item
+      // We need to find the item in localData to get its full current location if possible, 
+      // or we can rely on what we know. The best way is to fetch the item's current state.
+      // But for speed, we can construct the new path based on what we see.
       
-      const newPath = [];
-      if (state.l1) newPath.push(state.l1);
-      if (state.l2) newPath.push(state.l2);
-      if (state.l3) newPath.push(state.l3);
+      const item = this.localData.items.find(i => i.id == itemId) || this.localData.shopping_list.find(i => i.id == itemId);
+      if (!item) return;
+
+      const currentPath = item.location ? item.location.split(' > ') : [];
+      let newPath = [];
+
+      if (level === 1) {
+          // If Room changed, path is just [NewRoom]
+          if (newValue) newPath = [newValue];
+      } else if (level === 2) {
+          // If Location changed, path is [Room, NewLocation]
+          // Ensure we have a room (Level 1)
+          const room = currentPath[0] || ""; 
+          if (room && newValue) newPath = [room, newValue];
+      } else if (level === 3) {
+           // If Sublocation changed, path is [Room, Location, NewSub]
+           const room = currentPath[0] || "";
+           const loc = currentPath[1] || "";
+           if (room && loc && newValue) newPath = [room, loc, newValue];
+      }
       
       if (newPath.length > 0) {
-           this.callHA('update_item_details', { 
+          this.callHA('update_item_details', { 
               item_id: itemId, 
               new_path: newPath 
           });
+          // Render happens via HA event update
       }
   }
 
-  // [MODIFIED v7.6.2] Purpose: Return simple text for collapsed item view (Fix #1)
+  // [MODIFIED v7.6.1] Purpose: Return Simple Text for collapsed view (remove buttons/pencil)
   renderLocationControl(item, isShopMode) {
       if (!isShopMode) return `<div class="sub-title">${item.date || ''}</div>`;
+      // Return just the text path
       return `<div class="sub-title">${item.location || ''}</div>`;
   }
-    
-  // [MODIFIED v7.6.3] Purpose: Render 3-button hierarchy editor, forcing current value display (Fix #3)
+  
+  // [ADDED v7.6.1] Purpose: Render the 3-button hierarchy editor for expanded view
   renderHierarchyControl(item) {
       const hierarchy = this.localData.hierarchy || {};
+      const path = item.location ? item.location.split(' > ') : [];
+      const l1 = item.main_location || (path[0] || '');
+      const l2 = item.sub_location || (path[1] || '');
+      const l3 = path[2] || '';
       
-      // Use edit state if available, else fallback to item data
-      const state = this.locationEditState[item.id] || {};
-      // Fallback chain: state -> explicit levels -> legacy mapped fields -> empty
-      const l1 = state.l1 !== undefined ? state.l1 : (item.level_1 || item.main_location || '');
-      const l2 = state.l2 !== undefined ? state.l2 : (item.level_2 || item.sub_location || '');
-      const l3 = state.l3 !== undefined ? state.l3 : (item.level_3 || '');
-      
-      // Generate Level 1 Options (Room) - Force add current value if missing
+      // Generate Level 1 Options (Room)
       let l1Opts = `<option value="" disabled ${!l1 ? 'selected' : ''}>${this.t('select')} Room</option>`;
-      let l1Found = false;
-      const sortedL1 = Object.keys(hierarchy).sort();
-      sortedL1.forEach(k => {
-          const isSel = l1 === k;
-          if(isSel) l1Found = true;
-          l1Opts += `<option value="${k}" ${isSel ? 'selected' : ''}>${k}</option>`;
+      Object.keys(hierarchy).sort().forEach(k => {
+          l1Opts += `<option value="${k}" ${l1 === k ? 'selected' : ''}>${k}</option>`;
       });
-      // [FIX #3] Force display current value even if not in hierarchy
-      if (l1 && !l1Found) {
-          l1Opts += `<option value="${l1}" selected>${l1}</option>`;
-      }
       
       // Generate Level 2 Options (Location)
       let l2Opts = `<option value="" disabled ${!l2 ? 'selected' : ''}>${this.t('select')} Loc</option>`;
       let l2Disabled = true;
-      let l2Found = false;
-
-      // Allow L2 selection if L1 exists (even if forced)
-      if (l1) {
+      if (l1 && hierarchy[l1]) {
           l2Disabled = false;
-          const subHier = hierarchy[l1] || {};
-          // If L1 was forced, subHier might be empty or array if structure differs, handle gracefully
-          const sortedL2 = Array.isArray(subHier) ? [] : Object.keys(subHier).sort(); 
-          
-          sortedL2.forEach(k => {
-              const isSel = l2 === k;
-              if(isSel) l2Found = true;
-              l2Opts += `<option value="${k}" ${isSel ? 'selected' : ''}>${k}</option>`;
+          Object.keys(hierarchy[l1]).sort().forEach(k => {
+              l2Opts += `<option value="${k}" ${l2 === k ? 'selected' : ''}>${k}</option>`;
           });
-      }
-      // [FIX #3] Force display current value
-      if (l2 && !l2Found) {
-          l2Opts += `<option value="${l2}" selected>${l2}</option>`;
       }
 
       // Generate Level 3 Options (Sublocation)
       let l3Opts = `<option value="" disabled ${!l3 ? 'selected' : ''}>${this.t('select')} Sub</option>`;
       let l3Disabled = true;
-      let l3Found = false;
-
-      if (l1 && l2) {
+      if (l1 && l2 && hierarchy[l1][l2]) {
           l3Disabled = false;
-          // Robust check for L3 array
-          let subSubList = [];
-          if (hierarchy[l1] && !Array.isArray(hierarchy[l1]) && hierarchy[l1][l2]) {
-              subSubList = hierarchy[l1][l2];
-          }
-          
-          subSubList.sort().forEach(k => {
-              const isSel = l3 === k;
-              if(isSel) l3Found = true;
-              l3Opts += `<option value="${k}" ${isSel ? 'selected' : ''}>${k}</option>`;
+          hierarchy[l1][l2].sort().forEach(k => {
+              l3Opts += `<option value="${k}" ${l3 === k ? 'selected' : ''}>${k}</option>`;
           });
-      }
-      // [FIX #3] Force display current value
-      if (l3 && !l3Found) {
-          l3Opts += `<option value="${l3}" selected>${l3}</option>`;
       }
       
       const sep = `<span class="hierarchy-sep">&gt;</span>`;
 
       return `
         <div class="hierarchy-container">
-            <select class="hierarchy-select" onchange="this.getRootNode().host.updateHierarchyState('${item.id}', 1, this.value)">${l1Opts}</select>
+            <select class="hierarchy-select" onchange="this.getRootNode().host.updateHierarchyLevel('${item.id}', 1, this.value)">${l1Opts}</select>
             ${sep}
-            <select class="hierarchy-select" ${l2Disabled ? 'disabled' : ''} onchange="this.getRootNode().host.updateHierarchyState('${item.id}', 2, this.value)">${l2Opts}</select>
+            <select class="hierarchy-select" ${l2Disabled ? 'disabled' : ''} onchange="this.getRootNode().host.updateHierarchyLevel('${item.id}', 2, this.value)">${l2Opts}</select>
             ${sep}
-            <select class="hierarchy-select" ${l3Disabled ? 'disabled' : ''} onchange="this.getRootNode().host.updateHierarchyState('${item.id}', 3, this.value)">${l3Opts}</select>
-            <button class="hierarchy-update-btn" title="Save Location" onclick="this.getRootNode().host.saveHierarchy('${item.id}')">${ICONS.check}</button>
+            <select class="hierarchy-select" ${l3Disabled ? 'disabled' : ''} onchange="this.getRootNode().host.updateHierarchyLevel('${item.id}', 3, this.value)">${l3Opts}</select>
         </div>
       `;
   }
@@ -2241,7 +2186,7 @@ class HomeOrganizerPanel extends HTMLElement {
          controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.id}', 1)">${ICONS.plus}</button><span class="qty-val">${item.qty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.id}', -1)">${ICONS.minus}</button>`;
      }
      
-     // [MODIFIED v7.6.2] Purpose: Use simple text for closed row (Revert buttons/pencil)
+     // [MODIFIED v7.6.1] Purpose: Use simple text for closed row (Revert buttons/pencil)
      const subText = this.renderLocationControl(item, isShopMode);
      // -------------------------------------------------------------
      
@@ -2258,7 +2203,6 @@ class HomeOrganizerPanel extends HTMLElement {
          iconHtml = `<div style="position:relative;width:40px;height:40px"><img src="${src}" class="item-thumbnail" alt="${item.name}" onclick="event.stopPropagation(); this.getRootNode().host.showImg('${item.img}')">${loaderHtml}</div>`;
      }
 
-     // [MODIFIED v7.6.2] Use subText directly as it now contains HTML from renderLocationControl
      div.innerHTML = `
         <div class="item-main" onclick="this.getRootNode().host.toggleRow('${item.id}')">
             <div class="item-left">${iconHtml}<div><div>${item.name}</div>${typeof subText === 'string' && subText.startsWith('<') ? subText : `<div class="sub-title">${subText}</div>`}</div></div>
@@ -2270,7 +2214,7 @@ class HomeOrganizerPanel extends HTMLElement {
          const details = document.createElement('div');
          details.className = 'expanded-details';
          
-         // [ADDED v7.6.2 | 2026-02-15] Purpose: Replace old dropdowns with 3-button hierarchy editor
+         // [ADDED v7.6.1 | 2026-02-15] Purpose: Replace old dropdowns with 3-button hierarchy editor
          const hierarchyEditorHtml = this.renderHierarchyControl(item);
          // ---------------------------------------------------------------
 
@@ -2469,11 +2413,317 @@ class HomeOrganizerPanel extends HTMLElement {
       this.expandedSublocs.clear();
       this.fetchData(); 
   }
+
+  toggleRow(id) { 
+      const nId = Number(id);
+      this.expandedIdx = (this.expandedIdx === nId) ? null : nId; 
+      this.render(); 
+  }
+  updateQty(id, d) { this.callHA('update_qty', { item_id: id, change: d }); }
+  submitShopStock(id) { 
+      const qty = this.shopQuantities[id] || 1;
+      this.callHA('update_stock', { item_id: id, quantity: qty }); 
+      delete this.shopQuantities[id];
+  }
   
-  // ... (Call HA Helper)
-  callHA(service, data) {
-      if(!this._hass) return;
-      this._hass.callService('home_organizer', service, data);
+  openIconPicker(target, context) {
+      if (context === 'item') {
+           this.pendingItemId = target;
+           this.pendingFolderIcon = null; 
+      } else {
+           this.pendingFolderIcon = target;
+           this.pendingItemId = null;
+      }
+      
+      this.pickerContext = context; 
+      this.pickerPage = 0; 
+      if (context === 'item') { this.pickerCategory = Object.keys(ICON_LIB_ITEM)[0]; } else { this.pickerCategory = null; }
+      this.renderIconPickerGrid();
+      this.shadowRoot.getElementById('icon-modal').style.display = 'flex';
+  }
+
+  getCurrentPickerLib() {
+      if (this.pickerContext === 'room') return ICON_LIB_ROOM;
+      if (this.pickerContext === 'location') return ICON_LIB_LOCATION;
+      if (this.pickerContext === 'item') { return ICON_LIB_ITEM[this.pickerCategory] || {}; }
+      return ICON_LIB;
+  }
+
+  renderIconPickerGrid() {
+      const lib = this.getCurrentPickerLib();
+      const keys = Object.keys(lib);
+      const totalPages = Math.ceil(keys.length / this.pickerPageSize);
+      const grid = this.shadowRoot.getElementById('icon-lib-grid');
+      const categoryBar = this.shadowRoot.getElementById('picker-categories');
+      const pageInfo = this.shadowRoot.getElementById('picker-page-info');
+      const prevBtn = this.shadowRoot.getElementById('picker-prev');
+      const nextBtn = this.shadowRoot.getElementById('picker-next');
+
+      if (this.pickerContext === 'item') {
+          categoryBar.style.display = 'flex';
+          categoryBar.innerHTML = '';
+          Object.keys(ICON_LIB_ITEM).forEach(cat => {
+              const btn = document.createElement('button');
+              btn.className = `cat-btn ${this.pickerCategory === cat ? 'active' : ''}`;
+              const firstIconKey = Object.keys(ICON_LIB_ITEM[cat])[0];
+              const sampleIcon = ICON_LIB_ITEM[cat][firstIconKey] || '';
+              btn.innerHTML = `${sampleIcon}<span>${cat}</span>`;
+              btn.onclick = () => { this.pickerCategory = cat; this.pickerPage = 0; this.renderIconPickerGrid(); };
+              categoryBar.appendChild(btn);
+          });
+      } else { categoryBar.style.display = 'none'; }
+
+      grid.innerHTML = '';
+      const start = this.pickerPage * this.pickerPageSize;
+      const end = Math.min(start + this.pickerPageSize, keys.length);
+      const pageKeys = keys.slice(start, end);
+
+      pageKeys.forEach(key => {
+          const div = document.createElement('div');
+          div.className = 'lib-icon';
+          div.innerHTML = `${lib[key]}<span>${key}</span>`;
+          div.onclick = () => this.selectLibraryIcon(lib[key]);
+          grid.appendChild(div);
+      });
+
+      pageInfo.innerText = `Page ${this.pickerPage + 1} of ${totalPages || 1}`;
+      prevBtn.disabled = this.pickerPage === 0;
+      nextBtn.disabled = this.pickerPage >= totalPages - 1;
+  }
+
+  async selectLibraryIcon(svgHtml) {
+      let source = svgHtml;
+      const size = 140; 
+      if (!source.includes('xmlns')) source = source.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+      if (source.includes('width=')) { source = source.replace(/width="[^"]*"/, `width="${size}"`).replace(/height="[^"]*"/, `height="${size}"`); } 
+      else { source = source.replace('<svg', `<svg width="${size}" height="${size}"`); }
+      source = source.replace('<svg', '<svg fill="#4fc3f7"');
+      
+      const loadImage = (src) => new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.src = src;
+      });
+
+      const blob = new Blob([source], {type: 'image/svg+xml;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const img = await loadImage(url);
+      
+      const canvas = document.createElement('canvas');
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      
+      if (this.pickerContext === 'item') { 
+          ctx.fillStyle = '#000'; 
+          ctx.fillRect(0, 0, size, size);
+          const padding = size * 0.15; 
+          const drawSize = size * 0.7; 
+          ctx.drawImage(img, padding, padding, drawSize, drawSize);
+      } else {
+          ctx.drawImage(img, 0, 0, size, size);
+      }
+
+      const dataUrl = canvas.toDataURL('image/png');
+      
+      const target = this.pendingItemId || this.pendingFolderIcon;
+      if (target) this.setLoading(target, true);
+      this.shadowRoot.getElementById('icon-modal').style.display = 'none';
+
+      try {
+          if(this.pendingItemId) {
+              await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
+              this.refreshImageVersion(this.pendingItemId);
+          } else if(this.pendingFolderIcon) {
+              const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
+              const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
+              await this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
+              this.refreshImageVersion(this.pendingFolderIcon);
+          }
+      } catch(e) { console.error(e); }
+      finally {
+          if(target) this.setLoading(target, false);
+          URL.revokeObjectURL(url);
+      }
+  }
+
+  async handleUrlIcon(url) {
+      const loadImage = (src) => new Promise((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = "Anonymous";
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = src;
+      });
+
+      try {
+          const img = await loadImage(url);
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width; canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          const dataUrl = canvas.toDataURL('image/jpeg');
+          
+          this.shadowRoot.getElementById('icon-modal').style.display = 'none';
+          this.shadowRoot.getElementById('icon-url-input').value = '';
+
+          const target = this.pendingItemId || this.pendingFolderIcon;
+          if (target) this.setLoading(target, true);
+
+          try {
+              if(this.pendingItemId) {
+                   await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
+                   this.refreshImageVersion(this.pendingItemId);
+              } else if(this.pendingFolderIcon) {
+                  const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
+                  const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
+                  await this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
+                  this.refreshImageVersion(this.pendingFolderIcon);
+              }
+          } finally {
+              if(target) this.setLoading(target, false);
+          }
+      } catch(e) { alert("Error loading image (CORS or Invalid URL)."); }
+  }
+
+  handleIconUpload(input) {
+      const file = input.files[0]; if (!file) return;
+      this.compressImage(file, async (dataUrl) => {
+          this.shadowRoot.getElementById('icon-modal').style.display = 'none';
+          
+          const target = this.pendingItemId || this.pendingFolderIcon;
+          if (target) this.setLoading(target, true);
+
+          try {
+              if(this.pendingItemId) {
+                   await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
+                   this.refreshImageVersion(this.pendingItemId);
+              } else if(this.pendingFolderIcon) {
+                  const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
+                  const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
+                  await this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
+                  this.refreshImageVersion(this.pendingFolderIcon);
+              }
+          } catch(e) { console.error(e); }
+          finally {
+              if(target) this.setLoading(target, false);
+          }
+      });
+      input.value = '';
+  }
+
+  compressImage(file, callback, applyBgFilter = false) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+              const MAX = 1024;
+              let w = img.width, h = img.height;
+              if (w > h) { if (w > MAX) { h *= MAX/w; w = MAX; } } else { if (h > MAX) { w *= MAX/h; h = MAX; } }
+              canvas.width = w; canvas.height = h;
+              ctx.drawImage(img, 0, 0, w, h);
+              
+              if (applyBgFilter) {
+                  let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                  let data = imageData.data;
+                  for (let i = 0; i < data.length; i += 4) {
+                      let r = data[i], g = data[i+1], b = data[i+2];
+                      if (r > 190 && g > 190 && b > 190) { data[i] = 255; data[i+1] = 255; data[i+2] = 255; }
+                  }
+                  ctx.putImageData(imageData, 0, 0);
+              }
+
+              callback(canvas.toDataURL('image/jpeg', 0.5));
+          };
+          img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+  }
+
+  pasteItem() { this.callHA('paste_item', { target_path: this.currentPath }); }
+  cut(name) { this.callHA('clipboard_action', {action: 'cut', item_name: name}); }
+  callHA(service, data) { return this._hass.callService('home_organizer', service, data); }
+    
+  // [MODIFIED v7.6.1 | 2026-02-15] Purpose: Return simple text for collapsed item view
+  renderLocationControl(item, isShopMode) {
+      if (!isShopMode) return `<div class="sub-title">${item.date || ''}</div>`;
+      // Return just the text path
+      return `<div class="sub-title">${item.location || ''}</div>`;
+  }
+    
+  // [ADDED v7.6.1 | 2026-02-15] Purpose: Logic to handle smart hierarchy updates via backend
+  updateHierarchyLevel(itemId, level, newValue) {
+      const item = this.localData.items.find(i => i.id == itemId) || this.localData.shopping_list.find(i => i.id == itemId);
+      if (!item) return;
+
+      const currentPath = item.location ? item.location.split(' > ') : [];
+      let newPath = [];
+
+      if (level === 1) {
+          if (newValue) newPath = [newValue];
+      } else if (level === 2) {
+          const room = currentPath[0] || ""; 
+          if (room && newValue) newPath = [room, newValue];
+      } else if (level === 3) {
+           const room = currentPath[0] || "";
+           const loc = currentPath[1] || "";
+           if (room && loc && newValue) newPath = [room, loc, newValue];
+      }
+      
+      if (newPath.length > 0) {
+          this.callHA('update_item_details', { 
+              item_id: itemId, 
+              new_path: newPath 
+          });
+      }
+  }
+    
+  // [ADDED v7.6.1 | 2026-02-15] Purpose: Render the 3-button hierarchy editor for expanded view
+  renderHierarchyControl(item) {
+      const hierarchy = this.localData.hierarchy || {};
+      const path = item.location ? item.location.split(' > ') : [];
+      const l1 = item.main_location || (path[0] || '');
+      const l2 = item.sub_location || (path[1] || '');
+      const l3 = path[2] || '';
+      
+      // Generate Level 1 Options (Room)
+      let l1Opts = `<option value="" disabled ${!l1 ? 'selected' : ''}>${this.t('select')} Room</option>`;
+      Object.keys(hierarchy).sort().forEach(k => {
+          l1Opts += `<option value="${k}" ${l1 === k ? 'selected' : ''}>${k}</option>`;
+      });
+      
+      // Generate Level 2 Options (Location)
+      let l2Opts = `<option value="" disabled ${!l2 ? 'selected' : ''}>${this.t('select')} Loc</option>`;
+      let l2Disabled = true;
+      if (l1 && hierarchy[l1]) {
+          l2Disabled = false;
+          Object.keys(hierarchy[l1]).sort().forEach(k => {
+              l2Opts += `<option value="${k}" ${l2 === k ? 'selected' : ''}>${k}</option>`;
+          });
+      }
+
+      // Generate Level 3 Options (Sublocation)
+      let l3Opts = `<option value="" disabled ${!l3 ? 'selected' : ''}>${this.t('select')} Sub</option>`;
+      let l3Disabled = true;
+      if (l1 && l2 && hierarchy[l1][l2]) {
+          l3Disabled = false;
+          hierarchy[l1][l2].sort().forEach(k => {
+              l3Opts += `<option value="${k}" ${l3 === k ? 'selected' : ''}>${k}</option>`;
+          });
+      }
+      
+      const sep = `<span class="hierarchy-sep">&gt;</span>`;
+
+      return `
+        <div class="hierarchy-container">
+            <select class="hierarchy-select" onchange="this.getRootNode().host.updateHierarchyLevel('${item.id}', 1, this.value)">${l1Opts}</select>
+            ${sep}
+            <select class="hierarchy-select" ${l2Disabled ? 'disabled' : ''} onchange="this.getRootNode().host.updateHierarchyLevel('${item.id}', 2, this.value)">${l2Opts}</select>
+            ${sep}
+            <select class="hierarchy-select" ${l3Disabled ? 'disabled' : ''} onchange="this.getRootNode().host.updateHierarchyLevel('${item.id}', 3, this.value)">${l3Opts}</select>
+        </div>
+      `;
   }
 }
 
