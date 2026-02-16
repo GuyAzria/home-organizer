@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.6.5 (Isolated Hierarchy Move Logic)
+// Home Organizer Ultimate - Ver 7.6.6 (Fix Dropdown Pre-selection & Circle Button)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
@@ -652,6 +652,7 @@ class HomeOrganizerPanel extends HTMLElement {
   }
   
   // [ADDED v7.6.4 | 2026-02-16] Purpose: UI Generator for the 3-tier select inputs and the confirm button
+  // [MODIFIED v7.6.6 | 2026-02-16] Purpose: UI Generator for the 3-tier select inputs and the confirm button (Circle Style)
   renderHierarchyControl(item) {
     const hierarchy = this.localData.hierarchy || {};
     // [ADDED v7.6.4 | 2026-02-16] Purpose: Retrieve current edit state or fallback to empty object
@@ -702,7 +703,7 @@ class HomeOrganizerPanel extends HTMLElement {
 
     const sep = `<span class="hierarchy-sep">&gt;</span>`;
 
-    // [ADDED v7.6.5 | 2026-02-16] Purpose: Return the combined HTML block including the dynamic lists for Room, Loc, and Sub selection
+    // [MODIFIED v7.6.6 | 2026-02-16] Purpose: Return with circular confirm button
     return `
       <div class="hierarchy-container">
           <!-- Room Selection List -->
@@ -720,7 +721,7 @@ class HomeOrganizerPanel extends HTMLElement {
               ${l3Opts}
           </select>
           <!-- CONFIRM BUTTON -->
-          <button class="hierarchy-update-btn" title="Apply Move" onclick="this.getRootNode().host.saveHierarchy('${item.id}')">${ICONS.check}</button>
+          <button class="hierarchy-update-btn" title="Apply Move" style="border-radius:50%;width:36px;height:36px;padding:0;display:flex;align-items:center;justify-content:center;min-width:36px" onclick="this.getRootNode().host.saveHierarchy('${item.id}')">${ICONS.check}</button>
       </div>
     `;
   }
@@ -2446,21 +2447,20 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   // [ADDED v7.6.4 | 2026-02-16] Purpose: Initialize edit state when a row is expanded to ensure dropdowns show current location
+  // [MODIFIED v7.6.6 | 2026-02-16] Purpose: Enhanced path parsing to ensure dropdowns pre-select correctly
   toggleRow(id) { 
       const nId = Number(id);
       this.expandedIdx = (this.expandedIdx === nId) ? null : nId; 
       
       if (this.expandedIdx === nId) {
-          // [ADDED v7.6.4 | 2026-02-16] Purpose: Fetch item from local data to populate initial dropdown states
           const item = this.localData.items.find(i => i.id == id) || this.localData.shopping_list.find(i => i.id == id);
           if (item) {
-              const path = item.location ? item.location.split(' > ') : [];
-              // [ADDED v7.6.4 | 2026-02-16] Purpose: Initialize state object for this item
+              // [ADDED v7.6.6 | 2026-02-16] Purpose: Robust split of location string to handle spacing variations
+              const path = item.location ? item.location.split('>').map(s => s.trim()) : [];
               this.locationEditState[id] = {
-                  // [ADDED v7.6.4 | 2026-02-16] Purpose: Assign current levels with fallback to parsed path
-                  l1: item.level_1 || item.main_location || path[0] || "",
-                  l2: item.level_2 || item.sub_location || path[1] || "",
-                  l3: item.level_3 || path[2] || ""
+                  l1: item.main_location || path[0] || "",
+                  l2: item.sub_location || path[1] || "",
+                  l3: path[2] || "" 
               };
           }
       }
