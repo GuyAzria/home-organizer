@@ -1,7 +1,7 @@
 # ⚠️ Beta Version — Use at your own risk
 
 <p align="center">
-  <img src=".github/branding/logo.png" alt="Home Organizer Logo" width="180">
+  <img src="https://github.com/GuyAzria/home-organizer/blob/main/logo.png" alt="Home Organizer Logo" width="180">
 </p>
 
 <h1 align="center">Home Organizer</h1>
