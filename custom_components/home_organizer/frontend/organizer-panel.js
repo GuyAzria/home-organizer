@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.6.4 (Dropdown Filtering)
+// Home Organizer Ultimate - Ver 7.6.5 (Icon Picker & Click Fixes)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
@@ -179,6 +179,130 @@ class HomeOrganizerPanel extends HTMLElement {
 
   refreshImageVersion(target) {
       this.imageVersions[target] = Date.now();
+  }
+
+  // [ADDED v7.6.5 | 2026-02-16] Purpose: Helper to compress images before upload (Fix 2 Dependency)
+  compressImage(file, callback, useAiBg) {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+          const img = new Image();
+          img.src = event.target.result;
+          img.onload = () => {
+              const canvas = document.createElement('canvas');
+              let width = img.width;
+              let height = img.height;
+              const MAX_WIDTH = 800;
+              const MAX_HEIGHT = 800;
+
+              if (width > height) {
+                  if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+              } else {
+                  if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+              }
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, width, height);
+              
+              // Optional: Simple client-side whitening if enabled (very basic)
+              if (useAiBg) {
+                  // This is a placeholder for basic client-side manipulation if needed
+                  // Real AI BG removal happens better on backend or sophisticated libraries
+              }
+
+              callback(canvas.toDataURL('image/jpeg', 0.7));
+          };
+      };
+  }
+
+  // [ADDED v7.6.5 | 2026-02-16] Purpose: Open the Icon Picker Modal (Fix 2)
+  openIconPicker(id, context) {
+      this.pickerContext = context; // 'room' or 'item'
+      this.pickerTargetId = id;
+      this.pickerPage = 0;
+      this.pickerCategory = null;
+      
+      const modal = this.shadowRoot.getElementById('icon-modal');
+      const cats = this.shadowRoot.getElementById('picker-categories');
+      
+      // Render Categories
+      if(cats) cats.innerHTML = `<div class="cat-btn ${!this.pickerCategory?'active':''}" onclick="this.getRootNode().host.setPickerCat(null)">ALL</div>`;
+      
+      this.renderIconPickerGrid();
+      if(modal) modal.style.display = 'flex';
+  }
+
+  // [ADDED v7.6.5 | 2026-02-16] Purpose: Set picker category (Fix 2)
+  setPickerCat(cat) {
+      this.pickerCategory = cat;
+      this.pickerPage = 0;
+      this.renderIconPickerGrid();
+  }
+
+  // [ADDED v7.6.5 | 2026-02-16] Purpose: Get correct icon library based on context (Fix 2)
+  getCurrentPickerLib() {
+      if (this.pickerContext === 'room') return ICON_LIB_ROOM || ICON_LIB;
+      if (this.pickerContext === 'location') return ICON_LIB_LOCATION || ICON_LIB;
+      return ICON_LIB_ITEM || ICON_LIB;
+  }
+
+  // [ADDED v7.6.5 | 2026-02-16] Purpose: Render the grid of icons (Fix 2)
+  renderIconPickerGrid() {
+      const grid = this.shadowRoot.getElementById('icon-lib-grid');
+      if(!grid) return;
+      grid.innerHTML = '';
+      const lib = this.getCurrentPickerLib();
+      const keys = Object.keys(lib);
+      
+      const start = this.pickerPage * this.pickerPageSize;
+      const end = start + this.pickerPageSize;
+      const slice = keys.slice(start, end);
+      
+      slice.forEach(k => {
+          const div = document.createElement('div');
+          div.className = 'lib-icon';
+          div.innerHTML = `${lib[k]}<span>${k}</span>`;
+          div.onclick = () => this.selectIcon(lib[k]); 
+          grid.appendChild(div);
+      });
+      
+      const pageInfo = this.shadowRoot.getElementById('picker-page-info');
+      if(pageInfo) pageInfo.innerText = `Page ${this.pickerPage + 1} of ${Math.ceil(keys.length/this.pickerPageSize)}`;
+  }
+
+  // [ADDED v7.6.5 | 2026-02-16] Purpose: Handle icon selection (convert SVG to image for backend) (Fix 2)
+  selectIcon(svgOrUrl) {
+      if (svgOrUrl.startsWith('<svg')) {
+          const blob = new Blob([svgOrUrl], {type: 'image/svg+xml'});
+          const reader = new FileReader();
+          reader.onload = (e) => {
+              // Reuse upload logic to send 'image' to backend
+              this.pendingItemId = this.pickerTargetId;
+              this.processUploadedFile(e.target.result, 'update', 'image/svg+xml');
+          };
+          reader.readAsDataURL(blob);
+      } else {
+          this.handleUrlIcon(svgOrUrl);
+      }
+      this.shadowRoot.getElementById('icon-modal').style.display = 'none';
+  }
+
+  // [ADDED v7.6.5 | 2026-02-16] Purpose: Handle file upload from picker (Fix 2)
+  handleIconUpload(input) {
+      if (input.files && input.files[0]) {
+          const file = input.files[0];
+          this.pendingItemId = this.pickerTargetId;
+          this.compressImage(file, (dataUrl) => {
+               this.processUploadedFile(dataUrl, 'update', 'image/jpeg');
+               this.shadowRoot.getElementById('icon-modal').style.display = 'none';
+          }, this.useAiBg);
+      }
+  }
+
+  // [ADDED v7.6.5 | 2026-02-16] Purpose: Stub for URL icons if needed
+  handleUrlIcon(url) {
+      console.log("URL icons not fully supported in this version without backend download.");
   }
 
   initUI() {
@@ -2267,11 +2391,11 @@ class HomeOrganizerPanel extends HTMLElement {
          iconHtml = `<div style="position:relative;width:40px;height:40px"><img src="${src}" class="item-thumbnail" alt="${item.name}" onclick="event.stopPropagation(); this.getRootNode().host.showImg('${item.img}')">${loaderHtml}</div>`;
      }
 
-     // [MODIFIED v7.6.2] Use subText directly as it now contains HTML from renderLocationControl
+     // [MODIFIED v7.6.5] Purpose: Added onclick="event.stopPropagation()" to item-qty-ctrl (Fix 1)
      div.innerHTML = `
         <div class="item-main" onclick="this.getRootNode().host.toggleRow('${item.id}')">
             <div class="item-left">${iconHtml}<div><div>${item.name}</div>${typeof subText === 'string' && subText.startsWith('<') ? subText : `<div class="sub-title">${subText}</div>`}</div></div>
-            <div class="item-qty-ctrl">${controls}</div>
+            <div class="item-qty-ctrl" onclick="event.stopPropagation()">${controls}</div>
         </div>
      `;
      
