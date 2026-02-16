@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.6.9 (Fix Button Mapping Priority)
+// Home Organizer Ultimate - Ver 7.6.10 (Smart Hierarchy Slotting Fix)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
@@ -2460,6 +2460,7 @@ class HomeOrganizerPanel extends HTMLElement {
   // [MODIFIED v7.6.7 | 2026-02-16] Purpose: Added fallback to this.currentPath if item location details are missing
   // [MODIFIED v7.6.8 | 2026-02-16] Purpose: Ensure Shopping List items (with potential location string mismatch) are parsed correctly
   // [MODIFIED v7.6.9 | 2026-02-16] Purpose: Fix button labeling by prioritizing parsed location string over item properties
+  // [MODIFIED v7.6.10 | 2026-02-16] Purpose: Smart slotting for hierarchy levels to handle skipped levels (e.g. Room > Sub mapped correctly)
   toggleRow(id) { 
       const nId = Number(id);
       this.expandedIdx = (this.expandedIdx === nId) ? null : nId; 
@@ -2467,26 +2468,40 @@ class HomeOrganizerPanel extends HTMLElement {
       if (this.expandedIdx === nId) {
           const item = this.localData.items.find(i => i.id == id) || this.localData.shopping_list.find(i => i.id == id);
           if (item) {
-              // [MODIFIED v7.6.9] Purpose: Robust split and prioritization of visual path to fix mismatched buttons in Edit/Shop modes
-              // Note: We use the visual string 'location' as the source of truth for the dropdown initial state.
-              // This prevents issues where backend property 'sub_location' might refer to Level 3 but gets mapped to Level 2 slot.
+              const hierarchy = this.localData.hierarchy || {};
               let path = [];
               if (item.location) {
-                  // Handle potentially html encoded separators or just standard ones
                   let cleanLoc = item.location.replace(/&gt;/g, '>'); 
                   path = cleanLoc.split('>').map(s => s.trim());
               }
               
-              // [ADDED v7.6.7 | 2026-02-16] Purpose: Use current view context if item location is missing
-              const contextL1 = this.currentPath[0] || "";
-              const contextL2 = this.currentPath[1] || "";
-              const contextL3 = this.currentPath[2] || "";
+              let l1 = path[0] || item.main_location || this.currentPath[0] || "";
+              let l2 = path[1] || item.sub_location || this.currentPath[1] || "";
+              let l3 = path[2] || this.currentPath[2] || "";
 
-              this.locationEditState[id] = {
-                  l1: path[0] || item.main_location || contextL1,
-                  l2: path[1] || item.sub_location || contextL2,
-                  l3: path[2] || contextL3 
-              };
+              // [ADDED v7.6.10] Logic: If L2 is set but not a valid Location key, check if it's actually a Sub-Location
+              if (l1 && l2 && hierarchy[l1]) {
+                  const isL2ValidKey = Array.isArray(hierarchy[l1][l2]); 
+                  if (!isL2ValidKey) {
+                      // l2 value is not a Location folder. Check if it is a Sub-Location item inside any Location
+                      let foundParent = null;
+                      const locKeys = Object.keys(hierarchy[l1]);
+                      for (const key of locKeys) {
+                          if (hierarchy[l1][key].includes(l2)) {
+                              foundParent = key;
+                              break;
+                          }
+                      }
+                      
+                      if (foundParent) {
+                          // Shift: What was in l2 is actually l3. Parent is l2.
+                          l3 = l2;
+                          l2 = foundParent;
+                      }
+                  }
+              }
+
+              this.locationEditState[id] = { l1, l2, l3 };
           }
       }
       this.render(); 
