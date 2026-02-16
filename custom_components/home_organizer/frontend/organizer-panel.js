@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.6.6 (Fix Dropdown Pre-selection & Circle Button)
+// Home Organizer Ultimate - Ver 7.6.7 (Fix Edit Location Context Fallback)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
@@ -2448,6 +2448,7 @@ class HomeOrganizerPanel extends HTMLElement {
 
   // [ADDED v7.6.4 | 2026-02-16] Purpose: Initialize edit state when a row is expanded to ensure dropdowns show current location
   // [MODIFIED v7.6.6 | 2026-02-16] Purpose: Enhanced path parsing to ensure dropdowns pre-select correctly
+  // [MODIFIED v7.6.7 | 2026-02-16] Purpose: Added fallback to this.currentPath if item location details are missing
   toggleRow(id) { 
       const nId = Number(id);
       this.expandedIdx = (this.expandedIdx === nId) ? null : nId; 
@@ -2457,10 +2458,16 @@ class HomeOrganizerPanel extends HTMLElement {
           if (item) {
               // [ADDED v7.6.6 | 2026-02-16] Purpose: Robust split of location string to handle spacing variations
               const path = item.location ? item.location.split('>').map(s => s.trim()) : [];
+              
+              // [ADDED v7.6.7 | 2026-02-16] Purpose: Use current view context if item location is missing
+              const contextL1 = this.currentPath[0] || "";
+              const contextL2 = this.currentPath[1] || "";
+              const contextL3 = this.currentPath[2] || "";
+
               this.locationEditState[id] = {
-                  l1: item.main_location || path[0] || "",
-                  l2: item.sub_location || path[1] || "",
-                  l3: path[2] || "" 
+                  l1: item.main_location || path[0] || contextL1,
+                  l2: item.sub_location || path[1] || contextL2,
+                  l3: path[2] || contextL3 
               };
           }
       }
