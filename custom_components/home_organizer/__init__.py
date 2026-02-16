@@ -27,6 +27,7 @@ WS_AI_CHAT = "home_organizer/ai_chat"
 
 STATIC_PATH_URL = "/home_organizer_static"
 
+# [MODIFIED v7.4.7 | 2026-02-16] Purpose: Ensure correct model version for extended context
 GEMINI_MODEL = "gemini-3-flash-preview"
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -410,7 +411,8 @@ async def websocket_ai_chat(hass, connection, msg):
         analysis_json = {}
         raw_analysis = ""
 
-        async with session.post(gen_url, json=payload_1, timeout=ClientTimeout(total=15)) as resp:
+        # [MODIFIED v7.4.7 | 2026-02-16] Purpose: Increased timeout from 15s to 30s for intent analysis (Fix 3)
+        async with session.post(gen_url, json=payload_1, timeout=ClientTimeout(total=30)) as resp:
             if resp.status == 200:
                 res = await resp.json()
                 
@@ -577,7 +579,8 @@ async def websocket_ai_chat(hass, connection, msg):
 
         payload_3 = {"contents": [{"parts": [{"text": step3_prompt}]}]}
 
-        async with session.post(gen_url, json=payload_3, timeout=ClientTimeout(total=60)) as resp:
+        # [MODIFIED v7.4.7 | 2026-02-16] Purpose: Increased timeout from 60s to 90s for answer generation (Fix 3)
+        async with session.post(gen_url, json=payload_3, timeout=ClientTimeout(total=90)) as resp:
             if resp.status == 200:
                 res = await resp.json()
                 if "candidates" not in res or not res["candidates"]:
