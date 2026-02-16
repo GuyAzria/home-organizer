@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.4.7 (AI Timeouts Increased)
+# Home Organizer Ultimate - ver 7.6.1 (Update: Localized Sidebar Titles & Path Editing)
 
 import logging
 import sqlite3
@@ -27,7 +27,6 @@ WS_AI_CHAT = "home_organizer/ai_chat"
 
 STATIC_PATH_URL = "/home_organizer_static"
 
-# [MODIFIED v7.4.7 | 2026-02-16] Purpose: Ensure using Gemini 3 Flash Preview as requested
 GEMINI_MODEL = "gemini-3-flash-preview"
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -411,8 +410,7 @@ async def websocket_ai_chat(hass, connection, msg):
         analysis_json = {}
         raw_analysis = ""
 
-        # [MODIFIED v7.4.7 | 2026-02-16] Purpose: Increased timeout from 15s to 30s for intent analysis (Fix 3)
-        async with session.post(gen_url, json=payload_1, timeout=ClientTimeout(total=30)) as resp:
+        async with session.post(gen_url, json=payload_1, timeout=ClientTimeout(total=15)) as resp:
             if resp.status == 200:
                 res = await resp.json()
                 
@@ -579,8 +577,7 @@ async def websocket_ai_chat(hass, connection, msg):
 
         payload_3 = {"contents": [{"parts": [{"text": step3_prompt}]}]}
 
-        # [MODIFIED v7.4.7 | 2026-02-16] Purpose: Increased timeout from 60s to 90s for answer generation (Fix 3)
-        async with session.post(gen_url, json=payload_3, timeout=ClientTimeout(total=90)) as resp:
+        async with session.post(gen_url, json=payload_3, timeout=ClientTimeout(total=60)) as resp:
             if resp.status == 200:
                 res = await resp.json()
                 if "candidates" not in res or not res["candidates"]:
@@ -649,11 +646,7 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                     "img": img, 
                     "location": " > ".join([p for p in fp if p]),
                     "main_location": r_dict.get("level_2", "General"),
-                    "sub_location": r_dict.get("level_3", ""),
-                    # [ADDED v7.4.6 | 2026-02-15] Purpose: Provide raw hierarchy levels for reliable UI edit mode
-                    "level_1": r_dict.get("level_1", ""),
-                    "level_2": r_dict.get("level_2", ""),
-                    "level_3": r_dict.get("level_3", "")
+                    "sub_location": r_dict.get("level_3", "")
                 })
 
         elif query or date_filter != "All":
@@ -684,11 +677,7 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                         "category": r_dict.get('category', ''),
                         "sub_category": r_dict.get('sub_category', ''),
                         "unit": r_dict.get('unit', ''),
-                        "unit_value": r_dict.get('unit_value', ''),
-                        # [ADDED v7.4.6 | 2026-02-15] Purpose: Provide raw hierarchy levels for reliable UI edit mode
-                        "level_1": r_dict.get("level_1", ""),
-                        "level_2": r_dict.get("level_2", ""),
-                        "level_3": r_dict.get("level_3", "")
+                        "unit_value": r_dict.get('unit_value', '')
                     })
 
         else:
@@ -726,11 +715,7 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                           "category": r_dict.get('category', ''),
                           "sub_category": r_dict.get('sub_category', ''),
                           "unit": r_dict.get('unit', ''),
-                          "unit_value": r_dict.get('unit_value', ''),
-                          # [ADDED v7.4.6 | 2026-02-15] Purpose: Provide raw hierarchy levels for reliable UI edit mode
-                          "level_1": r_dict.get("level_1", ""),
-                          "level_2": r_dict.get("level_2", ""),
-                          "level_3": r_dict.get("level_3", "")
+                          "unit_value": r_dict.get('unit_value', '')
                       })
             else:
                 sublocations = []
@@ -758,11 +743,7 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                         "category": r_dict.get('category', ''),
                         "sub_category": r_dict.get('sub_category', ''),
                         "unit": r_dict.get('unit', ''),
-                        "unit_value": r_dict.get('unit_value', ''),
-                        # [ADDED v7.4.6 | 2026-02-15] Purpose: Provide raw hierarchy levels for reliable UI edit mode
-                        "level_1": r_dict.get("level_1", ""),
-                        "level_2": r_dict.get("level_2", ""),
-                        "level_3": r_dict.get("level_3", "")
+                        "unit_value": r_dict.get('unit_value', '')
                     })
                 
                 for s in sublocations: folders.append({"name": s})
