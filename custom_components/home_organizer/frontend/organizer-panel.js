@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.6.7 (Fix Edit Location Context Fallback)
+// Home Organizer Ultimate - Ver 7.6.8 (Filter Markers & Fix Shopping List Edit)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
@@ -653,6 +653,7 @@ class HomeOrganizerPanel extends HTMLElement {
   
   // [ADDED v7.6.4 | 2026-02-16] Purpose: UI Generator for the 3-tier select inputs and the confirm button
   // [MODIFIED v7.6.6 | 2026-02-16] Purpose: UI Generator for the 3-tier select inputs and the confirm button (Circle Style)
+  // [MODIFIED v7.6.8 | 2026-02-16] Purpose: Filter out internal marker folders (ZONE_MARKER, ORDER_MARKER) from hierarchy dropdowns
   renderHierarchyControl(item) {
     const hierarchy = this.localData.hierarchy || {};
     // [ADDED v7.6.4 | 2026-02-16] Purpose: Retrieve current edit state or fallback to empty object
@@ -666,7 +667,10 @@ class HomeOrganizerPanel extends HTMLElement {
     // --- LEVEL 1: ROOM SELECTION ---
     let l1Opts = `<option value="" disabled ${!l1 ? 'selected' : ''}>Select Room</option>`;
     let l1Found = false;
+    
+    // [ADDED v7.6.8 | 2026-02-16] Purpose: Filter markers from Room list
     Object.keys(hierarchy).sort().forEach(k => {
+        if (k.startsWith('ZONE_MARKER_') || k.startsWith('ORDER_MARKER_')) return;
         const isSel = l1 === k;
         if(isSel) l1Found = true;
         l1Opts += `<option value="${k}" ${isSel ? 'selected' : ''}>${k}</option>`;
@@ -680,7 +684,10 @@ class HomeOrganizerPanel extends HTMLElement {
     if (l1) {
         const subHier = hierarchy[l1] || {};
         const sortedL2 = Array.isArray(subHier) ? [] : Object.keys(subHier).sort(); 
+        
+        // [ADDED v7.6.8 | 2026-02-16] Purpose: Filter markers from Location list
         sortedL2.forEach(k => {
+            if (k.startsWith('ZONE_MARKER_') || k.startsWith('ORDER_MARKER_')) return;
             const isSel = l2 === k;
             if(isSel) l2Found = true;
             l2Opts += `<option value="${k}" ${isSel ? 'selected' : ''}>${k}</option>`;
@@ -693,7 +700,9 @@ class HomeOrganizerPanel extends HTMLElement {
     let l3Disabled = !(l1 && l2);
     let l3Found = false;
     if (l1 && l2 && hierarchy[l1] && !Array.isArray(hierarchy[l1]) && hierarchy[l1][l2]) {
+        // [ADDED v7.6.8 | 2026-02-16] Purpose: Filter markers from Sub-Location list
         hierarchy[l1][l2].sort().forEach(k => {
+            if (k.startsWith('ZONE_MARKER_') || k.startsWith('ORDER_MARKER_')) return;
             const isSel = l3 === k;
             if(isSel) l3Found = true;
             l3Opts += `<option value="${k}" ${isSel ? 'selected' : ''}>${k}</option>`;
@@ -2449,6 +2458,7 @@ class HomeOrganizerPanel extends HTMLElement {
   // [ADDED v7.6.4 | 2026-02-16] Purpose: Initialize edit state when a row is expanded to ensure dropdowns show current location
   // [MODIFIED v7.6.6 | 2026-02-16] Purpose: Enhanced path parsing to ensure dropdowns pre-select correctly
   // [MODIFIED v7.6.7 | 2026-02-16] Purpose: Added fallback to this.currentPath if item location details are missing
+  // [MODIFIED v7.6.8 | 2026-02-16] Purpose: Ensure Shopping List items (with potential location string mismatch) are parsed correctly
   toggleRow(id) { 
       const nId = Number(id);
       this.expandedIdx = (this.expandedIdx === nId) ? null : nId; 
