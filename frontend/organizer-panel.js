@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.6.11 (UI: Edit Button Moved & HA Sidebar Toggle)
+// Home Organizer Ultimate - Ver 7.6.13 (Full Code Restoration & UI Update)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
@@ -10,6 +10,7 @@ class HomeOrganizerPanel extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this.content) {
+      console.log("%c Home Organizer v7.6.13 Fully Loaded ", "background: #4caf50; color: #fff; font-weight: bold;");
       this.currentPath = [];
       this.catalogPath = []; 
       this.isEditMode = false;
@@ -188,7 +189,8 @@ class HomeOrganizerPanel extends HTMLElement {
     
     // --- ADDITIVE: File Upload Icon ---
     const UPLOAD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>';
-    // [ADDED v7.6.11 | 2026-02-17] Purpose: Burger Menu Icon for HA Sidebar Toggle
+    
+    // [ADDED v7.6.13 | 2026-02-17] Purpose: Burger Menu Icon for HA Sidebar Toggle
     const MENU_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z" /></svg>';
     
     this.shadowRoot.innerHTML = `
@@ -197,42 +199,44 @@ class HomeOrganizerPanel extends HTMLElement {
       <div class="app-container" id="app">
         <!-- Main Top Bar (60px) -->
         <div class="top-bar">
-            <!-- [ADDED v7.6.11 | 2026-02-17] Purpose: HA Sidebar Toggle Button -->
-            <button class="nav-btn" id="btn-ha-menu" title="Toggle Sidebar">
-                ${MENU_SVG}
-            </button>
-
-            <div class="setup-wrapper">
-                <button class="nav-btn" id="btn-user-setup">
-                    ${ICONS.settings}
+            <!-- [ADDED v7.6.13] Group Burger + Settings on the left -->
+            <div style="display:flex; align-items:center; gap:5px">
+                <button class="nav-btn" id="btn-ha-menu" title="Toggle Sidebar">
+                    ${MENU_SVG}
                 </button>
-                <div class="setup-dropdown" id="setup-dropdown-menu">
-                    <!-- Dynamic Menu Container -->
-                    <div id="menu-main">
-                        <div class="dropdown-item" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('lang')">
-                            ${ICONS.language}
-                            ${this.t('language')}
+
+                <div class="setup-wrapper">
+                    <button class="nav-btn" id="btn-user-setup">
+                        ${ICONS.settings}
+                    </button>
+                    <div class="setup-dropdown" id="setup-dropdown-menu">
+                        <!-- Dynamic Menu Container -->
+                        <div id="menu-main">
+                            <div class="dropdown-item" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('lang')">
+                                ${ICONS.language}
+                                ${this.t('language')}
+                            </div>
+                            <div class="dropdown-item" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('theme')">
+                                ${ICONS.theme}
+                                ${this.t('theme')}
+                            </div>
                         </div>
-                        <div class="dropdown-item" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('theme')">
-                            ${ICONS.theme}
-                            ${this.t('theme')}
+                        <!-- Language Submenu (Dynamic) -->
+                        <div id="menu-lang" style="display:none">
+                            <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
+                               ${ICONS.back}
+                               ${this.t('back')}
+                            </div>
                         </div>
-                    </div>
-                    <!-- Language Submenu (Dynamic) -->
-                    <div id="menu-lang" style="display:none">
-                        <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
-                           ${ICONS.back}
-                           ${this.t('back')}
+                        <!-- Theme Submenu -->
+                        <div id="menu-theme" style="display:none">
+                            <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
+                               ${ICONS.back}
+                               ${this.t('back')}
+                            </div>
+                            <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('light')">${this.t('light')}</div>
+                            <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('dark')">${this.t('dark')}</div>
                         </div>
-                    </div>
-                    <!-- Theme Submenu -->
-                    <div id="menu-theme" style="display:none">
-                        <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
-                           ${ICONS.back}
-                           ${this.t('back')}
-                        </div>
-                        <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('light')">${this.t('light')}</div>
-                        <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('dark')">${this.t('dark')}</div>
                     </div>
                 </div>
             </div>
@@ -241,18 +245,19 @@ class HomeOrganizerPanel extends HTMLElement {
                 <div class="main-title" id="display-title">${this.t('app_title')}</div>
                 <div class="sub-title" id="display-path">${this.t('default_path')}</div>
             </div>
+            
             <div style="display:flex;gap:5px">
                 <button class="nav-btn" id="btn-chat" style="display:none;" title="AI Chat">${ICONS.robot}</button>
                 <button class="nav-btn" id="btn-shop">${ICONS.cart}</button>
                 <button class="nav-btn" id="btn-search">${ICONS.search}</button>
-                <!-- [REMOVED v7.6.11] Edit button moved to Sub Bar -->
+                <!-- [REMOVED v7.6.13] Edit button moved to Sub Bar -->
             </div>
         </div>
 
         <div class="sub-bar">
             <div class="sub-bar-right">
                 <button class="nav-btn" id="btn-home">${ICONS.home}</button>
-                <!-- [ADDED v7.6.11 | 2026-02-17] Purpose: Edit button moved here -->
+                <!-- [ADDED v7.6.13 | 2026-02-17] Purpose: Edit button moved here -->
                 <button class="nav-btn" id="btn-edit">${ICONS.edit}</button>
                 <button class="nav-btn" id="btn-up" style="display:none;">${ICONS.arrow_up}</button>
             </div>
@@ -476,7 +481,7 @@ class HomeOrganizerPanel extends HTMLElement {
     const menu = root.getElementById('setup-dropdown-menu');
     if(menu) menu.onclick = (e) => e.stopPropagation();
 
-    // [ADDED v7.6.11 | 2026-02-17] Purpose: Bind sidebar toggle event
+    // [ADDED v7.6.13 | 2026-02-17] Purpose: Bind sidebar toggle event
     click('btn-ha-menu', () => {
         this.dispatchEvent(new Event('hass-toggle-menu', { bubbles: true, composed: true }));
     });
