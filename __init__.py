@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.6.1 (Update: Localized Sidebar Titles & Path Editing)
+# Home Organizer Ultimate - ver 7.6.2 (Update: Clarified Static Path Logic)
 
 import logging
 import sqlite3
@@ -25,6 +25,8 @@ WS_GET_DATA = "home_organizer/get_data"
 WS_GET_ALL_ITEMS = "home_organizer/get_all_items" 
 WS_AI_CHAT = "home_organizer/ai_chat" 
 
+# [ADDED v7.6.2 | 2026-02-17] Purpose: improved static path definition
+# This URL maps to the local 'frontend' folder, bypassing /config/www
 STATIC_PATH_URL = "/home_organizer_static"
 
 GEMINI_MODEL = "gemini-3-flash-preview"
@@ -35,6 +37,8 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if entry.options.get(CONF_DEBUG): _LOGGER.setLevel(logging.DEBUG)
 
+    # [ADDED v7.6.2 | 2026-02-17] Purpose: Calculate absolute path to the 'frontend' folder inside this component
+    # This means your JS files must live in: custom_components/home_organizer/frontend/
     frontend_folder = os.path.join(os.path.dirname(__file__), "frontend")
     
     await hass.http.async_register_static_paths([
@@ -63,8 +67,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass,
             webcomponent_name="home-organizer-panel",
             frontend_url_path="organizer",
+            # [MODIFIED v7.6.2 | 2026-02-17] Purpose: Load JS from the internal static path, not /local/
             module_url=f"{STATIC_PATH_URL}/organizer-panel.js?v={int(time.time())}",
-            sidebar_title=sidebar_label, # [MODIFIED v7.4.5 | 2026-02-15] Purpose: Use localized variable
+            sidebar_title=sidebar_label, 
             sidebar_icon="mdi:package-variant-closed",
             require_admin=False
         )
@@ -565,8 +570,7 @@ async def websocket_ai_chat(hass, connection, msg):
         step3_prompt = (
             "You are a helpful home assistant. "
             "CRITICAL LANGUAGE RULE: Automatically detect the exact language of the 'User Request' below. "
-            "You MUST generate your ENTIRE response ONLY in that detected language. Do NOT mix languages. "
-            "Do NOT default to English unless the request itself is in English. "
+            "You MUST generate your ENTIRE response ONLY in that detected language. Do NOT default to English unless requested. "
             "(e.g., If Hebrew -> respond ONLY in Hebrew. If Arabic -> respond ONLY in Arabic).\n"
             "Use the provided inventory list to answer the user's request.\n"
             "If the list is empty, apologize IN THE DETECTED LANGUAGE.\n"
