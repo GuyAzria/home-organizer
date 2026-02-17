@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.6.10 (Smart Hierarchy Slotting Fix)
+// Home Organizer Ultimate - Ver 7.6.11 (UI: Edit Button Moved & HA Sidebar Toggle)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
@@ -188,6 +188,8 @@ class HomeOrganizerPanel extends HTMLElement {
     
     // --- ADDITIVE: File Upload Icon ---
     const UPLOAD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>';
+    // [ADDED v7.6.11 | 2026-02-17] Purpose: Burger Menu Icon for HA Sidebar Toggle
+    const MENU_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z" /></svg>';
     
     this.shadowRoot.innerHTML = `
       <link rel="stylesheet" href="/home_organizer_static/organizer-panel.css?v=${timestamp}">
@@ -195,6 +197,11 @@ class HomeOrganizerPanel extends HTMLElement {
       <div class="app-container" id="app">
         <!-- Main Top Bar (60px) -->
         <div class="top-bar">
+            <!-- [ADDED v7.6.11 | 2026-02-17] Purpose: HA Sidebar Toggle Button -->
+            <button class="nav-btn" id="btn-ha-menu" title="Toggle Sidebar">
+                ${MENU_SVG}
+            </button>
+
             <div class="setup-wrapper">
                 <button class="nav-btn" id="btn-user-setup">
                     ${ICONS.settings}
@@ -238,13 +245,15 @@ class HomeOrganizerPanel extends HTMLElement {
                 <button class="nav-btn" id="btn-chat" style="display:none;" title="AI Chat">${ICONS.robot}</button>
                 <button class="nav-btn" id="btn-shop">${ICONS.cart}</button>
                 <button class="nav-btn" id="btn-search">${ICONS.search}</button>
-                <button class="nav-btn" id="btn-edit">${ICONS.edit}</button>
+                <!-- [REMOVED v7.6.11] Edit button moved to Sub Bar -->
             </div>
         </div>
 
         <div class="sub-bar">
             <div class="sub-bar-right">
                 <button class="nav-btn" id="btn-home">${ICONS.home}</button>
+                <!-- [ADDED v7.6.11 | 2026-02-17] Purpose: Edit button moved here -->
+                <button class="nav-btn" id="btn-edit">${ICONS.edit}</button>
                 <button class="nav-btn" id="btn-up" style="display:none;">${ICONS.arrow_up}</button>
             </div>
             <div class="sub-bar-left">
@@ -466,6 +475,11 @@ class HomeOrganizerPanel extends HTMLElement {
     
     const menu = root.getElementById('setup-dropdown-menu');
     if(menu) menu.onclick = (e) => e.stopPropagation();
+
+    // [ADDED v7.6.11 | 2026-02-17] Purpose: Bind sidebar toggle event
+    click('btn-ha-menu', () => {
+        this.dispatchEvent(new Event('hass-toggle-menu', { bubbles: true, composed: true }));
+    });
 
     click('btn-up', () => this.navigate('up'));
     click('btn-home', () => { 
