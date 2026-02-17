@@ -10,13 +10,13 @@
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/GuyAzria/home-organizer/issues",
   "requirements": [],
-  "version": "3.1.5",
+  "version": "3.1.1",
   "panel_custom": [
     {
       "name": "home_organizer_panel",
       "url_path": "home_organizer",
       "sidebar_title": "Home Organizer",
-      "sidebar_icon": "/home_organizer_static/icon.svg",
+      "sidebar_icon": "mdi:package-variant-closed",
       "module_url": "/home_organizer_static/organizer-panel.js",
       "embed_iframe": true,
       "require_admin": false
