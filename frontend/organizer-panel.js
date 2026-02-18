@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.6.13 (Full Code Restoration & UI Update)
+// Home Organizer Ultimate - Ver 7.6.16 (UI: Sub-Bar Layout Reorder)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
@@ -10,7 +10,7 @@ class HomeOrganizerPanel extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this.content) {
-      console.log("%c Home Organizer v7.6.13 Fully Loaded ", "background: #4caf50; color: #fff; font-weight: bold;");
+      console.log("%c Home Organizer v7.6.16 Fully Loaded ", "background: #e91e63; color: #fff; font-weight: bold;");
       this.currentPath = [];
       this.catalogPath = []; 
       this.isEditMode = false;
@@ -190,49 +190,58 @@ class HomeOrganizerPanel extends HTMLElement {
     // --- ADDITIVE: File Upload Icon ---
     const UPLOAD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>';
     
-    // [ADDED v7.6.13 | 2026-02-17] Purpose: Burger Menu Icon for HA Sidebar Toggle
+    // [ADDED v7.6.15] Burger Menu Icon for HA Sidebar Toggle
     const MENU_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z" /></svg>';
     
+    // [ADDED v7.6.15] About Icon (Info circle)
+    const INFO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>';
+
     this.shadowRoot.innerHTML = `
       <link rel="stylesheet" href="/home_organizer_static/organizer-panel.css?v=${timestamp}">
       
       <div class="app-container" id="app">
-        <!-- Main Top Bar (60px) -->
-        <div class="top-bar">
-            <!-- [ADDED v7.6.13] Group Burger + Settings on the left -->
-            <div style="display:flex; align-items:center; gap:5px">
-                <button class="nav-btn" id="btn-ha-menu" title="Toggle Sidebar">
-                    ${MENU_SVG}
-                </button>
-
+        <!-- Main Top Bar (60px) - Forced LTR direction -->
+        <div class="top-bar" style="direction: ltr;">
+            <!-- [ADDED v7.6.13] Burger Menu (Always Left) -->
+            <button class="nav-btn" id="btn-ha-menu" title="Toggle Sidebar">
+                ${MENU_SVG}
+            </button>
+            
+            <div class="title-box">
+                <div class="main-title" id="display-title">${this.t('app_title')}</div>
+                <div class="sub-title" id="display-path">${this.t('default_path')}</div>
+            </div>
+            
+            <div style="display:flex;gap:5px; align-items:center;">
+                <button class="nav-btn" id="btn-chat" style="display:none;" title="AI Chat">${ICONS.robot}</button>
+                <button class="nav-btn" id="btn-shop">${ICONS.cart}</button>
+                <button class="nav-btn" id="btn-search">${ICONS.search}</button>
+                
                 <div class="setup-wrapper">
                     <button class="nav-btn" id="btn-user-setup">
                         ${ICONS.settings}
                     </button>
                     <div class="setup-dropdown" id="setup-dropdown-menu">
-                        <!-- Dynamic Menu Container -->
                         <div id="menu-main">
                             <div class="dropdown-item" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('lang')">
-                                ${ICONS.language}
-                                ${this.t('language')}
+                                ${ICONS.language} ${this.t('language')}
                             </div>
                             <div class="dropdown-item" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('theme')">
-                                ${ICONS.theme}
-                                ${this.t('theme')}
+                                ${ICONS.theme} ${this.t('theme')}
+                            </div>
+                            <!-- [ADDED v7.6.15] About Item -->
+                            <div class="dropdown-item" onclick="event.stopPropagation(); this.getRootNode().host.showAbout()">
+                                ${INFO_SVG} About
                             </div>
                         </div>
-                        <!-- Language Submenu (Dynamic) -->
                         <div id="menu-lang" style="display:none">
                             <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
-                               ${ICONS.back}
-                               ${this.t('back')}
+                               ${ICONS.back} ${this.t('back')}
                             </div>
                         </div>
-                        <!-- Theme Submenu -->
                         <div id="menu-theme" style="display:none">
                             <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
-                               ${ICONS.back}
-                               ${this.t('back')}
+                               ${ICONS.back} ${this.t('back')}
                             </div>
                             <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('light')">${this.t('light')}</div>
                             <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('dark')">${this.t('dark')}</div>
@@ -240,35 +249,26 @@ class HomeOrganizerPanel extends HTMLElement {
                     </div>
                 </div>
             </div>
-            
-            <div class="title-box">
-                <div class="main-title" id="display-title">${this.t('app_title')}</div>
-                <div class="sub-title" id="display-path">${this.t('default_path')}</div>
-            </div>
-            
-            <div style="display:flex;gap:5px">
-                <button class="nav-btn" id="btn-chat" style="display:none;" title="AI Chat">${ICONS.robot}</button>
-                <button class="nav-btn" id="btn-shop">${ICONS.cart}</button>
-                <button class="nav-btn" id="btn-search">${ICONS.search}</button>
-                <!-- [REMOVED v7.6.13] Edit button moved to Sub Bar -->
-            </div>
         </div>
 
+        <!-- [MODIFIED v7.6.16] Sub Bar Layout Logic -->
         <div class="sub-bar">
-            <div class="sub-bar-right">
+            <!-- Nav Group: Home + Up. Start Side (Left in LTR, Right in RTL) -->
+            <div class="sub-bar-left">
                 <button class="nav-btn" id="btn-home">${ICONS.home}</button>
-                <!-- [ADDED v7.6.13 | 2026-02-17] Purpose: Edit button moved here -->
-                <button class="nav-btn" id="btn-edit">${ICONS.edit}</button>
                 <button class="nav-btn" id="btn-up" style="display:none;">${ICONS.arrow_up}</button>
             </div>
-            <div class="sub-bar-left">
-                <button class="nav-btn" id="btn-toggle-ids" title="Toggle IDs">
-                    ${ICONS.id_card}
-                </button>
+
+            <!-- Tools Group: Edit + Toggle. End Side (Right in LTR, Left in RTL) -->
+            <div class="sub-bar-right">
                 <button class="nav-btn" id="btn-view-toggle" style="display:none;">
                    <span id="icon-view-grid" style="display:block">${ICONS.view_grid}</span>
                    <span id="icon-view-list" style="display:none">${ICONS.view_list}</span>
                 </button>
+                <button class="nav-btn" id="btn-toggle-ids" title="Toggle IDs">
+                    ${ICONS.id_card}
+                </button>
+                <button class="nav-btn" id="btn-edit">${ICONS.edit}</button>
             </div>
         </div>
         
@@ -278,7 +278,6 @@ class HomeOrganizerPanel extends HTMLElement {
                 <button class="nav-btn ai-btn" id="btn-ai-search" style="position:absolute;inset-inline-start:0;top:0;height:100%;background:none;border:none;">
                     ${ICONS.camera}
                 </button>
-                <!-- ADDITIVE: New Upload Button Next to Camera -->
                 <button class="nav-btn ai-btn" id="btn-ai-upload" style="position:absolute;inset-inline-start:30px;top:0;height:100%;background:none;border:none;" title="Upload File">
                     ${UPLOAD_SVG}
                 </button>
@@ -293,6 +292,29 @@ class HomeOrganizerPanel extends HTMLElement {
         </div>
       </div>
       
+      <!-- [ADDED v7.6.15] About Modal -->
+      <div id="about-modal" onclick="this.style.display='none'" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:3500; align-items:center; justify-content:center;">
+          <div class="modal-content" onclick="event.stopPropagation()" style="text-align:center;">
+              <div style="margin-bottom:20px; font-size:20px; font-weight:bold; color:var(--primary);">Home Organizer Ultimate</div>
+              
+              <div style="margin-bottom:20px; font-style:italic; font-size:16px; color:#e91e63;">
+                  "Written by Guy Azria for my dear Yulia"
+              </div>
+              
+              <div style="margin-bottom:20px; font-size:14px; color:var(--text-sub); line-height:1.5;">
+                  A comprehensive inventory management system for Home Assistant.<br>
+                  Organize, track, and manage your home with ease.
+              </div>
+              
+              <div style="margin-top:20px; font-size:12px; color:#666; border-top:1px solid var(--border-light); padding-top:10px;">
+                  Licensed under MIT License.<br>
+                  Version 7.6.16
+              </div>
+              
+              <button class="action-btn" style="width:100%; margin-top:20px;" onclick="this.closest('#about-modal').style.display='none'">${this.t('back') || 'Close'}</button>
+          </div>
+      </div>
+
       <!-- Icon Picker Modal -->
       <div id="icon-modal" onclick="this.style.display='none'">
           <div class="modal-content" onclick="event.stopPropagation()">
@@ -339,7 +361,6 @@ class HomeOrganizerPanel extends HTMLElement {
           </div>
       </div>
       
-      <!-- ADDITIVE: Hidden Universal File Input for PDFs/Images -->
       <input type="file" id="universal-file-upload" accept="image/*,application/pdf" style="display:none">
     `;
 
@@ -347,7 +368,6 @@ class HomeOrganizerPanel extends HTMLElement {
           console.warn("Camera access requires HTTPS.");
     }
 
-    // --- AUTO-DETECT SETTINGS ---
     let currentLang = localStorage.getItem('home_organizer_lang');
     if (!currentLang && this._hass) {
         if (this._hass.language === 'he') {
@@ -358,12 +378,10 @@ class HomeOrganizerPanel extends HTMLElement {
         localStorage.setItem('home_organizer_lang', currentLang);
     }
     
-    // Apply Language Class
     if (currentLang === 'en') {
         this.shadowRoot.getElementById('app').classList.add('ltr');
     }
 
-    // Theme Auto-Detect
     let currentTheme = localStorage.getItem('home_organizer_theme');
     if (!currentTheme && this._hass) {
         currentTheme = (this._hass.themes && this._hass.themes.darkMode) ? 'dark' : 'light';
@@ -381,6 +399,12 @@ class HomeOrganizerPanel extends HTMLElement {
     this.bindEvents();
   }
   
+  // [ADDED v7.6.15] Show About Modal
+  showAbout() {
+      this.shadowRoot.getElementById('setup-dropdown-menu').classList.remove('show');
+      this.shadowRoot.getElementById('about-modal').style.display = 'flex';
+  }
+
   handleNameInput(input, itemId) {
       const val = input.value.toLowerCase();
       const parent = input.parentElement; 
@@ -797,6 +821,12 @@ class HomeOrganizerPanel extends HTMLElement {
       
       if (dir === 'ltr') app.classList.add('ltr'); else app.classList.remove('ltr');
       
+      // [ADDED v7.6.15] Force the settings dropdown to follow the app direction, ignoring the Top Bar's forced LTR
+      const dropdown = this.shadowRoot.getElementById('setup-dropdown-menu');
+      if(dropdown) {
+          dropdown.style.direction = dir;
+      }
+
       this.shadowRoot.getElementById('setup-dropdown-menu').classList.remove('show');
       this.render(); 
   }
@@ -2119,7 +2149,11 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   toggleSubloc(name) {
-      if (this.expandedSublocs.has(name)) this.expandedSublocs.delete(name); else this.expandedSublocs.add(name);
+      if (this.expandedSublocs.has(name)) {
+          this.expandedSublocs.delete(name);
+      } else {
+          this.expandedSublocs.add(name);
+      }
       this.render();
   }
     
@@ -2131,8 +2165,13 @@ class HomeOrganizerPanel extends HTMLElement {
       const input = iconContainer.querySelector('input');
       label.innerText = this.t('saving');
       input.focus();
-      input.onkeydown = (e) => { if (e.key === 'Enter') this.saveNewFolder(input.value); };
-      input.onblur = () => { if (input.value.trim()) this.saveNewFolder(input.value); else this.render(); };
+      input.onkeydown = (e) => { 
+          if (e.key === 'Enter') this.saveNewFolder(input.value); 
+      };
+      input.onblur = () => { 
+          if (input.value.trim()) this.saveNewFolder(input.value); 
+          else this.render(); 
+      };
   }
     
   enableFolderRename(labelEl, oldName) {
@@ -2178,15 +2217,28 @@ class HomeOrganizerPanel extends HTMLElement {
 
   setupDragSource(el, itemName) {
       el.draggable = true;
-      el.ondragstart = (e) => { e.dataTransfer.setData("text/plain", itemName); e.dataTransfer.effectAllowed = "move"; el.classList.add('dragging'); };
+      el.ondragstart = (e) => { 
+          e.dataTransfer.setData("text/plain", itemName); 
+          e.dataTransfer.effectAllowed = "move"; 
+          el.classList.add('dragging'); 
+      };
       el.ondragend = () => el.classList.remove('dragging');
   }
 
   setupDropTarget(el, subName) {
       el.dataset.subloc = subName;
-      el.ondragover = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drag-over'); };
+      el.ondragover = (e) => { 
+          e.preventDefault(); 
+          e.dataTransfer.dropEffect = 'move'; 
+          el.classList.add('drag-over'); 
+      };
       el.ondragleave = () => el.classList.remove('drag-over');
-      el.ondrop = (e) => { e.preventDefault(); el.classList.remove('drag-over'); const itemName = e.dataTransfer.getData("text/plain"); this.handleDropAction(subName, itemName); };
+      el.ondrop = (e) => { 
+          e.preventDefault(); 
+          el.classList.remove('drag-over'); 
+          const itemName = e.dataTransfer.getData("text/plain"); 
+          this.handleDropAction(subName, itemName); 
+      };
   }
 
   async handleDropAction(targetSubloc, itemName) {
@@ -2598,17 +2650,35 @@ class HomeOrganizerPanel extends HTMLElement {
       nextBtn.disabled = this.pickerPage >= totalPages - 1;
   }
 
-  async selectLibraryIcon(svgHtml) {
+ 
+// [MODIFIED v7.6.17 | 2026-02-17] Purpose: Reverted size to 140px, maintained transparency fix
+async selectLibraryIcon(svgHtml) {
       let source = svgHtml;
+      // [MODIFIED v7.6.17 | 2026-02-17] Purpose: Reverted size to 140 as requested by user (display size controlled by CSS)
       const size = 140; 
-      if (!source.includes('xmlns')) source = source.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
-      if (source.includes('width=')) { source = source.replace(/width="[^"]*"/, `width="${size}"`).replace(/height="[^"]*"/, `height="${size}"`); } 
-      else { source = source.replace('<svg', `<svg width="${size}" height="${size}"`); }
-      source = source.replace('<svg', '<svg fill="#4fc3f7"');
+      
+      // 1. Ensure Namespace
+      if (!source.includes('xmlns')) {
+          source = source.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+      }
+
+      // 2. Handle Dimensions (Regex to avoid duplication)
+      if (source.includes('width=')) { 
+          source = source.replace(/width="[^"]*"/, `width="${size}"`).replace(/height="[^"]*"/, `height="${size}"`); 
+      } else { 
+          source = source.replace('<svg', `<svg width="${size}" height="${size}"`); 
+      }
+
+      // 3. Handle Fill - FIX: Only add default color if NO fill is defined.
+      // This prevents breaking the new 3D icons which already have fill="none"
+      if (!source.includes('fill=')) {
+          source = source.replace('<svg', '<svg fill="#4fc3f7"');
+      }
       
       const loadImage = (src) => new Promise((resolve) => {
           const img = new Image();
           img.onload = () => resolve(img);
+          img.onerror = (e) => { console.error("SVG Load Error", e); resolve(null); }; // Added error logging
           img.src = src;
       });
 
@@ -2616,19 +2686,15 @@ class HomeOrganizerPanel extends HTMLElement {
       const url = URL.createObjectURL(blob);
       const img = await loadImage(url);
       
+      if (!img) return; // Exit if load failed
+
       const canvas = document.createElement('canvas');
       canvas.width = size; canvas.height = size;
       const ctx = canvas.getContext('2d');
       
-      if (this.pickerContext === 'item') { 
-          ctx.fillStyle = '#000'; 
-          ctx.fillRect(0, 0, size, size);
-          const padding = size * 0.15; 
-          const drawSize = size * 0.7; 
-          ctx.drawImage(img, padding, padding, drawSize, drawSize);
-      } else {
-          ctx.drawImage(img, 0, 0, size, size);
-      }
+      // [MODIFIED v7.6.17 | 2026-02-17] Purpose: Removed background fill logic to eliminate "blue square" effect
+      // Icons are now rendered transparently regardless of context
+      ctx.drawImage(img, 0, 0, size, size);
 
       const dataUrl = canvas.toDataURL('image/png');
       
@@ -2652,7 +2718,6 @@ class HomeOrganizerPanel extends HTMLElement {
           URL.revokeObjectURL(url);
       }
   }
-
   async handleUrlIcon(url) {
       const loadImage = (src) => new Promise((resolve, reject) => {
           const img = new Image();

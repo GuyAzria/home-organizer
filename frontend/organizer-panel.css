@@ -1,4 +1,6 @@
-/* Home Organizer CSS - Ver 7.6.12 */
+/* Home Organizer CSS - Ver 7.6.17 */
+/* [MODIFIED v7.6.17 | 2026-02-17] Purpose: Reduced folder icon display sizes by 30% */
+
 :host { 
     --primary: #03a9f4; --accent: #4caf50; --danger: #f44336; --warning: #ffeb3b; --icon-btn-bg: #444;
     --bg-body: #1c1c1e; --bg-bar: #242426; --bg-sub-bar: #2a2a2c;
@@ -38,7 +40,9 @@ svg { width: 24px; height: 24px; fill: currentColor; }
 .sub-bar .nav-btn { padding: 4px; }
 .sub-bar .nav-btn svg { width: 20px; height: 20px; }
 .setup-wrapper { position: relative; display: flex; align-items: center; }
-.setup-dropdown { position: absolute; top: 50px; inset-inline-start: 0; background: var(--bg-dropdown); border: 1px solid var(--border-color); border-radius: 8px; display: none; flex-direction: column; min-width: 180px; z-index: 3000; box-shadow: 0 8px 16px rgba(0,0,0,0.3); overflow: hidden; }
+
+.setup-dropdown { position: absolute; top: 50px; right: 0; left: auto; background: var(--bg-dropdown); border: 1px solid var(--border-color); border-radius: 8px; display: none; flex-direction: column; min-width: 180px; z-index: 3000; box-shadow: 0 8px 16px rgba(0,0,0,0.3); overflow: hidden; }
+
 .setup-dropdown.show { display: flex; }
 .dropdown-item { padding: 12px 15px; cursor: pointer; color: var(--text-main); font-size: 14px; text-align: start; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: flex-start; gap: 10px; }
 .dropdown-item:hover { background: var(--primary); color: white; }
@@ -54,8 +58,13 @@ svg { width: 24px; height: 24px; fill: currentColor; }
 .folder-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; position: relative; }
 .folder-item.dragging { opacity: 0.4; transform: scale(0.9); transition: all 0.2s ease; border: 1px dashed var(--primary); border-radius: 12px; }
 .android-folder-icon { width: 56px; height: 56px; background: var(--bg-icon-box); color: var(--text-icon-box); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); position: relative; overflow: visible; }
-.android-folder-icon svg { width: 34px; height: 34px; }
-.android-folder-icon img { width: 38px; height: 38px; object-fit: contain; border-radius: 4px; }
+
+/* [MODIFIED v7.6.17] Reduced SVG icon size by ~30% (from 34px to 24px) */
+.android-folder-icon svg { width: 24px; height: 24px; }
+
+/* [MODIFIED v7.6.17] Reduced IMG icon size by ~30% (from 38px to 27px) */
+.android-folder-icon img { width: 27px; height: 27px; object-fit: contain; border-radius: 4px; }
+
 .folder-delete-btn { position: absolute; top: -5px; inset-inline-end: -5px; background: var(--danger); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
 .folder-edit-btn { position: absolute; top: -5px; inset-inline-start: -5px; background: var(--primary); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.5); z-index: 10; }
 .folder-edit-btn svg { width: 12px; height: 12px; }
@@ -188,3 +197,9 @@ summary.debug-summary:hover { background: #222244; }
 .light-mode summary.debug-summary:hover { background: #dddde8; }
 .light-mode .debug-content { background: #f5f5fa; color: #444; border-top-color: #ddd; }
 .light-mode .message.system { border-color: #ccc; color: #666; }
+
+/* [ADDED v7.6.16] Mobile-only visibility for burger button */
+#btn-ha-menu { display: none; }
+@media (max-width: 768px) {
+  #btn-ha-menu { display: flex; }
+}
