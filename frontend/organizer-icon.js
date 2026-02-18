@@ -1,9 +1,7 @@
 /**
  * Icon Library
- * Home Organizer Ultimate - Ver 6.6.6
- * ICONS: Navigation and Action icons (Monochrome)
- * ICON_LIB_*: Categories (Monochrome)
- * ICON_LIB_ITEM: Items (Color/3D style)
+ * Home Organizer Ultimate - Ver 6.6.17
+ 
  */
 
 export const ICONS = {
