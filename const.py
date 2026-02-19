@@ -1,7 +1,7 @@
 """Constants for the Home Organizer integration."""
 
 DOMAIN = "home_organizer"
-VERSION = "2.0.2"
+VERSION = "0.0.2"
 
 # Configuration Keys
 CONF_API_KEY = "api_key"
