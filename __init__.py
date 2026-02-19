@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.6.2 (Update: Clarified Static Path Logic)
+# Home Organizer Ultimate - ver 7.7.1 (Update: Storage Selection & Uninstall Cleanup)
 
 import logging
 import sqlite3
@@ -9,6 +9,7 @@ import time
 import json
 import re
 import asyncio
+import shutil
 import voluptuous as vol
 from aiohttp import ClientTimeout
 from datetime import datetime, timedelta
@@ -17,7 +18,8 @@ from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.components import panel_custom, websocket_api
 from homeassistant.components.http import StaticPathConfig 
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from .const import DOMAIN, CONF_API_KEY, CONF_DEBUG, CONF_USE_AI, DB_FILE, IMG_DIR, VERSION
+# [ADDED v7.7.1 | 2026-02-19] Purpose: Imported new storage constants
+from .const import DOMAIN, CONF_API_KEY, CONF_DEBUG, CONF_USE_AI, DB_FILE, IMG_DIR, VERSION, CONF_STORAGE_METHOD, CONF_DELETE_ON_REMOVE, STORAGE_METHOD_WWW, STORAGE_METHOD_MEDIA
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -26,7 +28,6 @@ WS_GET_ALL_ITEMS = "home_organizer/get_all_items"
 WS_AI_CHAT = "home_organizer/ai_chat" 
 
 # [ADDED v7.6.2 | 2026-02-17] Purpose: improved static path definition
-# This URL maps to the local 'frontend' folder, bypassing /config/www
 STATIC_PATH_URL = "/home_organizer_static"
 
 GEMINI_MODEL = "gemini-3-flash-preview"
@@ -38,7 +39,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if entry.options.get(CONF_DEBUG): _LOGGER.setLevel(logging.DEBUG)
 
     # [ADDED v7.6.2 | 2026-02-17] Purpose: Calculate absolute path to the 'frontend' folder inside this component
-    # This means your JS files must live in: custom_components/home_organizer/frontend/
     frontend_folder = os.path.join(os.path.dirname(__file__), "frontend")
     
     await hass.http.async_register_static_paths([
@@ -48,6 +48,45 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             cache_headers=False 
         )
     ])
+
+    # [ADDED v7.7.1 | 2026-02-19] Purpose: Determine storage paths based on user config
+    hass.data.setdefault(DOMAIN, {})
+    
+    storage_method = entry.data.get(CONF_STORAGE_METHOD, STORAGE_METHOD_WWW)
+    
+    # Defaults for WWW
+    db_path = hass.config.path(DB_FILE)
+    img_folder_path = hass.config.path("www", IMG_DIR)
+    img_url_prefix = f"/local/{IMG_DIR}"
+
+    if storage_method == STORAGE_METHOD_MEDIA:
+        # If media selected, use /media folder
+        # Note: We assume standard HA OS structure where /media is at root
+        media_root = "/media"
+        if os.path.exists(media_root):
+             # For media, we put DB and images there
+             db_path = os.path.join(media_root, DB_FILE)
+             img_folder_path = os.path.join(media_root, IMG_DIR)
+             # We need to register a static path for the media folder to be accessible via HTTP
+             # Register /home_organizer_media -> /media/home_organizer_images
+             await hass.http.async_register_static_paths([
+                StaticPathConfig(
+                    url_path="/home_organizer_media",
+                    path=img_folder_path,
+                    cache_headers=False
+                )
+             ])
+             img_url_prefix = "/home_organizer_media"
+        else:
+            _LOGGER.warning("Home Organizer: /media folder not found. Fallback to /config/www.")
+
+    # Store calculated paths in hass.data for global access
+    hass.data[DOMAIN]["config"] = {
+        "db_path": db_path,
+        "img_path": img_folder_path,
+        "url_prefix": img_url_prefix,
+        "method": storage_method
+    }
 
     # [ADDED v7.4.5 | 2026-02-15] Purpose: Dictionary mapping language codes to localized sidebar titles
     sidebar_translations = {
@@ -78,8 +117,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.async_add_executor_job(init_db, hass)
 
-    hass.data.setdefault(DOMAIN, {})
-    
     try:
         websocket_api.async_register_command(
             hass,
@@ -129,11 +166,41 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         pass
     return True
 
+# [ADDED v7.7.1 | 2026-02-19] Purpose: Handle data deletion when integration is removed
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    if entry.options.get(CONF_DELETE_ON_REMOVE, False):
+        _LOGGER.info("Home Organizer: Deleting all data as requested.")
+        try:
+            # Retrieve paths. Note: hass.data[DOMAIN] might be cleared if unloaded, recalculate logic briefly
+            # or try to get from config. Simplest is to assume standard paths based on entry data.
+            storage_method = entry.data.get(CONF_STORAGE_METHOD, STORAGE_METHOD_WWW)
+            db_path = hass.config.path(DB_FILE)
+            img_path = hass.config.path("www", IMG_DIR)
+            
+            if storage_method == STORAGE_METHOD_MEDIA:
+                if os.path.exists("/media"):
+                    db_path = os.path.join("/media", DB_FILE)
+                    img_path = os.path.join("/media", IMG_DIR)
+
+            if os.path.exists(db_path):
+                os.remove(db_path)
+            
+            if os.path.exists(img_path):
+                shutil.rmtree(img_path)
+        except Exception as e:
+            _LOGGER.error(f"Error deleting Home Organizer data: {e}")
+
 def get_db_connection(hass):
-    return sqlite3.connect(hass.config.path(DB_FILE))
+    # [MODIFIED v7.7.1 | 2026-02-19] Purpose: Use dynamic DB path from hass.data
+    db_path = hass.data.get(DOMAIN, {}).get("config", {}).get("db_path", hass.config.path(DB_FILE))
+    return sqlite3.connect(db_path)
 
 def init_db(hass):
-    if not os.path.exists(hass.config.path("www", IMG_DIR)): os.makedirs(hass.config.path("www", IMG_DIR))
+    # [MODIFIED v7.7.1 | 2026-02-19] Purpose: Use dynamic image path from hass.data
+    img_path = hass.data.get(DOMAIN, {}).get("config", {}).get("img_path", hass.config.path("www", IMG_DIR))
+    
+    if not os.path.exists(img_path): os.makedirs(img_path)
+    
     conn = get_db_connection(hass)
     c = conn.cursor()
     c.execute("CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)")
@@ -160,6 +227,17 @@ def init_db(hass):
         if col not in existing_cols:
             try: c.execute(f"ALTER TABLE items ADD COLUMN {col} {dtype}")
             except: pass
+
+    # [ADDED v7.7.0 | 2026-02-18] Purpose: Create Indexes for high performance with 50,000+ items
+    # These make searches and navigation instant without needing PostgreSQL
+    try:
+        c.execute("CREATE INDEX IF NOT EXISTS idx_items_name ON items(name)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_items_category ON items(category)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_items_level1 ON items(level_1)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_items_level2 ON items(level_2)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_items_level3 ON items(level_3)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_items_type ON items(type)")
+    except Exception: pass
 
     conn.commit(); conn.close()
 
@@ -223,14 +301,23 @@ def websocket_get_data(hass, connection, msg):
 def websocket_get_all_items(hass, connection, msg):
     conn = get_db_connection(hass)
     c = conn.cursor()
+    
+    # [ADDED v7.7.1 | 2026-02-19] Purpose: Get dynamic url prefix
+    url_prefix = hass.data.get(DOMAIN, {}).get("config", {}).get("url_prefix", f"/local/{IMG_DIR}")
+
     try:
         c.execute("SELECT name, category, sub_category, unit, unit_value, image_path FROM items WHERE type='item' GROUP BY name")
         col_names = [description[0] for description in c.description]
         results = []
         for r in c.fetchall():
             item = dict(zip(col_names, r))
+            # [MODIFIED v7.6.5 | 2026-02-18] Purpose: Check if image_path is a pointer key (ICON_LIB) and pass through, else format as URL
             if item['image_path']:
-                item['image_path'] = f"/local/{IMG_DIR}/{item['image_path']}?v={int(time.time())}"
+                if item['image_path'].startswith("ICON_LIB"):
+                    pass # Keep as raw key string
+                else:
+                    # [MODIFIED v7.7.1 | 2026-02-19] Use dynamic prefix
+                    item['image_path'] = f"{url_prefix}/{item['image_path']}?v={int(time.time())}"
             results.append(item)
         connection.send_result(msg["id"], results)
     finally:
@@ -385,8 +472,8 @@ async def websocket_ai_chat(hass, connection, msg):
                         return
 
                 except Exception as e:
-                     connection.send_result(msg["id"], {"response": f"❌ Could not parse invoice data. Error: {str(e)}", "debug": {"raw": clean_txt}})
-                     return
+                      connection.send_result(msg["id"], {"response": f"❌ Could not parse invoice data. Error: {str(e)}", "debug": {"raw": clean_txt}})
+                      return
 
         # =============================================
         # MODE 2: TEXT ANALYSIS (ADD vs SEARCH)
@@ -428,7 +515,8 @@ async def websocket_ai_chat(hass, connection, msg):
                 try:
                     analysis_json = json.loads(clean_txt)
                 except:
-                    pass
+                    # [ADDED v7.6.9] Fallback if AI replies with text instead of JSON
+                    analysis_json = {}
             else:
                 connection.send_result(msg["id"], {"error": "AI API Error"})
                 return
@@ -620,6 +708,9 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
         if api_key and use_ai:
             enable_ai = True
 
+    # [ADDED v7.7.1 | 2026-02-19] Purpose: Get dynamic url prefix
+    url_prefix = hass.data.get(DOMAIN, {}).get("config", {}).get("url_prefix", f"/local/{IMG_DIR}")
+
     conn = get_db_connection(hass); c = conn.cursor()
     folders = []; items = []; shopping_list = []
     
@@ -641,7 +732,15 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
             for r in c.fetchall():
                 r_dict = dict(zip(col_names, r))
                 fp = []; [fp.append(r_dict.get(f"level_{i}", "")) for i in range(1, 11) if r_dict.get(f"level_{i}")]
-                img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
+                
+                # [MODIFIED v7.6.6 | 2026-02-18] Purpose: Handle Pointer Keys in GetView (Shopping)
+                img = None
+                raw_path = r_dict.get('image_path')
+                if raw_path:
+                    if raw_path.startswith("ICON_LIB"): img = raw_path # Return key directly
+                    # [MODIFIED v7.7.1 | 2026-02-19] Use dynamic prefix
+                    else: img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
+
                 shopping_list.append({
                     "id": r_dict['id'],
                     "name": r_dict['name'], 
@@ -669,7 +768,14 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                 r_dict = dict(zip(col_names, r))
                 fp = []; [fp.append(r_dict.get(f"level_{i}", "")) for i in range(1, 11) if r_dict.get(f"level_{i}")]
                 if r_dict['type'] == 'item':
-                    img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
+                    # [MODIFIED v7.6.6 | 2026-02-18] Purpose: Handle Pointer Keys in GetView (Search)
+                    img = None
+                    raw_path = r_dict.get('image_path')
+                    if raw_path:
+                        if raw_path.startswith("ICON_LIB"): img = raw_path
+                        # [MODIFIED v7.7.1 | 2026-02-19] Use dynamic prefix
+                        else: img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
+
                     items.append({
                         "id": r_dict['id'],
                         "name": r_dict['name'], 
@@ -700,7 +806,15 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                     
                     c.execute(marker_sql, tuple(marker_params))
                     row = c.fetchone()
-                    img = f"/local/{IMG_DIR}/{row[0]}?v={int(time.time())}" if row and row[0] else None
+                    
+                    # [MODIFIED v7.6.6 | 2026-02-18] Purpose: Handle Pointer Keys in GetView (Folders)
+                    img = None
+                    if row and row[0]:
+                        raw_path = row[0]
+                        if raw_path.startswith("ICON_LIB"): img = raw_path
+                        # [MODIFIED v7.7.1 | 2026-02-19] Use dynamic prefix
+                        else: img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
+                        
                     folders.append({"name": f_name, "img": img})
                 
                 sql = f"SELECT * FROM items WHERE type='item' AND (level_{depth+1} IS NULL OR level_{depth+1} = '') {sql_where} ORDER BY name ASC"
@@ -708,13 +822,20 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                 col_names = [description[0] for description in c.description]
                 for r in c.fetchall():
                       r_dict = dict(zip(col_names, r))
-                      img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
+                      # [MODIFIED v7.6.6 | 2026-02-18] Purpose: Handle Pointer Keys in GetView (Items in root)
+                      img = None
+                      raw_path = r_dict.get('image_path')
+                      if raw_path:
+                          if raw_path.startswith("ICON_LIB"): img = raw_path
+                          # [MODIFIED v7.7.1 | 2026-02-19] Use dynamic prefix
+                          else: img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
+
                       items.append({
                           "id": r_dict['id'],
                           "name": r_dict['name'], 
                           "type": 'item', 
                           "qty": r_dict['quantity'], 
-                          "img": img,
+                          "img": img, 
                           "date": r_dict.get('item_date', ''),
                           "category": r_dict.get('category', ''),
                           "sub_category": r_dict.get('sub_category', ''),
@@ -734,7 +855,14 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                 fetched_items = []
                 for r in c.fetchall():
                     r_dict = dict(zip(col_names, r))
-                    img = f"/local/{IMG_DIR}/{r_dict['image_path']}?v={int(time.time())}" if r_dict.get('image_path') else None
+                    # [MODIFIED v7.6.6 | 2026-02-18] Purpose: Handle Pointer Keys in GetView (Items in sub)
+                    img = None
+                    raw_path = r_dict.get('image_path')
+                    if raw_path:
+                        if raw_path.startswith("ICON_LIB"): img = raw_path
+                        # [MODIFIED v7.7.1 | 2026-02-19] Use dynamic prefix
+                        else: img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
+
                     subloc = r_dict.get(f"level_{depth+1}", "")
                     fetched_items.append({
                         "id": r_dict['id'],
@@ -776,11 +904,14 @@ async def register_services(hass, entry):
         name = call.data.get("item_name"); itype = call.data.get("item_type", "item")
         date = call.data.get("item_date"); img_b64 = call.data.get("image_data")
         fname = ""
+        # [ADDED v7.7.1 | 2026-02-19] Purpose: Get dynamic image path
+        img_path_base = hass.data.get(DOMAIN, {}).get("config", {}).get("img_path", hass.config.path("www", IMG_DIR))
+        
         if img_b64:
             try:
                 if "," in img_b64: img_b64 = img_b64.split(",")[1]
                 fname = f"img_{int(time.time())}.jpg"
-                await hass.async_add_executor_job(lambda: open(hass.config.path("www", IMG_DIR, fname), "wb").write(base64.b64decode(img_b64)))
+                await hass.async_add_executor_job(lambda: open(os.path.join(img_path_base, fname), "wb").write(base64.b64decode(img_b64)))
             except: pass
 
         parts = call.data.get("current_path", [])
@@ -994,14 +1125,31 @@ async def register_services(hass, entry):
         name = call.data.get("item_name")
         img_b64 = call.data.get("image_data")
         
-        mime_type = call.data.get("mime_type", "image/jpeg")
+        # [ADDED v7.6.7 | 2026-02-18] Purpose: Support direct icon key references (Pointers)
+        icon_key = call.data.get("icon_key")
+
+        # [MODIFIED v7.6.7 | 2026-02-18] Purpose: Explicit safety check for mime_type to prevent NoneType error
+        mime_type = call.data.get("mime_type")
+        if not mime_type: mime_type = "image/jpeg"
+            
         ext = ".pdf" if "pdf" in mime_type else ".jpg"
         
-        if "," in img_b64: img_b64 = img_b64.split(",")[1]
-        fname = f"{name}_{int(time.time())}{ext}"
+        fname = ""
+        
+        # [ADDED v7.7.1 | 2026-02-19] Purpose: Get dynamic image path
+        img_path_base = hass.data.get(DOMAIN, {}).get("config", {}).get("img_path", hass.config.path("www", IMG_DIR))
+
+        # [MODIFIED v7.6.7 | 2026-02-18] Purpose: If icon_key provided, use it as filename (pointer). Else save file.
+        if icon_key:
+            fname = icon_key
+        elif img_b64:
+            if "," in img_b64: img_b64 = img_b64.split(",")[1]
+            # [MODIFIED v7.6.7 | 2026-02-18] Purpose: Fallback for name if missing in folder update context
+            if not name and not item_id: name = "unknown_item" 
+            fname = f"{name}_{int(time.time())}{ext}"
+            await hass.async_add_executor_job(lambda: open(os.path.join(img_path_base, fname), "wb").write(base64.b64decode(img_b64)))
         
         def save():
-            open(hass.config.path("www", IMG_DIR, fname), "wb").write(base64.b64decode(img_b64))
             conn = get_db_connection(hass); c = conn.cursor()
             if item_id:
                 c.execute(f"UPDATE items SET image_path = ? WHERE id = ?", (fname, item_id))
