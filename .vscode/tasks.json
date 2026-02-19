@@ -1,0 +1,21 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Deploy to Home Assistant",
+            "type": "shell",
+            "command": "xcopy /E /Y /I \"${workspaceFolder}\\custom_components\\home_organizer\\*\" \"H:\\custom_components\\home_organizer\\\"",
+            "options": {
+                "shell": {
+                    "executable": "cmd.exe",
+                    "args": ["/d", "/c"]
+                }
+            },
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
+    ]
+}

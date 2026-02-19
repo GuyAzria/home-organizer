@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.7.2 (Update: Storage Selection & Uninstall Cleanup)
+# Home Organizer Ultimate - ver 7.7.3 (Update: Storage Selection & Uninstall Cleanup)
 
 import logging
 import sqlite3
