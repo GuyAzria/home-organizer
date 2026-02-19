@@ -1,4 +1,4 @@
-"""Constants for the Home Organizer integration."""
+"""Constants for the Home Organizer integration version 7.0.0 ."""
 
 DOMAIN = "home_organizer"
 VERSION = "2.0.2"
