@@ -1,4 +1,4 @@
-"""Config flow for Home Organizer integration."""
+"""Config flow for Home Organizer integration ver 7.0.0 ."""
 from __future__ import annotations
 
 import logging
@@ -9,7 +9,8 @@ from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 
-from .const import DOMAIN, CONF_API_KEY, CONF_DEBUG, CONF_USE_AI
+# [ADDED v7.7.1 | 2026-02-19] Purpose: Imported new constants for storage and deletion
+from .const import DOMAIN, CONF_API_KEY, CONF_DEBUG, CONF_USE_AI, CONF_STORAGE_METHOD, CONF_DELETE_ON_REMOVE, STORAGE_METHOD_WWW, STORAGE_METHOD_MEDIA
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,7 +33,12 @@ class HomeOrganizerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="user", 
             data_schema=vol.Schema({
                 vol.Optional(CONF_API_KEY): str,
-                vol.Optional(CONF_USE_AI, default=True): bool
+                vol.Optional(CONF_USE_AI, default=True): bool,
+                # [ADDED v7.7.1 | 2026-02-19] Purpose: User selection for storage location (www or media)
+                vol.Required(CONF_STORAGE_METHOD, default=STORAGE_METHOD_WWW): vol.In({
+                    STORAGE_METHOD_WWW: "Default (/config/www/)",
+                    STORAGE_METHOD_MEDIA: "Media Folder (/media/)"
+                })
             })
         )
 
@@ -52,12 +58,17 @@ class HomeOrganizerOptionsFlowHandler(config_entries.OptionsFlow):
         )
         curr_debug = self._config_entry.options.get(CONF_DEBUG, False)
         curr_ai = self._config_entry.options.get(CONF_USE_AI, self._config_entry.data.get(CONF_USE_AI, True))
+        
+        # [ADDED v7.7.1 | 2026-02-19] Purpose: Retrieve current deletion preference
+        curr_delete = self._config_entry.options.get(CONF_DELETE_ON_REMOVE, False)
 
         return self.async_show_form(
             step_id="init", 
             data_schema=vol.Schema({
                 vol.Optional(CONF_API_KEY, default=curr_key): str,
                 vol.Optional(CONF_USE_AI, default=curr_ai): bool,
-                vol.Optional(CONF_DEBUG, default=curr_debug): bool
+                vol.Optional(CONF_DEBUG, default=curr_debug): bool,
+                # [ADDED v7.7.1 | 2026-02-19] Purpose: Checkbox option to delete data when integration is removed
+                vol.Optional(CONF_DELETE_ON_REMOVE, default=curr_delete): bool
             })
         )
