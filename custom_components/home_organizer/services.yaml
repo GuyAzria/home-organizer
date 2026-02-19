@@ -1,0 +1,113 @@
+navigate:
+  name: Navigate
+  description: Change current folder view
+  fields:
+    direction:
+      description: "Direction to move (root, up, down)"
+      example: "down"
+    name:
+      description: "Name of folder to enter"
+      example: "Kitchen"
+
+add_item:
+  name: Add Item
+  description: Create a new item or folder
+  fields:
+    item_name:
+      description: "Name of the item"
+      required: true
+    item_type:
+      description: "Type (item or folder)"
+    item_date:
+      description: "Date string"
+    image_data:
+      description: "Base64 image string"
+
+update_image:
+  name: Update Image
+  description: Update item photo
+  fields:
+    item_name:
+      required: true
+    image_data:
+      required: true
+
+update_stock:
+  name: Update Stock
+  description: Set absolute stock quantity
+  fields:
+    item_name:
+      required: true
+    quantity:
+      required: true
+
+update_item_details:
+  name: Update Details
+  description: Rename or change date
+  fields:
+    original_name:
+      required: true
+    new_name:
+      required: true
+    new_date:
+      description: "New date string"
+
+update_qty:
+  name: Update Quantity
+  description: Increment or decrement stock
+  fields:
+    item_name:
+      required: true
+    change:
+      description: "Amount to change (+1 or -1)"
+      required: true
+
+delete_item:
+  name: Delete Item
+  description: Remove an item or folder
+  fields:
+    item_name:
+      required: true
+
+paste_item:
+  name: Paste Item
+  description: Move item to current location
+  fields:
+    target_path:
+      description: "List of path segments"
+
+clipboard_action:
+  name: Clipboard Action
+  description: Cut or Copy
+  fields:
+    action:
+      required: true
+    item_name:
+      required: true
+
+set_view_context:
+  name: Set View Context
+  description: Update frontend state variables
+  fields:
+    path:
+      description: "Current path list"
+    search_query:
+      description: "Search term"
+    date_filter:
+      description: "Filter mode"
+    shopping_mode:
+      description: "Boolean for shopping view"
+
+ai_action:
+  name: AI Action
+  description: Process image with Gemini
+  fields:
+    mode:
+      description: "identify or search"
+    image_data:
+      description: "Base64 image"
+
+trigger_search:
+  name: Trigger Search
+  description: Internal search trigger
+  fields: {}

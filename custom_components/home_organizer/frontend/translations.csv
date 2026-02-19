@@ -1,0 +1,149 @@
+Key,en,he,it,es,fr,ar
+_direction,ltr,rtl,ltr,ltr,ltr,rtl
+app_title,Organizer,ארגונית,Organizzatore,Organizador,Organisateur,منظم
+default_path,Main,ראשי,Principale,Principal,Principal,رئيسي
+loading,Loading...,טוען...,Caricamento...,Cargando...,Chargement...,جار التحميل...
+shopping_list,Shopping List,רשימת קניות,Lista della spesa,Lista de la compra,Liste de courses,قائمة التسوق
+search_results,Search Results,תוצאות חיפוש,Risultati di ricerca,Resultados de la búsqueda,Résultats de recherche,نتائج البحث
+search_placeholder,Search...,חיפוש...,Cerca...,Buscar...,Chercher...,بحث...
+change_icon,Change Icon,שנה סמל,Cambia icona,Cambiar icono,Changer d'icône,تغيير الرمز
+upload_file,Upload File,העלה קובץ,Carica file,Subir archivo,Télécharger un fichier,رفع ملف
+paste_url,Paste Image URL...,הדבק כתובת תמונה...,Incolla URL immagine...,Pegar URL de imagen...,Coller l'URL de l'image...,لصق رابط الصورة...
+cancel,Cancel,ביטול,Annulla,Cancelar,Annuler,إلغاء
+back,Back,חזרה,Indietro,Atrás,Retour,عودة
+language,Language,שפה,Lingua,Idioma,Langue,لغة
+theme,Theme,ערכת נושא,Tema,Tema,Thème,موضوع
+light,Light,בהיר,Chiaro,Claro,Clair,فاتح
+dark,Dark,כהה,Scuro,Oscuro,Sombre,داكن
+add,Add,הוסף,Aggiungi,Añadir,Ajouter,إضافة
+add_room,Add Room,הוסף חדר,Aggiungi stanza,Añadir habitación,Ajouter une pièce,إضافة غرفة
+add_sub,Add Sub-location,הוסף תת-מיקום,Aggiungi sottolocazione,Añadir sububicación,Ajouter une sous-location,إضافة موقع فرعي
+new_item,New Item,פריט חדש,Nuovo oggetto,Nuevo artículo,Nouvel article,عنصر جديد
+save_to,Save to,שמור ל-,Salva in,Guardar en,Enregistrer sous,حفظ في
+saving,Saving...,שומר...,Salvataggio...,Guardando...,Enregistrement...,جار الحفظ...
+quantity,Qty,כמות,Qtà,Cant,Qté,الكمية
+out_of_stock,Out of Stock,חסר במלאי,Esaurito,Agotado,Rupture de stock,غير متوفر
+move_to,Move to...,העבר ל...,Sposta a...,Mover a...,Déplacer vers...,نقل إلى...
+loc_label,Location,מיקום,Posizione,Ubicación,Emplacement,الموقع
+sub_label,Sub-loc,תת-מיקום,Sotto-pos,Sub-ubic,Sous-emp,موقع فرعي
+set_date,Set Date,תאריך,Imposta data,Fijar fecha,Régler la date,تاريخ
+no_date,No Date,אין תאריך,Nessuna data,Sin fecha,Pas de date,بلا تاريخ
+take_photo,Take Photo,צלם תמונה,Scatta foto,Tomar foto,Prendre une photo,التقاط صورة
+change_img,Change Image,שנה תמונה,Cambia immagine,Cambiar imagen,Changer l'image,تغيير الصورة
+duplicate,Duplicate,שכפל,Duplica,Duplicar,Dupliquer,تكرار
+delete,Delete,מחק,Elimina,Eliminar,Supprimer,حذف
+confirm_del_folder,"Delete folder '{0}' and all its contents?","למחוק את התיקייה '{0}' ואת כל התוכן שלה?","Eliminare la cartella '{0}' e tutto il suo contenuto?","¿Eliminar la carpeta '{0}' y todo su contenido?","Supprimer le dossier '{0}' et tout son contenu ?","هل تريد حذف المجلد '{0}' وكل محتوياته؟"
+confirm_del_item,"Delete item '{0}'?","למחוק את הפריט '{0}'?","Eliminare l'elemento '{0}'?","¿Eliminar el elemento '{0}'?","Supprimer l'élément '{0}' ?","هل تريد حذف العنصر '{0}'؟"
+confirm_del_zone,"Delete zone '{0}' and ALL contents?","למחוק את האזור '{0}' ואת כל התוכן?","Eliminare la zona '{0}' e TUTTO il contenuto?","¿Eliminar la zona '{0}' y TODO el contenido?","Supprimer la zone '{0}' et TOUT le contenu ?","هل تريد حذف المنطقة '{0}' وكل المحتويات؟"
+add_zone_btn,Add New Zone,הוסף אזור חדש,Aggiungi nuova zona,Añadir nueva zona,Ajouter une nouvelle zone,إضافة منطقة جديدة
+unit_Kg,Kg,"ק""ג",Kg,Kg,Kg,كجم
+unit_Liter,Liter,ליטר,Litro,Litro,litre,لتر
+unit_Units,Units,יח',Unità,Unidades,Unités,وحدات
+unit_g,g,גרם,g,g,g,غرام
+unit_ml,ml,"מ""ל",ml,ml,ml,مل
+cat_Food,Food,מזון,Cibo,Comida,Nourriture,طعام
+sub_Fresh_Produce,Fresh Produce,תוצרת טרייה,Prodotti freschi,Productos frescos,Produits frais,منتجات طازجة
+sub_Vegetables,Vegetables,ירקות,Verdure,Verduras,Légumes,خضروات
+sub_Fruits,Fruits,פירות,Frutta,Frutas,Fruits,فواكه
+sub_Meat_Fish,Meat & Fish,בשר ודגים,Carne e pesce,Carne y pescado,Viande et poisson,لحم وسمك
+sub_Dairy,Dairy,מוצרי חלב,Latticini,Lácteos,Produits laitiers,منتجات الألبان
+sub_Dry_Goods,Dry Goods,מוצרים יבשים,Prodotti secchi,Productos secos,Produits secs,بضائع جافة
+sub_Frozen_Food,Frozen Food,מזון קפוא,Cibo surgelato,Comida congelada,Nourriture surgelée,طعام مجمد
+sub_Beverages,Beverages,משקאות,Bevande,Bebidas,Boissons,مشروبات
+sub_Snacks,Snacks,חטיפים,Spuntini,Aperitivos,Collations,وجبات خفيفة
+sub_Spices_Herbs,Spices & Herbs,תבלינים ועשבי תיבול,Spezie ed erbe,Especias y hierbas,Épices et herbes,توابل وأعشاب
+sub_Oils_Sauces,Oils & Sauces,שמנים ורטבים,Oli e salse,Aceites y salsas,Huiles et sauces,زيوت وصلصات
+sub_Canned_Food,Canned Food,שימורים,Cibo in scatola,Comida enlatada,Nourriture en conserve,أطعمة معلبة
+cat_Clothing,Clothing,ביגוד,Abbigliamento,Ropa,Vêtements,ملابس
+sub_Tops,Tops,חולצות,Parti superiori,Partes de arriba,Hauts,قمصان
+sub_Bottoms,Bottoms,מכנסיים,Parti inferiori,Partes de abajo,Bas,بناطيل
+sub_Outerwear,Outerwear,עליוניות,Capispalla,Ropa de abrigo,Vêtements d'extérieur,ملابس خارجية
+sub_Shoes,Shoes,נעליים,Scarpe,Zapatos,Chaussures,أحذية
+sub_Underwear,Underwear,הלבשה תחתונה,Biancheria intima,Ropa interior,Sous-vêtements,ملابس داخلية
+sub_Accessories,Accessories,אביזרים,Accessori,Accesorios,Accessoires,إكسسوارات
+sub_Workwear,Workwear,בגדי עבודה,Abbigliamento da lavoro,Ropa de trabajo,Vêtements de travail,ملابس العمل
+sub_Sportswear,Sportswear,בגדי ספורט,Abbigliamento sportivo,Ropa deportiva,Vêtements de sport,ملابس رياضية
+cat_Furniture,Furniture,ריהוט,Mobilia,Muebles,Meubles,أثاث
+sub_Seating,Seating,מקומות ישיבה,Posti a sedere,Asientos,Sièges,مقاعد
+sub_Tables,Tables,שולחנות,Tavoli,Mesas,Tables,طاولات
+sub_Storage_Furniture,Storage Furniture,ריהוט אחסון,Mobili contenitori,Muebles de almacenamiento,Meubles de rangement,أثاث تخزين
+sub_Beds,Beds,מיטות,Letti,Camas,Lits,أسرّة
+sub_Shelving,Shelving,מדפים,Scaffalature,Estanterías,Rayonnages,رفوف
+sub_Outdoor_Furniture,Outdoor Furniture,ריהוט גן,Mobili da esterno,Muebles de exterior,Meubles d'extérieur,أثاث خارجي
+cat_Electronics,Electronics,אלקטרוניקה,Elettronica,Electrónica,Électronique,إلكترونيات
+sub_Computing_Devices,Computing Devices,מחשבים,Dispositivi di calcolo,Dispositivos informáticos,Appareils informatiques,أجهزة كمبيوتر
+sub_Mobile_Devices,Mobile Devices,מכשירים ניידים,Dispositivi mobili,Dispositivos móviles,Appareils mobiles,أجهزة محمولة
+sub_Audio_Equipment,Audio Equipment,ציוד שמע,Apparecchiature audio,Equipos de audio,Équipement audio,معدات صوتية
+sub_Video_Equipment,Video Equipment,ציוד וידאו,Apparecchiature video,Equipos de video,Équipement vidéo,معدات فيديو
+sub_Networking,Networking,רשתות,Networking,Redes,Réseau,شبكات
+sub_Batteries,Batteries,סוללות,Batterie,Baterías,Piles,بطاريات
+cat_Tools,Tools,כלים,Strumenti,Herramientas,Outils,أدوات
+sub_Hand_Tools,Hand Tools,כלי יד,Strumenti manuali,Herramientas manuales,Outils à main,أدوات يدوية
+sub_Power_Tools,Power Tools,כלי עבודה חשמליים,Elettroutensili,Herramientas eléctricas,Outils électriques,أدوات كهربائية
+sub_Measuring_Tools,Measuring Tools,כלי מדידה,Strumenti di misura,Herramientas de medición,Outils de mesure,أدوات قياس
+sub_Cutting_Tools,Cutting Tools,כלי חיתוך,Strumenti da taglio,Herramientas de corte,Outils de coupe,أدوات قطع
+sub_Workshop_Equipment,Workshop Equipment,ציוד סדנה,Attrezzature da officina,Equipamiento de taller,Équipement d'atelier,معدات ورشة
+cat_Cleaning_Supplies,Cleaning Supplies,חומרי ניקוי,Prodotti per la pulizia,Suministros de limpieza,Produits de nettoyage,مستلزمات تنظيف
+sub_Liquid_Cleaners,Liquid Cleaners,חומרי ניקוי נוזליים,Detergenti liquidi,Limpiadores líquidos,Nettoyants liquides,منظفات سائلة
+sub_Powders_Tablets,Powders & Tablets,אבקות וטבליות,Polveri e compresse,Polvos y tabletas,Poudres et comprimés,מساحيق وأقراص
+sub_Tools_Brushes,Tools & Brushes,כלים ומברשות,Strumenti e spazzole,Herramientas y cepillos,Outils et brosses,أدوات وفرش
+sub_Paper_Products,Paper Products,מוצרי נייר,Prodotti di carta,Productos de papel,Produits en papier,منتجات ورقية
+sub_Disinfectants,Disinfectants,חומרי חיטוי,Disinfettanti,Desinfectantes,Désinfectants,مطهرات
+cat_Stationery,Stationery,מכשירי כתיבה,Cancelleria,Papelería,Papeterie,قرطاسية
+sub_Writing_Tools,Writing Tools,כלי כתיבה,Strumenti di scrittura,Herramientas de escritura,Outils d'écriture,أدوات كتابة
+sub_Office_Accessories,Office Accessories,אביזרי משרד,Accessori per ufficio,Accesorios de oficina,Accessoires de bureau,إكسسوارات مكتبية
+sub_Printing_Supplies,Printing Supplies,ציוד הדפסה,Forniture per la stampa,Suministros de impresión,Fournitures d'impression,مستلزمات طباعة
+sub_Filing_Storage,Filing & Storage,תיוק ואחסון,Archiviazione e stoccaggio,Archivo y almacenamiento,Classement et stockage,حفظ وتخزين
+cat_Storage_Organization,Storage & Organization,אחסון וארגון,Stoccaggio e organizzazione,Almacenamiento y organización,Stockage et organisation,تخزين وتنظيم
+sub_Boxes_Bins,Boxes & Bins,קופסאות ומיכלים,Scatole e contenitori,Cajas y contenedores,Boîtes et bacs,صناديק وحاويات
+sub_Shelving_Containers,Shelving Containers,מיכלי מדף,Contenitori per scaffali,Contenedores de estantería,Conteneurs pour étagères,حاويات رفوف
+sub_Bags_Covers,Bags & Covers,תיקים וכיסויים,Borse e coperture,Bolsas y fundas,Sacs et housses,أكياس وأغطية
+sub_Drawer_Organizers,Drawer Organizers,מארגני מגירות,Organizzatori per cassetti,Organizadores de cajones,Organisateurs de tiroirs,منظمات أدراج
+cat_Personal_Care,Personal Care,טיפוח אישי,Cura personale,Cuidado personal,Soins personnels,عناية شخصية
+sub_Skin_Care,Skin Care,טיפוח העור,Cura della pelle,Cuidado de la piel,Soins de la peau,عناية بالبشرة
+sub_Hair_Care,Hair Care,טיפוח השיער,Cura dei capelli,Cuidado del cabello,Soins des cheveux,عناية بالشعر
+sub_Oral_Care,Oral Care,טיפוח הפה,Igiene orale,Cuidado bucal,Soins bucco-dentaires,عناية بالفم
+sub_Grooming_Tools,Grooming Tools,כלי טיפוח,Strumenti per la cura,Herramientas de aseo,Outils de toilette,أدوات تجميل
+sub_Cosmetics,Cosmetics,קוסמטיקה,Cosmetici,Cosméticos,Cosmétiques,مستحضرات تجميل
+cat_Health_Medical,Health & Medical,בריאות ורפואה,Salute e medicina,Salud y medicina,Santé et médecine,صحة وطب
+sub_Medications,Medications,תרופות,Farmaci,Medicamentos,Médicaments,أدوية
+sub_Supplements,Supplements,תוספי תזונה,Integratori,Suplementos,Compléments,مكملات
+sub_First_Aid,First Aid,עזרה ראשונה,Pronto soccorso,Primeros auxilios,Premiers secours,إسعافات أولية
+sub_Medical_Devices,Medical Devices,מכשור רפואי,Dispositivi medici,Dispositivos médicos,Dispositifs médicaux,أجهزة طبية
+sub_Hygiene_Protection,Hygiene Protection,הגנה והיגיינה,Protezione igienica,Protección e higiene,Protection et hygiène,حماية ونظافة
+cat_Hardware,Hardware,חומרה,Ferramenta,Ferretería,Matériel,أجهزة
+sub_Fasteners,Fasteners,מחברים,Elementi di fissaggio,Sujetadores,Attaches,مشبك
+sub_Pipes_Fittings,Pipes & Fittings,צינורות ואביזרים,Tubi e raccordi,Tuberías y accesorios,Tuyaux et raccords,أنابيب وتركيبات
+sub_Electrical_Parts,Electrical Parts,חלקים חשמליים,Parti elettriche,Piezas eléctricas,Pièces électriques,أجزاء كهربائية
+sub_Building_Materials,Building Materials,חומרי בניין,Materiali da costruzione,Materiales de construcción,Matériaux de construction,مواد بناء
+sub_Adhesives_Sealants,Adhesives & Sealants,דבקים וחומרי איטום,Adesivi e sigillanti,Adhesivos y selladores,Adhésifs et mastics,مواد لاصقة ومانعات تسرب
+cat_Garden,Garden,גינה,Giardino,Jardín,Jardin,حديقة
+sub_Plants,Plants,צמחים,Piante,Plantas,Plantes,نباتات
+sub_Seeds,Seeds,זרעים,Semi,Semillas,Graines,بذور
+sub_Soil_Compost,Soil & Compost,אדמה וקומפוסט,Terreno e compost,Tierra y compost,Sol et compost,تربة وسماد
+sub_Fertilizers,Fertilizers,דשנים,Fertilizzanti,Fertilizantes,Engrais,أسمدة
+sub_Irrigation,Irrigation,השקיה,Irrigazione,Riego,Irrigation,ري
+sub_Garden_Tools,Garden Tools,כלי גינון,Attrezzi da giardino,Herramientas de jardín,Outils de jardin,أدوات حديقة
+sub_Pots_Planters,Pots & Planters,עציצים ואדניות,Vasi e fioriere,Macetas y jardineras,Pots et jardinières,أواني وأحواض
+sub_Mulch_Ground_Cover,Mulch & Ground Cover,חיפוי קרקע,Pacciamatura e copertura del terreno,Mantillo y cobertura del suelo,Paillis et couvre-sol,تغطية التربة
+sub_Pest_Control,Pest Control,הדברה,Disinfestazione,Control de plagas,Lutte antiparasitaire,مكافحة الآفات
+cat_Appliances,Appliances,מכשירי חשמל,Elettrodomestici,Electrodomésticos,Appareils électroménagers,أجهزة كهربائية
+sub_Kitchen_Appliances,Kitchen Appliances,מכשירי מטבח,Elettrodomestici da cucina,Electrodomésticos de cocina,Appareils de cuisine,أجهزة مطبخ
+sub_Laundry_Appliances,Laundry Appliances,מכשירי כביסה,Elettrodomestici per lavanderia,Electrodomésticos de lavandería,Appareils de buanderie,أجهزة غسيل
+sub_Climate_Control,Climate Control,בקרת אקלים,Controllo del clima,Climatización,Climatisation,تحكم في المناخ
+sub_Small_Appliances,Small Appliances,מכשירים קטנים,Piccoli elettrodomestici,Pequeños electrodomésticos,Petits appareils,أجهزة صغيرة
+cat_Lighting,Lighting,תאורה,Illuminazione,Iluminación,Éclairage,إضاءة
+sub_Bulbs,Bulbs,נורות,Lampadine,Bombillas,Ampoules,مصابيح
+sub_Lamps,Lamps,מנורות,Lampade,Lámparas,Lampes,لمبات
+sub_Outdoor_Lighting,Outdoor Lighting,תאורת חוץ,Illuminazione esterna,Iluminación exterior,Éclairage extérieur,إضاءة خارجية
+sub_Fixtures,Fixtures,גופי תאורה,Infissi,Accesorios,Luminaires,تركيبات
+cat_Toys_Games,Toys & Games,צעצועים ומשחקים,Giocattoli e giochi,Juguetes y juegos,Jouets et jeux,ألعاب
+sub_Children_Toys,Children Toys,צעצועי ילדים,Giocattoli per bambini,Juguetes para niños,Jouets pour enfants,ألعاب أطفال
+sub_Board_Games,Board Games,משחקי קופסה,Giochi da tavolo,Juegos de mesa,Jeux de société,ألعاب لوحية
+sub_Outdoor_Games,Outdoor Games,משחקי חוץ,Giochi all'aperto,Juegos al aire libre,Jeux de plein air,ألعاب خارجية
+sub_Educational_Toys,Educational Toys,צעצועים חינוכיים,Giocattoli educativi,Juguetes educativos,Jouets éducatifs,ألعاب تعليمية
+cat_Miscellaneous,Miscellaneous,שונות,Varie,Miscelánea,Divers,متفرقات
+sub_Decorations,Decorations,קישוטים,Decorazioni,Decoraciones,Décorations,زينة
+sub_Seasonal_Items,Seasonal Items,פריטים עונתיים,Articoli stagionali,Artículos de temporada,Articles saisonniers,عناصر موسمية
+sub_Collectibles,Collectibles,אוספים,Oggetti da collezione,Coleccionables,Objets de collection,مقتنيات
+sub_Other,Other,אחר,Altro,Otro,Autre,أخرى
