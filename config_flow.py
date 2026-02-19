@@ -1,4 +1,4 @@
-"""Config flow for Home Organizer integration ver 7.0.0 ."""
+"""Config flow for Home Organizer integration."""
 from __future__ import annotations
 
 import logging
