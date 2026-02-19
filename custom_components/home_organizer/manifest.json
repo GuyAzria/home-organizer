@@ -1,0 +1,18 @@
+{
+  "domain": "home_organizer",
+  "name": "Home Organizer",
+  "codeowners": ["@GuyAzria"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/GuyAzria/home-organizer",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/GuyAzria/home-organizer/issues",
+  "requirements": [],
+  "version": "3.0.8"
+}
+
+
+
+
+
+
