@@ -1,15 +1,14 @@
-// Home Organizer Ultimate - Ver 7.6.10 (Smart Hierarchy Slotting Fix)
+// Home Organizer Ultimate - Ver 7.6.23 (Update: Fix Chat UI Clearing & Pointer-based Icons)
 // License: MIT
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
 import { ITEM_CATEGORIES } from './organizer-data.js?v=6.6.7';
 
-// --- ADDED FOR V7.3.0: Enforce stricter tracking of UI zone states without modifying existing methods ---
-// The UI logic is fundamentally correct, the structural issues were managed via backend normalization.
 class HomeOrganizerPanel extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this.content) {
+      console.log("%c Home Organizer v7.6.23 Fully Loaded ", "background: #e91e63; color: #fff; font-weight: bold;");
       this.currentPath = [];
       this.catalogPath = []; 
       this.isEditMode = false;
@@ -33,12 +32,9 @@ class HomeOrganizerPanel extends HTMLElement {
       this.pickerPage = 0;
       this.pickerPageSize = 15;
       
-      // --- NEW: State for Chat Image Upload ---
       this.chatImage = null; 
-      // --- ADDITIVE: Track dynamic Mime Type for PDF support ---
       this.chatMimeType = "image/jpeg";
       
-      // [ADDED v7.5.0] State for inline location editing
       this.locationEditIds = new Set();
       this.locationEditState = {};
         
@@ -72,7 +68,6 @@ class HomeOrganizerPanel extends HTMLElement {
               if (e.data.mode === 'identify') { /* AI logic */ }
         }, 'home_organizer_ai_result');
         
-        // SUBSCRIBE TO CHAT PROGRESS EVENT
         this._hass.connection.subscribeEvents((e) => this.handleChatProgress(e.data), 'home_organizer_chat_progress');
         
         this.fetchData();
@@ -80,27 +75,57 @@ class HomeOrganizerPanel extends HTMLElement {
     }
   }
 
-  async fetchAllItems() {
+  // [ADDED v7.6.23 | 2026-02-18] Purpose: Resolve a stored icon pointer key back to SVG content
+  getIconByKey(keyString) {
+      if (!keyString) return '';
+      
+      // Format: ICON_LIB_<CTX>_<KEY> or ICON_LIB_ITEM_<CAT>_<KEY>
+      const parts = keyString.split('_');
+      if (parts.length < 4) return ''; // Invalid format
+
+      const context = parts[2]; // ROOM, LOCATION, ITEM
+      const key = parts.slice(3).join('_'); // Rejoin rest
+
+      if (context === 'ROOM') return ICON_LIB_ROOM[key] || '';
+      if (context === 'LOCATION') return ICON_LIB_LOCATION[key] || '';
+      if (context === 'ITEM') {
+          // Special case: ITEM keys are nested. Format: ICON_LIB_ITEM_Category_Key
+          // We need to parse category properly. Assuming standard categories don't have underscores improves reliability, 
+          // but let's try to match from known categories.
+          for (const cat of Object.keys(ICON_LIB_ITEM)) {
+              if (key.startsWith(cat + '_')) {
+                  const realKey = key.substring(cat.length + 1);
+                  return ICON_LIB_ITEM[cat][realKey] || '';
+              }
+          }
+      }
+      // Fallback
+      return '';
+  }
+
+  fetchAllItems() {
       if (!this._hass) return;
       try {
-          const items = await this._hass.callWS({ type: 'home_organizer/get_all_items' });
-          this.allDbItems = items || [];
+          this._hass.callWS({ type: 'home_organizer/get_all_items' }).then(items => {
+              this.allDbItems = items || [];
+          });
       } catch (e) { console.error("Failed to fetch all items", e); }
   }
 
-  async loadTranslations() {
-      try {
-          const timestamp = new Date().getTime();
-          const response = await fetch(`/home_organizer_static/translations.csv?v=${timestamp}`);
-          if (!response.ok) throw new Error("CSV not found");
-          const text = await response.text();
-          this.parseCSV(text);
-      } catch (err) {
-          console.error("Failed to load translations:", err);
-          this.availableLangs = ['en'];
-          this.translations = { "_direction": { "en": "ltr" } };
-          this.render();
-      }
+  loadTranslations() {
+      const timestamp = new Date().getTime();
+      fetch(`/home_organizer_static/translations.csv?v=${timestamp}`)
+          .then(response => {
+              if (!response.ok) throw new Error("CSV not found");
+              return response.text();
+          })
+          .then(text => this.parseCSV(text))
+          .catch(err => {
+              console.error("Failed to load translations:", err);
+              this.availableLangs = ['en'];
+              this.translations = { "_direction": { "en": "ltr" } };
+              this.render();
+          });
   }
 
   parseCSV(csvText) {
@@ -186,75 +211,77 @@ class HomeOrganizerPanel extends HTMLElement {
     this.attachShadow({mode: 'open'});
     const timestamp = new Date().getTime();
     
-    // --- ADDITIVE: File Upload Icon ---
     const UPLOAD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>';
-    
+    const MENU_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z" /></svg>';
+    const INFO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>';
+
     this.shadowRoot.innerHTML = `
       <link rel="stylesheet" href="/home_organizer_static/organizer-panel.css?v=${timestamp}">
       
       <div class="app-container" id="app">
-        <!-- Main Top Bar (60px) -->
-        <div class="top-bar">
-            <div class="setup-wrapper">
-                <button class="nav-btn" id="btn-user-setup">
-                    ${ICONS.settings}
-                </button>
-                <div class="setup-dropdown" id="setup-dropdown-menu">
-                    <!-- Dynamic Menu Container -->
-                    <div id="menu-main">
-                        <div class="dropdown-item" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('lang')">
-                            ${ICONS.language}
-                            ${this.t('language')}
-                        </div>
-                        <div class="dropdown-item" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('theme')">
-                            ${ICONS.theme}
-                            ${this.t('theme')}
-                        </div>
-                    </div>
-                    <!-- Language Submenu (Dynamic) -->
-                    <div id="menu-lang" style="display:none">
-                        <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
-                           ${ICONS.back}
-                           ${this.t('back')}
-                        </div>
-                    </div>
-                    <!-- Theme Submenu -->
-                    <div id="menu-theme" style="display:none">
-                        <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
-                           ${ICONS.back}
-                           ${this.t('back')}
-                        </div>
-                        <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('light')">${this.t('light')}</div>
-                        <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('dark')">${this.t('dark')}</div>
-                    </div>
-                </div>
-            </div>
+        <div class="top-bar" style="direction: ltr;">
+            <button class="nav-btn" id="btn-ha-menu" title="Toggle Sidebar">
+                ${MENU_SVG}
+            </button>
             
             <div class="title-box">
                 <div class="main-title" id="display-title">${this.t('app_title')}</div>
                 <div class="sub-title" id="display-path">${this.t('default_path')}</div>
             </div>
-            <div style="display:flex;gap:5px">
+            
+            <div style="display:flex;gap:5px; align-items:center;">
                 <button class="nav-btn" id="btn-chat" style="display:none;" title="AI Chat">${ICONS.robot}</button>
                 <button class="nav-btn" id="btn-shop">${ICONS.cart}</button>
                 <button class="nav-btn" id="btn-search">${ICONS.search}</button>
-                <button class="nav-btn" id="btn-edit">${ICONS.edit}</button>
+                
+                <div class="setup-wrapper">
+                    <button class="nav-btn" id="btn-user-setup">
+                        ${ICONS.settings}
+                    </button>
+                    <div class="setup-dropdown" id="setup-dropdown-menu">
+                        <div id="menu-main">
+                            <div class="dropdown-item" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('lang')">
+                                ${ICONS.language} ${this.t('language')}
+                            </div>
+                            <div class="dropdown-item" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('theme')">
+                                ${ICONS.theme} ${this.t('theme')}
+                            </div>
+                            <div class="dropdown-item" onclick="event.stopPropagation(); this.getRootNode().host.showAbout()">
+                                ${INFO_SVG} About
+                            </div>
+                        </div>
+                        <div id="menu-lang" style="display:none">
+                            <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
+                               ${ICONS.back} ${this.t('back')}
+                            </div>
+                        </div>
+                        <div id="menu-theme" style="display:none">
+                            <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
+                               ${ICONS.back} ${this.t('back')}
+                            </div>
+                            <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('light')">${this.t('light')}</div>
+                            <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('dark')">${this.t('dark')}</div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
         <div class="sub-bar">
-            <div class="sub-bar-right">
+            <div class="sub-bar-left">
                 <button class="nav-btn" id="btn-home">${ICONS.home}</button>
                 <button class="nav-btn" id="btn-up" style="display:none;">${ICONS.arrow_up}</button>
             </div>
-            <div class="sub-bar-left">
-                <button class="nav-btn" id="btn-toggle-ids" title="Toggle IDs">
-                    ${ICONS.id_card}
-                </button>
+
+            <div class="sub-bar-right">
                 <button class="nav-btn" id="btn-view-toggle" style="display:none;">
                    <span id="icon-view-grid" style="display:block">${ICONS.view_grid}</span>
                    <span id="icon-view-list" style="display:none">${ICONS.view_list}</span>
                 </button>
+                <button class="nav-btn" id="btn-toggle-ids" title="Toggle IDs">
+                    ${ICONS.id_card}
+                </button>
+                <button class="nav-btn" id="btn-edit">${ICONS.edit}</button>
             </div>
         </div>
         
@@ -264,7 +291,6 @@ class HomeOrganizerPanel extends HTMLElement {
                 <button class="nav-btn ai-btn" id="btn-ai-search" style="position:absolute;inset-inline-start:0;top:0;height:100%;background:none;border:none;">
                     ${ICONS.camera}
                 </button>
-                <!-- ADDITIVE: New Upload Button Next to Camera -->
                 <button class="nav-btn ai-btn" id="btn-ai-upload" style="position:absolute;inset-inline-start:30px;top:0;height:100%;background:none;border:none;" title="Upload File">
                     ${UPLOAD_SVG}
                 </button>
@@ -279,6 +305,28 @@ class HomeOrganizerPanel extends HTMLElement {
         </div>
       </div>
       
+      <div id="about-modal" onclick="this.style.display='none'" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:3500; align-items:center; justify-content:center;">
+          <div class="modal-content" onclick="event.stopPropagation()" style="text-align:center;">
+              <div style="margin-bottom:20px; font-size:20px; font-weight:bold; color:var(--primary);">Home Organizer Ultimate</div>
+              
+              <div style="margin-bottom:20px; font-style:italic; font-size:16px; color:#e91e63;">
+                  "Written by Guy Azria for my dear Yulia"
+              </div>
+              
+              <div style="margin-bottom:20px; font-size:14px; color:var(--text-sub); line-height:1.5;">
+                  A comprehensive inventory management system for Home Assistant.<br>
+                  Organize, track, and manage your home with ease.
+              </div>
+              
+              <div style="margin-top:20px; font-size:12px; color:#666; border-top:1px solid var(--border-light); padding-top:10px;">
+                  Licensed under MIT License.<br>
+                  Version 7.6.23
+              </div>
+              
+              <button class="action-btn" style="width:100%; margin-top:20px;" onclick="this.closest('#about-modal').style.display='none'">${this.t('back') || 'Close'}</button>
+          </div>
+      </div>
+
       <!-- Icon Picker Modal -->
       <div id="icon-modal" onclick="this.style.display='none'">
           <div class="modal-content" onclick="event.stopPropagation()">
@@ -325,7 +373,6 @@ class HomeOrganizerPanel extends HTMLElement {
           </div>
       </div>
       
-      <!-- ADDITIVE: Hidden Universal File Input for PDFs/Images -->
       <input type="file" id="universal-file-upload" accept="image/*,application/pdf" style="display:none">
     `;
 
@@ -333,7 +380,6 @@ class HomeOrganizerPanel extends HTMLElement {
           console.warn("Camera access requires HTTPS.");
     }
 
-    // --- AUTO-DETECT SETTINGS ---
     let currentLang = localStorage.getItem('home_organizer_lang');
     if (!currentLang && this._hass) {
         if (this._hass.language === 'he') {
@@ -344,12 +390,10 @@ class HomeOrganizerPanel extends HTMLElement {
         localStorage.setItem('home_organizer_lang', currentLang);
     }
     
-    // Apply Language Class
     if (currentLang === 'en') {
         this.shadowRoot.getElementById('app').classList.add('ltr');
     }
 
-    // Theme Auto-Detect
     let currentTheme = localStorage.getItem('home_organizer_theme');
     if (!currentTheme && this._hass) {
         currentTheme = (this._hass.themes && this._hass.themes.darkMode) ? 'dark' : 'light';
@@ -367,6 +411,11 @@ class HomeOrganizerPanel extends HTMLElement {
     this.bindEvents();
   }
   
+  showAbout() {
+      this.shadowRoot.getElementById('setup-dropdown-menu').classList.remove('show');
+      this.shadowRoot.getElementById('about-modal').style.display = 'flex';
+  }
+
   handleNameInput(input, itemId) {
       const val = input.value.toLowerCase();
       const parent = input.parentElement; 
@@ -467,6 +516,10 @@ class HomeOrganizerPanel extends HTMLElement {
     const menu = root.getElementById('setup-dropdown-menu');
     if(menu) menu.onclick = (e) => e.stopPropagation();
 
+    click('btn-ha-menu', () => {
+        this.dispatchEvent(new Event('hass-toggle-menu', { bubbles: true, composed: true }));
+    });
+
     click('btn-up', () => this.navigate('up'));
     click('btn-home', () => { 
         this.isShopMode = false; this.isSearch = false; this.isChatMode = false; 
@@ -488,7 +541,6 @@ class HomeOrganizerPanel extends HTMLElement {
         this.render(); 
     });
     
-    // NEW: Chat Button Handler
     click('btn-chat', () => {
         this.isChatMode = !this.isChatMode;
         if(this.isChatMode) { this.isShopMode = false; this.isSearch = false; this.isEditMode = false; }
@@ -526,7 +578,6 @@ class HomeOrganizerPanel extends HTMLElement {
     });
 
     click('btn-ai-search', () => this.openCamera('search'));
-    // --- ADDITIVE: Bind new upload button in search ---
     click('btn-ai-upload', () => this.openFileUpload('search'));
     
     click('btn-cam-close', () => this.stopCamera());
@@ -535,7 +586,6 @@ class HomeOrganizerPanel extends HTMLElement {
     click('btn-cam-wb', () => this.toggleWhiteBG());
   }
   
-  // --- ADDITIVE: Centralized Universal File Upload Processor ---
   openFileUpload(context) {
       const input = this.shadowRoot.getElementById('universal-file-upload');
       if (!input) return;
@@ -599,43 +649,28 @@ class HomeOrganizerPanel extends HTMLElement {
           this.pendingItem = null;
       }
   }
-  // -----------------------------------------------------------
 
-  // [ADDED v7.5.0] State for inline location editing (Still used if needed, but UI is changing)
-  // [MODIFIED v7.6.5 | 2026-02-16] Purpose: Isolated logic for 3-tier location movement selection
-  
-  // [ADDED v7.6.4 | 2026-02-16] Purpose: Update local selection state and cascade-clear child levels when parent changes
   updateHierarchyState(itemId, level, newValue) {
-    // [ADDED v7.6.4 | 2026-02-16] Purpose: Guard clause if state doesn't exist
     if (!this.locationEditState[itemId]) return;
-
-    // [ADDED v7.6.4 | 2026-02-16] Purpose: Set the new value for the specific level (1, 2, or 3)
     this.locationEditState[itemId][`l${level}`] = newValue;
-
-    // [ADDED v7.6.4 | 2026-02-16] Purpose: If Room (L1) changes, clear Location (L2) and Sub-Location (L3)
     if (level === 1) {
         this.locationEditState[itemId].l2 = "";
         this.locationEditState[itemId].l3 = "";
     }
-    // [ADDED v7.6.4 | 2026-02-16] Purpose: If Location (L2) changes, clear Sub-Location (L3)
     else if (level === 2) {
         this.locationEditState[itemId].l3 = "";
     }
-    this.render(); // Re-render to update the availability of dependent dropdowns
+    this.render();
   }
 
-  // [ADDED v7.6.4 | 2026-02-16] Purpose: Apply the movement changes by calling the Home Assistant backend service
   saveHierarchy(itemId) {
     const state = this.locationEditState[itemId];
     if (!state) return;
-
-    // [ADDED v7.6.4 | 2026-02-16] Purpose: Construct the path array based on valid selections
     const newPath = [];
     if (state.l1) newPath.push(state.l1);
     if (state.l2) newPath.push(state.l2);
     if (state.l3) newPath.push(state.l3);
 
-    // [ADDED v7.6.4 | 2026-02-16] Purpose: Invoke HA service with the structured path
     if (newPath.length > 0) {
             this.callHA('update_item_details', { 
             item_id: itemId, 
@@ -644,31 +679,22 @@ class HomeOrganizerPanel extends HTMLElement {
     }
   }
 
-  // [MODIFIED v7.6.1] Purpose: Return Simple Text for collapsed view (remove buttons/pencil)
   renderLocationControl(item, isShopMode) {
       if (!isShopMode) return `<div class="sub-title">${item.date || ''}</div>`;
-      // Return just the text path
       return `<div class="sub-title">${item.location || ''}</div>`;
   }
   
-  // [ADDED v7.6.4 | 2026-02-16] Purpose: UI Generator for the 3-tier select inputs and the confirm button
-  // [MODIFIED v7.6.6 | 2026-02-16] Purpose: UI Generator for the 3-tier select inputs and the confirm button (Circle Style)
-  // [MODIFIED v7.6.8 | 2026-02-16] Purpose: Filter out internal marker folders (ZONE_MARKER, ORDER_MARKER) from hierarchy dropdowns
   renderHierarchyControl(item) {
     const hierarchy = this.localData.hierarchy || {};
-    // [ADDED v7.6.4 | 2026-02-16] Purpose: Retrieve current edit state or fallback to empty object
     const state = this.locationEditState[item.id] || {};
 
-    // [ADDED v7.6.4 | 2026-02-16] Purpose: Determine active values from state or original item data
     const l1 = state.l1 !== undefined ? state.l1 : (item.level_1 || item.main_location || '');
     const l2 = state.l2 !== undefined ? state.l2 : (item.level_2 || item.sub_location || '');
     const l3 = state.l3 !== undefined ? state.l3 : (item.level_3 || '');
 
-    // --- LEVEL 1: ROOM SELECTION ---
     let l1Opts = `<option value="" disabled ${!l1 ? 'selected' : ''}>Select Room</option>`;
     let l1Found = false;
     
-    // [ADDED v7.6.8 | 2026-02-16] Purpose: Filter markers from Room list
     Object.keys(hierarchy).sort().forEach(k => {
         if (k.startsWith('ZONE_MARKER_') || k.startsWith('ORDER_MARKER_')) return;
         const isSel = l1 === k;
@@ -677,7 +703,6 @@ class HomeOrganizerPanel extends HTMLElement {
     });
     if (l1 && !l1Found) l1Opts += `<option value="${l1}" selected>${l1}</option>`;
 
-    // --- LEVEL 2: LOCATION SELECTION ---
     let l2Opts = `<option value="" disabled ${!l2 ? 'selected' : ''}>Select Loc</option>`;
     let l2Disabled = !l1;
     let l2Found = false;
@@ -685,7 +710,6 @@ class HomeOrganizerPanel extends HTMLElement {
         const subHier = hierarchy[l1] || {};
         const sortedL2 = Array.isArray(subHier) ? [] : Object.keys(subHier).sort(); 
         
-        // [ADDED v7.6.8 | 2026-02-16] Purpose: Filter markers from Location list
         sortedL2.forEach(k => {
             if (k.startsWith('ZONE_MARKER_') || k.startsWith('ORDER_MARKER_')) return;
             const isSel = l2 === k;
@@ -695,12 +719,10 @@ class HomeOrganizerPanel extends HTMLElement {
     }
     if (l2 && !l2Found) l2Opts += `<option value="${l2}" selected>${l2}</option>`;
 
-    // --- LEVEL 3: SUB-LOCATION SELECTION ---
     let l3Opts = `<option value="" disabled ${!l3 ? 'selected' : ''}>Select Sub</option>`;
     let l3Disabled = !(l1 && l2);
     let l3Found = false;
     if (l1 && l2 && hierarchy[l1] && !Array.isArray(hierarchy[l1]) && hierarchy[l1][l2]) {
-        // [ADDED v7.6.8 | 2026-02-16] Purpose: Filter markers from Sub-Location list
         hierarchy[l1][l2].sort().forEach(k => {
             if (k.startsWith('ZONE_MARKER_') || k.startsWith('ORDER_MARKER_')) return;
             const isSel = l3 === k;
@@ -712,29 +734,23 @@ class HomeOrganizerPanel extends HTMLElement {
 
     const sep = `<span class="hierarchy-sep">&gt;</span>`;
 
-    // [MODIFIED v7.6.6 | 2026-02-16] Purpose: Return with circular confirm button
     return `
       <div class="hierarchy-container">
-          <!-- Room Selection List -->
           <select class="hierarchy-select" onchange="this.getRootNode().host.updateHierarchyState('${item.id}', 1, this.value)">
               ${l1Opts}
           </select>
           ${sep}
-          <!-- Location Selection List -->
           <select class="hierarchy-select" ${l2Disabled ? 'disabled' : ''} onchange="this.getRootNode().host.updateHierarchyState('${item.id}', 2, this.value)">
               ${l2Opts}
           </select>
           ${sep}
-          <!-- Sub-Location Selection List -->
           <select class="hierarchy-select" ${l3Disabled ? 'disabled' : ''} onchange="this.getRootNode().host.updateHierarchyState('${item.id}', 3, this.value)">
               ${l3Opts}
           </select>
-          <!-- CONFIRM BUTTON -->
           <button class="hierarchy-update-btn" title="Apply Move" style="border-radius:50%;width:36px;height:36px;padding:0;display:flex;align-items:center;justify-content:center;min-width:36px" onclick="this.getRootNode().host.saveHierarchy('${item.id}')">${ICONS.check}</button>
       </div>
     `;
   }
-  // -------------------------------------------------------------
 
   toggleIds() {
       this.showIds = !this.showIds;
@@ -778,6 +794,11 @@ class HomeOrganizerPanel extends HTMLElement {
       
       if (dir === 'ltr') app.classList.add('ltr'); else app.classList.remove('ltr');
       
+      const dropdown = this.shadowRoot.getElementById('setup-dropdown-menu');
+      if(dropdown) {
+          dropdown.style.direction = dir;
+      }
+
       this.shadowRoot.getElementById('setup-dropdown-menu').classList.remove('show');
       this.render(); 
   }
@@ -832,7 +853,7 @@ class HomeOrganizerPanel extends HTMLElement {
 
               if (isChat) {
                   this.chatImage = dataUrl;
-                  this.chatMimeType = "image/jpeg"; // Default from native camera wrapper
+                  this.chatMimeType = "image/jpeg"; 
                   this.render();
                   return;
               }
@@ -900,7 +921,6 @@ class HomeOrganizerPanel extends HTMLElement {
       const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
       this.stopCamera();
       
-      // NEW: Handle Chat Photo
       if (this.cameraContext === 'chat') {
           this.chatImage = dataUrl;
           this.chatMimeType = "image/jpeg";
@@ -933,12 +953,12 @@ class HomeOrganizerPanel extends HTMLElement {
       }
   }
 
+  // [MODIFIED v7.6.23 | 2026-02-18] Purpose: Render folders with support for Pointer Icons
   updateUI() {
     if(!this.localData) return;
     const attrs = this.localData;
     const root = this.shadowRoot;
     
-    // Update Title & Path
     root.getElementById('display-title').innerText = this.t('app_title');
     root.getElementById('display-path').innerText = 
         this.isChatMode ? "AI Chat Assistant" : 
@@ -950,7 +970,6 @@ class HomeOrganizerPanel extends HTMLElement {
     root.getElementById('paste-bar').style.display = attrs.clipboard ? 'flex' : 'none';
     if(attrs.clipboard) root.getElementById('clipboard-name').innerText = attrs.clipboard;
     
-    // NEW: Show/Hide Chat Button
     const chatBtn = root.getElementById('btn-chat');
     if (attrs.enable_ai) {
         chatBtn.style.display = 'flex';
@@ -969,9 +988,9 @@ class HomeOrganizerPanel extends HTMLElement {
     }
 
     const content = root.getElementById('content');
-    content.innerHTML = '';
+    // [MODIFIED v7.6.23 | 2026-02-18] Purpose: ALWAYS clear content first to solve "new page" issue
+    content.innerHTML = ''; 
     
-    // NEW: Chat Mode Logic
     if (this.isChatMode) {
         this.renderChatUI(content);
         return;
@@ -1139,15 +1158,19 @@ class HomeOrganizerPanel extends HTMLElement {
                 
                 let folderContent = ICONS.folder;
                 if (folder.img) {
-                    const isLoading = this.loadingSet.has(folder.originalName);
-                    const ver = this.imageVersions[folder.originalName] || '';
-                    const src = folder.img + (folder.img.includes('?') ? '&' : '?') + 'v=' + ver;
-                    
-                    let loaderHtml = '';
-                    if (isLoading) {
-                        loaderHtml = `<div class="loader-container"><span class="loader"></span></div>`;
+                    if (folder.img.startsWith('ICON_LIB')) {
+                        // [MODIFIED v7.6.22] Render SVG from Library Pointer
+                        folderContent = this.getIconByKey(folder.img); 
+                    } else {
+                        const isLoading = this.loadingSet.has(folder.originalName);
+                        const ver = this.imageVersions[folder.originalName] || '';
+                        const src = folder.img + (folder.img.includes('?') ? '&' : '?') + 'v=' + ver;
+                        let loaderHtml = '';
+                        if (isLoading) {
+                            loaderHtml = `<div class="loader-container"><span class="loader"></span></div>`;
+                        }
+                        folderContent = `<div style="position:relative;width:100%;height:100%"><img src="${src}" style="width:100%;height:100%;object-fit:contain;border-radius:4px">${loaderHtml}</div>`;
                     }
-                    folderContent = `<div style="position:relative;width:100%;height:100%"><img src="${src}" style="width:100%;height:100%;object-fit:contain;border-radius:4px">${loaderHtml}</div>`;
                 }
 
                 const deleteBtnHtml = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.originalName}')">✕</div>` : '';
@@ -1208,15 +1231,20 @@ class HomeOrganizerPanel extends HTMLElement {
                     
                     let folderContent = ICONS.folder;
                     if (folder.img) {
-                        const isLoading = this.loadingSet.has(folder.name);
-                        const ver = this.imageVersions[folder.name] || '';
-                        const src = folder.img + (folder.img.includes('?') ? '&' : '?') + 'v=' + ver;
-                        
-                        let loaderHtml = '';
-                        if (isLoading) {
-                            loaderHtml = `<div class="loader-container"><span class="loader"></span></div>`;
+                        if (folder.img.startsWith('ICON_LIB')) {
+                            // [MODIFIED v7.6.22] Render SVG from Library Pointer
+                            folderContent = this.getIconByKey(folder.img); 
+                        } else {
+                            const isLoading = this.loadingSet.has(folder.name);
+                            const ver = this.imageVersions[folder.name] || '';
+                            const src = folder.img + (folder.img.includes('?') ? '&' : '?') + 'v=' + ver;
+                            
+                            let loaderHtml = '';
+                            if (isLoading) {
+                                loaderHtml = `<div class="loader-container"><span class="loader"></span></div>`;
+                            }
+                            folderContent = `<div style="position:relative;width:100%;height:100%"><img src="${src}" style="width:100%;height:100%;object-fit:contain;border-radius:4px">${loaderHtml}</div>`;
                         }
-                        folderContent = `<div style="position:relative;width:100%;height:100%"><img src="${src}" style="width:100%;height:100%;object-fit:contain;border-radius:4px">${loaderHtml}</div>`;
                     }
 
                     const deleteBtnHtml = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` : '';
@@ -1391,14 +1419,20 @@ class HomeOrganizerPanel extends HTMLElement {
                           card.className = 'xl-card';
                           let iconHtml = ICONS.item;
                           if (item.img) {
-                              const isLoading = this.loadingSet.has(item.id);
-                              const ver = this.imageVersions[item.id] || '';
-                              const src = item.img + (item.img.includes('?') ? '&' : '?') + 'v=' + ver;
-                              let loaderHtml = '';
-                              if (isLoading) {
-                                  loaderHtml = `<div class="loader-container"><span class="loader"></span></div>`;
+                              if (item.img.startsWith('ICON_LIB')) {
+                                  // [MODIFIED v7.6.22] Render SVG from Library Pointer
+                                  const svgContent = this.getIconByKey(item.img);
+                                  iconHtml = `<div class="xl-icon-area">${svgContent}</div>`;
+                              } else {
+                                  const isLoading = this.loadingSet.has(item.id);
+                                  const ver = this.imageVersions[item.id] || '';
+                                  const src = item.img + (item.img.includes('?') ? '&' : '?') + 'v=' + ver;
+                                  let loaderHtml = '';
+                                  if (isLoading) {
+                                      loaderHtml = `<div class="loader-container"><span class="loader"></span></div>`;
+                                  }
+                                  iconHtml = `<div style="position:relative;width:80%;height:80%"><img src="${src}" style="width:100%;height:100%;object-fit:contain;border-radius:8px">${loaderHtml}</div>`;
                               }
-                              iconHtml = `<div style="position:relative;width:80%;height:80%"><img src="${src}" style="width:100%;height:100%;object-fit:contain;border-radius:8px">${loaderHtml}</div>`;
                           }
                           card.innerHTML = `
                               <div class="xl-icon-area">${iconHtml}</div>
@@ -1457,7 +1491,6 @@ class HomeOrganizerPanel extends HTMLElement {
     }
   }
 
-  // --- UPDATED CHAT UI ---
   renderChatUI(container) {
       const chatContainer = document.createElement('div');
       chatContainer.className = 'chat-container';
@@ -1486,7 +1519,6 @@ class HomeOrganizerPanel extends HTMLElement {
           div.innerHTML = msg.text; 
           if(msg.image) {
               const img = document.createElement('img');
-              // --- ADDITIVE: Check if image is PDF preview text or SVG ---
               if (msg.mime_type === 'application/pdf') {
                   img.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 24 24"><path fill="gray" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h6v6h6v10H6z"/></svg>';
               } else {
@@ -1505,7 +1537,6 @@ class HomeOrganizerPanel extends HTMLElement {
       
       chatContainer.appendChild(messagesDiv);
       
-      // PREVIEW AREA FOR UPLOADED IMAGE
       const previewArea = document.createElement('div');
       previewArea.id = "chat-img-preview";
       previewArea.style.display = "none";
@@ -1524,21 +1555,18 @@ class HomeOrganizerPanel extends HTMLElement {
       const inputBar = document.createElement('div');
       inputBar.className = 'chat-input-bar';
       
-      // CAMERA BUTTON FOR CHAT - Explicit Styling to ensure visibility
       const camBtn = document.createElement('button');
-      camBtn.id = 'chat-camera-btn'; // Add ID for easier debugging/selection
+      camBtn.id = 'chat-camera-btn'; 
       camBtn.className = 'chat-cam-btn';
-      // Use fallback SVG if ICONS.camera fails, ensuring icon visibility
       camBtn.innerHTML = ICONS.camera || '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>'; 
       camBtn.type = 'button';
       
-      // Inline styles to guarantee visibility regardless of external CSS
       camBtn.style.background = "none";
       camBtn.style.border = "none";
       camBtn.style.color = "var(--primary, #03a9f4)";
       camBtn.style.cursor = "pointer";
       camBtn.style.padding = "0 10px";
-      camBtn.style.height = "40px"; // Match send button
+      camBtn.style.height = "40px"; 
       camBtn.style.width = "40px";
       camBtn.style.display = "flex";
       camBtn.style.alignItems = "center";
@@ -1547,7 +1575,6 @@ class HomeOrganizerPanel extends HTMLElement {
       
       camBtn.onclick = () => this.handleChatCamera();
       
-      // --- ADDITIVE: Upload File Button for Chat ---
       const uploadBtn = document.createElement('button');
       uploadBtn.id = 'chat-upload-btn';
       uploadBtn.className = 'chat-cam-btn';
@@ -1566,7 +1593,6 @@ class HomeOrganizerPanel extends HTMLElement {
       uploadBtn.style.justifyContent = "center";
       uploadBtn.style.flexShrink = "0";
       uploadBtn.onclick = () => this.openFileUpload('chat');
-      // -------------------------------------------
 
       const input = document.createElement('input');
       input.type = 'text';
@@ -1578,7 +1604,6 @@ class HomeOrganizerPanel extends HTMLElement {
       sendBtn.innerHTML = ICONS.send;
       sendBtn.style.flexShrink = "0";
       
-      // HANDLE IMAGE REMOVAL
       previewArea.querySelector('#chat-remove-img').onclick = () => {
           this.chatImage = null;
           this.chatMimeType = "image/jpeg";
@@ -1588,7 +1613,6 @@ class HomeOrganizerPanel extends HTMLElement {
       if (this.chatImage) {
           previewArea.style.display = 'block';
           const preImg = previewArea.querySelector('#chat-preview-img');
-          // --- ADDITIVE: Visual PDF Preview handling ---
           if (this.chatMimeType === 'application/pdf') {
               preImg.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 24 24"><path fill="gray" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h6v6h6v10H6z"/></svg>';
           } else {
@@ -1604,11 +1628,10 @@ class HomeOrganizerPanel extends HTMLElement {
           if (!text && !imgData) return;
           
           this.chatHistory.push({ role: 'user', text: text || "Scanned Invoice", image: imgData, mime_type: currentMime });
-          this.chatImage = null; // Clear after send
+          this.chatImage = null; 
           this.chatMimeType = "image/jpeg";
           this.render(); 
           
-          // Initial Status Message
           const statusText = imgData ? "Scanning Invoice..." : "Analyzing...";
           const statusMsg = { role: 'system', text: `Starting Process...<br>${statusText}`, isStatus: true };
           this.chatHistory.push(statusMsg);
@@ -1624,11 +1647,10 @@ class HomeOrganizerPanel extends HTMLElement {
                   type: 'home_organizer/ai_chat',
                   message: text,
                   image_data: imgData,
-                  mime_type: currentMime // --- ADDITIVE ---
+                  mime_type: currentMime 
               });
               
               if (result) {
-                    // Build debug HTML
                     let debugHTML = "";
                     if (result.debug) {
                         const d = result.debug;
@@ -1673,8 +1695,8 @@ class HomeOrganizerPanel extends HTMLElement {
       sendBtn.onclick = sendMessage;
       input.onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
       
-      inputBar.appendChild(camBtn); // Appended BEFORE input to appear on START side (Left in LTR, Right in RTL)
-      inputBar.appendChild(uploadBtn); // --- ADDITIVE: Button appended dynamically ---
+      inputBar.appendChild(camBtn); 
+      inputBar.appendChild(uploadBtn); 
       inputBar.appendChild(input);
       inputBar.appendChild(sendBtn);
       chatContainer.appendChild(inputBar);
@@ -1683,9 +1705,7 @@ class HomeOrganizerPanel extends HTMLElement {
       setTimeout(() => messagesDiv.scrollTop = messagesDiv.scrollHeight, 0);
   }
   
-  // NEW: Handle Camera for Chat
   handleChatCamera() {
-      // Re-use standard openCamera logic which handles secure context check
       this.openCamera('chat');
   }
 
@@ -2100,7 +2120,11 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   toggleSubloc(name) {
-      if (this.expandedSublocs.has(name)) this.expandedSublocs.delete(name); else this.expandedSublocs.add(name);
+      if (this.expandedSublocs.has(name)) {
+          this.expandedSublocs.delete(name);
+      } else {
+          this.expandedSublocs.add(name);
+      }
       this.render();
   }
     
@@ -2112,8 +2136,13 @@ class HomeOrganizerPanel extends HTMLElement {
       const input = iconContainer.querySelector('input');
       label.innerText = this.t('saving');
       input.focus();
-      input.onkeydown = (e) => { if (e.key === 'Enter') this.saveNewFolder(input.value); };
-      input.onblur = () => { if (input.value.trim()) this.saveNewFolder(input.value); else this.render(); };
+      input.onkeydown = (e) => { 
+          if (e.key === 'Enter') this.saveNewFolder(input.value); 
+      };
+      input.onblur = () => { 
+          if (input.value.trim()) this.saveNewFolder(input.value); 
+          else this.render(); 
+      };
   }
     
   enableFolderRename(labelEl, oldName) {
@@ -2159,15 +2188,28 @@ class HomeOrganizerPanel extends HTMLElement {
 
   setupDragSource(el, itemName) {
       el.draggable = true;
-      el.ondragstart = (e) => { e.dataTransfer.setData("text/plain", itemName); e.dataTransfer.effectAllowed = "move"; el.classList.add('dragging'); };
+      el.ondragstart = (e) => { 
+          e.dataTransfer.setData("text/plain", itemName); 
+          e.dataTransfer.effectAllowed = "move"; 
+          el.classList.add('dragging'); 
+      };
       el.ondragend = () => el.classList.remove('dragging');
   }
 
   setupDropTarget(el, subName) {
       el.dataset.subloc = subName;
-      el.ondragover = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drag-over'); };
+      el.ondragover = (e) => { 
+          e.preventDefault(); 
+          e.dataTransfer.dropEffect = 'move'; 
+          el.classList.add('drag-over'); 
+      };
       el.ondragleave = () => el.classList.remove('drag-over');
-      el.ondrop = (e) => { e.preventDefault(); el.classList.remove('drag-over'); const itemName = e.dataTransfer.getData("text/plain"); this.handleDropAction(subName, itemName); };
+      el.ondrop = (e) => { 
+          e.preventDefault(); 
+          el.classList.remove('drag-over'); 
+          const itemName = e.dataTransfer.getData("text/plain"); 
+          this.handleDropAction(subName, itemName); 
+      };
   }
 
   async handleDropAction(targetSubloc, itemName) {
@@ -2186,13 +2228,11 @@ class HomeOrganizerPanel extends HTMLElement {
       this.openCamera('update'); 
   }
   
-  // --- ADDITIVE: Dedicated file upload trigger for individual items ---
   triggerFileUploadEdit(id, name) {
       this.pendingItemId = id;
       this.pendingItemName = name;
       this.openFileUpload('update');
   }
-  // ------------------------------------------------------------------
   
   adjustShopQty(id, delta) {
       if (this.shopQuantities[id] === undefined) this.shopQuantities[id] = 0;
@@ -2227,21 +2267,25 @@ class HomeOrganizerPanel extends HTMLElement {
          controls = `<button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.id}', 1)">${ICONS.plus}</button><span class="qty-val">${item.qty}</span><button class="qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.id}', -1)">${ICONS.minus}</button>`;
      }
      
-     // [MODIFIED v7.6.1] Purpose: Use simple text for closed row (Revert buttons/pencil)
      const subText = this.renderLocationControl(item, isShopMode);
-     // -------------------------------------------------------------
      
      let iconHtml = `<span class="item-icon">${ICONS.item}</span>`;
      if (item.img) {
-         const isLoading = this.loadingSet.has(item.id);
-         const ver = this.imageVersions[item.id] || '';
-         const src = item.img + (item.img.includes('?') ? '&' : '?') + 'v=' + ver;
-         
-         let loaderHtml = '';
-         if (isLoading) {
-             loaderHtml = `<div class="loader-container"><span class="loader"></span></div>`;
+         if (item.img.startsWith('ICON_LIB')) {
+             // [MODIFIED v7.6.22] Render SVG directly for Items
+             const svgContent = this.getIconByKey(item.img);
+             iconHtml = `<div class="item-icon">${svgContent}</div>`;
+         } else {
+             const isLoading = this.loadingSet.has(item.id);
+             const ver = this.imageVersions[item.id] || '';
+             const src = item.img + (item.img.includes('?') ? '&' : '?') + 'v=' + ver;
+             
+             let loaderHtml = '';
+             if (isLoading) {
+                 loaderHtml = `<div class="loader-container"><span class="loader"></span></div>`;
+             }
+             iconHtml = `<div style="position:relative;width:40px;height:40px"><img src="${src}" class="item-thumbnail" alt="${item.name}" onclick="event.stopPropagation(); this.getRootNode().host.showImg('${item.img}')">${loaderHtml}</div>`;
          }
-         iconHtml = `<div style="position:relative;width:40px;height:40px"><img src="${src}" class="item-thumbnail" alt="${item.name}" onclick="event.stopPropagation(); this.getRootNode().host.showImg('${item.img}')">${loaderHtml}</div>`;
      }
 
      div.innerHTML = `
@@ -2255,9 +2299,7 @@ class HomeOrganizerPanel extends HTMLElement {
          const details = document.createElement('div');
          details.className = 'expanded-details';
          
-         // [ADDED v7.6.1 | 2026-02-15] Purpose: Replace old dropdowns with 3-button hierarchy editor
          const hierarchyEditorHtml = this.renderHierarchyControl(item);
-         // ---------------------------------------------------------------
 
          let mainCatOptions = `<option value="">${this.t('select_cat')}</option>`;
          Object.keys(ITEM_CATEGORIES).forEach(cat => {
@@ -2455,12 +2497,6 @@ class HomeOrganizerPanel extends HTMLElement {
       this.fetchData(); 
   }
 
-  // [ADDED v7.6.4 | 2026-02-16] Purpose: Initialize edit state when a row is expanded to ensure dropdowns show current location
-  // [MODIFIED v7.6.6 | 2026-02-16] Purpose: Enhanced path parsing to ensure dropdowns pre-select correctly
-  // [MODIFIED v7.6.7 | 2026-02-16] Purpose: Added fallback to this.currentPath if item location details are missing
-  // [MODIFIED v7.6.8 | 2026-02-16] Purpose: Ensure Shopping List items (with potential location string mismatch) are parsed correctly
-  // [MODIFIED v7.6.9 | 2026-02-16] Purpose: Fix button labeling by prioritizing parsed location string over item properties
-  // [MODIFIED v7.6.10 | 2026-02-16] Purpose: Smart slotting for hierarchy levels to handle skipped levels (e.g. Room > Sub mapped correctly)
   toggleRow(id) { 
       const nId = Number(id);
       this.expandedIdx = (this.expandedIdx === nId) ? null : nId; 
@@ -2479,11 +2515,9 @@ class HomeOrganizerPanel extends HTMLElement {
               let l2 = path[1] || item.sub_location || this.currentPath[1] || "";
               let l3 = path[2] || this.currentPath[2] || "";
 
-              // [ADDED v7.6.10] Logic: If L2 is set but not a valid Location key, check if it's actually a Sub-Location
               if (l1 && l2 && hierarchy[l1]) {
                   const isL2ValidKey = Array.isArray(hierarchy[l1][l2]); 
                   if (!isL2ValidKey) {
-                      // l2 value is not a Location folder. Check if it is a Sub-Location item inside any Location
                       let foundParent = null;
                       const locKeys = Object.keys(hierarchy[l1]);
                       for (const key of locKeys) {
@@ -2494,7 +2528,6 @@ class HomeOrganizerPanel extends HTMLElement {
                       }
                       
                       if (foundParent) {
-                          // Shift: What was in l2 is actually l3. Parent is l2.
                           l3 = l2;
                           l2 = foundParent;
                       }
@@ -2570,7 +2603,8 @@ class HomeOrganizerPanel extends HTMLElement {
           const div = document.createElement('div');
           div.className = 'lib-icon';
           div.innerHTML = `${lib[key]}<span>${key}</span>`;
-          div.onclick = () => this.selectLibraryIcon(lib[key]);
+          // [MODIFIED v7.6.18] Pass key string instead of SVG content
+          div.onclick = () => this.selectLibraryIconKey(key);
           grid.appendChild(div);
       });
 
@@ -2579,17 +2613,69 @@ class HomeOrganizerPanel extends HTMLElement {
       nextBtn.disabled = this.pickerPage >= totalPages - 1;
   }
 
+  // [ADDED v7.6.18 | 2026-02-18] Purpose: Save "Pointer" key to DB instead of generating PNG
+  async selectLibraryIconKey(key) {
+      let fullKey = "";
+      
+      if (this.pickerContext === 'room') {
+          fullKey = `ICON_LIB_ROOM_${key}`;
+      } else if (this.pickerContext === 'location') {
+          fullKey = `ICON_LIB_LOCATION_${key}`;
+      } else if (this.pickerContext === 'item') {
+          // Include category in key for unique resolution later
+          fullKey = `ICON_LIB_ITEM_${this.pickerCategory}_${key}`;
+      } else {
+          fullKey = `ICON_LIB_${key}`;
+      }
+      
+      const target = this.pendingItemId || this.pendingFolderIcon;
+      if (target) this.setLoading(target, true);
+      this.shadowRoot.getElementById('icon-modal').style.display = 'none';
+
+      try {
+          if(this.pendingItemId) {
+              await this.callHA('update_image', { item_id: this.pendingItemId, icon_key: fullKey });
+              this.refreshImageVersion(this.pendingItemId);
+          } else if(this.pendingFolderIcon) {
+              const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
+              const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
+              await this.callHA('update_image', { item_name: markerName, icon_key: fullKey });
+              this.refreshImageVersion(this.pendingFolderIcon);
+          }
+      } catch(e) { console.error(e); }
+      finally {
+          if(target) this.setLoading(target, false);
+      }
+  }
+
+  // [MODIFIED v7.6.17 | 2026-02-17] Purpose: Reverted size to 140px, maintained transparency fix
   async selectLibraryIcon(svgHtml) {
       let source = svgHtml;
+      // [MODIFIED v7.6.17 | 2026-02-17] Purpose: Reverted size to 140 as requested by user (display size controlled by CSS)
       const size = 140; 
-      if (!source.includes('xmlns')) source = source.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
-      if (source.includes('width=')) { source = source.replace(/width="[^"]*"/, `width="${size}"`).replace(/height="[^"]*"/, `height="${size}"`); } 
-      else { source = source.replace('<svg', `<svg width="${size}" height="${size}"`); }
-      source = source.replace('<svg', '<svg fill="#4fc3f7"');
+      
+      // 1. Ensure Namespace
+      if (!source.includes('xmlns')) {
+          source = source.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+      }
+
+      // 2. Handle Dimensions (Regex to avoid duplication)
+      if (source.includes('width=')) { 
+          source = source.replace(/width="[^"]*"/, `width="${size}"`).replace(/height="[^"]*"/, `height="${size}"`); 
+      } else { 
+          source = source.replace('<svg', `<svg width="${size}" height="${size}"`); 
+      }
+
+      // 3. Handle Fill - FIX: Only add default color if NO fill is defined.
+      // This prevents breaking the new 3D icons which already have fill="none"
+      if (!source.includes('fill=')) {
+          source = source.replace('<svg', '<svg fill="#4fc3f7"');
+      }
       
       const loadImage = (src) => new Promise((resolve) => {
           const img = new Image();
           img.onload = () => resolve(img);
+          img.onerror = (e) => { console.error("SVG Load Error", e); resolve(null); }; // Added error logging
           img.src = src;
       });
 
@@ -2597,19 +2683,15 @@ class HomeOrganizerPanel extends HTMLElement {
       const url = URL.createObjectURL(blob);
       const img = await loadImage(url);
       
+      if (!img) return; // Exit if load failed
+
       const canvas = document.createElement('canvas');
       canvas.width = size; canvas.height = size;
       const ctx = canvas.getContext('2d');
       
-      if (this.pickerContext === 'item') { 
-          ctx.fillStyle = '#000'; 
-          ctx.fillRect(0, 0, size, size);
-          const padding = size * 0.15; 
-          const drawSize = size * 0.7; 
-          ctx.drawImage(img, padding, padding, drawSize, drawSize);
-      } else {
-          ctx.drawImage(img, 0, 0, size, size);
-      }
+      // [MODIFIED v7.6.17 | 2026-02-17] Purpose: Removed background fill logic to eliminate "blue square" effect
+      // Icons are now rendered transparently regardless of context
+      ctx.drawImage(img, 0, 0, size, size);
 
       const dataUrl = canvas.toDataURL('image/png');
       
