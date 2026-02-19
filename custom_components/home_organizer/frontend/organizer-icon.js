@@ -110,8 +110,8 @@ export const ICON_LIB_ROOM = {
   "Corridor": '<svg viewBox="0 0 24 24" fill="none"><path d="M9 4l-3 16h12l-3-16z" fill="#ECEFF1" stroke="#90A4AE" stroke-width="1"/><rect x="11" y="9" width="2" height="4" fill="#546E7A"/></svg>',
   "Cellar": '<svg viewBox="0 0 24 24" fill="none"><rect x="8" y="5" width="8" height="14" rx="3" fill="#6D4C41"/><path d="M8 9h8M8 15h8" stroke="#3E2723" stroke-width="1.5"/></svg>'
 };
-
-export const ICON_LIB_LOCATION = { // [UPDATED v1.9.0 | 2026-02-18] Purpose: Symbolic 3D Location Icons (Fill=None)
+ // [UPDATED v1.9.0 | 2026-02-18] Purpose: Symbolic 3D Location Icons (Fill=None)
+export const ICON_LIB_LOCATION = {
   "Fridge": '<svg viewBox="0 0 24 24" fill="none"><rect x="6" y="2" width="12" height="20" rx="2" fill="#ECEFF1" stroke="#B0BEC5" stroke-width="1.5"/><path d="M6 8h12" stroke="#B0BEC5" stroke-width="1"/><rect x="15" y="10" width="1" height="4" fill="#90A4AE"/></svg>',
   "Cabinet": '<svg viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" fill="#A1887F" stroke="#795548" stroke-width="1.5"/><path d="M12 4v16" stroke="#5D4037" stroke-width="1"/><circle cx="10" cy="12" r="1" fill="#FFD700"/><circle cx="14" cy="12" r="1" fill="#FFD700"/></svg>',
   "Kitchen Cabinet": '<svg viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="14" fill="#E0E0E0" stroke="#BDBDBD" stroke-width="1.5"/><rect x="6" y="7" width="12" height="10" fill="#F5F5F5"/><rect x="15" y="10" width="1" height="4" fill="#9E9E9E"/></svg>',
@@ -146,8 +146,8 @@ export const ICON_LIB_LOCATION = { // [UPDATED v1.9.0 | 2026-02-18] Purpose: Sym
   "Countertop": '<svg viewBox="0 0 24 24" fill="none"><path d="M2 14l4-4h12l4 4H2z" fill="#E0E0E0"/><rect x="2" y="14" width="20" height="2" fill="#9E9E9E"/><path d="M6 10v4M18 10v4" stroke="#BDBDBD"/></svg>',
   "Bookcase": '<svg viewBox="0 0 24 24" fill="none"><rect x="5" y="3" width="14" height="18" fill="#A1887F"/><rect x="7" y="6" width="2" height="4" fill="#EF5350"/><rect x="9" y="6" width="2" height="4" fill="#42A5F5"/><rect x="12" y="13" width="2" height="4" fill="#66BB6A"/><rect x="14" y="13" width="2" height="4" fill="#FFCA28"/><path d="M5 11h14M5 17h14" stroke="#5D4037"/></svg>'
 };
-
-export const ICON_LIB_ITEM = { // [UPDATED v1.9.0 | 2026-02-18] Purpose: Full Color Items (Fill=None base, colored shapes)
+// [UPDATED v1.9.0 | 2026-02-18] Purpose: Full Color Items (Fill=None base, colored shapes)
+export const ICON_LIB_ITEM = { 
   "Produce": {
     "Apple": '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="13" r="7" fill="#EF5350" stroke="#C62828" stroke-width="1.5"/><path d="M12 6c1-2 3-2 3-2" stroke="#558B2F" stroke-width="2"/><path d="M12 6V4" stroke="#5D4037" stroke-width="2"/></svg>',
     "Banana": '<svg viewBox="0 0 24 24" fill="none"><path d="M18 5c-3 3-8 5-11 12 4-1 9-5 12-10 1-2 0-3 0-3s-2-1-1 1z" fill="#FFF176" stroke="#FBC02D" stroke-width="1.5"/><path d="M18 5l1-1" stroke="#5D4037" stroke-width="2"/></svg>', // Curved shape
@@ -263,3 +263,4 @@ export const ICON_LIB_ITEM = { // [UPDATED v1.9.0 | 2026-02-18] Purpose: Full Co
     "Wallet": '<svg viewBox="0 0 24 24" fill="none"><rect x="4" y="6" width="16" height="12" rx="2" fill="#8D6E63" stroke="#5D4037" stroke-width="1.5"/><path d="M4 10h16" stroke="#5D4037"/></svg>'
   }
 };
+
