@@ -1,14 +1,13 @@
-// Home Organizer Ultimate - Ver 7.6.23 (Update: Fix Chat UI Clearing & Pointer-based Icons)
-// License: MIT
-
-import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.6';
-import { ITEM_CATEGORIES } from './organizer-data.js?v=6.6.7';
+// Home Organizer Ultimate - Ver 7.6.32 (Update: Icon Picker UI layout, Square Buttons, 3D X Button)
+ 
+import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.10';
+import { ITEM_CATEGORIES } from './organizer-data.js?v=6.6.10';
 
 class HomeOrganizerPanel extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this.content) {
-      console.log("%c Home Organizer v7.6.23 Fully Loaded ", "background: #e91e63; color: #fff; font-weight: bold;");
+      console.log("%c Home Organizer v7.6.32 Fully Loaded ", "background: #e91e63; color: #fff; font-weight: bold;");
       this.currentPath = [];
       this.catalogPath = []; 
       this.isEditMode = false;
@@ -28,9 +27,8 @@ class HomeOrganizerPanel extends HTMLElement {
       this.expandedSublocs = new Set(); 
       this.subscribed = false;
       this.pickerContext = 'room'; 
-      this.pickerCategory = null; 
-      this.pickerPage = 0;
-      this.pickerPageSize = 15;
+      this.pickerMainCategory = null; 
+      this.pickerSubCategory = null; 
       
       this.chatImage = null; 
       this.chatMimeType = "image/jpeg";
@@ -75,31 +73,64 @@ class HomeOrganizerPanel extends HTMLElement {
     }
   }
 
-  // [ADDED v7.6.23 | 2026-02-18] Purpose: Resolve a stored icon pointer key back to SVG content
+  getSafeIcon(val) {
+      if (typeof val === 'string' && val.includes('<svg')) return val;
+      return '';
+  }
+
+  isThreeLevel(mainCat) {
+      if (!mainCat || !ICON_LIB_ITEM[mainCat]) return false;
+      const firstKey = Object.keys(ICON_LIB_ITEM[mainCat]).find(k => k !== '_icon');
+      if (!firstKey) return false;
+      const val = ICON_LIB_ITEM[mainCat][firstKey];
+      return val !== null && typeof val === 'object' && !Array.isArray(val);
+  }
+
   getIconByKey(keyString) {
       if (!keyString) return '';
       
-      // Format: ICON_LIB_<CTX>_<KEY> or ICON_LIB_ITEM_<CAT>_<KEY>
-      const parts = keyString.split('_');
-      if (parts.length < 4) return ''; // Invalid format
+      if (keyString.startsWith('ICON_LIB_ITEM|')) {
+          const parts = keyString.split('|');
+          if (parts.length >= 4) {
+              return ICON_LIB_ITEM[parts[1]]?.[parts[2]]?.[parts[3]] || '';
+          } else if (parts.length === 3) {
+              return ICON_LIB_ITEM[parts[1]]?.[parts[2]] || '';
+          }
+      }
 
-      const context = parts[2]; // ROOM, LOCATION, ITEM
-      const key = parts.slice(3).join('_'); // Rejoin rest
+      const parts = keyString.split('_');
+      if (parts.length < 4) return '';
+
+      const context = parts[2]; 
+      const key = parts.slice(3).join('_'); 
 
       if (context === 'ROOM') return ICON_LIB_ROOM[key] || '';
       if (context === 'LOCATION') return ICON_LIB_LOCATION[key] || '';
+      
       if (context === 'ITEM') {
-          // Special case: ITEM keys are nested. Format: ICON_LIB_ITEM_Category_Key
-          // We need to parse category properly. Assuming standard categories don't have underscores improves reliability, 
-          // but let's try to match from known categories.
-          for (const cat of Object.keys(ICON_LIB_ITEM)) {
-              if (key.startsWith(cat + '_')) {
-                  const realKey = key.substring(cat.length + 1);
-                  return ICON_LIB_ITEM[cat][realKey] || '';
+          const searchKey = key.includes('_') ? key.substring(key.indexOf('_') + 1) : key;
+          const fallbackKey = key.includes('_') ? key.split('_').pop() : key;
+
+          for (const mCat of Object.keys(ICON_LIB_ITEM)) {
+              if (mCat === '_icon') continue;
+              
+              const sampleKey = Object.keys(ICON_LIB_ITEM[mCat]).find(k => k !== '_icon');
+              
+              if (sampleKey && typeof ICON_LIB_ITEM[mCat][sampleKey] === 'string') {
+                  if (ICON_LIB_ITEM[mCat][key]) return ICON_LIB_ITEM[mCat][key];
+                  if (ICON_LIB_ITEM[mCat][searchKey]) return ICON_LIB_ITEM[mCat][searchKey];
+                  if (ICON_LIB_ITEM[mCat][fallbackKey]) return ICON_LIB_ITEM[mCat][fallbackKey];
+              } else if (sampleKey && typeof ICON_LIB_ITEM[mCat][sampleKey] === 'object') {
+                  for (const sCat of Object.keys(ICON_LIB_ITEM[mCat])) {
+                      if (sCat === '_icon') continue;
+                      if (ICON_LIB_ITEM[mCat][sCat][key]) return ICON_LIB_ITEM[mCat][sCat][key];
+                      if (ICON_LIB_ITEM[mCat][sCat][searchKey]) return ICON_LIB_ITEM[mCat][sCat][searchKey];
+                      if (ICON_LIB_ITEM[mCat][sCat][fallbackKey]) return ICON_LIB_ITEM[mCat][sCat][fallbackKey];
+                  }
               }
           }
       }
-      // Fallback
+      
       return '';
   }
 
@@ -154,7 +185,7 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   t(key, ...args) {
-      if (!this.translations[key]) return key.replace(/^cat_|^sub_|^unit_|^zone_/, '').replace(/_/g, ' '); 
+      if (!this.translations[key]) return key.replace(/^cat_|^sub_|^unit_|^zone_|^item_/, '').replace(/_/g, ' '); 
       let text = this.translations[key][this.currentLang] || this.translations[key]['en'] || key;
       args.forEach((arg, i) => { text = text.replace(`{${i}}`, arg); });
       return text;
@@ -215,9 +246,58 @@ class HomeOrganizerPanel extends HTMLElement {
     const MENU_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z" /></svg>';
     const INFO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>';
 
+    // [MODIFIED v7.6.32 | 2026-02-23] Purpose: Reverted buttons to Square formats, aligned text/icon to center, and ensured frame scrolling does not clip content.
     this.shadowRoot.innerHTML = `
       <link rel="stylesheet" href="/home_organizer_static/organizer-panel.css?v=${timestamp}">
       
+      <style>
+          #picker-main-categories::-webkit-scrollbar, #picker-sub-categories::-webkit-scrollbar { height: 6px; }
+          #picker-main-categories::-webkit-scrollbar-thumb, #picker-sub-categories::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+          
+          .cat-svg-wrapper { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; margin-bottom: 2px; pointer-events: none; flex-shrink: 0; }
+          .cat-svg-wrapper svg { width: 100%; height: 100%; object-fit: contain; }
+          .subcat-svg-wrapper { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; margin-bottom: 2px; pointer-events: none; flex-shrink: 0; }
+          .subcat-svg-wrapper svg { width: 100%; height: 100%; object-fit: contain; }
+          
+          .cat-btn { width: 85px; height: 85px; min-height: 85px; min-width: 85px; background: #333; border: 2px solid transparent; border-radius: 12px; color: white; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; text-align: center; padding: 6px; flex-shrink: 0; transition: all 0.2s; box-sizing: border-box; }
+          .cat-btn.active { border-color: var(--primary, #03a9f4); background: rgba(3, 169, 244, 0.15); font-weight: bold; }
+          
+          .subcat-btn { width: 80px; height: 80px; min-height: 80px; min-width: 80px; background: #222; border: 1px solid #444; border-radius: 10px; color: #ccc; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 9px; text-align: center; padding: 6px; flex-shrink: 0; transition: all 0.2s; box-sizing: border-box; }
+          .subcat-btn.active { border-color: var(--warning, #ffeb3b); background: #333; color: white; }
+
+          .icon-grid { 
+              display: grid; 
+              grid-template-rows: repeat(3, auto); 
+              grid-auto-flow: column; 
+              grid-auto-columns: minmax(75px, 1fr); 
+              gap: 10px; 
+              min-height: 250px; 
+              justify-items: center;
+              overflow-x: auto;
+              overflow-y: hidden;
+              padding-bottom: 10px;
+          }
+          .icon-grid::-webkit-scrollbar { height: 6px; }
+          .icon-grid::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+
+          .lib-icon { width: 75px; height: 75px; min-width: 75px; box-sizing: border-box; background: #333; border-radius: 8px; padding: 5px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 4px; }
+          .lib-icon:hover { background: #444; }
+          .lib-icon svg { width: 32px; height: 32px; fill: #ccc; flex-shrink: 0; }
+          
+          .cat-btn span, .subcat-btn span, .lib-icon span {
+              white-space: normal;
+              word-wrap: break-word;
+              display: -webkit-box;
+              -webkit-line-clamp: 2;
+              -webkit-box-orient: vertical;
+              overflow: hidden;
+              width: 100%;
+              line-height: 1.1;
+              color: inherit;
+              margin-top: 2px;
+          }
+      </style>
+
       <div class="app-container" id="app">
         <div class="top-bar" style="direction: ltr;">
             <button class="nav-btn" id="btn-ha-menu" title="Toggle Sidebar">
@@ -241,26 +321,26 @@ class HomeOrganizerPanel extends HTMLElement {
                     <div class="setup-dropdown" id="setup-dropdown-menu">
                         <div id="menu-main">
                             <div class="dropdown-item" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('lang')">
-                                ${ICONS.language} ${this.t('language')}
+                                ${ICONS.language} <span id="lbl-lang">Language</span>
                             </div>
                             <div class="dropdown-item" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('theme')">
-                                ${ICONS.theme} ${this.t('theme')}
+                                ${ICONS.theme} <span id="lbl-theme">Theme</span>
                             </div>
                             <div class="dropdown-item" onclick="event.stopPropagation(); this.getRootNode().host.showAbout()">
-                                ${INFO_SVG} About
+                                ${INFO_SVG} <span id="lbl-about">About</span>
                             </div>
                         </div>
                         <div id="menu-lang" style="display:none">
                             <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
-                               ${ICONS.back} ${this.t('back')}
+                               ${ICONS.back} <span id="lbl-back1">Back</span>
                             </div>
                         </div>
                         <div id="menu-theme" style="display:none">
                             <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
-                               ${ICONS.back} ${this.t('back')}
+                               ${ICONS.back} <span id="lbl-back2">Back</span>
                             </div>
-                            <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('light')">${this.t('light')}</div>
-                            <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('dark')">${this.t('dark')}</div>
+                            <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('light')" id="lbl-light">Light</div>
+                            <div class="dropdown-item" onclick="this.getRootNode().host.setTheme('dark')" id="lbl-dark">Dark</div>
                         </div>
                     </div>
                 </div>
@@ -287,7 +367,7 @@ class HomeOrganizerPanel extends HTMLElement {
         
         <div class="search-box" id="search-box">
             <div style="position:relative; flex:1;">
-                <input type="text" id="search-input" placeholder="${this.t('search_placeholder')}" style="width:100%;padding:8px;padding-inline-start:65px;border-radius:8px;background:var(--bg-input);color:var(--text-main);border:1px solid var(--border-input)">
+                <input type="text" id="search-input" style="width:100%;padding:8px;padding-inline-start:65px;border-radius:8px;background:var(--bg-input);color:var(--text-main);border:1px solid var(--border-input)">
                 <button class="nav-btn ai-btn" id="btn-ai-search" style="position:absolute;inset-inline-start:0;top:0;height:100%;background:none;border:none;">
                     ${ICONS.camera}
                 </button>
@@ -301,7 +381,7 @@ class HomeOrganizerPanel extends HTMLElement {
         <div class="paste-bar" id="paste-bar" style="display:none;padding:10px;background:rgba(255,235,59,0.2);color:#ffeb3b;align-items:center;justify-content:space-between"><div>${ICONS.cut} Cut: <b id="clipboard-name"></b></div><button id="btn-paste" style="background:#4caf50;color:white;border:none;padding:5px 15px;border-radius:15px">Paste</button></div>
         
         <div class="content" id="content">
-            <div style="text-align:center;padding:20px;color:#888;">${this.t('loading')}</div>
+            <div style="text-align:center;padding:20px;color:#888;" id="lbl-loading">Loading...</div>
         </div>
       </div>
       
@@ -320,39 +400,39 @@ class HomeOrganizerPanel extends HTMLElement {
               
               <div style="margin-top:20px; font-size:12px; color:#666; border-top:1px solid var(--border-light); padding-top:10px;">
                   Licensed under MIT License.<br>
-                  Version 7.6.23
+                  Version 7.6.32
               </div>
               
-              <button class="action-btn" style="width:100%; margin-top:20px;" onclick="this.closest('#about-modal').style.display='none'">${this.t('back') || 'Close'}</button>
+              <button class="action-btn" style="width:100%; margin-top:20px;" onclick="this.closest('#about-modal').style.display='none'" id="lbl-close">Close</button>
           </div>
       </div>
 
-      <!-- Icon Picker Modal -->
       <div id="icon-modal" onclick="this.style.display='none'">
-          <div class="modal-content" onclick="event.stopPropagation()">
-              <div class="modal-title">${this.t('change_icon')}</div>
-              <div class="category-bar" id="picker-categories"></div>
+          <div class="modal-content" onclick="event.stopPropagation()" style="position:relative; padding-top:40px;">
+              
+              <button class="nav-btn" style="position:absolute; top:10px; right:10px !important; left:auto !important; padding:0; background:transparent; border-radius:4px; color:var(--danger); font-size:18px; font-weight:bold; border:2px outset #666; width:30px; height:30px; display:flex; align-items:center; justify-content:center; z-index:10; cursor:pointer;" onclick="this.closest('#icon-modal').style.display='none'">✕</button>
+
+              <div class="modal-title" id="lbl-change-icon" style="margin-top:-15px; margin-bottom:15px;">Change Icon</div>
+              
+              <div id="picker-main-categories" style="display:none; overflow-x:auto; overflow-y:hidden; gap:10px; padding: 5px 5px 15px 5px; margin-bottom:10px; align-items:center;"></div>
+              <div id="picker-sub-categories" style="display:none; overflow-x:auto; overflow-y:hidden; gap:10px; padding: 10px 10px 15px 10px; background:#222; border-radius:8px; margin-bottom:10px; align-items:center;"></div>
+              
               <div class="icon-grid" id="icon-lib-grid"></div>
-              <div class="pagination-ctrls">
-                  <button class="page-btn" id="picker-prev">${ICONS.arrow_up}</button>
-                  <div class="page-info" id="picker-page-info">Page 1 of 1</div>
-                  <button class="page-btn" id="picker-next" style="transform: rotate(180deg)">${ICONS.arrow_up}</button>
-              </div>
+              
               <div class="url-input-row">
-                  <input type="text" id="icon-url-input" placeholder="${this.t('paste_url')}" style="flex:1;padding:8px;background:#111;color:white;border:1px solid #444;border-radius:4px">
+                  <input type="text" id="icon-url-input" style="flex:1;padding:8px;background:#111;color:white;border:1px solid #444;border-radius:4px">
                   <button class="action-btn" id="btn-load-url">${ICONS.check}</button>
               </div>
+              
               <div style="text-align:center; margin-top:10px;">
                   <label class="action-btn" style="width:100%; display:flex; gap:10px; justify-content:center;">
-                      ${ICONS.image} ${this.t('upload_file')}
+                      ${ICONS.image} <span id="lbl-upload-file">Upload File</span>
                       <input type="file" id="icon-file-upload" accept="image/*" style="display:none">
                   </label>
               </div>
-              <button class="action-btn" style="width:100%;margin-top:10px;background:#444" onclick="this.closest('#icon-modal').style.display='none'">${this.t('cancel')}</button>
           </div>
       </div>
       
-      <!-- Camera Modal -->
       <div id="camera-modal">
           <video id="camera-video" autoplay playsinline muted></video>
           <div class="camera-controls">
@@ -364,7 +444,6 @@ class HomeOrganizerPanel extends HTMLElement {
           <canvas id="camera-canvas"></canvas>
       </div>
 
-      <!-- Image Overlay -->
       <div class="overlay" id="img-overlay" onclick="this.style.display='none'">
           <div style="display:flex;flex-direction:column;align-items:center;max-width:90%;max-height:90%;width:100%">
               <img id="overlay-img">
@@ -409,8 +488,27 @@ class HomeOrganizerPanel extends HTMLElement {
     }
 
     this.bindEvents();
+    this.applyStaticTranslations();
   }
-  
+
+  // [MODIFIED v7.6.31] Removed lbl-cancel translation binding since it's just an X icon now
+  applyStaticTranslations() {
+      const el = (id) => this.shadowRoot.getElementById(id);
+      if(el('lbl-lang')) el('lbl-lang').innerText = this.t('language');
+      if(el('lbl-theme')) el('lbl-theme').innerText = this.t('theme');
+      if(el('lbl-about')) el('lbl-about').innerText = this.t('about');
+      if(el('lbl-back1')) el('lbl-back1').innerText = this.t('back');
+      if(el('lbl-back2')) el('lbl-back2').innerText = this.t('back');
+      if(el('lbl-light')) el('lbl-light').innerText = this.t('light');
+      if(el('lbl-dark')) el('lbl-dark').innerText = this.t('dark');
+      if(el('lbl-change-icon')) el('lbl-change-icon').innerText = this.t('change_icon');
+      if(el('lbl-upload-file')) el('lbl-upload-file').innerText = this.t('upload_file');
+      if(el('lbl-close')) el('lbl-close').innerText = this.t('back');
+      if(el('search-input')) el('search-input').placeholder = this.t('search_placeholder');
+      if(el('icon-url-input')) el('icon-url-input').placeholder = this.t('paste_url');
+      if(el('lbl-loading')) el('lbl-loading').innerText = this.t('loading');
+  }
+
   showAbout() {
       this.shadowRoot.getElementById('setup-dropdown-menu').classList.remove('show');
       this.shadowRoot.getElementById('about-modal').style.display = 'flex';
@@ -480,7 +578,7 @@ class HomeOrganizerPanel extends HTMLElement {
       let html = `
         <div class="dropdown-item back-btn" onclick="event.stopPropagation(); this.getRootNode().host.showMenu('main')">
            ${ICONS.back}
-           ${this.t('back')}
+           <span id="lbl-back1">${this.t('back')}</span>
         </div>
       `;
       
@@ -570,13 +668,6 @@ class HomeOrganizerPanel extends HTMLElement {
     });
     bind('icon-file-upload', 'onchange', (e) => this.handleIconUpload(e.target));
     
-    click('picker-prev', () => { if(this.pickerPage > 0) { this.pickerPage--; this.renderIconPickerGrid(); } });
-    click('picker-next', () => { 
-        const lib = this.getCurrentPickerLib();
-        const maxPage = Math.ceil(Object.keys(lib).length / this.pickerPageSize) - 1;
-        if(this.pickerPage < maxPage) { this.pickerPage++; this.renderIconPickerGrid(); } 
-    });
-
     click('btn-ai-search', () => this.openCamera('search'));
     click('btn-ai-upload', () => this.openFileUpload('search'));
     
@@ -692,7 +783,7 @@ class HomeOrganizerPanel extends HTMLElement {
     const l2 = state.l2 !== undefined ? state.l2 : (item.level_2 || item.sub_location || '');
     const l3 = state.l3 !== undefined ? state.l3 : (item.level_3 || '');
 
-    let l1Opts = `<option value="" disabled ${!l1 ? 'selected' : ''}>Select Room</option>`;
+    let l1Opts = `<option value="" disabled ${!l1 ? 'selected' : ''}>${this.t('select_room')}</option>`;
     let l1Found = false;
     
     Object.keys(hierarchy).sort().forEach(k => {
@@ -703,7 +794,7 @@ class HomeOrganizerPanel extends HTMLElement {
     });
     if (l1 && !l1Found) l1Opts += `<option value="${l1}" selected>${l1}</option>`;
 
-    let l2Opts = `<option value="" disabled ${!l2 ? 'selected' : ''}>Select Loc</option>`;
+    let l2Opts = `<option value="" disabled ${!l2 ? 'selected' : ''}>${this.t('select_loc')}</option>`;
     let l2Disabled = !l1;
     let l2Found = false;
     if (l1) {
@@ -719,7 +810,7 @@ class HomeOrganizerPanel extends HTMLElement {
     }
     if (l2 && !l2Found) l2Opts += `<option value="${l2}" selected>${l2}</option>`;
 
-    let l3Opts = `<option value="" disabled ${!l3 ? 'selected' : ''}>Select Sub</option>`;
+    let l3Opts = `<option value="" disabled ${!l3 ? 'selected' : ''}>${this.t('select_subloc')}</option>`;
     let l3Disabled = !(l1 && l2);
     let l3Found = false;
     if (l1 && l2 && hierarchy[l1] && !Array.isArray(hierarchy[l1]) && hierarchy[l1][l2]) {
@@ -800,6 +891,7 @@ class HomeOrganizerPanel extends HTMLElement {
       }
 
       this.shadowRoot.getElementById('setup-dropdown-menu').classList.remove('show');
+      this.applyStaticTranslations();
       this.render(); 
   }
   
@@ -953,7 +1045,6 @@ class HomeOrganizerPanel extends HTMLElement {
       }
   }
 
-  // [MODIFIED v7.6.23 | 2026-02-18] Purpose: Render folders with support for Pointer Icons
   updateUI() {
     if(!this.localData) return;
     const attrs = this.localData;
@@ -961,7 +1052,7 @@ class HomeOrganizerPanel extends HTMLElement {
     
     root.getElementById('display-title').innerText = this.t('app_title');
     root.getElementById('display-path').innerText = 
-        this.isChatMode ? "AI Chat Assistant" : 
+        this.isChatMode ? this.t('ai_chat_title') : 
         (this.isShopMode ? this.t('shopping_list') : 
         (this.isSearch ? this.t('search_results') : 
         (attrs.path_display === "Main" ? this.t('default_path') : attrs.path_display)));
@@ -988,7 +1079,6 @@ class HomeOrganizerPanel extends HTMLElement {
     }
 
     const content = root.getElementById('content');
-    // [MODIFIED v7.6.23 | 2026-02-18] Purpose: ALWAYS clear content first to solve "new page" issue
     content.innerHTML = ''; 
     
     if (this.isChatMode) {
@@ -1123,11 +1213,16 @@ class HomeOrganizerPanel extends HTMLElement {
             const header = document.createElement('div');
             header.className = 'group-separator';
             
-            let headerContent = `<span>${this.t('zone_' + zoneName) === ('zone_' + zoneName) ? zoneName : this.t('zone_' + zoneName)}</span>`; 
+            let translatedZone = this.t('zone_' + zoneName.replace(/ /g, '_'));
+            if(translatedZone === 'zone_' + zoneName.replace(/ /g, '_')) {
+                translatedZone = zoneName;
+            }
+
+            let headerContent = `<span>${translatedZone}</span>`; 
             if (this.isEditMode && zoneName !== "General Rooms") {
                 headerContent = `
                     <div style="display:flex;align-items:center;">
-                        <span class="subloc-title">${zoneName}</span>
+                        <span class="subloc-title">${translatedZone}</span>
                     </div>
                     <div style="display:flex;gap:5px;align-items:center">
                         <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveZone('${zoneName}', -1)" title="Move Up">${ICONS.arrow_up}</button>
@@ -1159,7 +1254,6 @@ class HomeOrganizerPanel extends HTMLElement {
                 let folderContent = ICONS.folder;
                 if (folder.img) {
                     if (folder.img.startsWith('ICON_LIB')) {
-                        // [MODIFIED v7.6.22] Render SVG from Library Pointer
                         folderContent = this.getIconByKey(folder.img); 
                     } else {
                         const isLoading = this.loadingSet.has(folder.originalName);
@@ -1232,7 +1326,6 @@ class HomeOrganizerPanel extends HTMLElement {
                     let folderContent = ICONS.folder;
                     if (folder.img) {
                         if (folder.img.startsWith('ICON_LIB')) {
-                            // [MODIFIED v7.6.22] Render SVG from Library Pointer
                             folderContent = this.getIconByKey(folder.img); 
                         } else {
                             const isLoading = this.loadingSet.has(folder.name);
@@ -1420,7 +1513,6 @@ class HomeOrganizerPanel extends HTMLElement {
                           let iconHtml = ICONS.item;
                           if (item.img) {
                               if (item.img.startsWith('ICON_LIB')) {
-                                  // [MODIFIED v7.6.22] Render SVG from Library Pointer
                                   const svgContent = this.getIconByKey(item.img);
                                   iconHtml = `<div class="xl-icon-area">${svgContent}</div>`;
                               } else {
@@ -1502,13 +1594,13 @@ class HomeOrganizerPanel extends HTMLElement {
           const welcome = document.createElement('div');
           welcome.className = 'message ai';
           welcome.innerHTML = `
-            <b>AI Assistant Ready</b><br>
-            I can help manage your inventory.<br><br>
-            <b>Capabilities:</b><br>
-            • Add Items: "Add 3 batteries to kitchen"<br>
-            • Scan Invoices: Tap the camera icon!<br>
-            • Find things: "Where is the milk?"<br>
-            • Reports: "What is in the garage?"
+            <b>${this.t('ai_welcome_title')}</b><br>
+            ${this.t('ai_welcome_desc')}<br><br>
+            <b>${this.t('ai_caps')}</b><br>
+            • ${this.t('ai_cap_1')}<br>
+            • ${this.t('ai_cap_2')}<br>
+            • ${this.t('ai_cap_3')}<br>
+            • ${this.t('ai_cap_4')}
           `;
           messagesDiv.appendChild(welcome);
       }
@@ -1548,7 +1640,7 @@ class HomeOrganizerPanel extends HTMLElement {
             <img id="chat-preview-img" style="height:50px; border-radius:4px; border:1px solid #666">
             <div id="chat-remove-img" style="position:absolute; top:-5px; right:-5px; background:red; color:white; border-radius:50%; width:15px; height:15px; font-size:10px; text-align:center; cursor:pointer; line-height:15px;">✕</div>
         </div>
-        <span style="color:#aaa; font-size:12px; margin-inline-start:10px">File attached (Invoice Scan Mode)</span>
+        <span style="color:#aaa; font-size:12px; margin-inline-start:10px">${this.t('file_attached')}</span>
       `;
       chatContainer.appendChild(previewArea);
       
@@ -1597,7 +1689,7 @@ class HomeOrganizerPanel extends HTMLElement {
       const input = document.createElement('input');
       input.type = 'text';
       input.className = 'chat-input';
-      input.placeholder = "Type message or scan invoice...";
+      input.placeholder = this.t('chat_placeholder');
       
       const sendBtn = document.createElement('button');
       sendBtn.className = 'chat-send-btn';
@@ -1627,13 +1719,13 @@ class HomeOrganizerPanel extends HTMLElement {
           
           if (!text && !imgData) return;
           
-          this.chatHistory.push({ role: 'user', text: text || "Scanned Invoice", image: imgData, mime_type: currentMime });
+          this.chatHistory.push({ role: 'user', text: text || this.t('scanned_invoice'), image: imgData, mime_type: currentMime });
           this.chatImage = null; 
           this.chatMimeType = "image/jpeg";
           this.render(); 
           
-          const statusText = imgData ? "Scanning Invoice..." : "Analyzing...";
-          const statusMsg = { role: 'system', text: `Starting Process...<br>${statusText}`, isStatus: true };
+          const statusText = imgData ? this.t('scanning_invoice') : this.t('analyzing');
+          const statusMsg = { role: 'system', text: `${this.t('starting_process')}<br>${statusText}`, isStatus: true };
           this.chatHistory.push(statusMsg);
           this.render();
           
@@ -1670,10 +1762,10 @@ class HomeOrganizerPanel extends HTMLElement {
                         }
                     }
                     
-                    statusMsg.text = "✔ Complete" + debugHTML;
+                    statusMsg.text = "✔ " + this.t('complete') + debugHTML;
 
                     if (result.error) {
-                        this.chatHistory.push({ role: 'ai', text: "<b>Error:</b> " + result.error });
+                        this.chatHistory.push({ role: 'ai', text: "<b>" + this.t('error') + ":</b> " + result.error });
                     } else if (result.response) {
                         let formatted = result.response.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
                         formatted = formatted.replace(/\n/g, '<br>');
@@ -1681,8 +1773,8 @@ class HomeOrganizerPanel extends HTMLElement {
                     }
               }
           } catch (e) {
-              statusMsg.text += "<br>❌ Failed";
-              this.chatHistory.push({ role: 'ai', text: "Error: " + e.message });
+              statusMsg.text += "<br>❌ " + this.t('failed');
+              this.chatHistory.push({ role: 'ai', text: this.t('error') + ": " + e.message });
           }
           
           this.render();
@@ -1841,7 +1933,7 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   createNewZone() {
-      let base = "New Zone";
+      let base = this.t('new_zone');
       let name = base;
       let count = 1;
       const existingZones = new Set();
@@ -1864,9 +1956,13 @@ class HomeOrganizerPanel extends HTMLElement {
       const label = cardEl.querySelector('.folder-label');
       if(iconContainer.querySelector('input')) return;
       
-      iconContainer.innerHTML = `<input type="text" class="add-folder-input" placeholder="Name">`;
+      iconContainer.innerHTML = `<input type="text" class="add-folder-input" placeholder="${this.t('name_placeholder')}">`;
       const input = iconContainer.querySelector('input');
-      label.innerText = this.t('save_to') + " " + zoneName;
+      
+      const translatedZoneName = this.t('zone_' + zoneName.replace(/ /g, '_'));
+      const finalZoneName = translatedZoneName === 'zone_' + zoneName.replace(/ /g, '_') ? zoneName : translatedZoneName;
+
+      label.innerText = this.t('save_to') + " " + finalZoneName;
       
       input.focus();
       input.onkeydown = (e) => { 
@@ -2090,11 +2186,28 @@ class HomeOrganizerPanel extends HTMLElement {
       det.style.display = 'block';
       
       if(item.img) {
-          img.src = item.img;
-          img.style.display = 'block';
-          iconBig.style.display = 'none';
+          if (item.img.startsWith('ICON_LIB')) {
+              img.style.display = 'none';
+              iconBig.innerHTML = this.getIconByKey(item.img) || ICONS.item;
+              const svgEl = iconBig.querySelector('svg');
+              if (svgEl) {
+                  svgEl.style.width = '140px';
+                  svgEl.style.height = '140px';
+              }
+              iconBig.style.display = 'block';
+          } else {
+              img.src = item.img;
+              img.style.display = 'block';
+              iconBig.style.display = 'none';
+          }
       } else {
           img.style.display = 'none';
+          iconBig.innerHTML = ICONS.item;
+          const svgEl = iconBig.querySelector('svg');
+          if (svgEl) {
+              svgEl.style.width = '140px';
+              svgEl.style.height = '140px';
+          }
           iconBig.style.display = 'block';
       }
       
@@ -2105,16 +2218,34 @@ class HomeOrganizerPanel extends HTMLElement {
       `;
   }
 
+  showItemDetailsProxy(itemId) {
+      if (!this.localData) return;
+      const item = (this.localData.items || []).find(i => i.id == itemId) || 
+                   (this.localData.shopping_list || []).find(i => i.id == itemId);
+      if (item) this.showItemDetails(item);
+  }
+
   showImg(src) { 
       const ov = this.shadowRoot.getElementById('img-overlay'); 
       const img = this.shadowRoot.getElementById('overlay-img'); 
       const det = this.shadowRoot.getElementById('overlay-details');
       const iconBig = this.shadowRoot.getElementById('overlay-icon-big');
-      if(ov && img) { 
-          img.src = src; 
-          img.style.display = 'block';
+      if(ov && img && iconBig) { 
+          if (src && src.startsWith('ICON_LIB')) {
+              iconBig.innerHTML = this.getIconByKey(src) || ICONS.item;
+              const svgEl = iconBig.querySelector('svg');
+              if (svgEl) {
+                  svgEl.style.width = '140px';
+                  svgEl.style.height = '140px';
+              }
+              img.style.display = 'none';
+              iconBig.style.display = 'block';
+          } else {
+              img.src = src; 
+              img.style.display = 'block';
+              iconBig.style.display = 'none';
+          }
           if(det) det.style.display = 'none'; 
-          if(iconBig) iconBig.style.display = 'none';
           ov.style.display = 'flex'; 
       } 
   }
@@ -2132,7 +2263,7 @@ class HomeOrganizerPanel extends HTMLElement {
       const iconContainer = cardEl.querySelector('.android-folder-icon');
       const label = cardEl.querySelector('.folder-label');
       if(iconContainer.querySelector('input')) return;
-      iconContainer.innerHTML = `<input type="text" class="add-folder-input" placeholder="Name">`;
+      iconContainer.innerHTML = `<input type="text" class="add-folder-input" placeholder="${this.t('name_placeholder')}">`;
       const input = iconContainer.querySelector('input');
       label.innerText = this.t('saving');
       input.focus();
@@ -2272,9 +2403,8 @@ class HomeOrganizerPanel extends HTMLElement {
      let iconHtml = `<span class="item-icon">${ICONS.item}</span>`;
      if (item.img) {
          if (item.img.startsWith('ICON_LIB')) {
-             // [MODIFIED v7.6.22] Render SVG directly for Items
              const svgContent = this.getIconByKey(item.img);
-             iconHtml = `<div class="item-icon">${svgContent}</div>`;
+             iconHtml = `<div class="item-icon" style="cursor:zoom-in;" onclick="event.stopPropagation(); this.getRootNode().host.showItemDetailsProxy('${item.id}')">${svgContent}</div>`;
          } else {
              const isLoading = this.loadingSet.has(item.id);
              const ver = this.imageVersions[item.id] || '';
@@ -2317,7 +2447,7 @@ class HomeOrganizerPanel extends HTMLElement {
                  subCatOptions += `<option value="${sub}" ${selected}>${this.t(transKey) || sub}</option>`;
                  if (selected) currentUnit = subs[sub];
              });
-         }
+          }
          
          const COPY_SVG = ICONS.copy || ICONS.paste;
          const UPLOAD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>';
@@ -2362,8 +2492,7 @@ class HomeOrganizerPanel extends HTMLElement {
             <div class="detail-row" style="justify-content:space-between; margin-top:10px;">
                  <div style="display:flex;gap:10px;">
                     <button class="action-btn" title="${this.t('take_photo')}" onclick="this.getRootNode().host.triggerCameraEdit('${item.id}', '${item.name}')">${ICONS.camera}</button>
-                    <!-- ADDITIVE: Extra Upload Button in Item Modifier -->
-                    <button class="action-btn" title="Upload File" onclick="this.getRootNode().host.triggerFileUploadEdit('${item.id}', '${item.name}')">${UPLOAD_SVG}</button>
+                    <button class="action-btn" title="${this.t('upload_file')}" onclick="this.getRootNode().host.triggerFileUploadEdit('${item.id}', '${item.name}')">${UPLOAD_SVG}</button>
                     <button class="action-btn" title="${this.t('change_img')}" onclick="this.getRootNode().host.openIconPicker('${item.id}', 'item')">${ICONS.image}</button>
                  </div>
                  <div style="display:flex;gap:10px;">
@@ -2437,9 +2566,9 @@ class HomeOrganizerPanel extends HTMLElement {
       const locSelect = this.shadowRoot.getElementById(`loc-select-${itemId}`);
       const subContainer = this.shadowRoot.getElementById(`subloc-container-${itemId}`);
       subContainer.style.display = 'none';
-      locSelect.innerHTML = '<option value="">-- Select --</option>';
+      locSelect.innerHTML = `<option value="">-- ${this.t('select_loc')} --</option>`;
       if(!roomName) { locContainer.style.display = 'none'; return; }
-      let html = `<option value="">-- Select Location --</option>`;
+      let html = `<option value="">-- ${this.t('select_loc')} --</option>`;
       if(this.localData.hierarchy && this.localData.hierarchy[roomName]) Object.keys(this.localData.hierarchy[roomName]).forEach(loc => { html += `<option value="${loc}">${loc}</option>`; });
       locSelect.innerHTML = html;
       locContainer.style.display = 'flex';
@@ -2451,8 +2580,8 @@ class HomeOrganizerPanel extends HTMLElement {
       const subSelect = this.shadowRoot.getElementById(`target-subloc-${itemId}`);
       const roomName = this.shadowRoot.getElementById(`room-select-${itemId}`).value;
       if(!locationName) { subContainer.style.display = 'none'; return; }
-      let html = `<option value="">-- Select Sublocation --</option>`;
-      html += `<option value="__ROOT__">Main ${locationName}</option>`;
+      let html = `<option value="">-- ${this.t('select_subloc')} --</option>`;
+      html += `<option value="__ROOT__">${this.t('default_path')} ${locationName}</option>`;
       if(this.localData.hierarchy && this.localData.hierarchy[roomName] && this.localData.hierarchy[roomName][locationName]) this.localData.hierarchy[roomName][locationName].forEach(sub => { html += `<option value="${sub}">${sub}</option>`; });
       subSelect.innerHTML = html;
       subContainer.style.display = 'flex';
@@ -2551,14 +2680,25 @@ class HomeOrganizerPanel extends HTMLElement {
       if (context === 'item') {
            this.pendingItemId = target;
            this.pendingFolderIcon = null; 
+           
+           const mainCats = Object.keys(ICON_LIB_ITEM).filter(k => k !== '_icon');
+           this.pickerMainCategory = mainCats[0] || null;
+           
+           if (this.pickerMainCategory && this.isThreeLevel(this.pickerMainCategory)) {
+               const subCats = Object.keys(ICON_LIB_ITEM[this.pickerMainCategory] || {}).filter(k => k !== '_icon');
+               this.pickerSubCategory = subCats[0] || null;
+           } else {
+               this.pickerSubCategory = null;
+           }
       } else {
            this.pendingFolderIcon = target;
            this.pendingItemId = null;
+           this.pickerMainCategory = null;
+           this.pickerSubCategory = null;
       }
       
       this.pickerContext = context; 
-      this.pickerPage = 0; 
-      if (context === 'item') { this.pickerCategory = Object.keys(ICON_LIB_ITEM)[0]; } else { this.pickerCategory = null; }
+      
       this.renderIconPickerGrid();
       this.shadowRoot.getElementById('icon-modal').style.display = 'flex';
   }
@@ -2566,54 +2706,123 @@ class HomeOrganizerPanel extends HTMLElement {
   getCurrentPickerLib() {
       if (this.pickerContext === 'room') return ICON_LIB_ROOM;
       if (this.pickerContext === 'location') return ICON_LIB_LOCATION;
-      if (this.pickerContext === 'item') { return ICON_LIB_ITEM[this.pickerCategory] || {}; }
+      if (this.pickerContext === 'item') { 
+          if (!this.pickerMainCategory) return {};
+          
+          let targetLib = {};
+          if (this.isThreeLevel(this.pickerMainCategory)) {
+              if (!this.pickerSubCategory) return {};
+              targetLib = ICON_LIB_ITEM[this.pickerMainCategory]?.[this.pickerSubCategory] || {};
+          } else {
+              targetLib = ICON_LIB_ITEM[this.pickerMainCategory] || {};
+          }
+          
+          const result = {};
+          Object.keys(targetLib).forEach(k => {
+              if (k !== '_icon') result[k] = targetLib[k];
+          });
+          return result;
+      }
       return ICON_LIB;
   }
 
+  // [MODIFIED v7.6.31 | 2026-02-23] Purpose: Removed pagination logic to just render entire 3-row grid.
   renderIconPickerGrid() {
       const lib = this.getCurrentPickerLib();
       const keys = Object.keys(lib);
-      const totalPages = Math.ceil(keys.length / this.pickerPageSize);
       const grid = this.shadowRoot.getElementById('icon-lib-grid');
-      const categoryBar = this.shadowRoot.getElementById('picker-categories');
-      const pageInfo = this.shadowRoot.getElementById('picker-page-info');
-      const prevBtn = this.shadowRoot.getElementById('picker-prev');
-      const nextBtn = this.shadowRoot.getElementById('picker-next');
+      const mainCatBar = this.shadowRoot.getElementById('picker-main-categories');
+      const subCatBar = this.shadowRoot.getElementById('picker-sub-categories');
 
       if (this.pickerContext === 'item') {
-          categoryBar.style.display = 'flex';
-          categoryBar.innerHTML = '';
-          Object.keys(ICON_LIB_ITEM).forEach(cat => {
+          mainCatBar.style.display = 'flex';
+          mainCatBar.innerHTML = '';
+          
+          Object.keys(ICON_LIB_ITEM).forEach(mainCat => {
+              if (mainCat === '_icon') return;
               const btn = document.createElement('button');
-              btn.className = `cat-btn ${this.pickerCategory === cat ? 'active' : ''}`;
-              const firstIconKey = Object.keys(ICON_LIB_ITEM[cat])[0];
-              const sampleIcon = ICON_LIB_ITEM[cat][firstIconKey] || '';
-              btn.innerHTML = `${sampleIcon}<span>${cat}</span>`;
-              btn.onclick = () => { this.pickerCategory = cat; this.pickerPage = 0; this.renderIconPickerGrid(); };
-              categoryBar.appendChild(btn);
+              const isActive = this.pickerMainCategory === mainCat;
+              
+              let iconSvg = this.getSafeIcon(ICON_LIB_ITEM[mainCat]['_icon']);
+              if (!iconSvg) {
+                  if (this.isThreeLevel(mainCat)) {
+                      const firstSub = Object.keys(ICON_LIB_ITEM[mainCat]).find(k => k !== '_icon');
+                      if (firstSub) {
+                          iconSvg = this.getSafeIcon(ICON_LIB_ITEM[mainCat][firstSub]['_icon']);
+                          if (!iconSvg) {
+                              const firstItem = Object.keys(ICON_LIB_ITEM[mainCat][firstSub]).find(k => k !== '_icon');
+                              iconSvg = this.getSafeIcon(ICON_LIB_ITEM[mainCat][firstSub][firstItem]);
+                          }
+                      }
+                  } else {
+                      const firstItem = Object.keys(ICON_LIB_ITEM[mainCat]).find(k => k !== '_icon');
+                      iconSvg = this.getSafeIcon(ICON_LIB_ITEM[mainCat][firstItem]);
+                  }
+              }
+              
+              const translatedMainCat = this.t('cat_' + mainCat.replace(/[^a-zA-Z0-9]+/g, '_'));
+              btn.className = 'cat-btn' + (isActive ? ' active' : '');
+              btn.innerHTML = `<div class="cat-svg-wrapper">${iconSvg || ''}</div><span>${translatedMainCat}</span>`;
+              
+              btn.onclick = () => { 
+                  this.pickerMainCategory = mainCat; 
+                  if (this.isThreeLevel(mainCat)) {
+                      const subs = Object.keys(ICON_LIB_ITEM[mainCat]).filter(k => k !== '_icon');
+                      this.pickerSubCategory = subs[0];
+                  } else {
+                      this.pickerSubCategory = null;
+                  }
+                  this.renderIconPickerGrid(); 
+              };
+              mainCatBar.appendChild(btn);
           });
-      } else { categoryBar.style.display = 'none'; }
+
+          if (this.pickerMainCategory && this.isThreeLevel(this.pickerMainCategory)) {
+              subCatBar.style.display = 'flex';
+              subCatBar.innerHTML = '';
+
+              Object.keys(ICON_LIB_ITEM[this.pickerMainCategory]).forEach(subCat => {
+                  if (subCat === '_icon') return;
+                  const btn = document.createElement('button');
+                  const isActive = this.pickerSubCategory === subCat;
+                  
+                  let iconSvg = this.getSafeIcon(ICON_LIB_ITEM[this.pickerMainCategory][subCat]['_icon']);
+                  if (!iconSvg) {
+                      const firstItem = Object.keys(ICON_LIB_ITEM[this.pickerMainCategory][subCat]).find(k => k !== '_icon');
+                      iconSvg = this.getSafeIcon(ICON_LIB_ITEM[this.pickerMainCategory][subCat][firstItem]);
+                  }
+                  
+                  const translatedSubCat = this.t('sub_' + subCat.replace(/[^a-zA-Z0-9]+/g, '_'));
+                  btn.className = 'subcat-btn' + (isActive ? ' active' : '');
+                  btn.innerHTML = `<div class="subcat-svg-wrapper">${iconSvg || ''}</div><span>${translatedSubCat}</span>`;
+                  
+                  btn.onclick = () => { 
+                      this.pickerSubCategory = subCat; 
+                      this.renderIconPickerGrid(); 
+                  };
+                  subCatBar.appendChild(btn);
+              });
+          } else {
+              subCatBar.style.display = 'none';
+          }
+      } else { 
+          mainCatBar.style.display = 'none';
+          subCatBar.style.display = 'none';
+      }
 
       grid.innerHTML = '';
-      const start = this.pickerPage * this.pickerPageSize;
-      const end = Math.min(start + this.pickerPageSize, keys.length);
-      const pageKeys = keys.slice(start, end);
-
-      pageKeys.forEach(key => {
+      
+      // Removed pagination logic, render all items
+      keys.forEach(key => {
           const div = document.createElement('div');
           div.className = 'lib-icon';
-          div.innerHTML = `${lib[key]}<span>${key}</span>`;
-          // [MODIFIED v7.6.18] Pass key string instead of SVG content
+          const translatedItem = this.t('item_' + key.replace(/[^a-zA-Z0-9]+/g, '_'));
+          div.innerHTML = `${lib[key]}<span>${translatedItem}</span>`;
           div.onclick = () => this.selectLibraryIconKey(key);
           grid.appendChild(div);
       });
-
-      pageInfo.innerText = `Page ${this.pickerPage + 1} of ${totalPages || 1}`;
-      prevBtn.disabled = this.pickerPage === 0;
-      nextBtn.disabled = this.pickerPage >= totalPages - 1;
   }
 
-  // [ADDED v7.6.18 | 2026-02-18] Purpose: Save "Pointer" key to DB instead of generating PNG
   async selectLibraryIconKey(key) {
       let fullKey = "";
       
@@ -2622,8 +2831,11 @@ class HomeOrganizerPanel extends HTMLElement {
       } else if (this.pickerContext === 'location') {
           fullKey = `ICON_LIB_LOCATION_${key}`;
       } else if (this.pickerContext === 'item') {
-          // Include category in key for unique resolution later
-          fullKey = `ICON_LIB_ITEM_${this.pickerCategory}_${key}`;
+          if (this.isThreeLevel(this.pickerMainCategory)) {
+              fullKey = `ICON_LIB_ITEM|${this.pickerMainCategory}|${this.pickerSubCategory}|${key}`;
+          } else {
+              fullKey = `ICON_LIB_ITEM_${this.pickerMainCategory}_${key}`; 
+          }
       } else {
           fullKey = `ICON_LIB_${key}`;
       }
@@ -2648,26 +2860,20 @@ class HomeOrganizerPanel extends HTMLElement {
       }
   }
 
-  // [MODIFIED v7.6.17 | 2026-02-17] Purpose: Reverted size to 140px, maintained transparency fix
   async selectLibraryIcon(svgHtml) {
       let source = svgHtml;
-      // [MODIFIED v7.6.17 | 2026-02-17] Purpose: Reverted size to 140 as requested by user (display size controlled by CSS)
       const size = 140; 
       
-      // 1. Ensure Namespace
       if (!source.includes('xmlns')) {
           source = source.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
       }
 
-      // 2. Handle Dimensions (Regex to avoid duplication)
       if (source.includes('width=')) { 
           source = source.replace(/width="[^"]*"/, `width="${size}"`).replace(/height="[^"]*"/, `height="${size}"`); 
       } else { 
           source = source.replace('<svg', `<svg width="${size}" height="${size}"`); 
       }
 
-      // 3. Handle Fill - FIX: Only add default color if NO fill is defined.
-      // This prevents breaking the new 3D icons which already have fill="none"
       if (!source.includes('fill=')) {
           source = source.replace('<svg', '<svg fill="#4fc3f7"');
       }
@@ -2675,7 +2881,7 @@ class HomeOrganizerPanel extends HTMLElement {
       const loadImage = (src) => new Promise((resolve) => {
           const img = new Image();
           img.onload = () => resolve(img);
-          img.onerror = (e) => { console.error("SVG Load Error", e); resolve(null); }; // Added error logging
+          img.onerror = (e) => { console.error("SVG Load Error", e); resolve(null); }; 
           img.src = src;
       });
 
@@ -2683,14 +2889,12 @@ class HomeOrganizerPanel extends HTMLElement {
       const url = URL.createObjectURL(blob);
       const img = await loadImage(url);
       
-      if (!img) return; // Exit if load failed
+      if (!img) return; 
 
       const canvas = document.createElement('canvas');
       canvas.width = size; canvas.height = size;
       const ctx = canvas.getContext('2d');
       
-      // [MODIFIED v7.6.17 | 2026-02-17] Purpose: Removed background fill logic to eliminate "blue square" effect
-      // Icons are now rendered transparently regardless of context
       ctx.drawImage(img, 0, 0, size, size);
 
       const dataUrl = canvas.toDataURL('image/png');

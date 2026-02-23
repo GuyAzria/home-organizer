@@ -15,135 +15,718 @@ language,Language,שפה,Lingua,Idioma,Langue,لغة
 theme,Theme,ערכת נושא,Tema,Tema,Thème,موضوع
 light,Light,בהיר,Chiaro,Claro,Clair,فاتح
 dark,Dark,כהה,Scuro,Oscuro,Sombre,داكن
+about,About,אודות,Informazioni,Acerca de,À propos,حول
+page,Page,עמוד,Pagina,Página,Page,صفحة
+of,of,מתוך,di,de,sur,من
 add,Add,הוסף,Aggiungi,Añadir,Ajouter,إضافة
 add_room,Add Room,הוסף חדר,Aggiungi stanza,Añadir habitación,Ajouter une pièce,إضافة غرفة
-add_sub,Add Sub-location,הוסף תת-מיקום,Aggiungi sottolocazione,Añadir sububicación,Ajouter une sous-location,إضافة موقع فرعي
-new_item,New Item,פריט חדש,Nuovo oggetto,Nuevo artículo,Nouvel article,عنصر جديد
-save_to,Save to,שמור ל-,Salva in,Guardar en,Enregistrer sous,حفظ في
-saving,Saving...,שומר...,Salvataggio...,Guardando...,Enregistrement...,جار الحفظ...
+add_sub,Add Sublocation,הוסף תת-מיקום,Aggiungi sotto-luogo,Añadir sububicación,Ajouter un sous-emplacement,إضافة موقع فرعي
+add_zone_btn,Add Zone,הוסף אזור,Aggiungi zona,Añadir zona,Ajouter une zone,إضافة منطقة
+new_zone,New Zone,אזור חדש,Nuova zona,Nueva zona,Nouvelle zone,منطقة جديدة
+new_item,New Item,פריט חדש,Nuovo articolo,Nuevo artículo,Nouvel article,عنصر جديد
+out_of_stock,Out of Stock,חסר במלאי,Esaurito,Agotado,Rupture de stock,نفذ من المخزون
+saving,Saving...,שומר...,Salvataggio...,Guardando...,Enregistrement...,جاري الحفظ...
+name_placeholder,Name,שם,Nome,Nombre,Nom,الاسم
+set_date,Set Date,קבע תאריך,Imposta data,Establecer fecha,Définir la date,تحديد التاريخ
+select_room,Select Room,בחר חדר,Seleziona stanza,Seleccionar habitación,Sélectionner une pièce,اختر غرفة
+select_loc,Select Location,בחר מיקום,Seleziona posizione,Seleccionar ubicación,Sélectionner un emplacement,اختر موقعاً
+select_subloc,Select Sublocation,בחר תת-מיקום,Seleziona sotto-posizione,Seleccionar sububicación,Sélectionner un sous-emplacement,اختر موقعاً فرعياً
+select_cat,Select Category,בחר קטגוריה,Seleziona categoria,Seleccionar categoría,Sélectionner une catégorie,اختر الفئة
+select_sub,Select Subcategory,בחר תת-קטגוריה,Seleziona sottocategoria,Seleccionar subcategoría,Sélectionner une sous-catégorie,اختر الفئة الفرعية
+zone_General_Rooms,General Rooms,חדרים כלליים,Stanze generali,Habitaciones generali,Pièces générales,غرف عامة
 quantity,Qty,כמות,Qtà,Cant,Qté,الكمية
-out_of_stock,Out of Stock,חסר במלאי,Esaurito,Agotado,Rupture de stock,غير متوفر
-move_to,Move to...,העבר ל...,Sposta a...,Mover a...,Déplacer vers...,نقل إلى...
-loc_label,Location,מיקום,Posizione,Ubicación,Emplacement,الموقع
-sub_label,Sub-loc,תת-מיקום,Sotto-pos,Sub-ubic,Sous-emp,موقع فرعي
-set_date,Set Date,תאריך,Imposta data,Fijar fecha,Régler la date,تاريخ
-no_date,No Date,אין תאריך,Nessuna data,Sin fecha,Pas de date,بلا تاريخ
+no_date,No Date,אין תאריך,Nessuna data,Sin fecha,Aucune date,لا يوجد تاريخ
+confirm_del_folder,Delete folder {0} and ALL its contents?,למחוק את התיקייה {0} ואת כל תוכנה?,Eliminare la cartella {0} e TUTTO il suo contenuto?,¿Eliminar la carpeta {0} y TODO su contenido?,Supprimer le dossier {0} et TOUT son contenu?,האם למחוק את התיקייה {0} ואת כל תוכנה?
+confirm_del_item,Delete this item?,למחוק פריט זה?,Eliminare questo articolo?,¿Eliminar este artículo?,Supprimer cet article?,האם למחוק פריט זה?
+confirm_del_zone,Delete zone {0}?,למחוק את אזור {0}?,Eliminare la zona {0}?,¿Eliminar la zona {0}?,Supprimer la zone {0}?,האם למחוק את אזור {0}?
+save_to,Save to,שמור אל,Salva in,Guardar en,Enregistrer dans,حفظ في
 take_photo,Take Photo,צלם תמונה,Scatta foto,Tomar foto,Prendre une photo,التقاط صورة
 change_img,Change Image,שנה תמונה,Cambia immagine,Cambiar imagen,Changer l'image,تغيير الصورة
 duplicate,Duplicate,שכפל,Duplica,Duplicar,Dupliquer,تكرار
 delete,Delete,מחק,Elimina,Eliminar,Supprimer,حذف
-confirm_del_folder,"Delete folder '{0}' and all its contents?","למחוק את התיקייה '{0}' ואת כל התוכן שלה?","Eliminare la cartella '{0}' e tutto il suo contenuto?","¿Eliminar la carpeta '{0}' y todo su contenido?","Supprimer le dossier '{0}' et tout son contenu ?","هل تريد حذف المجلد '{0}' وكل محتوياته؟"
-confirm_del_item,"Delete item '{0}'?","למחוק את הפריט '{0}'?","Eliminare l'elemento '{0}'?","¿Eliminar el elemento '{0}'?","Supprimer l'élément '{0}' ?","هل تريد حذف العنصر '{0}'؟"
-confirm_del_zone,"Delete zone '{0}' and ALL contents?","למחוק את האזור '{0}' ואת כל התוכן?","Eliminare la zona '{0}' e TUTTO il contenuto?","¿Eliminar la zona '{0}' y TODO el contenido?","Supprimer la zone '{0}' et TOUT le contenu ?","هل تريد حذف المنطقة '{0}' وكل المحتويات؟"
-add_zone_btn,Add New Zone,הוסף אזור חדש,Aggiungi nuova zona,Añadir nueva zona,Ajouter une nouvelle zone,إضافة منطقة جديدة
-unit_Kg,Kg,"ק""ג",Kg,Kg,Kg,كجم
-unit_Liter,Liter,ליטר,Litro,Litro,litre,لتر
-unit_Units,Units,יח',Unità,Unidades,Unités,وحدات
-unit_g,g,גרם,g,g,g,غرام
-unit_ml,ml,"מ""ל",ml,ml,ml,مل
+ai_chat_title,AI Chat Assistant,עוזר בינה מלאכותית,Assistente AI Chat,Asistente de chat IA,Assistant Chat IA,مساعد الدردشة الذكي
+chat_placeholder,Type message or scan invoice...,הקלד הודעה או סרוק חשבונית...,Scrivi un messaggio o scansiona fattura...,Escribe un mensaje o escanea factura...,Tapez un message ou scannez la facture...,اكتب رسالة أو امسح فاتورة...
+file_attached,File attached (Invoice Scan Mode),קובץ מצורף (מצב סריקת חשבונית),File allegato (Scansione fattura),Archivo adjunto (Escaneo de factura),Fichier joint (Scan de facture),تم إرفاق الملف (وضع مسح الفاتورة)
+ai_welcome_title,AI Assistant Ready,העוזר החכם מוכן,Assistente AI pronto,Asistente IA listo,Assistant IA prêt,المساعد الذكي جاهز
+ai_welcome_desc,I can help manage your inventory.,אני יכול לעזור לנהל את המלאי שלך.,Posso aiutare a gestire l'inventario.,Puedo ayudar a gestionar tu inventario.,Je peux aider à gérer votre inventaire.,يمكنني المساعدة في إدارة مخزونك.
+ai_caps,Capabilities:,יכולות:,Capacità:,Capacidades:,Capacités:,القدرات:
+ai_cap_1,Add Items: 'Add 3 batteries to kitchen',הוספת פריטים: 'הוסף 3 סוללות למטבח',Aggiungi articoli: 'Aggiungi 3 batterie in cucina',Añadir artículos: 'Añade 3 pilas a la cocina',Ajouter des articles : 'Ajouter 3 piles à la cuisine',إضافة عناصر: 'إضافة 3 بطاريات إلى المطبخ'
+ai_cap_2,Scan Invoices: Tap the camera icon!,סריקת חשבוניות: לחץ על סמל המצלמה!,Scansiona fatture: tocca l'icona fotocamera!,Escanear facturas: ¡Toca el icono de la cámara!,Scanner des factures : Appuyez sur l'icône caméra !,مسح الفواتير: اضغط على أيقونة الكاميرا!
+ai_cap_3,Find things: 'Where is the milk?',חיפוש פריטים: 'איפה החלב?',Trova cose: 'Dov'è il latte?',Encontrar cosas: '¿Dónde está la leche?',Trouver des choses : 'Où est le lait ?',العثور على الأشياء: 'أين الحليب؟'
+ai_cap_4,Reports: 'What is in the garage?',דוחות: 'מה יש במוסך?',Report: 'Cosa c'è in garage?',Informes: '¿Qué hay en el garaje?',Rapports : 'Qu'y a-t-il dans le garage ?',التقارير: 'ماذا يوجد في المرآب؟'
+scanning_invoice,Scanning Invoice...,סורק חשבונית...,Scansione fattura...,Escaneando factura...,Scan de la facture...,جاري مسح الفاتورة...
+analyzing,Analyzing...,מנתח...,Analisi...,Analizando...,Analyse...,جاري التحليل...
+starting_process,Starting Process...,מתחיל תהליך...,Avvio processo...,Iniciando proceso...,Démarrage du processus...,بدء العملية...
+complete,Complete,הושלם,Completato,Completado,Terminé,مكتمل
+failed,Failed,נכשל,Fallito,Falló,Échoué,فشل
+error,Error,שגיאה,Errore,Error,Erreur,خطأ
+scanned_invoice,Scanned Invoice,חשבונית שנסרקה,Fattura scansionata,Factura escaneada,Facture numérisée,فاتورة ممسوحة
 cat_Food,Food,מזון,Cibo,Comida,Nourriture,طعام
-sub_Fresh_Produce,Fresh Produce,תוצרת טרייה,Prodotti freschi,Productos frescos,Produits frais,منتجات طازجة
-sub_Vegetables,Vegetables,ירקות,Verdure,Verduras,Légumes,خضروات
-sub_Fruits,Fruits,פירות,Frutta,Frutas,Fruits,فواكه
-sub_Meat_Fish,Meat & Fish,בשר ודגים,Carne e pesce,Carne y pescado,Viande et poisson,لحم وسمك
-sub_Dairy,Dairy,מוצרי חלב,Latticini,Lácteos,Produits laitiers,منتجات الألبان
-sub_Dry_Goods,Dry Goods,מוצרים יבשים,Prodotti secchi,Productos secos,Produits secs,بضائع جافة
-sub_Frozen_Food,Frozen Food,מזון קפוא,Cibo surgelato,Comida congelada,Nourriture surgelée,طعام مجمد
+cat_Cleaning_Home_Maintenance,Cleaning & Home,ניקיון ותחזוקת הבית,Pulizia e casa,Limpieza y hogar,Nettoyage et maison,تنظيف وصيانة المنزل
+cat_Toiletries_Pharmacy,Toiletries & Pharmacy,טואלטיקה ופארמה,Bagno e farmacia,Aseo y farmacia,Toilette et pharmacie,مستلزمات العناية الشخصية والصيدلية
+cat_General_Home_Office_Supplies,General & Office,ציוד כללי ומשרדי,Generale e ufficio,General y oficina,Général et bureau,لوازم عامة ومكتبية
+cat_Tools_Home_Maintenance,Tools & Maintenance,כלי עבודה ותחזוקה,Strumenti e manutenzione,Herramientas y mantenimiento,Outils et entretien,أدوات وصيانة المنزل
+cat_Medicines_First_Aid,Medicines & First Aid,תרופות ועזרה ראשונה,Farmaci e primo soccorso,Medicamentos y primeros auxilios,Médicaments et premiers soins,أدوية وإسعافات أولية
+cat_Kitchenware,Kitchenware,כלי מטבח,Utensili da cucina,Utensilios de cocina,Ustensiles de cuisine,أدوات المطبخ
+cat_Electronics_Entertainment,Electronics & Ent.,אלקטרוניקה ובידור,Elettronica e int.,Electrónica y ent.,Électronique et div.,إلكترونيات وترفيه
+cat_Clothing_Footwear,Clothing & Footwear,ביגוד והנעלה,Abbigliamento e calzature,Ropa y calzado,Vêtements et chaussures,ملابس وأحذية
+cat_Home_Textiles_Bedding,Textiles & Bedding,טקסטיל ומצעים,Tessili e biancheria,Textiles y ropa de cama,Textiles et literie,منسوجات ومفارش
+cat_Pet_Supplies,Pet Supplies,ציוד לחיות מחמד,Articoli per animali,Artículos para mascotas,Articles pour animaux,مستلزمات الحيوانات الأليفة
+cat_Baby_Supplies,Baby Supplies,ציוד לתינוקות,Articoli per neonati,Artículos para bebés,Articles pour bébés,مستلزمات الأطفال
+cat_Outdoor_Garden_Equipment,Outdoor & Garden,ציוד גן וחוץ,Esterni e giardino,Exterior y jardín,Extérieur et jardin,معدات خارجية وحدائق
+cat_Fitness_Gear,Fitness Gear,ציוד כושר,Attrezzatura fitness,Equipo de fitness,Équipement de fitness,معدات لياقة بدنية
+cat_Toys,Toys,צעצועים,Giocattoli,Juguetes,Jouets,ألعاب
+sub_Dairy_Eggs,Dairy & Eggs,מוצרי חלב וביצים,Latticini e uova,Lácteos y huevos,Produits laitiers et œufs,ألبان وبيض
+sub_Meat_Poultry_Fish,Meat & Fish,בשר עוף ודגים,Carne e pesce,Carne y pescado,Viande et poisson,لحوم ودواجن وأسماك
+sub_Vegetables_Fresh_,Vegetables,ירקות (טריים),Verdure,Verduras,Légumes,خضروات
+sub_Fruits_Fresh_,Fruits,פירות (טריים),Frutta,Frutas,Fruits,فواكه
+sub_Pantry_Dry_Goods_Carbs_Legumes_,Pantry & Dry Goods,מזווה ויבשים,Dispensa e secchi,Despensa y secos,Garde-manger et secs,مؤن ومواد جافة
+sub_Spices_Baking_Goods,Spices & Baking,תבלינים ואפייה,Spezie e dolci,Especias y repostería,Épices et pâtisserie,بهارات ومستلزمات خبز
+sub_Sauces_Spreads,Sauces & Spreads,רטבים וממרחים,Salse e creme,Salsas y untables,Sauces et pâtes à tartiner,صلصات ومعاجين
+sub_Canned_Goods,Canned Goods,שימורים,Prodotti in scatola,Enlatados,Conserves,معلبات
+sub_Bread_Pastries,Bread & Pastries,לחם ומאפים,Pane e dolci,Pan y pasteles,Pain et pâtisseries,خبز ومعجنات
 sub_Beverages,Beverages,משקאות,Bevande,Bebidas,Boissons,مشروبات
-sub_Snacks,Snacks,חטיפים,Spuntini,Aperitivos,Collations,وجبات خفيفة
-sub_Spices_Herbs,Spices & Herbs,תבלינים ועשבי תיבול,Spezie ed erbe,Especias y hierbas,Épices et herbes,توابل وأعشاب
-sub_Oils_Sauces,Oils & Sauces,שמנים ורטבים,Oli e salse,Aceites y salsas,Huiles et sauces,زيوت وصلصات
-sub_Canned_Food,Canned Food,שימורים,Cibo in scatola,Comida enlatada,Nourriture en conserve,أطعمة معلبة
-cat_Clothing,Clothing,ביגוד,Abbigliamento,Ropa,Vêtements,ملابس
-sub_Tops,Tops,חולצות,Parti superiori,Partes de arriba,Hauts,قمصان
-sub_Bottoms,Bottoms,מכנסיים,Parti inferiori,Partes de abajo,Bas,بناطيل
-sub_Outerwear,Outerwear,עליוניות,Capispalla,Ropa de abrigo,Vêtements d'extérieur,ملابس خارجية
-sub_Shoes,Shoes,נעליים,Scarpe,Zapatos,Chaussures,أحذية
-sub_Underwear,Underwear,הלבשה תחתונה,Biancheria intima,Ropa interior,Sous-vêtements,ملابس داخلية
-sub_Accessories,Accessories,אביזרים,Accessori,Accesorios,Accessoires,إكسسوارات
-sub_Workwear,Workwear,בגדי עבודה,Abbigliamento da lavoro,Ropa de trabajo,Vêtements de travail,ملابس العمل
-sub_Sportswear,Sportswear,בגדי ספורט,Abbigliamento sportivo,Ropa deportiva,Vêtements de sport,ملابس رياضية
-cat_Furniture,Furniture,ריהוט,Mobilia,Muebles,Meubles,أثاث
-sub_Seating,Seating,מקומות ישיבה,Posti a sedere,Asientos,Sièges,مقاعد
-sub_Tables,Tables,שולחנות,Tavoli,Mesas,Tables,طاولات
-sub_Storage_Furniture,Storage Furniture,ריהוט אחסון,Mobili contenitori,Muebles de almacenamiento,Meubles de rangement,أثاث تخزين
-sub_Beds,Beds,מיטות,Letti,Camas,Lits,أسرّة
-sub_Shelving,Shelving,מדפים,Scaffalature,Estanterías,Rayonnages,رفوف
-sub_Outdoor_Furniture,Outdoor Furniture,ריהוט גן,Mobili da esterno,Muebles de exterior,Meubles d'extérieur,أثاث خارجي
-cat_Electronics,Electronics,אלקטרוניקה,Elettronica,Electrónica,Électronique,إلكترونيات
-sub_Computing_Devices,Computing Devices,מחשבים,Dispositivi di calcolo,Dispositivos informáticos,Appareils informatiques,أجهزة كمبيوتر
-sub_Mobile_Devices,Mobile Devices,מכשירים ניידים,Dispositivi mobili,Dispositivos móviles,Appareils mobiles,أجهزة محمولة
-sub_Audio_Equipment,Audio Equipment,ציוד שמע,Apparecchiature audio,Equipos de audio,Équipement audio,معدات صوتية
-sub_Video_Equipment,Video Equipment,ציוד וידאו,Apparecchiature video,Equipos de video,Équipement vidéo,معدات فيديو
-sub_Networking,Networking,רשתות,Networking,Redes,Réseau,شبكات
-sub_Batteries,Batteries,סוללות,Batterie,Baterías,Piles,بطاريات
-cat_Tools,Tools,כלים,Strumenti,Herramientas,Outils,أدوات
-sub_Hand_Tools,Hand Tools,כלי יד,Strumenti manuali,Herramientas manuales,Outils à main,أدوات يدوية
-sub_Power_Tools,Power Tools,כלי עבודה חשמליים,Elettroutensili,Herramientas eléctricas,Outils électriques,أدوات كهربائية
-sub_Measuring_Tools,Measuring Tools,כלי מדידה,Strumenti di misura,Herramientas de medición,Outils de mesure,أدوات قياس
-sub_Cutting_Tools,Cutting Tools,כלי חיתוך,Strumenti da taglio,Herramientas de corte,Outils de coupe,أدوات قطع
-sub_Workshop_Equipment,Workshop Equipment,ציוד סדנה,Attrezzature da officina,Equipamiento de taller,Équipement d'atelier,معدات ورشة
-cat_Cleaning_Supplies,Cleaning Supplies,חומרי ניקוי,Prodotti per la pulizia,Suministros de limpieza,Produits de nettoyage,مستلزمات تنظيف
-sub_Liquid_Cleaners,Liquid Cleaners,חומרי ניקוי נוזליים,Detergenti liquidi,Limpiadores líquidos,Nettoyants liquides,منظفات سائلة
-sub_Powders_Tablets,Powders & Tablets,אבקות וטבליות,Polveri e compresse,Polvos y tabletas,Poudres et comprimés,מساحيق وأقراص
-sub_Tools_Brushes,Tools & Brushes,כלים ומברשות,Strumenti e spazzole,Herramientas y cepillos,Outils et brosses,أدوات وفرش
+sub_Snacks_Sweets,Snacks & Sweets,חטיפים וממתקים,Snack e dolci,Snacks y dulces,Snacks et bonbons,وجبات خفيفة وحلويات
+sub_Dietary_Supplements_Vitamins,Supplements & Vitamins,תוספי תזונה וויטמינים,Integratori e vitamine,Suplementos y vitaminas,Compléments et vitamines,مكملات غذائية وفيتامينات
+sub_General_Cleaning,General Cleaning,ניקיון כללי,Pulizia generale,Limpieza general,Nettoyage général,تنظيف عام
+sub_Laundry,Laundry,כביסה,Bucato,Lavandería,Blanchisserie,غسيل
+sub_Dishwashing,Dishwashing,שטיפת כלים,Lavaggio piatti,Lavado de vajilla,Vaisselle,غسل الأطباق
+sub_Accessories_Consumables_Kitchen_Cleaning_,Accessories & Consumables,אביזרים ומתכלים,Accessori e consumabili,Accesorios y consumibles,Accessoires et consommables,ملحقات ومواد استهلاكية
+sub_Personal_Hygiene,Personal Hygiene,היגיינה אישית,Igiene personale,Higiene personal,Hygiène personnelle,نظافة شخصية
 sub_Paper_Products,Paper Products,מוצרי נייר,Prodotti di carta,Productos de papel,Produits en papier,منتجات ورقية
-sub_Disinfectants,Disinfectants,חומרי חיטוי,Disinfettanti,Desinfectantes,Désinfectants,مطهرات
-cat_Stationery,Stationery,מכשירי כתיבה,Cancelleria,Papelería,Papeterie,قرطاسية
-sub_Writing_Tools,Writing Tools,כלי כתיבה,Strumenti di scrittura,Herramientas de escritura,Outils d'écriture,أدوات كتابة
-sub_Office_Accessories,Office Accessories,אביזרי משרד,Accessori per ufficio,Accesorios de oficina,Accessoires de bureau,إكسسوارات مكتبية
-sub_Printing_Supplies,Printing Supplies,ציוד הדפסה,Forniture per la stampa,Suministros de impresión,Fournitures d'impression,مستلزمات طباعة
-sub_Filing_Storage,Filing & Storage,תיוק ואחסון,Archiviazione e stoccaggio,Archivo y almacenamiento,Classement et stockage,حفظ وتخزين
-cat_Storage_Organization,Storage & Organization,אחסון וארגון,Stoccaggio e organizzazione,Almacenamiento y organización,Stockage et organisation,تخزين وتنظيم
-sub_Boxes_Bins,Boxes & Bins,קופסאות ומיכלים,Scatole e contenitori,Cajas y contenedores,Boîtes et bacs,صناديק وحاويات
-sub_Shelving_Containers,Shelving Containers,מיכלי מדף,Contenitori per scaffali,Contenedores de estantería,Conteneurs pour étagères,حاويات رفوف
-sub_Bags_Covers,Bags & Covers,תיקים וכיסויים,Borse e coperture,Bolsas y fundas,Sacs et housses,أكياس وأغطية
-sub_Drawer_Organizers,Drawer Organizers,מארגני מגירות,Organizzatori per cassetti,Organizadores de cajones,Organisateurs de tiroirs,منظمات أدراج
-cat_Personal_Care,Personal Care,טיפוח אישי,Cura personale,Cuidado personal,Soins personnels,عناية شخصية
-sub_Skin_Care,Skin Care,טיפוח העור,Cura della pelle,Cuidado de la piel,Soins de la peau,عناية بالبشرة
-sub_Hair_Care,Hair Care,טיפוח השיער,Cura dei capelli,Cuidado del cabello,Soins des cheveux,عناية بالشعر
-sub_Oral_Care,Oral Care,טיפוח הפה,Igiene orale,Cuidado bucal,Soins bucco-dentaires,عناية بالفم
-sub_Grooming_Tools,Grooming Tools,כלי טיפוח,Strumenti per la cura,Herramientas de aseo,Outils de toilette,أدوات تجميل
-sub_Cosmetics,Cosmetics,קוסמטיקה,Cosmetici,Cosméticos,Cosmétiques,مستحضرات تجميل
-cat_Health_Medical,Health & Medical,בריאות ורפואה,Salute e medicina,Salud y medicina,Santé et médecine,صحة وطب
-sub_Medications,Medications,תרופות,Farmaci,Medicamentos,Médicaments,أدوية
-sub_Supplements,Supplements,תוספי תזונה,Integratori,Suplementos,Compléments,مكملات
-sub_First_Aid,First Aid,עזרה ראשונה,Pronto soccorso,Primeros auxilios,Premiers secours,إسعافات أولية
-sub_Medical_Devices,Medical Devices,מכשור רפואי,Dispositivi medici,Dispositivos médicos,Dispositifs médicaux,أجهزة طبية
-sub_Hygiene_Protection,Hygiene Protection,הגנה והיגיינה,Protezione igienica,Protección e higiene,Protection et hygiène,حماية ونظافة
-cat_Hardware,Hardware,חומרה,Ferramenta,Ferretería,Matériel,أجهزة
-sub_Fasteners,Fasteners,מחברים,Elementi di fissaggio,Sujetadores,Attaches,مشبك
-sub_Pipes_Fittings,Pipes & Fittings,צינורות ואביזרים,Tubi e raccordi,Tuberías y accesorios,Tuyaux et raccords,أنابيب وتركيبات
-sub_Electrical_Parts,Electrical Parts,חלקים חשמליים,Parti elettriche,Piezas eléctricas,Pièces électriques,أجزاء كهربائية
-sub_Building_Materials,Building Materials,חומרי בניין,Materiali da costruzione,Materiales de construcción,Matériaux de construction,مواد بناء
-sub_Adhesives_Sealants,Adhesives & Sealants,דבקים וחומרי איטום,Adesivi e sigillanti,Adhesivos y selladores,Adhésifs et mastics,مواد لاصقة ومانعات تسرب
-cat_Garden,Garden,גינה,Giardino,Jardín,Jardin,حديقة
-sub_Plants,Plants,צמחים,Piante,Plantas,Plantes,نباتات
-sub_Seeds,Seeds,זרעים,Semi,Semillas,Graines,بذور
-sub_Soil_Compost,Soil & Compost,אדמה וקומפוסט,Terreno e compost,Tierra y compost,Sol et compost,تربة وسماد
-sub_Fertilizers,Fertilizers,דשנים,Fertilizzanti,Fertilizantes,Engrais,أسمدة
-sub_Irrigation,Irrigation,השקיה,Irrigazione,Riego,Irrigation,ري
-sub_Garden_Tools,Garden Tools,כלי גינון,Attrezzi da giardino,Herramientas de jardín,Outils de jardin,أدوات حديقة
-sub_Pots_Planters,Pots & Planters,עציצים ואדניות,Vasi e fioriere,Macetas y jardineras,Pots et jardinières,أواني وأحواض
-sub_Mulch_Ground_Cover,Mulch & Ground Cover,חיפוי קרקע,Pacciamatura e copertura del terreno,Mantillo y cobertura del suelo,Paillis et couvre-sol,تغطية التربة
-sub_Pest_Control,Pest Control,הדברה,Disinfestazione,Control de plagas,Lutte antiparasitaire,مكافحة الآفات
-cat_Appliances,Appliances,מכשירי חשמל,Elettrodomestici,Electrodomésticos,Appareils électroménagers,أجهزة كهربائية
-sub_Kitchen_Appliances,Kitchen Appliances,מכשירי מטבח,Elettrodomestici da cucina,Electrodomésticos de cocina,Appareils de cuisine,أجهزة مطبخ
-sub_Laundry_Appliances,Laundry Appliances,מכשירי כביסה,Elettrodomestici per lavanderia,Electrodomésticos de lavandería,Appareils de buanderie,أجهزة غسيل
-sub_Climate_Control,Climate Control,בקרת אקלים,Controllo del clima,Climatización,Climatisation,تحكم في المناخ
-sub_Small_Appliances,Small Appliances,מכשירים קטנים,Piccoli elettrodomestici,Pequeños electrodomésticos,Petits appareils,أجهزة صغيرة
-cat_Lighting,Lighting,תאורה,Illuminazione,Iluminación,Éclairage,إضاءة
-sub_Bulbs,Bulbs,נורות,Lampadine,Bombillas,Ampoules,مصابيح
-sub_Lamps,Lamps,מנורות,Lampade,Lámparas,Lampes,لمبات
-sub_Outdoor_Lighting,Outdoor Lighting,תאורת חוץ,Illuminazione esterna,Iluminación exterior,Éclairage extérieur,إضاءة خارجية
-sub_Fixtures,Fixtures,גופי תאורה,Infissi,Accesorios,Luminaires,تركيبات
-cat_Toys_Games,Toys & Games,צעצועים ומשחקים,Giocattoli e giochi,Juguetes y juegos,Jouets et jeux,ألعاب
-sub_Children_Toys,Children Toys,צעצועי ילדים,Giocattoli per bambini,Juguetes para niños,Jouets pour enfants,ألعاب أطفال
-sub_Board_Games,Board Games,משחקי קופסה,Giochi da tavolo,Juegos de mesa,Jeux de société,ألعاب لوحية
-sub_Outdoor_Games,Outdoor Games,משחקי חוץ,Giochi all'aperto,Juegos al aire libre,Jeux de plein air,ألعاب خارجية
-sub_Educational_Toys,Educational Toys,צעצועים חינוכיים,Giocattoli educativi,Juguetes educativos,Jouets éducatifs,ألعاب تعليمية
-cat_Miscellaneous,Miscellaneous,שונות,Varie,Miscelánea,Divers,متفرقات
-sub_Decorations,Decorations,קישוטים,Decorazioni,Decoraciones,Décorations,زينة
-sub_Seasonal_Items,Seasonal Items,פריטים עונתיים,Articoli stagionali,Artículos de temporada,Articles saisonniers,عناصر موسمية
-sub_Collectibles,Collectibles,אוספים,Oggetti da collezione,Coleccionables,Objets de collection,مقتنيات
-sub_Other,Other,אחר,Altro,Otro,Autre,أخرى
+sub_First_Aid_OTC_Medicines,First Aid & OTC,עזרה ראשונה ותרופות,Primo soccorso e OTC,Primeros auxilios y OTC,Premiers soins et OTC,إسعافات أولية وأدوية
+sub_Electrical_Lighting,Electrical & Lighting,חשמל ותאורה,Elettricità e illuminazione,Electricidad e iluminación,Électricité et éclairage,كهرباء وإضاءة
+sub_Miscellaneous_Maintenance,Misc. & Maintenance,שונות ותחזוקה,Varie e manutenzione,Varios y mantenimiento,Divers et entretien,متفرقات وصيانة
+sub_Stationery_Desk_Supplies,Stationery & Desk,ציוד משרדי,Cancelleria e scrivania,Papelería y escritorio,Papeterie et bureau,قرطاسية ولوازم مكتبية
+sub_Hand_Tools,Hand Tools,כלי עבודה ידניים,Utensili manuali,Herramientas manuales,Outils manuels,أدوات يدوية
+sub_Materials_Accessories,Materials & Acc.,חומרים ואביזרים,Materiali e acc.,Materiales y acc.,Matériaux et acc.,مواد وملحقات
+sub_Power_Tools_Basic_for_Home_,Power Tools,כלי עבודה חשמליים,Elettroutensili,Herramientas eléctricas,Outils électriques,أدوات كهربائية
+sub_Pain_Relievers_Fever_Reducers,Pain Relievers,משככי כאבים,Antidolorifici,Analgésicos,Analgésiques,مسكنات ألم
+sub_First_Aid_Supplies,First Aid Supplies,ציוד עזרה ראשונה,Forniture primo soccorso,Suministros primeros auxilios,Fournitures premiers soins,مستلزمات الإسعافات الأولية
+sub_Topical_Treatments_Ointments,Ointments,טיפולים ומשחות,Trattamenti topici,Tratamientos tópicos,Traitements topiques,علاجات موضعية ومراهم
+sub_Miscellaneous_Winter_Illnesses,Winter Illnesses,מחלות חורף,Malattie invernali,Enfermedades de invierno,Maladies d'hiver,أمراض الشتاء
+sub_Pots_Pans,Pots & Pans,סירים ומחבתות,Pentole e padelle,Ollas y sartenes,Casseroles et poêles,أواني ومقالي
+sub_Dinnerware_Serving,Dinnerware,כלי הגשה ואוכל,Stoviglie,Vajilla,Vaisselle,أطباق وتقديم
+sub_Cooking_Baking_Cutting_Accessories,Cooking Accessories,אביזרי בישול ואפייה,Accessori cucina,Accesorios cocina,Accessoires cuisine,ملحقات طبخ
+sub_Storage_Organization,Storage & Org.,אחסון וארגון,Conservazione e org.,Almacenamiento y org.,Rangement et org.,تخزين وتنظيم
+sub_Small_Kitchen_Appliances_Basic_,Small Appliances,מכשירי חשמל קטנים,Piccoli elettrodomestici,Pequeños electrodomésticos,Petits appareils,أجهزة مطبخ صغيرة
+sub_Entertainment_Computing,Entertainment & Tech,בידור ומחשוב,Intrattenimento e tech,Entretenimiento y tec.,Divertissement et tech.,ترفيه وحوسبة
+sub_Major_Appliances_White_Goods_,Major Appliances,מוצרי חשמל גדולים,Grandi elettrodomestici,Electrodomésticos principales,Gros électroménager,أجهزة رئيسية
+sub_Small_Home_Appliances_Smart_Tech,Smart Tech & Small App,מכשירים חכמים לבית,Smart Tech e piccoli app,Smart Tech y pequeños elec,Smart Tech et petits app,أجهزة ذكية ومنزلية
+sub_Everyday_Clothing,Everyday Clothing,ביגוד יומיומי,Abbigliamento quotidiano,Ropa de uso diario,Vêtements de tous les jours,ملابس يومية
+sub_Intimates_Loungewear,Intimates & Lounge,הלבשה תחתונה,Intimo e casa,Ropa íntima y estar,Sous-vêtements et détente,ملابس داخلية
+sub_Winter_Transitional_Clothing,Winter Clothing,בגדי חורף,Abbigliamento invernale,Ropa de invierno,Vêtements d'hiver,ملابس شتوية
+sub_Footwear_Accessories,Footwear & Acc.,הנעלה ואביזרים,Calzature e acc.,Calzado y acc.,Chaussures et acc.,أحذية وملحقات
+sub_Bed_Linens,Bed Linens,מצעים,Biancheria da letto,Ropa de cama,Linge de lit,مفارش سرير
+sub_Bath_Kitchen_Textiles,Bath & Kitchen Tex.,טקסטיל אמבט ומטבח,Tessuti bagno e cucina,Textiles baño y cocina,Textiles bain et cuisine,منسوجات حمام ومطبخ
+sub_Food_Feeding,Food & Feeding,אוכל והאכלה,Cibo e alimentazione,Comida y alimentación,Nourriture et alimentation,طعام وإطعام
+sub_Care_Accessories,Care & Accessories,טיפוח ואביזרים,Cura e accessori,Cuidado y accesorios,Soins et accessoires,عناية وملحقات
+sub_Feeding_Nursing,Feeding & Nursing,האכלה והנקה,Alimentazione e allattamento,Alimentación y lactancia,Alimentation et allaitement,إطعام ورضاعة
+sub_Diapering_Hygiene,Diapering & Hygiene,החתלה והיגיינה,Pannolini e igiene,Pañales e higiene,Couches et hygiène,تغيير حفاضات ونظافة
+sub_Gear_Travel,Gear & Travel,ציוד ונסיעות,Attrezzatura e viaggio,Equipo y viaje,Équipement et voyage,معدات وسفر
+sub_Gardening_Tools,Gardening Tools,כלי גינון,Attrezzi giardinaggio,Herramientas jardinería,Outils jardinage,أدوات زراعة
+sub_Outdoor_Maintenance,Outdoor Maintenance,תחזוקת חוץ,Manutenzione esterna,Mantenimiento exterior,Entretien extérieur,صيانة خارجية
+sub_Outdoor_Living_Entertainment,Outdoor Living,פנאי בחוץ,Vita all'aperto,Vida al aire libre,Vie en plein air,معيشة خارجية
+sub_Home_Gym_Basics,Home Gym Basics,ציוד כושר בסיסי,Base palestra casa,Gimnasio casa básico,Base gym domicile,أساسيات صالة رياضية
+sub_Recovery_Support,Recovery & Support,התאוששות ותמיכה,Recupero e supporto,Recuperación y apoyo,Récupération et soutien,تعافي ودعم
+sub_Action_Figures_Playsets,Action Figures,בובות פעולה,Action figure,Figuras de acción,Figurines d'action,مجسمات حركة
+sub_Building_Blocks_Construction,Building Blocks,קוביות בנייה,Costruzioni,Bloques de construcción,Blocs de construction,مكعبات بناء
+sub_Dolls_Accessories,Dolls & Acc.,בובות ואביזרים,Bambole e acc.,Muñecas y acc.,Poupées et acc.,دمى وملحقات
+sub_Vehicles_Remote_Control,Vehicles & RC,רכבים ושלט,Veicoli e RC,Vehículos y RC,Véhicules et RC,مركبات وتحكم
+sub_Arts_Crafts,Arts & Crafts,יצירה ואומנות,Arti e mestieri,Artes y manualidades,Arts et bricolage,فنون وحرف
+sub_Board_Games_Puzzles,Board Games,משחקי קופסה,Giochi da tavolo,Juegos de mesa,Jeux de société,ألعاب لوحية
+sub_Plush_Stuffed_Animals,Plush Toys,בובות פרווה,Peluche,Peluches,Peluches,حيوانات محشوة
+sub_Educational_STEM_Toys,Educational Toys,צעצועים חינוכיים,Giocattoli educativi,Juguetes educativos,Jouets éducatifs,ألعاب تعليمية
+item_Milk,Milk,חלב,Latte,Leche,Lait,حليب
+item_Yellow_cheese,Yellow Cheese,גבינה צהובה,Formaggio giallo,Queso amarillo,Fromage à pâte dure,جبן أصفر
+item_Soft_cheeses_white_cheese_cottage_cheese_,Soft Cheeses,גבינות רכות,Formaggi a pasta molle,Quesos blandos,Fromages à pâte molle,أجبان طرية
+item_White_cheese,White Cheese,גבינה לבנה,Formaggio bianco,Queso blanco,Fromage blanc,جبن أبيض
+item_Cottage_cheese,Cottage Cheese,קוטג',Fiocchi di latte,Requesón,Fromage cottage,جبن قريش
+item_Butter_Margarine,Butter / Margarine,חמאה / מרגרינה,Burro / Margarina,Mantequilla / Margarina,Beurre / Margarine,زبدة / سمن
+item_Butter,Butter,חמאה,Burro,Mantequilla,Beurre,زبدة
+item_Margarine,Margarine,מרגרינה,Margarina,Margarina,Margarine,سمن نباتي
+item_Yogurts_and_puddings,Yogurts & Puddings,יוגורטים ומעדנים,Yogurt e budini,Yogures y pudines,Yaourts et crèmes desserts,زبادي وبودنغ
+item_Yogurts,Yogurts,יוגורטים,Yogurt,Yogures,Yaourts,زبادي
+item_Puddings,Puddings,מעדנים/פודינג,Budini,Pudines,Crèmes desserts,بودنغ
+item_Cream_sour_sweet_for_cooking_whipping_,Cream,שמנת,Panna,Crema,Crème,كريمة
+item_Sour_cream,Sour Cream,שמנת חמוצה,Panna acida,Crema agria,Crème aigre,قشدة حامضة
+item_Sweet_cream,Sweet Cream,שמנת מתוקה,Panna dolce,Crema dulce,Crème douce,قشدة حلوة
+item_Eggs,Eggs,ביצים,Uova,Huevos,Œufs,بيض
+item_Plant_based_milk_almond_oat_soy_,Plant Milk,חלב צמחי,Latte vegetale,Leche vegetal,Lait végétal,حليب نباتي
+item_Almond_milk,Almond Milk,חלב שקדים,Latte di mandorla,Leche de almendras,Lait d'amande,حليب اللوز
+item_Oat_milk,Oat Milk,חלב שיבולת שועל,Latte di avena,Leche de avena,Lait d'avoine,حليب الشوفان
+item_Soy_milk,Soy Milk,חלב סויה,Latte di soia,Leche de soja,Lait de soja,حليب الصويا
+item_Chicken_breast_Schnitzels_fresh_or_frozen_,Chicken Breast,חזה עוף / שניצל,Petto di pollo,Pechuga de pollo,Blanc de poulet,صدر دجاج
+item_Chicken_breast,Chicken Breast,חזה עוף,Petto di pollo,Pechuga de pollo,Blanc de poulet,صدر دجاج
+item_Schnitzels,Schnitzels,שניצלים,Cotolette,Escalopes,Escalopes,شنيتزل
+item_Beef_minced_for_goulash_steaks_,Beef,בשר בקר,Manzo,Carne de res,Bœuf,لحم بقر
+item_Minced_beef,Minced Beef,בשר טחון,Carne macinata,Carne picada,Viande hachée,لحم مفروم
+item_Beef_steaks,Beef Steaks,סטייקים,Bistecche di manzo,Filetes de res,Steaks de bœuf,شرائح لحم بقر
+item_Goulash_meat,Goulash Meat,בשר לגולש,Carne per gulasch,Carne para gulash,Viande à goulash,لحم غولاش
+item_Fish_salmon_tilapia_tuna_,Fish,דגים,Pesce,Pescado,Poisson,سمك
+item_Salmon,Salmon,סלמון,Salmone,Salmón,Saumon,سلمون
+item_Tilapia,Tilapia,אמנון (מושט),Tilapia,Tilapia,Tilapia,بلطي
+item_Tuna,Tuna,טונה,Tonno,Atún,Thon,تونة
+item_Sausages,Sausages,נקניקיות,Salsicce,Salchichas,Saucisses,نقانق
+item_Pastrami_and_deli_meats,Deli Meats,פסטרמה ונקניקים,Salumi,Fiambres,Charcuterie,لحوم باردة
+item_Pastrami,Pastrami,פסטרמה,Pastrami,Pastrami,Pastrami,بسطرمة
+item_Deli_meats,Deli Meats,נקניקים,Salumi,Fiambres,Charcuterie,لحوم باردة
+item_Tofu_and_meat_substitutes,Tofu & Substitutes,טופו ותחליפי בשר,Tofu e sostituti,Tofu y sustitutos,Tofu et substituts,توفو وبدائل
+item_Tofu,Tofu,טופו,Tofu,Tofu,Tofu,توفو
+item_Meat_substitutes,Meat Substitutes,תחליפי בשר,Sostituti della carne,Sustitutos de carne,Substituts de viande,بدائل اللحوم
+item_Tomatoes_cucumbers_peppers,Tomatoes & Cucumbers,עגבניות ומלפפונים,Pomodori e cetrioli,Tomates y pepinos,Tomates et concombres,طماطم وخيار
+item_Tomatoes,Tomatoes,עגבניות,Pomodori,Tomates,Tomates,طماطم
+item_Cucumbers,Cucumbers,מלפפונים,Cetrioli,Pepinos,Concombres,خيار
+item_Peppers,Peppers,פלפלים,Peperoni,Pimientos,Poivrons,فلفل
+item_Dry_onion_garlic,Onion & Garlic,בצל ושום,Cipolla e aglio,Cebolla y ajo,Oignon et ail,بصل وثوم
+item_Dry_onion,Dry Onion,בצל יבש,Cipolla secca,Cebolla seca,Oignon sec,بصل جاف
+item_Garlic,Garlic,שום,Aglio,Ajo,Ail,ثوم
+item_Potatoes_sweet_potatoes,Potatoes,תפוחי אדמה,Patate,Papas,Pommes de terre,بطاطس
+item_Potatoes,Potatoes,תפוחי אדמה,Patate,Papas,Pommes de terre,بطاطس
+item_Sweet_potatoes,Sweet Potatoes,בטטות,Patate dolci,Batatas,Patates douces,بطاطا حلوة
+item_Carrots_zucchini_eggplants,Carrots & Zucchini,גזר וקישואים,Carote e zucchine,Zanahorias y calabacines,Carottes et courgettes,جزر وكوسا
+item_Carrots,Carrots,גזר,Carote,Zanahorias,Carottes,جزر
+item_Zucchini,Zucchini,קישואים,Zucchine,Calabacines,Courgettes,كوسا
+item_Eggplants,Eggplants,חצילים,Melanzane,Berenjenas,Aubergines,باذنجان
+item_Greens_lettuce_parsley_cilantro_mint_,Greens,ירוקים (חסה, פטרוזיליה),Verdure a foglia,Verduras de hoja,Légumes verts,ورقيات
+item_Lettuce,Lettuce,חסה,Lattuga,Lechuga,Laitue,خس
+item_Parsley,Parsley,פטרוזיליה,Prezzemolo,Perejil,Persil,بقدونس
+item_Cilantro,Cilantro,כוסברה,Coriandolo,Cilantro,Coriandre,كزبرة
+item_Mint,Mint,נענע,Menta,Menta,Menthe,نعناع
+item_Mushrooms_and_broccoli,Mushrooms & Broccoli,פטריות וברוקולי,Funghi e broccoli,Champiñones y brócoli,Champignons et brocoli,فطر وبروكلي
+item_Mushrooms,Mushrooms,פטריות,Funghi,Champiñones,Champignons,فطر
+item_Broccoli,Broccoli,ברוקולי,Broccoli,Brócoli,Brocoli,بروكلي
+item_Apples_bananas,Apples & Bananas,תפוחים ובננות,Mele e banane,Manzanas y plátanos,Pommes et bananes,تفاح وموز
+item_Apples,Apples,תפוחים,Mele,Manzanas,Pommes,تفاح
+item_Bananas,Bananas,בננות,Banane,Plátanos,Bananes,موز
+item_Citrus_oranges_lemons_,Citrus,פירות הדר,Agrumi,Cítricos,Agrumes,حمضيات
+item_Oranges,Oranges,תפוזים,Arance,Naranjas,Oranges,برتقال
+item_Lemons,Lemons,לימונים,Limoni,Limones,Citrons,ليمون
+item_Seasonal_fruits_watermelon_grapes_peaches_strawberries_,Seasonal Fruits,פירות העונה,Frutta di stagione,Frutas de temporada,Fruits de saison,فواكه موسمية
+item_Watermelon,Watermelon,אבטיח,Anguria,Sandía,Pastèque,بطيخ
+item_Grapes,Grapes,ענבים,Uva,Uvas,Raisins,عنب
+item_Peaches,Peaches,אפרסקים,Pesche,Melocotones,Pêches,خوخ
+item_Strawberries,Strawberries,תותים,Fragole,Fresas,Fraises,فراولة
+item_Berries_blueberries_raspberries_,Berries,פירות יער,Frutti di bosco,Bayas,Baies,توت
+item_Blueberries,Blueberries,אוכמניות,Mirtilli,Arándanos,Myrtilles,توت أزرق
+item_Raspberries,Raspberries,פטל,Lamponi,Frambuesas,Framboises,توت عليق
+item_Rice_pasta_ptitim_couscous,Rice & Pasta,אורז ופסטה,Riso e pasta,Arroz y pasta,Riz et pâtes,أرز ومكرونة
+item_Rice,Rice,אורז,Riso,Arroz,Riz,أرز
+item_Pasta,Pasta,פסטה,Pasta,Pasta,Pâtes,مكرونة
+item_Ptitim,Ptitim,פתיתים,Ptitim,Ptitim,Ptitim,بتيتيم
+item_Couscous,Couscous,קוסקוס,Couscous,Cuscús,Couscous,كسكس
+item_Flour_sugar_white_brown_,Flour & Sugar,קמח וסוכר,Farina e zucchero,Harina y azúcar,Farine et sucre,دقيق وسكر
+item_Flour,Flour,קמח,Farina,Harina,Farine,دقيق
+item_White_sugar,White Sugar,סוכר לבן,Zucchero bianco,Azúcar blanco,Sucre blanc,سكر أبيض
+item_Brown_sugar,Brown Sugar,סוכר חום,Zucchero di canna,Azúcar moreno,Sucre roux,سكر بني
+item_Oil_canola_olive_,Oil,שמן,Olio,Aceite,Huile,زيت
+item_Canola_oil,Canola Oil,שמן קנולה,Olio di colza,Aceite de canola,Huile de colza,زيت كانولا
+item_Olive_oil,Olive Oil,שמן זית,Olio d'oliva,Aceite de oliva,Huile d'olive,زيت زيتون
+item_Legumes_lentils_chickpeas_beans_dry_or_frozen_,Legumes,קטניות,Legumi,Legumbres,Légumineuses,بقوليات
+item_Lentils,Lentils,עדשים,Lenticchie,Lentejas,Lentilles,عدس
+item_Chickpeas,Chickpeas,חומוס (גרגרים),Ceci,Garbanzos,Pois chiches,حمص
+item_Beans,Beans,שעועית,Fagioli,Frijoles,Haricots,فاصوليا
+item_Quinoa_and_oats,Quinoa & Oats,קינואה ושיבולת שועל,Quinoa e avena,Quinoa y avena,Quinoa et avoine,كينوا وشوفان
+item_Quinoa,Quinoa,קינואה,Quinoa,Quinoa,Quinoa,كينوا
+item_Oats,Oats,שיבולת שועל,Avena,Avena,Avoine,شوفان
+item_Tortillas_and_wraps,Tortillas,טורטיות,Tortillas,Tortillas,Tortillas,تورتيلا
+item_Wraps,Wraps,דפי ראפ,Piadine/Wraps,Wraps,Wraps,لفائف
+item_Salt_table_sea_Himalayan_kosher_,Salt,מלח,Sale,Sal,Sel,ملح
+item_Table_salt,Table Salt,מלח שולחן,Sale da tavola,Sal de mesa,Sel de table,ملح مائدة
+item_Sea_salt,Sea Salt,מלח ים,Sale marino,Sal marina,Sel de mer,ملح بحري
+item_Himalayan_salt,Himalayan Salt,מלח הימלאיה,Sale dell'Himalaya,Sal del Himalaya,Sel de l'Himalaya,ملح هيمالايا
+item_Black_pepper_ground_and_peppercorns_White_pepper,Black Pepper,פלפל שחור,Pepe nero,Pimienta negra,Poivre noir,فلفل أسود
+item_Black_pepper,Black Pepper,פלפל שחור,Pepe nero,Pimienta negra,Poivre noir,فلفل أسود
+item_White_pepper,White Pepper,פלפל לבן,Pepe bianco,Pimienta blanca,Poivre blanc,فلفل أبيض
+item_Paprika_sweet_hot_smoked_,Paprika,פפריקה,Paprica,Pimentón,Paprika,بابريكا
+item_Cumin_Turmeric_Coriander_ground_and_seeds_,Cumin & Turmeric,כמון וכורכום,Cumino e curcuma,Comino y cúrcuma,Cumin et curcuma,كمون وكركم
+item_Cumin,Cumin,כמון,Cumino,Comino,Cumin,كمون
+item_Turmeric,Turmeric,כורכום,Curcuma,Cúrcuma,Curcuma,كركم
+item_Coriander,Coriander,כוסברה (תבלין),Coriandolo,Cilantro,Coriandre,كزبرة
+item_Cinnamon_ground_and_sticks_Nutmeg_Cloves_Cardamom,Cinnamon,קינמון,Cannella,Canela,Cannelle,قرفة
+item_Cinnamon,Cinnamon,קינמון,Cannella,Canela,Cannelle,قرفة
+item_Nutmeg,Nutmeg,אגוז מוסקט,Noce moscata,Nuez moscada,Noix de muscade,جوزة الطيب
+item_Cloves,Cloves,ציפורן,Chiodi di garofano,Clavos,Clous de girofle,قرنفل
+item_Cardamom,Cardamom,הל,Cardamomo,Cardamomo,Cardamome,هيل
+item_Ginger_ground_Allspice_Star_anise,Ginger,ג'ינגר,Zenzero,Jengibre,Gingembre,زنجبيل
+item_Ginger,Ginger,ג'ינגר,Zenzero,Jengibre,Gingembre,زنجبيل
+item_Allspice,Allspice,פלפל אנגלי,Pimento,Pimienta de Jamaica,Piment de la Jamaïque,بهار حلو
+item_Star_anise,Star Anise,כוכב אניס,Anice stellato,Anís estrellado,Anis étoilé,يانسون نجمي
+item_Chili_powder_Crushed_red_pepper_flakes_Cayenne_pepper,Chili Powder,צ'ילי גרוס,Peperoncino,Chile en polvo,Piment en poudre,فلفل حار
+item_Chili_powder,Chili Powder,אבקת צ'ילי,Peperoncino in polvere,Chile en polvo,Poudre de chili,مسحوق الفلفل الحار
+item_Crushed_red_pepper_flakes,Red Pepper Flakes,שבבי פלפל צ'ילי,Fiocchi di peperoncino,Hojuelas de pimiento rojo,Flocons de piment rouge,رقائق فلفل أحمر
+item_Cayenne_pepper,Cayenne Pepper,פלפל קאיין,Pepe di Cayenna,Pimienta de Cayena,Piment de Cayenne,فلفل حريف
+item_Curry_powder_Garam_Masala_Ras_el_Hanout,Curry Powder,אבקת קארי,Curry,Curry,Curry,كاري
+item_Curry_powder,Curry Powder,אבקת קארי,Curry in polvere,Curry en polvo,Poudre de curry,مسحوق الكاري
+item_Garam_Masala,Garam Masala,גראם מסאלה,Garam Masala,Garam Masala,Garam Masala,غارام ماسالا
+item_Ras_el_Hanout,Ras el Hanout,ראס אל חנות,Ras el Hanout,Ras el Hanout,Ras el Hanout,رأس الحانوت
+item_Onion_powder_Garlic_powder,Garlic Powder,אבקת שום,Aglio in polvere,Ajo en polvo,Ail en poudre,ثوم بودرة
+item_Onion_powder,Onion Powder,אבקת בצל,Cipolla in polvere,Cebolla en polvo,Poudre d'oignon,مسحوق البصل
+item_Garlic_powder,Garlic Powder,אבקת שום,Aglio in polvere,Ajo en polvo,Poudre d'ail,مسحوق الثوم
+item_Oregano_Basil_Thyme_Rosemary_dried_,Oregano & Basil,אורגנו ובזיליקום,Origano e basilico,Orégano y albahaca,Origan et basilic,أوريجانو وريحان
+item_Oregano,Oregano,אורגנו,Origano,Orégano,Origan,أوريغانو
+item_Basil,Basil,בזיליקום,Basilico,Albahaca,Basilic,ريحان
+item_Thyme,Thyme,טימין,Timo,Tomillo,Thym,زعتر
+item_Rosemary,Rosemary,רוזמרין,Rosmarino,Romero,Romarin,إكليل الجبل
+item_Parsley_Dill_Tarragon_Sage_dried_,Dried Herbs,עשבי תיבול יבשים,Erbe essiccate,Hierbas secas,Herbes séchées,أعشاب مجففة
+item_Dill,Dill,שמיר,Aneto,Eneldo,Aneth,شبت
+item_Tarragon,Tarragon,טרגון,Dragoncello,Estragón,Estragon,طرخون
+item_Sage,Sage,מרווה,Salvia,Salvia,Sauge,مريمية
+item_Bay_leaves_Saffron,Bay Leaves,עלי דפנה,Foglie di alloro,Hojas de laurel,Feuilles de laurier,أوراق الغار
+item_Bay_leaves,Bay Leaves,עלי דפנה,Foglie di alloro,Hojas de laurel,Feuilles de laurier,ورق الغار
+item_Saffron,Saffron,זעפרן,Zafferano,Azafrán,Safran,زعفران
+item_Sumac_Za_atar_Baharat,Za'atar,זעתר וסומאק,Za'atar,Za'atar,Za'atar,زعتر
+item_Sumac,Sumac,סומאק,Sommacco,Zumaque,Sumac,سماق
+item_Za_atar,Za'atar,זעתר,Za'atar,Za'atar,Za'atar,زعتر
+item_Baharat,Baharat,בהרט,Baharat,Baharat,Baharat,بهارات
+item_Mustard_seeds_Fennel_seeds,Mustard Seeds,זרעי חרדל,Semi di senape,Semillas de mostaza,Graines de moutarde,بذور الخردل
+item_Mustard_seeds,Mustard Seeds,זרעי חרדל,Semi di senape,Semillas de mostaza,Graines de moutarde,بذور الخردل
+item_Fennel_seeds,Fennel Seeds,זרעי שומר,Semi di finocchio,Semillas de hinojo,Graines de fenouil,بذور الشمر
+item_Chicken_grill_and_steak_seasoning_blends,Grill Seasoning,תבלין לגריל,Aromi per griglia,Sazonador de parrilla,Assaisonnement grill,بهارات شواء
+item_Chicken_seasoning,Chicken Seasoning,תבלין לעוף,Insaporitore per pollo,Sazonador para pollo,Épices pour poulet,بهارات دجاج
+item_Grill_seasoning,Grill Seasoning,תבלין לגריל,Insaporitore per griglia,Sazonador de parrilla,Épices pour grillades,بهارات شواء
+item_Steak_seasoning,Steak Seasoning,תבלין לסטייק,Insaporitore per bistecca,Sazonador para carne,Épices pour steak,بهارات ستيك
+item_Baking_powder_baking_soda_vanilla_extract_yeast,Baking Powder,אבקת אפייה,Lievito in polvere,Polvo de hornear,Levure chimique,بيكنج بودر
+item_Baking_powder,Baking Powder,אבקת אפייה,Lievito in polvere,Polvo de hornear,Levure chimique,مسحوق الخبز
+item_Baking_soda,Baking Soda,סודה לשתייה,Bicarbonato di sodio,Bicarbonato de sodio,Bicarbonate de soude,بيكربونات الصوديوم
+item_Vanilla_extract,Vanilla Extract,תמצית וניל,Estratto di vaniglia,Extracto de vainilla,Extrait de vanille,مستخلص الفانيليا
+item_Yeast,Yeast,שמרים,Lievito,Levadura,Levure,خميرة
+item_Cocoa_powder_and_chocolate_chips,Cocoa & Chocolate Chips,קקאו ושוקולד צ'יפס,Cacao e gocce,Cacao y chispas,Cacao et pépites,كاكاو ورقائق شوكولاتة
+item_Cocoa_powder,Cocoa Powder,קקאו,Cacao in polvere,Cacao en polvo,Poudre de cacao,مسحوق الكاكاو
+item_Chocolate_chips,Chocolate Chips,שוקולד צ'יפס,Gocce di cioccolato,Chispas de chocolate,Pépites de chocolat,رقائق الشوكولاتة
+item_Ketchup_mayonnaise_mustard,Ketchup & Mayo,קטשופ ומיונז,Ketchup e maionese,Ketchup y mayonesa,Ketchup et mayo,كاتشب ومايونيز
+item_Ketchup,Ketchup,קטשופ,Ketchup,Ketchup,Ketchup,كاتشب
+item_Mayonnaise,Mayonnaise,מיונז,Maionese,Mayonesa,Mayonnaise,مايونيز
+item_Mustard,Mustard,חרדל,Senape,Mostaza,Moutarde,خردل
+item_Tomato_paste,Tomato Paste,רסק עגבניות,Concentrato di pomodoro,Pasta de tomate,Concentré de tomates,معجون طماطم
+item_Soy_sauce_teriyaki_sweet_chili,Soy Sauce,רוטב סויה,Salsa di soia,Salsa de soja,Sauce soja,صلصة الصويا
+item_Soy_sauce,Soy Sauce,רוטב סויה,Salsa di soia,Salsa de soja,Sauce soja,صلصة الصويا
+item_Teriyaki_sauce,Teriyaki Sauce,רוטב טריאקי,Salsa teriyaki,Salsa teriyaki,Sauce teriyaki,صلصة ترياكي
+item_Sweet_chili_sauce,Sweet Chili Sauce,צ'ילי מתוק,Salsa peperoncino dolce,Salsa de chile dulce,Sauce chili douce,صلصة الفلفل الحلو
+item_Chocolate_spread_peanut_butter_jam_raw_tahini_honey,Sweet Spreads,ממרחים מתוקים,Creme dolci,Untables dulces,Pâtes à tartiner sucrées,مربى وزبدة فول سوداني
+item_Chocolate_spread,Chocolate Spread,ממרח שוקולד,Crema al cioccolato,Crema de chocolate,Pâte à tartiner au chocolat,شوكولاتة للدهن
+item_Peanut_butter,Peanut Butter,חמאת בוטנים,Burro di arachidi,Mantequilla de maní,Beurre de cacahuète,زبدة الفول السوداني
+item_Jam,Jam,ריבה,Marmellata,Mermelada,Confiture,مربى
+item_Raw_tahini,Raw Tahini,טחינה גולמית,Tahina cruda,Tahini crudo,Tahini cru,طحينة خام
+item_Honey,Honey,דבש,Miele,Miel,Miel,عسل
+item_Balsamic_vinegar_and_hot_sauce,Vinegar,חומץ,Aceto,Vinagre,Vinaigre,خل
+item_Balsamic_vinegar,Balsamic Vinegar,חומץ בלסמי,Aceto balsamico,Vinagre balsámico,Vinaigre balsamique,خل بلسمي
+item_Hot_sauce,Hot Sauce,רוטב חריף,Salsa piccante,Salsa picante,Sauce piquante,صلصة حارة
+item_Tuna,Tuna,טונה,Tonno,Atún,Thon,تونة
+item_Corn_peas_and_carrots_baked_beans,Canned Veggies,שימורי ירקות,Verdure in scatola,Verduras enlatadas,Légumes en conserve,خضروات معلبة
+item_Canned_corn,Canned Corn,תירס בשימורים,Mais in scatola,Maíz enlatado,Maïs en conserve,ذرة معلبة
+item_Canned_peas_and_carrots,Peas & Carrots,אפונה וגזר,Piselli e carote,Guisantes y zanahorias,Petits pois et carottes,بازيلاء وجزر
+item_Baked_beans,Baked Beans,שעועית אפויה,Fagioli al forno,Frijoles horneados,Haricots blancs à la tomate,فاصوليا مطبوخة
+item_Olives_pickles,Olives & Pickles,זיתים וחמוצים,Olive e sottaceti,Aceitunas y encurtidos,Olives et cornichons,زيتون ومخللات
+item_Olives,Olives,זיתים,Olive,Aceitunas,Olives,زيتون
+item_Pickles,Pickles,חמוצים,Sottaceti,Encurtidos,Cornichons,مخللات
+item_Crushed_tomatoes_Mutti_polpa_,Crushed Tomatoes,עגבניות מרוסקות,Polpa di pomodoro,Tomate triturado,Tomates concassées,طماطم مهروسة
+item_Coconut_milk_and_canned_soups,Coconut Milk,חלב קוקוס,Latte di cocco,Leche de coco,Lait de coco,حليب جوز الهند
+item_Coconut_milk,Coconut Milk,חלב קוקוס,Latte di cocco,Leche de coco,Lait de coco,حليب جوز الهند
+item_Canned_soups,Canned Soups,מרקים בשימורים,Zuppe in scatola,Sopas enlatadas,Soupes en conserve,حساء معلب
+item_Sliced_bread_rolls_pita_bread,Sliced Bread,לחם ופיתות,Pane a fette,Pan de molde,Pain en tranches,خبز وخبز بيتا
+item_Sliced_bread,Sliced Bread,לחם פרוס,Pane a fette,Pan de molde,Pain en tranches,خبز مقطع
+item_Rolls,Rolls,לחמניות,Panini,Panecillos,Petits pains,لفائف
+item_Pita_bread,Pita Bread,פיתות,Pane pita,Pan de pita,Pain pita,خبز بيتا
+item_Rice_corn_cakes,Rice Cakes,פריכיות אורז,Gallette di riso,Tortitas de arroz,Galettes de riz,كعك أرز
+item_Rice_cakes,Rice Cakes,פריכיות אורז,Gallette di riso,Tortitas de arroz,Galettes de riz,كعك الأرز
+item_Corn_cakes,Corn Cakes,פריכיות תירס,Gallette di mais,Tortitas de maíz,Galettes de maïs,كعك الذرة
+item_Breadcrumbs,Breadcrumbs,פירורי לחם,Pangrattato,Pan rallado,Chapelure,فتات الخبز
+item_Bagels_and_croissants,Bagels,בייגלה וקרואסונים,Bagel,Bagels,Bagels,خبز بيجل
+item_Bagels,Bagels,בייגלה,Bagel,Bagels,Bagels,كعك بيغل
+item_Croissants,Croissants,קרואסונים,Croissant,Croissants,Croissants,كرواسون
+item_Coffee_black_instant_capsules_,Coffee,קפה,Caffè,Café,Café,قهوة
+item_Black_coffee,Black Coffee,קפה שחור,Caffè nero,Café solo,Café noir,قهوة سوداء
+item_Instant_coffee,Instant Coffee,קפה נמס,Caffè istantaneo,Café instantáneo,Café instantané,قهوة سريعة التحضير
+item_Coffee_capsules,Coffee Capsules,קפסולות קפה,Capsule di caffè,Cápsulas de café,Capsules de café,كبسولات قهوة
+item_Tea_tea_bags_infusions_,Tea,תה,Tè,Té,Thé,شاي
+item_Tea_bags,Tea Bags,תיונים,Bustine di tè,Bolsitas de té,Sachets de thé,أكياس شاي
+item_Tea_infusions,Tea Infusions,חליטות תה,Infusi di tè,Infusiones de té,Infusions de thé,شاي أعشاب
+item_Mineral_water,Mineral Water,מים מינרליים,Acqua minerale,Agua mineral,Eau minérale,مياه معدنية
+item_Juices_and_syrups_raspberry_orange_juice_carbonated_drinks_,Juice,מיצים וסירופים,Succo,Jugo,Jus,عصير
+item_Juices,Juices,מיצים,Succhi,Jugos,Jus,عصائر
+item_Syrups,Syrups,סירופים,Sciroppi,Siropes,Sirops,عصائر مركزة
+item_Carbonated_drinks,Carbonated Drinks,משקאות מוגזים,Bevande gassate,Bebidas carbonatadas,Boissons gazeuses,مشروبات غازية
+item_Sparkling_water_and_energy_drinks,Sparkling Water,סודה ומשקאות אנרגיה,Acqua frizzante,Agua con gas,Eau gazeuse,مياه غازية
+item_Sparkling_water,Sparkling Water,סודה,Acqua frizzante,Agua con gas,Eau gazeuse,مياه غازية
+item_Energy_drinks,Energy Drinks,משקאות אנרגיה,Bevande energetiche,Bebidas energéticas,Boissons énergisantes,مشروبات طاقة
+item_Bamba_Bisli_chips_pretzels,Salty Snacks,חטיפים מלוחים,Snack salati,Snacks salados,Snacks salés,وجبات خفيفة مالحة
+item_Bamba,Bamba,במבה,Bamba,Bamba,Bamba,بامبا
+item_Bisli,Bisli,ביסלי,Bisli,Bisli,Bisli,بيسلي
+item_Chips,Chips,צ'יפס,Patatine,Patatas fritas,Chips,شيبس
+item_Pretzels,Pretzels,בייגלה,Salatini,Pretzels,Bretzels,بريتزل
+item_Chocolate_cookies_wafers,Chocolate & Cookies,שוקולד ועוגיות,Cioccolato e biscotti,Chocolate y galletas,Chocolat et biscuits,شوكولاتة وبسكويت
+item_Chocolate,Chocolate,שוקולד,Cioccolato,Chocolate,Chocolat,شوكولاتة
+item_Cookies,Cookies,עוגיות,Biscotti,Galletas,Biscuits,بسكويت
+item_Wafers,Wafers,ופלים,Wafer,Obleas,Gaufrettes,ويفر
+item_Nuts_and_seeds_sunflower_seeds_almonds_walnuts_,Nuts & Seeds,פיצוחים ואגוזים,Noci e semi,Nueces y semillas,Noix et graines,مكسرات وبذور
+item_Sunflower_seeds,Sunflower Seeds,גרעיני חמנייה,Semi di girasole,Semillas de girasol,Graines de tournesol,بذور دوار الشمس
+item_Almonds,Almonds,שקדים,Mandorle,Almendras,Amandes,لوز
+item_Walnuts,Walnuts,אגוזי מלך,Noci,Nueces,Noix,جوز
+item_Popcorn_and_dried_fruits,Popcorn & Dried Fruit,פופקורן ופירות יבשים,Popcorn e frutta secca,Palomitas y frutos secos,Pop-corn et fruits secs,فشار وفواكه مجففة
+item_Popcorn,Popcorn,פופקורן,Popcorn,Palomitas,Pop-corn,فشار
+item_Dried_fruits,Dried Fruits,פירות יבשים,Frutta secca,Frutas secas,Fruits secs,فواكه مجففة
+item_Multivitamin,Multivitamin,מולטי-ויטמין,Multivitaminico,Multivitamina,Multivitamine,متعدد الفيتامينات
+item_Vitamin_D_and_Vitamin_C,Vitamin D & C,ויטמין D ו-C,Vitamina D e C,Vitamina D y C,Vitamine D et C,فيتامين D و C
+item_Vitamin_D,Vitamin D,ויטמין D,Vitamina D,Vitamina D,Vitamine D,فيتامين د
+item_Vitamin_C,Vitamin C,ויטמין C,Vitamina C,Vitamina C,Vitamine C,فيتامين سي
+item_Omega_3,Omega 3,אומגה 3,Omega 3,Omega 3,Oméga 3,أوميغا 3
+item_Iron_Calcium_and_B12,Iron & Calcium,ברזל וסידן,Ferro e calcio,Hierro y calcio,Fer et calcium,حديد وكالسيوم
+item_Iron_supplement,Iron Supplement,תוסף ברזל,Integratore di ferro,Suplemento de hierro,Supplément de fer,مكمل الحديد
+item_Calcium_supplement,Calcium Supplement,תוסף סידן,Integratore di calcio,Suplemento de calcio,Supplément de calcium,مكمل الكالسيوم
+item_B12_supplement,B12 Supplement,תוסף B12,Integratore B12,Suplemento B12,Supplément B12,مكمل ب12
+item_Protein_powder,Protein Powder,אבקת חלבון,Proteine in polvere,Proteína en polvo,Protéine en poudre,بروتين بودرة
+item_Probiotics_and_Magnesium,Probiotics,פרוביוטיקה,Probiotici,Probióticos,Probiotiques,بروبيوتيك
+item_Probiotics,Probiotics,פרוביוטיקה,Probiotici,Probióticos,Probiotiques,بروبيوتيك
+item_Magnesium,Magnesium,מגנזיום,Magnesio,Magnesio,Magnésium,مغنيسيوم
+item_Floor_cleaner,Floor Cleaner,נוזל רצפות,Detergente per pavimenti,Limpiador de suelos,Nettoyant pour sol,منظف أرضيات
+item_Bleach,Bleach,אקונומיקה,Candeggina,Lejía,Eau de Javel,مبيض
+item_Window_cleaner_spray,Window Cleaner,נוזל חלונות,Lavavetri,Limpiacristales,Nettoyant vitres,منظف زجاج
+item_Degreaser,Degreaser,מסיר שומנים,Sgrassatore,Desengrasante,Dégraissant,مزيل دهون
+item_Toilet_cleaner_spray_liquid,Toilet Cleaner,נוזל אסלות,Detergente per WC,Limpiador de inodoros,Nettoyant WC,منظف تواليت
+item_Insect_repellent_spray_K300_etc__,Insect Repellent,קוטל חרקים,Repellente insetti,Repelente de insectos,Répulsif insectes,طارد حشرات
+item_Magic_erasers_and_furniture_polish,Magic Erasers,ספוג הפלא,Gomme magiche,Borradores mágicos,Éponges magiques,إسفنج سحري
+item_Drain_unblocker_liquid,Drain Unblocker,פותח סתימות,Sgorgante,Desatascador,Déboucheur d'évier,فاتح بالوعات
+item_Laundry_detergent_powder_gel_capsules_,Laundry Detergent,חומר כביסה,Detersivo per bucato,Detergente de ropa,Lessive,منظف غسيل
+item_Laundry_detergent_powder,Laundry Detergent Powder,אבקת כביסה,Detersivo in polvere,Detergente en polvo,Lessive en poudre,مسحوق غسيل
+item_Laundry_detergent_gel,Laundry Detergent Gel,ג'ל כביסה,Detersivo gel,Detergente en gel,Lessive liquide,جل غسيل
+item_Laundry_capsules,Laundry Capsules,קפסולות כביסה,Capsule bucato,Cápsulas de lavado,Capsules de lessive,كبسولات غسيل
+item_Fabric_softener,Fabric Softener,מרכך כביסה,Ammorbidente,Suavizante,Adoucissant,منعم أقمشة
+item_Stain_remover_spray_or_powder_,Stain Remover,מסיר כתמים,Smacchiatore,Quitamanchas,Détachant,مزيل بقع
+item_Stain_remover_spray,Stain Remover Spray,תרסיס מסיר כתמים,Smacchiatore spray,Quitamanchas spray,Détachant spray,بخاخ مزيل بقع
+item_Stain_remover_powder,Stain Remover Powder,אבקת מסיר כתמים,Smacchiatore polvere,Quitamanchas polvo,Détachant poudre,مسحوق مزيل بقع
+item_Color_catcher_sheets,Color Catcher,דפי כביסה,Fogli acchiappacolore,Toallitas atrapacolor,Lingettes anti-décoloration,ورق صائد الألوان
+item_Dish_soap,Dish Soap,סבון כלים,Detersivo piatti,Jabón de platos,Liquide vaisselle,صابون أطباق
+item_Dishwasher_tablets_capsules,Dishwasher Tablets,טבליות למדיח,Pastiglie lavastoviglie,Pastillas lavavajillas,Pastilles lave-vaisselle,أقراص غسالة أطباق
+item_Dishwasher_tablets,Dishwasher Tablets,טבליות למדיח,Pastiglie lavastoviglie,Pastillas lavavajillas,Pastilles lave-vaisselle,أقراص غسالة أطباق
+item_Dishwasher_capsules,Dishwasher Capsules,קפסולות למדיח,Capsule lavastoviglie,Cápsulas lavavajillas,Capsules lave-vaisselle,كبسولات غسالة أطباق
+item_Dishwasher_salt_rinse_aid,Dishwasher Salt,מלח למדיח,Sale lavastoviglie,Sal para lavavajillas,Sel lave-vaisselle,ملح غسالة أطباق
+item_Dishwasher_salt,Dishwasher Salt,מלח למדיח,Sale lavastoviglie,Sal lavavajillas,Sel lave-vaisselle,ملح غسالة أطباق
+item_Rinse_aid,Rinse Aid,נוזל הברקה,Brillantante,Abrillantador,Liquide de rinçage,مساعد شطف
+item_Steel_wool_scrubbing_pads,Steel Wool,ברזלית,Lana d'acciaio,Estropajos de acero,Paille de fer,سلك غسيل
+item_Garbage_bags_large_and_small_,Garbage Bags,שקיות אשפה,Sacchi spazzatura,Bolsas de basura,Sacs poubelle,أكياس قمامة
+item_Large_garbage_bags,Large Garbage Bags,שקיות אשפה גדולות,Sacchi spazzatura grandi,Bolsas basura grandes,Grands sacs poubelle,أكياس قمامة كبيرة
+item_Small_garbage_bags,Small Garbage Bags,שקיות אשפה קטנות,Sacchi spazzatura piccoli,Bolsas basura pequeñas,Petits sacs poubelle,أكياس قمامة صغيرة
+item_Sponges_and_scouring_pads,Sponges,ספוגים,Spugne,Esponjas,Éponges,إسفنج
+item_Sponges,Sponges,ספוגים,Spugne,Esponjas,Éponges,إسفنج
+item_Scouring_pads,Scouring Pads,כריות קרצוף,Spugnette abrasive,Estropajos,Tampons à récurer,وسادات فرك
+item_Cleaning_cloths_microfiber_cleaning_wet_wipes,Microfiber Cloths,מטליות מיקרופייבר,Panni in microfibra,Paños de microfibra,Chiffons microfibre,فوط ميكروفايبر
+item_Microfiber_cleaning_cloths,Microfiber Cloths,מטליות מיקרופייבר,Panni in microfibra,Paños de microfibra,Chiffons microfibre,فوط ميكروفايبر
+item_Cleaning_wet_wipes,Cleaning Wet Wipes,מגבונים לניקוי,Salviette detergenti,Toallitas limpiadoras,Lingettes nettoyantes,مناديل تنظيف مبللة
+item_Floor_rags,Floor Rags,מטליות רצפה,Stracci per pavimenti,Trapos de suelo,Serpillières,مماسح أرضية
+item_Aluminum_foil_baking_paper_cling_film_sandwich_bags,Aluminum Foil & Wrap,נייר כסף ונצמד,Pellicola e alluminio,Papel de aluminio y film,Papier alu et film,ورق ألمنيوم وتغليف
+item_Aluminum_foil,Aluminum Foil,נייר כסף,Pellicola di alluminio,Papel de aluminio,Papier d'aluminium,ورق ألمنيوم
+item_Baking_paper,Baking Paper,נייר אפייה,Carta da forno,Papel de horno,Papier sulfurisé,ورق خبز
+item_Cling_film,Cling Film,נייר נצמד,Pellicola trasparente,Film transparente,Film étirable,ورق تغليف شفاف
+item_Sandwich_bags,Sandwich Bags,שקיות כריכים,Sacchetti per panini,Bolsas para sándwiches,Sacs à sandwich,أكياس سندويشات
+item_Rubber_cleaning_gloves,Rubber Gloves,כפפות גומי,Guanti di gomma,Guantes de goma,Gants en caoutchouc,قفازات مطاطية
+item_Shampoo_and_hair_conditioner,Shampoo,שמפו ומרכך,Shampoo,Champú,Shampoing,شامبو
+item_Shampoo,Shampoo,שמפו,Shampoo,Champú,Shampoing,شامبو
+item_Hair_conditioner,Hair Conditioner,מרכך שיער,Balsamo,Acondicionador,Après-shampoing,بلسم شعر
+item_Body_wash_liquid_bar_face_wash,Body Wash,סבון גוף,Bagnoschiuma,Gel de ducha,Gel douche,غسول جسم
+item_Body_wash,Body Wash,סבון גוף,Bagnoschiuma,Gel de ducha,Gel douche,غسول جسم
+item_Face_wash,Face Wash,סבון פנים,Detergente viso,Limpiador facial,Nettoyant visage,غسول وجه
+item_Deodorant,Deodorant,דאודורנט,Deodorante,Desodorante,Déodorant,مزيل عرق
+item_Toothpaste_mouthwash,Toothpaste,משחת שיניים,Dentifricio,Pasta de dientes,Dentifrice,معجون أسنان
+item_Toothpaste,Toothpaste,משחת שיניים,Dentifricio,Pasta de dientes,Dentifrice,معجون أسنان
+item_Mouthwash,Mouthwash,מי פה,Colluttorio,Enjuague bucal,Bain de bouche,غسول فم
+item_Toothbrushes,Toothbrushes,מברשות שיניים,Spazzolini,Cepillos de dientes,Brosses à dents,فرش أسنان
+item_Razors_shaving_cream_gel,Razors,סכיני גילוח,Rasoi,Maquinillas,Rasoirs,شفرات حلاقة
+item_Razors,Razors,סכיני גילוח,Rasoi,Maquinillas,Rasoirs,شفرات حلاقة
+item_Shaving_cream,Shaving Cream,קצף גילוח,Schiuma da barba,Espuma de afeitar,Mousse à raser,كريم حلاقة
+item_Feminine_hygiene_products_pads_tampons_panty_liners_,Feminine Hygiene,היגיינה נשית,Igiene femminile,Higiene femenina,Hygiène féminine,نظافة نسائية
+item_Feminine_pads,Feminine Pads,תחבושות היגייניות,Assorbenti,Compresas,Serviettes hygiéniques,فوط صحية
+item_Tampons,Tampons,טמפונים,Assorbenti interni,Tampones,Tampons,سدادات قطنية
+item_Panty_liners,Panty Liners,מגיני תחתון,Salvaslip,Salvaslips,Protège-slips,فوط يومية
+item_Cotton_swabs_cotton_balls,Cotton Swabs,צמר גפן וקיסמים,Cotton fioc,Hisopos,Coton-tiges,أعواد قطنية
+item_Cotton_swabs,Cotton Swabs,קיסמי אוזניים,Cotton fioc,Hisopos,Coton-tiges,أعواد قطنية
+item_Cotton_balls,Cotton Balls,צמר גפן,Batuffoli di cotone,Bolas de algodón,Boules de coton,كرات قطنية
+item_Dental_floss_and_interdental_brushes,Dental Floss,חוט דנטלי,Filo interdentale,Hilo dental,Fil dentaire,خيط أسنان
+item_Dental_floss,Dental Floss,חוט דנטלי,Filo interdentale,Hilo dental,Fil dentaire,خيط أسنان
+item_Interdental_brushes,Interdental Brushes,קיסמים דנטליים,Scovolini,Cepillos interdentales,Brossettes interdentaires,فرش بين الأسنان
+item_Sunscreen_and_body_lotion,Sunscreen,קרם הגנה,Crema solare,Protector solar,Crème solaire,واقي شمس
+item_Sunscreen,Sunscreen,קרם הגנה,Crema solare,Protector solar,Crème solaire,واقي شمس
+item_Body_lotion,Body Lotion,קרם גוף,Crema corpo,Loción corporal,Lotion pour le corps,لوشن جسم
+item_Hair_styling_gel_spray,Hair Gel,ג'ל לשיער,Gel per capelli,Gel para cabello,Gel cheveux,جل شعر
+item_Hair_styling_gel,Hair Gel,ג'ל לשיער,Gel per capelli,Gel para el cabello,Gel coiffant,جل شعر
+item_Hair_styling_spray,Hair Spray,ספריי לשיער,Lacca per capelli,Laca para el cabello,Laque pour cheveux,بخاخ شعر
+item_Toilet_paper,Toilet Paper,נייר טואלט,Carta igienica,Papel higiénico,Papier toilette,ورق تواليت
+item_Paper_towels,Paper Towels,נייר סופג,Tovaglioli di carta,Toallas de papel,Essuie-tout,مناشف ورقية
+item_Wet_wipes,Wet Wipes,מגבונים לחים,Salviette umidificate,Toallitas húmedas,Lingettes humides,مناديل مبللة
+item_Tissues,Tissues,טישו,Fazzoletti,Pañuelos,Mouchoirs,مناديل ورقية
+item_Makeup_remover_wipes,Makeup Wipes,מגבונים להסרת איפור,Salviette struccanti,Toallitas desmaquillantes,Lingettes démaquillantes,مناديل إزالة مكياج
+item_Pain_relievers_and_fever_reducers_Acamol_Nurofen_etc__,Pain Relievers,משככי כאבים,Antidolorifici,Analgésicos,Analgésiques,مسكنات الألم
+item_Pain_relievers,Pain Relievers,משככי כאבים,Antidolorifici,Analgésicos,Analgésiques,مسكنات ألم
+item_Fever_reducers,Fever Reducers,מורידי חום,Antipiretici,Antitérmicos,Antipyrétiques,خافضات حرارة
+item_Band_aids_bandages_Polydine_rubbing_alcohol_for_disinfection,Band-aids,פלסטרים,Cerotti,Tiritas,Pansements,بلاستر
+item_Band_aids,Band-Aids,פלסטרים,Cerotti,Tiritas,Pansements,بلاستر
+item_Bandages,Bandages,תחבושות,Bende,Vendas,Bandages,ضمادات
+item_Polydine,Polydine,פולידין,Polydine,Polydine,Polydine,بوليدين
+item_Rubbing_alcohol,Rubbing Alcohol,אלכוהול לחיטוי,Alcol denaturato,Alcohol isopropílico,Alcool à friction,كحول طبي
+item_Thermometer,Thermometer,מדחום,Termometro,Termómetro,Thermomètre,ميزان حرارة
+item_Burn_bite_ointments_Fenistil_Aloe_Vera_,Ointments,משחות,Unguenti,Ungüentos,Pommades,مراهم
+item_Burn_ointments,Burn Ointments,משחות לכוויות,Pomate per ustioni,Ungüentos para quemaduras,Pommades pour brûlures,مراهم حروق
+item_Bite_ointments,Bite Ointments,משחות לעקיצות,Pomate per punture,Ungüentos para picaduras,Pommades pour piqûres,مراهم لدغات
+item_Replacement_light_bulbs,Light Bulbs,נורות,Lampadine,Bombillas,Ampoules,مصابيح إضاءة
+item_Batteries_AA_AAA_,Batteries,סוללות,Batterie,Pilas,Piles,بطاريات
+item_AA_Batteries,AA Batteries,סוללות AA,Batterie AA,Pilas AA,Piles AA,بطاريات AA
+item_AAA_Batteries,AAA Batteries,סוללות AAA,Batterie AAA,Pilas AAA,Piles AAA,بطاريات AAA
+item_Mobile_phone_chargers_and_cables,Chargers,מטענים,Caricabatterie,Cargadores,Chargeurs,شواحن
+item_Mobile_phone_chargers,Phone Chargers,מטענים לנייד,Caricabatterie telefono,Cargadores de móvil,Chargeurs de téléphone,شواحن هواتف
+item_Charging_cables,Charging Cables,כבלי הטענה,Cavi di ricarica,Cables de carga,Câbles de charge,كابلات شحن
+item_Extension_cords_power_strips,Extension Cords,כבלים מאריכים,Prolunghe,Cables extensores,Rallonges,وصلات كهرباء
+item_Extension_cords,Extension Cords,כבלים מאריכים,Prolunghe,Cables extensores,Rallonges,وصلات كهرباء
+item_Power_strips,Power Strips,מפצלי חשמל,Prese multiple,Regletas,Multiprises,مشتركات كهربائية
+item_Flashlight_and_portable_work_light,Flashlight,פנס,Torcia,Linterna,Lampe de poche,كشاف
+item_Flashlight,Flashlight,פנס,Torcia,Linterna,Lampe de poche,كشاف
+item_Portable_work_light,Work Light,תאורת עבודה,Faretto da lavoro,Luz de trabajo,Lampe de travail,مصباح عمل
+item_Matches_lighter,Matches / Lighter,גפרורים/מצית,Fiammiferi/Accendino,Cerillas/Encendedor,Allumettes/Briquet,كبريت/ولاعة
+item_Matches,Matches,גפרורים,Fiammiferi,Cerillas,Allumettes,كبريت
+item_Lighter,Lighter,מצית,Accendino,Encendedor,Briquet,ولاعة
+item_Emergency_Shabbat_candles,Candles,נרות,Candele,Velas,Bougies,شموع
+item_Emergency_candles,Emergency Candles,נרות חירום,Candele d'emergenza,Velas de emergencia,Bougies de secours,شموع طوارئ
+item_Shabbat_candles,Shabbat Candles,נרות שבת,Candele di Shabbat,Velas de Shabat,Bougies de Shabbat,شموع السبت
+item_Scissors,Scissors,מספריים,Forbici,Tijeras,Ciseaux,مقص
+item_Scotch_tape_contact_adhesive,Tape & Glue,סלוטייפ ודבק,Nastro e colla,Cinta y pegamento,Ruban et colle,شريط لاصق
+item_Scotch_tape,Scotch Tape,סלוטייפ,Nastro adesivo,Cinta adhesiva,Ruban adhésif,شريط لاصق
+item_Contact_adhesive,Contact Adhesive,דבק מגע,Adesivo a contatto,Adhesivo de contacto,Colle de contact,غراء لاصق
+item_Basic_tools_hammer_Phillips_flathead_screwdriver_nails_pliers_,Basic Tools,כלי עבודה בסיסיים,Strumenti di base,Herramientas básicas,Outils de base,أدوات أساسية
+item_Basic_hammer,Hammer,פטיש,Martello,Martillo,Marteau,مطرقة
+item_Basic_screwdriver,Screwdriver,מברג,Cacciavite,Destornillador,Tournevis,مفك
+item_Basic_nails,Nails,מסמרים,Chiodi,Clavos,Clous,مسامير
+item_Basic_pliers,Pliers,פלייר,Pinze,Alicates,Pinces,كماشة
+item_Duct_tape_and_super_glue,Duct Tape,מסקינטייפ,Nastro adesivo,Cinta americana,Ruban adhésif,شريط لاصق قوي
+item_Duct_tape,Duct Tape,מסקינטייפ,Nastro adesivo,Cinta americana,Ruban adhésif,شريط لاصق قوي
+item_Super_glue,Super Glue,דבק מהיר,Super colla,Superpegamento,Super glue,غراء سريع
+item_Printer_paper_A4_,Printer Paper,נייר מדפסת,Carta stampante,Papel de impresora,Papier imprimante,ورق طابعة
+item_Pens_pencils_and_highlighters,Pens & Pencils,עטים ועפרונות,Penne e matite,Bolígrafos y lápices,Stylos et crayons,أقلام
+item_Pens,Pens,עטים,Penne,Bolígrafos,Stylos,أقلام حبر
+item_Pencils,Pencils,עפרונות,Matite,Lápices,Crayons,أقلام رصاص
+item_Highlighters,Highlighters,מרקרים,Evidenziatori,Resaltadores,Surligneurs,أقلام تحديد
+item_Notebooks_and_sticky_notes,Notebooks,מחברות,Quaderni,Cuadernos,Cahiers,دفاتر
+item_Notebooks,Notebooks,מחברות,Quaderni,Cuadernos,Cahiers,دفاتر
+item_Sticky_notes,Sticky Notes,פתקיות,Foglietti adesivi,Notas adhesivas,Notes autocollantes,ملاحظات لاصقة
+item_Stapler_staples_and_paperclips,Stapler,שדכן,Cucitrice,Grapadora,Agrafeuse,دباسة
+item_Stapler,Stapler,שדכן,Cucitrice,Grapadora,Agrafeuse,دباسة
+item_Staples,Staples,סיכות לשדכן,Punti metallici,Grapas,Agrafes,دبابيس
+item_Paperclips,Paperclips,אטבי נייר,Graffette,Clips,Trombones,مشابك ورق
+item_Hammer,Hammer,פטיש,Martello,Martillo,Marteau,مطرقة
+item_Screwdriver_set_Phillips_and_flathead_various_sizes_,Screwdriver,מברג,Cacciavite,Destornillador,Tournevis,مفك
+item_Phillips_screwdriver,Phillips Screwdriver,מברג פיליפס,Cacciavite a stella,Destornillador Phillips,Tournevis cruciforme,مفك صليبة
+item_Flathead_screwdriver,Flathead Screwdriver,מברג שטוח,Cacciavite piatto,Destornillador plano,Tournevis plat,مفك عادي
+item_Pliers_locking_pliers,Pliers,פלייר,Pinze,Alicates,Pinces,كماشة
+item_Pliers,Pliers,פלייר,Pinze,Alicates,Pinces,كماشة
+item_Locking_pliers,Locking Pliers,פלייר פטנט,Pinza a scatto,Mordaza,Pince-étau,كماشة كبس
+item_Adjustable_wrench,Wrench,מפתח שוודי,Chiave inglese,Llave inglesa,Clé à molette,مفتاح ربط
+item_Utility_knife_and_replacement_blades_,Utility Knife,סכין יפנית,Taglierino,Cúter,Cutter,مشرط
+item_Utility_knife,Utility Knife,סכין יפנית,Taglierino,Cúter,Cutter,مشرط
+item_Replacement_blades,Replacement Blades,להבים להחלפה,Lame di ricambio,Cuchillas de repuesto,Lames de rechange,شفرات بديلة
+item_Measuring_tape,Measuring Tape,סרט מידה,Metro a nastro,Cinta métrica,Mètre ruban,شريط قياس
+item_Small_level,Level,פלס,Livella,Nivel,Niveau,ميزان ماء
+item_Pipe_wrench,Pipe Wrench,מפתח צינורות,Girattubi,Llave de tubo,Clé serre-tubes,مفتاح أنابيب
+item_Allen_wrench_set_Hex_keys_,Allen Wrench,מפתחות אלן,Chiavi a brugola,Llaves Allen,Clés Allen,مفتاح ألين
+item_Allen_wrench_set,Allen Wrench Set,סט מפתחות אלן,Set di chiavi a brugola,Juego de llaves Allen,Jeu de clés Allen,طقم مفاتيح ألين
+item_Hex_keys,Hex Keys,מפתחות משושה,Chiavi esagonali,Llaves hexagonales,Clés hexagonales,مفاتيح سداسية
+item_Box_of_nails_various_sizes_,Nails,מסמרים,Chiodi,Clavos,Clous,مسامير
+item_Screws_and_wall_plugs_set_matching_,Screws & Plugs,ברגים ודיבלים,Viti e tasselli,Tornillos y tacos,Vis et chevilles,براغي ومسامير
+item_Screws,Screws,ברגים,Viti,Tornillos,Vis,براغي
+item_Wall_plugs,Wall Plugs,דיבלים,Tasselli,Tacos,Chevilles,خابور جداري
+item_Electrical_tape,Electrical Tape,איזולירבנד,Nastro isolante,Cinta aislante,Ruban isolant,شريط كهربائي
+item_Cable_ties_various_sizes_,Cable Ties,אזיקונים,Fascette,Bridas,Serre-câbles,روابط كابلات
+item_Sandpaper_coarse_and_fine_,Sandpaper,נייר לטש,Carta vetrata,Papel de lija,Papier de verre,ورق صنفرة
+item_Lubricant_and_penetrating_oil_spray_e_g_WD_40_,Lubricant Spray,תרסיס שימון (WD-40),Lubrificante,Lubricante,Lubrifiant,بخاخ تشحيم
+item_Lubricant_spray,Lubricant Spray,תרסיס שימון,Spray lubrificante,Spray lubricante,Spray lubrifiant,بخاخ تشحيم
+item_Penetrating_oil,Penetrating Oil,שמן חודר,Olio sbloccante,Aceite penetrante,Huile pénétrante,زيت اختراق
+item_Wood_glue_super_glue_epoxy_resin,Glue,דבק,Colla,Pegamento,Colle,صمغ
+item_Wood_glue,Wood Glue,דבק עץ,Colla per legno,Pegamento para madera,Colle à bois,غراء خشب
+item_Epoxy_resin,Epoxy Resin,אפוקסי,Resina epossidica,Resina epoxi,Résine époxy,راتنج إيبوكسي
+item_Safety_goggles_and_work_gloves,Safety Gear,ציוד מגן,Dispositivi sicurezza,Equipo de seguridad,Équipement de sécurité,معدات سلامة
+item_Safety_goggles,Safety Goggles,משקפי מגן,Occhiali di sicurezza,Gafas de seguridad,Lunettes de sécurité,نظارات واقية
+item_Work_gloves,Work Gloves,כפפות עבודה,Guanti da lavoro,Guantes de trabajo,Gants de travail,قفازات عمل
+item_Cordless_drill_driver,Cordless Drill,מקדחה/מברגה,Trapano a batteria,Taladro inalámbrico,Perceuse sans fil,مثقاب لاسلكي
+item_Cordless_drill,Cordless Drill,מקדחה נטענת,Trapano a batteria,Taladro inalámbrico,Perceuse sans fil,مثقاب لاسلكي
+item_Drill_driver,Drill Driver,מברגה,Avvitatore,Atornillador,Visseuse,مفك براغي كهربائي
+item_Drill_bit_set_for_wood_masonry_and_metal_,Drill Bits,מקדחים,Punte per trapano,Brocas,Forets,ريش مثقاب
+item_Wood_drill_bit,Wood Drill Bit,מקדח עץ,Punta per legno,Broca para madera,Foret à bois,ريشة خشب
+item_Masonry_drill_bit,Masonry Drill Bit,מקדח קיר,Punta per muro,Broca para mampostería,Foret à maçonnerie,ريشة جدار
+item_Metal_drill_bit,Metal Drill Bit,מקדח מתכת,Punta per metallo,Broca para metal,Foret à métaux,ريشة معدن
+item_Screwdriver_bit_set,Screwdriver Bits,ביטים למברגה,Punte cacciavite,Puntas destornillador,Embouts tournevis,لقم مفك
+item_Electric_sander_or_jigsaw,Sander / Jigsaw,מסור/מלטשת,Levigatrice/Seghetto,Lijadora/Sierra,Ponceuse/Scie,صنفرة / منشار
+item_Electric_sander,Electric Sander,מלטשת חשמלית,Levigatrice,Lijadora eléctrica,Ponceuse électrique,صنفرة كهربائية
+item_Jigsaw,Jigsaw,מסור אנכי (ג'יגסו),Seghetto alternativo,Sierra de calar,Scie sauteuse,منشار أركت
+item_Pills_for_adults_paracetamol_based_ibuprofen_based_Optalgin_,Adult Pills,כדורים למבוגרים,Pillole adulti,Pastillas adultos,Pilules adultes,حبوب كبار
+item_Paracetamol,Paracetamol,פרצטמול,Paracetamolo,Paracetamol,Paracétamol,باراسيتامول
+item_Ibuprofen,Ibuprofen,איבופרופן,Ibuprofene,Ibuprofeno,Ibuprofène,إيبوبروفين
+item_Optalgin,Optalgin,אופטלגין,Optalgin,Optalgin,Optalgine,أوبتالجين
+item_Syrup_or_suppositories_for_children_s_fever,Children's Syrup,סירופ לילדים,Sciroppo bambini,Jarabe niños,Sirop enfants,شراب أطفال
+item_Children_s_fever_syrup,Children's Fever Syrup,סירופ חום לילדים,Sciroppo febbre bambini,Jarabe fiebre niños,Sirop fièvre enfants,شراب حمى أطفال
+item_Suppositories,Suppositories,נרות (רפואי),Supposte,Supositorios,Suppositoires,تحاميل
+item_Band_aids_in_various_sizes_and_shapes,Band-aids,פלסטרים,Cerotti,Tiritas,Pansements,بلاستر
+item_Personal_bandages_and_sterile_gauze_pads,Bandages,תחבושות,Bende,Vendas,Bandages,ضمادات
+item_Personal_bandages,Personal Bandages,תחבושות אישיות,Bende personali,Vendas personales,Bandages personnels,ضمادات شخصية
+item_Sterile_gauze_pads,Sterile Gauze Pads,פדי גזה סטריליים,Garze sterili,Gasas estériles,Compresses stériles,وسادات شاش معقمة
+item_Medical_adhesive_tape_Micropore_,Medical Tape,סרט רפואי,Nastro medico,Cinta médica,Ruban médical,شريط طبي
+item_Antiseptic_Polydine_Savlon_or_antiseptic_spray_,Antiseptic,חומר חיטוי,Antisettico,Antiséptico,Antiseptique,مطهر
+item_Savlon,Savlon,סבלון,Savlon,Savlon,Savlon,سافلون
+item_Antiseptic_spray,Antiseptic Spray,תרסיס חיטוי,Spray antisettico,Spray antiséptico,Spray antiseptique,بخاخ مطهر
+item_Medical_alcohol_70__,Medical Alcohol,אלכוהול רפואי,Alcol medico,Alcohol médico,Alcool médical,كحول طبي
+item_Tweezers_for_removing_splinters_thorns_,Tweezers,פינצטה,Pinzette,Pinzas,Pinces à épiler,ملقط
+item_Cold_hot_compress_gel_packs,Gel Compress,קומפרס ג'ל,Impacco gel,Compresa de gel,Compresse de gel,كمادة جل
+item_Cold_compress,Cold Compress,קומפרס קר,Impacco freddo,Compresa fría,Compresse froide,كمادة باردة
+item_Hot_compress,Hot Compress,קומפרס חם,Impacco caldo,Compresa caliente,Compresse chaude,كمادة ساخنة
+item_Gel_or_ointment_for_burns,Burn Gel,ג'ל לכוויות,Gel ustioni,Gel para quemaduras,Gel brûlures,جل حروق
+item_Burn_gel,Burn Gel,ג'ל כוויות,Gel ustioni,Gel quemaduras,Gel brûlures,جل حروق
+item_Ointment_for_bites_and_itching,Bite Ointment,משחה לעקיצות,Pomata punture,Ungüento picaduras,Pommade piqûres,مرهم لدغات
+item_Anti_itch_ointment,Anti-itch Ointment,משחה נגד גירוד,Pomata prurito,Ungüento picor,Pommade anti-démangeaisons,مرهم مضاد للحكة
+item_Antibiotic_ointment_for_minor_skin_infections,Antibiotic Ointment,משחה אנטיביוטית,Pomata antibiotica,Ungüento antibiótico,Pommade antibiotique,مرهم مضاد حيوي
+item_Muscle_relief_cream_e_g_BenGay_Voltaren_,Muscle Cream,קרם שרירים,Crema muscoli,Crema muscular,Crème musculaire,كريم عضلات
+item_Muscle_relief_cream,Muscle Relief Cream,משחה לשרירים,Crema muscolare,Crema muscular,Crème musculaire,كريم عضلات
+item_Voltaren,Voltaren,וולטרן,Voltaren,Voltaren,Voltarène,فولتارين
+item_Thermometer_digital_or_regular_,Thermometer,מדחום,Termometro,Termómetro,Thermomètre,ميزان حرارة
+item_Digital_thermometer,Digital Thermometer,מדחום דיגיטלי,Termometro digitale,Termómetro digital,Thermomètre numérique,مقياس حرارة رقمي
+item_Regular_thermometer,Regular Thermometer,מדחום רגיל,Termometro normale,Termómetro normal,Thermomètre classique,مقياس حرارة عادي
+item_Lozenges_for_sore_throat,Lozenges,לכסניות גרון,Pastiglie,Pastillas,Pastilles,أقراص استحلاب
+item_Cough_syrup,Cough Syrup,סירופ שיעול,Sciroppo tosse,Jarabe tos,Sirop toux,شراب سعال
+item_Nasal_drops_or_spray_saline_or_medicated_,Nasal Spray,טיפות אף,Spray nasale,Aerosol nasal,Spray nasal,قطرة أنف
+item_Nasal_drops,Nasal Drops,טיפות אף,Gocce nasali,Gotas nasales,Gouttes nasales,قطرة أنف
+item_Nasal_spray,Nasal Spray,תרסיס אף,Spray nasale,Spray nasal,Spray nasal,بخاخ أنف
+item_Allergy_medicines_antihistamines_,Allergy Meds,תרופות לאלרגיה,Antistaminici,Antihistamínicos,Antihistaminiques,أدوية حساسية
+item_Allergy_medicines,Allergy Medicines,תרופות אלרגיה,Medicine allergia,Medicinas alergia,Médicaments allergie,أدوية حساسية
+item_Antihistamines,Antihistamines,אנטיהיסטמינים,Antistaminici,Antihistamínicos,Antihistaminiques,مضادات الهيستامين
+item_Pills_for_nausea_or_upset_stomach,Nausea Pills,כדורים לבחילות,Pillole nausea,Pastillas náuseas,Pilules nausée,حبوب غثيان
+item_Nausea_pills,Nausea Pills,כדורי בחילה,Pillole nausea,Pastillas náuseas,Pilules nausée,حبوب غثيان
+item_Upset_stomach_pills,Stomach Pills,כדורי בטן,Pillole stomaco,Pastillas estómago,Pilules estomac,حبوب معدة
+item_Eye_drops_lubricating_or_allergy_,Eye Drops,טיפות עיניים,Collirio,Gotas ojos,Gouttes pour les yeux,قطرة عين
+item_Lubricating_eye_drops,Lubricating Eye Drops,טיפות עיניים ליובש,Collirio idratante,Gotas lubricantes,Gouttes hydratantes,قطرة مرطبة للعين
+item_Allergy_eye_drops,Allergy Eye Drops,טיפות עיניים לאלרגיה,Collirio allergia,Gotas alergia,Gouttes allergie,قطرة حساسية للعين
+item_Antacids_for_heartburn_reflux_,Antacids,נוגדי חומצה,Antiacidi,Antiácidos,Antiacides,مضادات حموضة
+item_Heartburn_medicine,Heartburn Medicine,תרופה לצרבת,Medicina bruciore,Medicina acidez,Médicament brûlures,دواء حرقة
+item_Saucepan_small_pot,Saucepan,סיר קטן/קלחת,Casseruola,Cazo,Casserole,قدر صغير
+item_Saucepan,Saucepan,קלחת,Casseruola,Cazo,Casserole,قدر صغير
+item_Small_pot,Small Pot,סיר קטן,Pentola piccola,Olla pequeña,Petite marmite,قدر صغير
+item_Medium_pot,Medium Pot,סיר בינוני,Pentola media,Olla mediana,Marmite moyenne,قدر متوسط
+item_Large_pot,Large Pot,סיר גדול,Pentola grande,Olla grande,Grande marmite,قدر كبير
+item_Medium_large_frying_pan,Frying Pan,מחבת,Padella,Sartén,Poêle,مقلاة
+item_Small_pan_for_omelets_,Small Pan,מחבת קטנה,Padellina,Sartén pequeña,Petite poêle,مقلاة صغيرة
+item_Baking_dishes_Pyrex_glass_metal_or_disposable_aluminum_,Baking Dish,תבנית אפייה,Teglia,Fuente de horno,Plat à four,صينية خبز
+item_Pyrex_baking_dish,Pyrex Dish,תבנית פיירקס,Pirofila Pyrex,Fuente Pyrex,Plat Pyrex,صينية بايركس
+item_Metal_baking_dish,Metal Baking Dish,תבנית מתכת,Teglia metallo,Bandeja metal,Plat métal,صينية معدنية
+item_Disposable_aluminum_baking_dish,Aluminum Dish,תבנית אלומיניום חד פעמית,Vaschetta alluminio,Bandeja aluminio,Barquette alu,صينية ألمنيوم
+item_English_cake_pan_springform_pan,Cake Pan,תבנית עוגה,Tortiera,Molde para pastel,Moule à gâteau,صينية كيك
+item_English_cake_pan,Cake Pan,תבנית אינגליש קייק,Stampo plumcake,Molde bizcocho,Moule à cake,قالب كيك
+item_Springform_pan,Springform Pan,תבנית קפיצית,Tortiera apribile,Molde desmontable,Moule à charnière,قالب متحرك
+item_Wok_or_stir_fry_pan,Wok,ווק,Wok,Wok,Wok,مقلاة ووك
+item_Wok,Wok,ווק,Wok,Wok,Wok,مقلاة ووك
+item_Stir_fry_pan,Stir-fry Pan,מחבת הקפצה,Padella per saltare,Sartén saltear,Poêle à sauter,مقلاة قلي سريع
+item_Flat_baking_sheets,Baking Sheet,תבנית שטוחה,Teglia piana,Bandeja de horno,Plaque de cuisson,صينية مسطحة
+item_Dinner_plates_large_,Dinner Plates,צלחות (גדולות),Piatti piani,Platos llanos,Assiettes plates,أطباق عشاء
+item_Appetizer_plates_small_,Small Plates,צלחות קטנות,Piattini,Platos pequeños,Petites assiettes,أطباق صغيرة
+item_Deep_bowls_for_soup_cereal_,Bowls,קערות מרק,Ciotole,Cuencos,Bols,أوعية شوربة
+item_Soup_bowl,Soup Bowl,קערת מרק,Ciotola zuppa,Cuenco sopa,Bol à soupe,وعاء شوربة
+item_Cereal_bowl,Cereal Bowl,קערת קורנפלקס,Ciotola cereali,Cuenco cereales,Bol à céréales,وعاء حبوب
+item_Cutlery_knives_forks_spoons_teaspoons,Cutlery,סכו"ם,Posate,Cubiertos,Couverts,أدوات مائدة
+item_Table_Knives,Table Knives,סכיני שולחן,Coltelli da tavola,Cuchillos de mesa,Couteaux de table,سكاكين مائدة
+item_Forks,Forks,מזלגות,Forchette,Tenedores,Fourchettes,شوك
+item_Spoons,Spoons,כפות,Cucchiai,Cucharas,Cuillères,ملاعق
+item_Teaspoons,Teaspoons,כפיות,Cucchiaini,Cucharaditas,Cuillères à café,ملاعق صغيرة
+item_Glasses_for_cold_drinks,Glasses,כוסות שתייה,Bicchieri,Vasos,Verres,أكواب
+item_Mugs_for_hot_drinks_coffee_tea_,Mugs,ספלים,Tazze,Tazas,Tasses,أكواب قهوة
+item_Coffee_mug,Coffee Mug,ספל קפה,Tazza caffè,Taza café,Mug café,كوب قهوة
+item_Tea_mug,Tea Mug,ספל תה,Tazza tè,Taza té,Mug thé,كوب شاي
+item_Serving_bowls_large_salad_bowls,Serving Bowls,קערות הגשה,Ciotole da portata,Cuencos de servir,Bols de service,أوعية تقديم
+item_Serving_bowl,Serving Bowl,קערת הגשה,Ciotola portata,Cuenco servir,Bol de service,وعاء تقديم
+item_Large_salad_bowl,Large Salad Bowl,קערת סלט גדולה,Insalatiera,Ensaladera,Saladier,وعاء سلطة كبير
+item_Pitcher_for_water_or_juice,Pitcher,קנקן,Brocca,Jarra,Pichet,إبريق
+item_Water_pitcher,Water Pitcher,קנקן מים,Brocca acqua,Jarra agua,Pichet eau,إبريق ماء
+item_Juice_pitcher,Juice Pitcher,קנקן מיץ,Brocca succo,Jarra zumo,Pichet jus,إبريق عصير
+item_Chef_s_knife,Chef's Knife,סכין שף,Coltello chef,Cuchillo de chef,Couteau de chef,سكين طاه
+item_Bread_knife_serrated_,Bread Knife,סכין לחם,Coltello pane,Cuchillo de pan,Couteau à pain,سكين خبز
+item_Small_paring_knives,Paring Knife,סכין קילוף,Spelucchino,Cuchillo de pelar,Couteau d'office,سكين تقشير
+item_Cutting_board_wood_or_high_quality_plastic_,Cutting Board,קרש חיתוך,Tagliere,Tabla de cortar,Planche à découper,لوح تقطيع
+item_Spatula_metal_or_silicone_,Spatula,מרית (תרבד),Spatola,Espátula,Spatule,ملعقة مسطحة
+item_Soup_ladle,Ladle,מצקת,Mestolo,Cucharón,Louche,مغرفة
+item_Wooden_spoon_silicone_spoon_for_stirring,Wooden Spoon,כף עץ,Cucchiaio legno,Cuchara madera,Cuillère en bois,ملعقة خشبية
+item_Wooden_spoon,Wooden Spoon,כף עץ,Cucchiaio legno,Cuchara madera,Cuillère en bois,ملعقة خشبية
+item_Silicone_spoon,Silicone Spoon,כף סיליקון,Cucchiaio silicone,Cuchara silicona,Cuillère silicone,ملعقة سيليكون
+item_Whisk,Whisk,מטרפה,Frusta,Batidor,Fouet,مخفقة
+item_Vegetable_peeler,Peeler,קולפן,Pelapatate,Pelador,Éplucheur,قشارة
+item_Grater,Grater,פומפייה,Grattugia,Rallador,Râpe,مبشرة
+item_Can_opener,Can Opener,פותחן קופסאות,Apriscatole,Abrelatas,Ouvre-boîte,فتاحة علب
+item_Bottle_and_wine_opener_corkscrew_,Corkscrew,פותחן בקבוקים,Cavatappi,Sacacorchos,Tire-bouchon,فتاحة زجاجات
+item_Bottle_opener,Bottle Opener,פותחן בקבוקים,Apribottiglie,Abrebotellas,Décapsuleur,فتاحة زجاجات
+item_Wine_opener,Wine Opener,פותחן יין,Cavatappi,Sacacorchos,Tire-bouchon,فتاحة نبيذ
+item_Large_colander,Colander,מסננת,Scolapasta,Escurridor,Passoire,مصفاة
+item_Small_strainer,Strainer,מסננת קטנה,Colino,Colador,Tamis,مصفاة صغيرة
+item_Measuring_cup_kitchen_scale,Measuring Cup,כוס מידה,Misurino,Taza medidora,Verre doseur,كوب قياس
+item_Measuring_cup,Measuring Cup,כוס מידה,Misurino,Taza medidora,Verre doseur,كوب قياس
+item_Kitchen_scale,Kitchen Scale,משקל מטבח,Bilancia cucina,Báscula cocina,Balance de cuisine,ميزان مطبخ
+item_Kitchen_tongs,Tongs,מלקחיים,Pinze,Pinzas,Pinces,ملقط مطبخ
+item_Garlic_press,Garlic Press,כותש שום,Schiaccia aglio,Prensa ajos,Presse-ail,هراسة ثوم
+item_Rolling_pin,Rolling Pin,מערוך,Mattarello,Rodillo,Rouleau à pâtisserie,نشابة
+item_Plastic_or_glass_containers_for_food_storage,Food Containers,קופסאות אחסון,Contenitori cibo,Recipientes comida,Boîtes de conservation,حاويات طعام
+item_Plastic_food_container,Plastic Container,קופסת פלסטיק,Contenitore plastica,Recipiente plástico,Boîte en plastique,حاوية بلاستيك
+item_Glass_food_container,Glass Container,קופסת זכוכית,Contenitore vetro,Recipiente vidrio,Boîte en verre,حاوية زجاج
+item_Airtight_containers_jars_for_dry_food_storage,Jars,צנצנות,Barattoli,Tarros,Bocaux,برطمانات
+item_Airtight_container,Airtight Container,קופסה אטומה,Contenitore ermetico,Recipiente hermético,Boîte hermétique,حاوية محكمة
+item_Glass_jar,Glass Jar,צנצנת זכוכית,Barattolo vetro,Tarro vidrio,Bocal en verre,برطمان زجاجي
+item_Dish_drying_rack,Drying Rack,מתקן ייבוש כלים,Scolapiatti,Escurreplatos,Égouttoir,رف تجفيف
+item_Spice_rack_or_organizers,Spice Rack,מעמד תבלינים,Portaspezie,Especiero,Étagère à épices,رف بهارات
+item_Electric_kettle_water_dispenser,Electric Kettle,קומקום חשמלי,Bollitore elettrico,Hervidor eléctrico,Bouilloire électrique,غلاية كهربائية
+item_Electric_kettle,Electric Kettle,קומקום חשמלי,Bollitore elettrico,Hervidor eléctrico,Bouilloire électrique,غلاية كهربائية
+item_Water_dispenser,Water Dispenser,בר מים/תמי 4,Erogatore acqua,Dispensador agua,Distributeur d'eau,موزع مياه
+item_Pop_up_toaster_or_sandwich_press,Toaster,טוסטר,Tostapane,Tostadora,Grille-pain,محمصة خبز
+item_Pop_up_toaster,Toaster,מצנם (טוסטר קופץ),Tostapane,Tostadora,Grille-pain,محمصة خبز
+item_Sandwich_press,Sandwich Press,טוסטר לחיץ,Tostiera,Sandwichera,Appareil croque-monsieur,محمصة سندويشات
+item_Microwave,Microwave,מיקרוגל,Microonde,Microondas,Micro-ondes,ميكروويف
+item_Hand_blender,Hand Blender,בלנדר מוט,Frullatore immersione,Batidora de mano,Mixeur plongeant,خلاط يدوي
+item_Coffee_maker_or_espresso_machine,Coffee Maker,מכונת קפה,Macchina caffè,Cafetera,Machine à café,صانعة قهوة
+item_Coffee_maker,Coffee Maker,מכונת קפה,Macchina caffè,Cafetera,Machine à café,صانعة قهوة
+item_Espresso_machine,Espresso Machine,מכונת אספרסו,Macchina espresso,Máquina espresso,Machine à expresso,ماكينة اسبريسو
+item_Television,Television,טלוויזיה,Televisione,Televisión,Télévision,تلفزيון
+item_Laptop_Desktop_computer,Laptop / PC,מחשב/לפטופ,Computer portatile,Ordenador,Ordinateur,كمبيوتر
+item_Laptop,Laptop,מחשב נייד,Portatile,Portátil,Ordinateur portable,لابتوب
+item_Desktop_computer,Desktop Computer,מחשב נייח,Computer fisso,Ordenador sobremesa,Ordinateur de bureau,كمبيوتر مكتبي
+item_Computer_monitor,Monitor,מסך מחשב,Monitor,Monitor,Écran,شاشة
+item_Keyboard_and_mouse,Keyboard & Mouse,מקלדת ועכבר,Tastiera e mouse,Teclado y ratón,Clavier et souris,لوحة مفاتيح وماوس
+item_Keyboard,Keyboard,מקלדת,Tastiera,Teclado,Clavier,لوحة مفاتيح
+item_Mouse,Mouse,עכבר,Mouse,Ratón,Souris,ماوس
+item_Printer_and_ink_toner_cartridges,Printer,מדפסת,Stampante,Impresora,Imprimante,طابعة
+item_Printer,Printer,מדפסת,Stampante,Impresora,Imprimante,طابعة
+item_Ink_cartridges,Ink Cartridges,ראשי דיו,Cartucce inchiostro,Cartuchos tinta,Cartouches d'encre,خراطيش حبر
+item_Toner_cartridges,Toner Cartridges,טונר למדפסת,Cartucce toner,Cartuchos tóner,Cartouches toner,حبر طابعة
+item_External_hard_drive_SSD,External Drive,כונן חיצוני,Disco esterno,Disco externo,Disque externe,قرص صلب خارجي
+item_External_hard_drive,External Hard Drive,כונן קשיח חיצוני,Hard disk esterno,Disco duro externo,Disque dur externe,قرص صلب خارجي
+item_SSD,SSD,כונן SSD,SSD,SSD,SSD,قرص SSD
+item_USB_flash_drives,USB Drive,דיסק און קי,Chiavetta USB,Memoria USB,Clé USB,فلاش ميموري
+item_Webcam,Webcam,מצלמת רשת,Webcam,Cámara web,Webcam,كاميرا ويب
+item_Router_internet_router_,Router,ראוטר,Router,Router,Routeur,راوتر
+item_Speakers_Soundbar,Speakers,רמקולים,Altoparlanti,Altavoces,Haut-parleurs,مكبرات صوت
+item_Speakers,Speakers,רמקולים,Altoparlanti,Altavoces,Haut-parleurs,مكبرات صوت
+item_Soundbar,Soundbar,מקרן קול,Soundbar,Barra de sonido,Barre de son,ساوند بار
+item_Gaming_console_PlayStation_Xbox_etc__,Gaming Console,קונסולת משחקים,Console giochi,Consola videojuegos,Console de jeux,وحدة ألعاب
+item_PlayStation,PlayStation,פלייסטיישן,PlayStation,PlayStation,PlayStation,بلاي ستيشن
+item_Xbox,Xbox,אקסבוקס,Xbox,Xbox,Xbox,إكس بوكس
+item_Tablet_or_E_reader,Tablet,טאבלט,Tablet,Tablet,Tablette,جهاز لوحي
+item_Tablet,Tablet,טאבלט,Tablet,Tablet,Tablette,جهاز لوحي
+item_E_reader,E-reader,קורא ספרים דיגיטלי,E-reader,E-reader,Liseuse,قارئ إلكتروني
+item_Headphones_or_wireless_earbuds,Headphones,אוזניות,Cuffie,Auriculares,Écouteurs,سماعات
+item_Headphones,Headphones,אוזניות גדולות,Cuffie,Auriculares,Casque audio,سماعات رأس
+item_Wireless_earbuds,Wireless Earbuds,אוזניות אלחוטיות,Auricolari wireless,Auriculares inalámbricos,Écouteurs sans fil,سماعات لاسلكية
+item_Refrigerator_and_freezer,Refrigerator,מקרר,Frigorifero,Refrigerador,Réfrigérateur,ثلاجة
+item_Refrigerator,Refrigerator,מקרר,Frigorifero,Refrigerador,Réfrigérateur,ثلاجة
+item_Freezer,Freezer,מקפיא,Congelatore,Congelador,Congélateur,فريزر
+item_Washing_machine,Washing Machine,מכונת כביסה,Lavatrice,Lavadora,Lave-linge,غسالة
+item_Tumble_dryer,Dryer,מייבש כביסה,Asciugatrice,Secadora,Sèche-linge,مجفف
+item_Oven_Stove,Oven / Stove,תנור/כיריים,Forno/Fornello,Horno/Estufa,Four/Cuisinière,فرن/موقد
+item_Oven,Oven,תנור,Forno,Horno,Four,فرن
+item_Stove,Stove,כיריים,Fornello,Estufa,Cuisinière,موقد
+item_Dishwasher,Dishwasher,מדיח כלים,Lavastoviglie,Lavavajillas,Lave-vaisselle,غسالة أطباق
+item_Air_conditioner,Air Conditioner,מזגן,Condizionatore,Aire acondicionado,Climatiseur,مكيف هواء
+item_Vacuum_cleaner_robotic_cordless_or_regular_,Vacuum Cleaner,שואב אבק,Aspirapolvere,Aspiradora,Aspirateur,مكنسة كهربائية
+item_Robotic_vacuum,Robotic Vacuum,שואב אבק רובוטי,Robot aspirapolvere,Robot aspirador,Aspirateur robot,مكنسة روبوت
+item_Cordless_vacuum,Cordless Vacuum,שואב אלחוטי,Aspirapolvere senza fili,Aspiradora inalámbrica,Aspirateur sans fil,مكنسة لاسلكية
+item_Regular_vacuum,Regular Vacuum,שואב אבק רגיל,Aspirapolvere,Aspiradora,Aspirateur,مكنسة عادية
+item_Iron,Iron,מגהץ,Ferro da stiro,Plancha,Fer à repasser,مكواة
+item_Hair_dryer_hair_straightener,Hair Dryer,פנים/מחליק,Asciugacapelli,Secador,Sèche-cheveux,مجفف شعر
+item_Hair_dryer,Hair Dryer,מייבש שיער (פן),Asciugacapelli,Secador de pelo,Sèche-cheveux,مجفف شعر
+item_Hair_straightener,Hair Straightener,מחליק שיער,Piastra capelli,Plancha pelo,Fer à lisser,م

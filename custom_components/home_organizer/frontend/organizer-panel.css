@@ -1,4 +1,4 @@
-/* Home Organizer CSS - Ver 7.6.22 */
+/* Home Organizer CSS - Ver 7.6.30 */
 /* [MODIFIED v7.6.21 | 2026-02-18] Purpose: Increased folder icon display sizes by ~30% per user request */
 /* [MODIFIED v7.6.22 | 2026-02-18] Purpose: Increased folder icon display sizes by an additional 20% per user request */
 
@@ -136,12 +136,14 @@ svg { width: 24px; height: 24px; fill: currentColor; }
 #icon-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2500; display: none; align-items: center; justify-content: center; flex-direction: column; }
 .modal-content { background: var(--bg-card); color:var(--text-main); width: 95%; max-width: 450px; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 15px; max-height: 90vh; overflow-y: auto; }
 .modal-title { font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 5px; }
+
+/* [MODIFIED v7.6.30 | 2026-02-23] Purpose: Adjusting inline styles for category buttons to expand vertically and preventing container vertical scroll */
 .category-bar { display: none; gap: 10px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 10px; scrollbar-width: thin; scrollbar-color: var(--warning) transparent; }
 .category-bar::-webkit-scrollbar { height: 4px; }
 .category-bar::-webkit-scrollbar-thumb { background: var(--warning); border-radius: 2px; }
-.cat-btn { min-width: 65px; height: 65px; background: #333; border: 2px solid var(--warning); border-radius: 8px; color: white; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; text-align: center; padding: 5px; flex-shrink: 0; transition: all 0.2s; }
-.cat-btn.active { background: var(--warning); color: #000; font-weight: bold; }
-.cat-btn svg { width: 24px; height: 24px; margin-bottom: 4px; }
+
+/* NOTE: .cat-btn and .subcat-btn configurations were fully overridden in the JS file inline styles for local scoping */
+
 .icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 10px; min-height: 200px; }
 .lib-icon { background: #333; border-radius: 8px; padding: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 5px; }
 .lib-icon:hover { background: #444; }
