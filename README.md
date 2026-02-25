@@ -1,10 +1,10 @@
-# ⚠️ Beta Version — Use at your own risk
+
 
 <p align="center">
-  <img src="https://github.com/GuyAzria/home-organizer/blob/main/logo.png" alt="Home Organizer Logo" width="180">
+  <img src="https://github.com/GuyAzria/home-organizer/blob/main/logo.png" alt="Home Organizer (HO) Logo" width="180">
 </p>
 
-<h1 align="center">Home Organizer</h1>
+<h1 align="center">Home Organizer (HO) </h1>
 
 <p align="center">
   <strong>The complete AI-powered home inventory system for Home Assistant</strong>
