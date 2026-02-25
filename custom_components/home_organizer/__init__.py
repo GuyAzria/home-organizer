@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.7.3 (Update: Storage Selection & Uninstall Cleanup)
+# Home Organizer Ultimate - ver 7.7.8 (Update: Added category metadata to shopping list payload)
 
 import logging
 import sqlite3
@@ -18,7 +18,6 @@ from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.components import panel_custom, websocket_api
 from homeassistant.components.http import StaticPathConfig 
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-# [ADDED v7.7.1 | 2026-02-19] Purpose: Imported new storage constants
 from .const import DOMAIN, CONF_API_KEY, CONF_DEBUG, CONF_USE_AI, DB_FILE, IMG_DIR, VERSION, CONF_STORAGE_METHOD, CONF_DELETE_ON_REMOVE, STORAGE_METHOD_WWW, STORAGE_METHOD_MEDIA
 
 _LOGGER = logging.getLogger(__name__)
@@ -27,10 +26,29 @@ WS_GET_DATA = "home_organizer/get_data"
 WS_GET_ALL_ITEMS = "home_organizer/get_all_items" 
 WS_AI_CHAT = "home_organizer/ai_chat" 
 
-# [ADDED v7.6.2 | 2026-02-17] Purpose: improved static path definition
 STATIC_PATH_URL = "/home_organizer_static"
-
 GEMINI_MODEL = "gemini-3-flash-preview"
+
+ICON_PROMPT_CONTEXT = """
+Available Icon Keys (Format: ICON_LIB_ITEM|MainCategory|SubCategory|ExactItemName):
+ICON_LIB_ITEM|Food|Dairy & Eggs|Milk, Yellow cheese, White cheese, Cottage cheese, Butter, Yogurts, Sour cream, Sweet cream, Eggs, Plant-based milk
+ICON_LIB_ITEM|Food|Meat, Poultry & Fish|Chicken breast, Minced beef, Beef steaks, Salmon, Tuna, Sausages, Pastrami, Tofu
+ICON_LIB_ITEM|Food|Vegetables (Fresh)|Tomatoes, Cucumbers, Peppers, Dry onion, Garlic, Potatoes, Carrots, Zucchini, Eggplants, Lettuce, Mushrooms
+ICON_LIB_ITEM|Food|Fruits (Fresh)|Apples, Bananas, Oranges, Lemons, Watermelon, Grapes, Peaches, Strawberries, Berries
+ICON_LIB_ITEM|Food|Pantry & Dry Goods (Carbs & Legumes)|Rice, Pasta, Flour, Sugar, Oil, Legumes, Quinoa, Oats
+ICON_LIB_ITEM|Food|Spices & Baking Goods|Salt, Black pepper, Paprika, Cumin, Turmeric, Cinnamon, Baking powder, Cocoa powder
+ICON_LIB_ITEM|Food|Sauces & Spreads|Ketchup, Mayonnaise, Mustard, Soy sauce, Chocolate spread, Peanut butter, Honey
+ICON_LIB_ITEM|Food|Canned Goods|Tuna, Corn, Peas, Baked beans, Olives, Pickles, Crushed tomatoes
+ICON_LIB_ITEM|Food|Bread & Pastries|Sliced bread, Rolls, Pita bread, Rice cakes, Bagels, Croissants
+ICON_LIB_ITEM|Food|Beverages|Black coffee, Instant coffee, Tea, Mineral water, Juices, Carbonated drinks
+ICON_LIB_ITEM|Food|Snacks & Sweets|Bamba, Bisli, Chips, Pretzels, Chocolate, Cookies, Nuts, Popcorn
+ICON_LIB_ITEM|Cleaning & Home Maintenance|General Cleaning|Floor cleaner, Bleach, Window cleaner, Toilet cleaner, Insect repellent
+ICON_LIB_ITEM|Cleaning & Home Maintenance|Laundry|Laundry detergent, Fabric softener, Stain remover
+ICON_LIB_ITEM|Cleaning & Home Maintenance|Dishwashing|Dish soap, Dishwasher tablets, Rinse aid
+ICON_LIB_ITEM|Toiletries & Pharmacy|Personal Hygiene|Shampoo, Body wash, Deodorant, Toothpaste, Toothbrushes, Razors, Feminine hygiene
+ICON_LIB_ITEM|Toiletries & Pharmacy|Paper Products|Toilet paper, Paper towels, Wet wipes, Tissues
+ICON_LIB_ITEM|Toiletries & Pharmacy|First Aid & OTC Medicines|Pain relievers, Band-aids, Polydine, Thermometer
+"""
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     return True
@@ -38,7 +56,6 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if entry.options.get(CONF_DEBUG): _LOGGER.setLevel(logging.DEBUG)
 
-    # [ADDED v7.6.2 | 2026-02-17] Purpose: Calculate absolute path to the 'frontend' folder inside this component
     frontend_folder = os.path.join(os.path.dirname(__file__), "frontend")
     
     await hass.http.async_register_static_paths([
@@ -49,26 +66,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
     ])
 
-    # [ADDED v7.7.1 | 2026-02-19] Purpose: Determine storage paths based on user config
     hass.data.setdefault(DOMAIN, {})
     
     storage_method = entry.data.get(CONF_STORAGE_METHOD, STORAGE_METHOD_WWW)
-    
-    # Defaults for WWW
     db_path = hass.config.path(DB_FILE)
     img_folder_path = hass.config.path("www", IMG_DIR)
     img_url_prefix = f"/local/{IMG_DIR}"
 
     if storage_method == STORAGE_METHOD_MEDIA:
-        # If media selected, use /media folder
-        # Note: We assume standard HA OS structure where /media is at root
         media_root = "/media"
         if os.path.exists(media_root):
-             # For media, we put DB and images there
              db_path = os.path.join(media_root, DB_FILE)
              img_folder_path = os.path.join(media_root, IMG_DIR)
-             # We need to register a static path for the media folder to be accessible via HTTP
-             # Register /home_organizer_media -> /media/home_organizer_images
              await hass.http.async_register_static_paths([
                 StaticPathConfig(
                     url_path="/home_organizer_media",
@@ -80,7 +89,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         else:
             _LOGGER.warning("Home Organizer: /media folder not found. Fallback to /config/www.")
 
-    # Store calculated paths in hass.data for global access
     hass.data[DOMAIN]["config"] = {
         "db_path": db_path,
         "img_path": img_folder_path,
@@ -88,7 +96,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "method": storage_method
     }
 
-    # [ADDED v7.4.5 | 2026-02-15] Purpose: Dictionary mapping language codes to localized sidebar titles
     sidebar_translations = {
         "he": "ארגונית",
         "it": "Organizzatore",
@@ -98,7 +105,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "en": "Home Organizer"
     }
 
-    # [ADDED v7.4.5 | 2026-02-15] Purpose: Determine sidebar title based on HA system language, default to English
     sidebar_label = sidebar_translations.get(hass.config.language, "Home Organizer")
 
     try:
@@ -106,7 +112,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass,
             webcomponent_name="home-organizer-panel",
             frontend_url_path="organizer",
-            # [MODIFIED v7.6.2 | 2026-02-17] Purpose: Load JS from the internal static path, not /local/
             module_url=f"{STATIC_PATH_URL}/organizer-panel.js?v={int(time.time())}",
             sidebar_title=sidebar_label, 
             sidebar_icon="mdi:package-variant-closed",
@@ -166,13 +171,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         pass
     return True
 
-# [ADDED v7.7.1 | 2026-02-19] Purpose: Handle data deletion when integration is removed
 async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     if entry.options.get(CONF_DELETE_ON_REMOVE, False):
         _LOGGER.info("Home Organizer: Deleting all data as requested.")
         try:
-            # Retrieve paths. Note: hass.data[DOMAIN] might be cleared if unloaded, recalculate logic briefly
-            # or try to get from config. Simplest is to assume standard paths based on entry data.
             storage_method = entry.data.get(CONF_STORAGE_METHOD, STORAGE_METHOD_WWW)
             db_path = hass.config.path(DB_FILE)
             img_path = hass.config.path("www", IMG_DIR)
@@ -191,14 +193,11 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
             _LOGGER.error(f"Error deleting Home Organizer data: {e}")
 
 def get_db_connection(hass):
-    # [MODIFIED v7.7.1 | 2026-02-19] Purpose: Use dynamic DB path from hass.data
     db_path = hass.data.get(DOMAIN, {}).get("config", {}).get("db_path", hass.config.path(DB_FILE))
     return sqlite3.connect(db_path)
 
 def init_db(hass):
-    # [MODIFIED v7.7.1 | 2026-02-19] Purpose: Use dynamic image path from hass.data
     img_path = hass.data.get(DOMAIN, {}).get("config", {}).get("img_path", hass.config.path("www", IMG_DIR))
-    
     if not os.path.exists(img_path): os.makedirs(img_path)
     
     conn = get_db_connection(hass)
@@ -228,8 +227,6 @@ def init_db(hass):
             try: c.execute(f"ALTER TABLE items ADD COLUMN {col} {dtype}")
             except: pass
 
-    # [ADDED v7.7.0 | 2026-02-18] Purpose: Create Indexes for high performance with 50,000+ items
-    # These make searches and navigation instant without needing PostgreSQL
     try:
         c.execute("CREATE INDEX IF NOT EXISTS idx_items_name ON items(name)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_items_category ON items(category)")
@@ -261,7 +258,7 @@ def normalize_zone_path(hass, path_list):
         _LOGGER.error(f"Zone normalization error: {e}")
     return path_list
 
-def add_item_db_safe(hass, name, qty, path_list, category="", sub_category=""):
+def add_item_db_safe(hass, name, qty, path_list, category="", sub_category="", item_type="item", icon_key=None):
     """Internal helper to add items during AI Chat flow."""
     path_list = normalize_zone_path(hass, path_list)
     conn = get_db_connection(hass)
@@ -269,9 +266,14 @@ def add_item_db_safe(hass, name, qty, path_list, category="", sub_category=""):
     try:
         today = datetime.now().strftime("%Y-%m-%d")
         cols = ["name", "type", "quantity", "item_date", "category", "sub_category"]
-        vals = [name, "item", qty, today, category, sub_category]
+        vals = [name, item_type, qty, today, category, sub_category]
         qs = ["?", "?", "?", "?", "?", "?"]
         
+        if icon_key:
+            cols.append("image_path")
+            vals.append(icon_key)
+            qs.append("?")
+
         for i, p in enumerate(path_list):
             if i < 10:
                 cols.append(f"level_{i+1}")
@@ -301,8 +303,6 @@ def websocket_get_data(hass, connection, msg):
 def websocket_get_all_items(hass, connection, msg):
     conn = get_db_connection(hass)
     c = conn.cursor()
-    
-    # [ADDED v7.7.1 | 2026-02-19] Purpose: Get dynamic url prefix
     url_prefix = hass.data.get(DOMAIN, {}).get("config", {}).get("url_prefix", f"/local/{IMG_DIR}")
 
     try:
@@ -311,17 +311,46 @@ def websocket_get_all_items(hass, connection, msg):
         results = []
         for r in c.fetchall():
             item = dict(zip(col_names, r))
-            # [MODIFIED v7.6.5 | 2026-02-18] Purpose: Check if image_path is a pointer key (ICON_LIB) and pass through, else format as URL
             if item['image_path']:
                 if item['image_path'].startswith("ICON_LIB"):
-                    pass # Keep as raw key string
+                    pass 
                 else:
-                    # [MODIFIED v7.7.1 | 2026-02-19] Use dynamic prefix
                     item['image_path'] = f"{url_prefix}/{item['image_path']}?v={int(time.time())}"
             results.append(item)
         connection.send_result(msg["id"], results)
     finally:
         conn.close()
+
+async def async_gemini_api_call(session, url, payload, timeout_sec):
+    max_retries = 3
+    delays = [1, 2, 4]
+    for attempt in range(max_retries + 1):
+        try:
+            async with session.post(url, json=payload, timeout=ClientTimeout(total=timeout_sec)) as resp:
+                if resp.status in (429, 503) and attempt < max_retries:
+                    await asyncio.sleep(delays[attempt])
+                    continue
+                if resp.status != 200:
+                    err = await resp.text()
+                    if attempt < max_retries and resp.status >= 500: 
+                        await asyncio.sleep(delays[attempt])
+                        continue
+                    if resp.status in (429, 503):
+                        return None, "The AI service is currently very busy. Please try again in a few moments."
+                    return None, err
+                res = await resp.json()
+                return res, None
+        except asyncio.TimeoutError:
+            if attempt < max_retries:
+                await asyncio.sleep(delays[attempt])
+                continue
+            return None, "Timeout Error: The request took too long."
+        except Exception as e:
+            if attempt < max_retries:
+                await asyncio.sleep(delays[attempt])
+                continue
+            return None, str(e)
+    return None, "Max retries exceeded"
 
 @websocket_api.async_response
 async def websocket_ai_chat(hass, connection, msg):
@@ -377,9 +406,6 @@ async def websocket_ai_chat(hass, connection, msg):
             
         await hass.async_add_executor_job(fetch_context)
 
-        # =============================================
-        # MODE 1: INVOICE / IMAGE PROCESSING
-        # =============================================
         if image_data:
             if "," in image_data: image_data = image_data.split(",")[1]
             
@@ -388,13 +414,15 @@ async def websocket_ai_chat(hass, connection, msg):
                 f"EXISTING LOCATIONS: [{existing_locs_str}]\n"
                 f"EXISTING CATEGORIES: [{existing_cats_str}]\n\n"
                 "RULES:\n"
-                "1. LANGUAGE: Detect the language of the item names on the receipt (e.g. Hebrew or English). "
-                "   EXTRACT ITEMS STRICTLY IN THE ORIGINAL LANGUAGE. Do NOT translate.\n"
+                "1. LANGUAGE: Detect the language of the items on the receipt and the user message. "
+                "   You MUST generate the 'message' response field strictly in this exact detected language. Do NOT translate unless requested.\n"
                 "2. MAPPING: Map items to the EXISTING LOCATIONS provided above. "
                 "   Do NOT create new root locations. If an item doesn't fit, use 'General' or ask for clarification.\n"
-                "3. OUTPUT JSON ONLY:\n"
-                "   - If items are clear: {{\"intent\": \"add_invoice\", \"items\": [{\"name\": \"...\", \"qty\": 1, \"path\": [\"ExistingRoom\", \"ExistingSub\"], \"category\": \"...\"}]}}\n"
-                "   - If ambiguous/unknown: {{\"intent\": \"clarify\", \"question\": \"...\"}}\n"
+                "3. ICON SELECTION: Assign the closest standard icon_key from the following list. If there is no exact match, guess the nearest category structure (ICON_LIB_ITEM|Main|Sub|Item).\n"
+                f"{ICON_PROMPT_CONTEXT}\n"
+                "4. OUTPUT JSON ONLY:\n"
+                "   - If items are clear: {{\"intent\": \"add_invoice\", \"message\": \"<Short success sentence in the detected language>\", \"items\": [{\"name\": \"...\", \"qty\": 1, \"path\": [\"ExistingRoom\", \"ExistingSub\"], \"category\": \"...\", \"icon_key\": \"ICON_LIB_ITEM|Food|Dairy & Eggs|Milk\"}]}}\n"
+                "   - If ambiguous/unknown: {{\"intent\": \"clarify\", \"question\": \"<Question in the detected language>\"}}\n"
             )
 
             if user_message and user_message.strip() != "" and user_message != "Scanned Invoice":
@@ -405,7 +433,7 @@ async def websocket_ai_chat(hass, connection, msg):
             hass.bus.async_fire("home_organizer_chat_progress", {
                 "step": "Scanning Document...",
                 "debug_type": "image_scan",
-                "debug_label": "Invoice Prompt (v7.4.4)",
+                "debug_label": "Invoice Prompt",
                 "debug_content": invoice_prompt
             })
 
@@ -418,66 +446,63 @@ async def websocket_ai_chat(hass, connection, msg):
                 }]
             }
 
-            async with session.post(gen_url, json=payload, timeout=ClientTimeout(total=120)) as resp:
-                if resp.status != 200:
-                    err = await resp.text()
-                    connection.send_result(msg["id"], {"error": f"AI Error: {err}"})
+            res, err = await async_gemini_api_call(session, gen_url, payload, 120)
+            if err:
+                connection.send_result(msg["id"], {"error": f"AI Error: {err}"})
+                return
+            
+            if not res or "candidates" not in res or not res["candidates"]:
+                connection.send_result(msg["id"], {"error": f"AI Response Format Error (Content may be blocked or invalid): {res}"})
+                return
+                
+            raw_txt = res["candidates"][0]["content"]["parts"][0]["text"].strip()
+            clean_txt = re.sub(r'```json\s*|```\s*', '', raw_txt).strip()
+            
+            added_count = 0
+            parsed = {}
+            try:
+                parsed = json.loads(clean_txt)
+                
+                if parsed.get("intent") == "clarify":
+                    connection.send_result(msg["id"], {
+                        "response": parsed.get("question", "I am not sure where to file these items. Please guide me."),
+                        "debug": {"intent": "clarify", "raw_json": clean_txt}
+                    })
                     return
-                
-                res = await resp.json()
-                
-                if "candidates" not in res or not res["candidates"]:
-                    connection.send_result(msg["id"], {"error": f"AI Response Format Error (Content may be blocked or invalid): {res}"})
+
+                if parsed.get("intent") == "add_invoice" and "items" in parsed:
+                    for item in parsed["items"]:
+                        await hass.async_add_executor_job(
+                            add_item_db_safe, 
+                            hass, 
+                            item.get("name", "Unknown"), 
+                            int(item.get("qty", 1)), 
+                            item.get("path", ["General"]), 
+                            item.get("category", ""), 
+                            item.get("sub_category", ""),
+                            "pending", 
+                            item.get("icon_key", None)
+                        )
+                        added_count += 1
+                    
+                    hass.bus.async_fire("home_organizer_db_update")
+                    
+                    ai_message = parsed.get("message", f"✅ I have scanned the document and added {added_count} items to the Review tab.")
+                    response_text = f"{ai_message}\n\n"
+                    for i in parsed["items"]:
+                        path_str = " > ".join(i.get("path", []))
+                        response_text += f"- **{i.get('name')}** (x{i.get('qty')}) -> _{path_str}_\n"
+
+                    connection.send_result(msg["id"], {
+                        "response": response_text,
+                        "debug": {"raw_json": clean_txt, "intent": "add_invoice"}
+                    })
                     return
-                    
-                raw_txt = res["candidates"][0]["content"]["parts"][0]["text"].strip()
-                clean_txt = re.sub(r'```json\s*|```\s*', '', raw_txt).strip()
-                
-                added_count = 0
-                parsed = {}
-                try:
-                    parsed = json.loads(clean_txt)
-                    
-                    if parsed.get("intent") == "clarify":
-                        connection.send_result(msg["id"], {
-                            "response": parsed.get("question", "I am not sure where to file these items. Please guide me."),
-                            "debug": {"intent": "clarify", "raw_json": clean_txt}
-                        })
-                        return
 
-                    if parsed.get("intent") == "add_invoice" and "items" in parsed:
-                        for item in parsed["items"]:
-                            await hass.async_add_executor_job(
-                                add_item_db_safe, 
-                                hass, 
-                                item.get("name", "Unknown"), 
-                                int(item.get("qty", 1)), 
-                                item.get("path", ["General"]), 
-                                item.get("category", ""), 
-                                item.get("sub_category", "")
-                            )
-                            added_count += 1
-                        
-                        hass.bus.async_fire("home_organizer_db_update")
-                        
-                        response_text = f"✅ I have scanned the document and added **{added_count} items** to your inventory.\n\n"
-                        for i in parsed["items"]:
-                            path_str = " > ".join(i.get("path", []))
-                            response_text += f"- **{i.get('name')}** (x{i.get('qty')}) into _{path_str}_\n"
+            except Exception as e:
+                connection.send_result(msg["id"], {"response": f"❌ Could not parse invoice data. Error: {str(e)}", "debug": {"raw": clean_txt}})
+                return
 
-                        connection.send_result(msg["id"], {
-                            "response": response_text,
-                            "debug": {"raw_json": clean_txt, "intent": "add_invoice"}
-                        })
-                        return
-
-                except Exception as e:
-                      connection.send_result(msg["id"], {"response": f"❌ Could not parse invoice data. Error: {str(e)}", "debug": {"raw": clean_txt}})
-                      return
-
-        # =============================================
-        # MODE 2: TEXT ANALYSIS (ADD vs SEARCH)
-        # =============================================
         
         step1_prompt = (
             f"User says: '{user_message}'\n"
@@ -502,24 +527,21 @@ async def websocket_ai_chat(hass, connection, msg):
         analysis_json = {}
         raw_analysis = ""
 
-        async with session.post(gen_url, json=payload_1, timeout=ClientTimeout(total=15)) as resp:
-            if resp.status == 200:
-                res = await resp.json()
-                
-                if "candidates" not in res or not res["candidates"]:
-                    connection.send_result(msg["id"], {"error": f"AI Response Format Error (Content may be blocked): {res}"})
-                    return
-                    
-                raw_analysis = res["candidates"][0]["content"]["parts"][0]["text"].strip()
-                clean_txt = re.sub(r'```json\s*|```\s*', '', raw_analysis).strip()
-                try:
-                    analysis_json = json.loads(clean_txt)
-                except:
-                    # [ADDED v7.6.9] Fallback if AI replies with text instead of JSON
-                    analysis_json = {}
-            else:
-                connection.send_result(msg["id"], {"error": "AI API Error"})
+        res, err = await async_gemini_api_call(session, gen_url, payload_1, 15)
+        if not err and res:
+            if "candidates" not in res or not res["candidates"]:
+                connection.send_result(msg["id"], {"error": f"AI Response Format Error (Content may be blocked): {res}"})
                 return
+                
+            raw_analysis = res["candidates"][0]["content"]["parts"][0]["text"].strip()
+            clean_txt = re.sub(r'```json\s*|```\s*', '', raw_analysis).strip()
+            try:
+                analysis_json = json.loads(clean_txt)
+            except:
+                analysis_json = {}
+        else:
+            connection.send_result(msg["id"], {"error": f"AI API Error: {err}"})
+            return
 
         if analysis_json.get("intent") == "add":
             items_to_add = analysis_json.get("items", [])
@@ -531,7 +553,7 @@ async def websocket_ai_chat(hass, connection, msg):
                 pt = item.get("path", ["General"])
                 cat = item.get("category", "")
                 
-                await hass.async_add_executor_job(add_item_db_safe, hass, nm, qt, pt, cat, "")
+                await hass.async_add_executor_job(add_item_db_safe, hass, nm, qt, pt, cat, "", "item", None)
                 added_log.append(f"{nm} (x{qt}) to {' > '.join(pt)}")
             
             hass.bus.async_fire("home_organizer_db_update")
@@ -609,7 +631,6 @@ async def websocket_ai_chat(hass, connection, msg):
 
         rows = await hass.async_add_executor_job(get_inventory)
         
-        # --- ADDITIVE FIX FOR REGRESSION: Smart Fallback Layers ---
         if not rows and filter_items:
             filter_items = []
             rows = await hass.async_add_executor_job(get_inventory)
@@ -625,9 +646,6 @@ async def websocket_ai_chat(hass, connection, msg):
             rows = await hass.async_add_executor_job(get_inventory)
             final_sql += " -- (Fallback 3 applied: dropped strict category)"
             
-        # --- ADDITIVE: Final Absolute Fallback ---
-        # If absolutely NO rows were returned despite dropping previous filters,
-        # ignore all AI SQL assumptions and fetch the entire available inventory.
         if not rows:
             def get_all_inventory_fallback():
                 try:
@@ -642,7 +660,6 @@ async def websocket_ai_chat(hass, connection, msg):
                     return [{"_error": str(e)}]
             rows = await hass.async_add_executor_job(get_all_inventory_fallback)
             final_sql += " -- (Fallback 4 applied: forced fetch of ALL available items)"
-        # ----------------------------------------------------------
 
         context_lines = []
         for r in rows:
@@ -658,7 +675,7 @@ async def websocket_ai_chat(hass, connection, msg):
         step3_prompt = (
             "You are a helpful home assistant. "
             "CRITICAL LANGUAGE RULE: Automatically detect the exact language of the 'User Request' below. "
-            "You MUST generate your ENTIRE response ONLY in that detected language. Do NOT default to English unless requested. "
+            "You MUST generate your ENTIRE response ONLY in that exact detected language. Do NOT default to English unless the request is in English. "
             "(e.g., If Hebrew -> respond ONLY in Hebrew. If Arabic -> respond ONLY in Arabic).\n"
             "Use the provided inventory list to answer the user's request.\n"
             "If the list is empty, apologize IN THE DETECTED LANGUAGE.\n"
@@ -669,31 +686,29 @@ async def websocket_ai_chat(hass, connection, msg):
 
         payload_3 = {"contents": [{"parts": [{"text": step3_prompt}]}]}
 
-        async with session.post(gen_url, json=payload_3, timeout=ClientTimeout(total=60)) as resp:
-            if resp.status == 200:
-                res = await resp.json()
-                if "candidates" not in res or not res["candidates"]:
-                    connection.send_result(msg["id"], {"error": f"AI Response Format Error (Content may be blocked): {res}"})
-                    return
-                    
-                text = res["candidates"][0]["content"]["parts"][0]["text"].strip()
+        res, err = await async_gemini_api_call(session, gen_url, payload_3, 60)
+        if not err and res:
+            if "candidates" not in res or not res["candidates"]:
+                connection.send_result(msg["id"], {"error": f"AI Response Format Error (Content may be blocked): {res}"})
+                return
                 
-                connection.send_result(msg["id"], {
-                    "response": text,
-                    "debug": {
-                        "intent": "search",
-                        "sql_query": final_sql,
-                        "items_found": len(rows),
-                        "inventory_context": inventory_context
-                    }
-                })
-            else:
-                err = await resp.text()
-                connection.send_result(msg["id"], {"error": f"AI API Error: {err}"})
+            text = res["candidates"][0]["content"]["parts"][0]["text"].strip()
+            
+            connection.send_result(msg["id"], {
+                "response": text,
+                "debug": {
+                    "intent": "search",
+                    "sql_query": final_sql,
+                    "items_found": len(rows),
+                    "inventory_context": inventory_context
+                }
+            })
+        else:
+            connection.send_result(msg["id"], {"error": f"AI API Error: {err}"})
 
     except asyncio.TimeoutError:
         _LOGGER.error("AI Chat Timeout Processing Document", exc_info=True)
-        connection.send_result(msg["id"], {"error": "שגיאת פסק-זמן (Timeout): הקובץ שהועלה גדול מדי או שלקח ל-AI יותר מדי זמן לעבד אותו (מעל 120 שניות). אנא נסה קובץ קטן יותר."})
+        connection.send_result(msg["id"], {"error": "Timeout Error: File is too large or AI processing took too long (over 120s)."})
     except Exception as e:
         _LOGGER.error(f"AI Chat general error: {e}", exc_info=True)
         connection.send_result(msg["id"], {"error": f"General Error: {str(e)}"})
@@ -708,11 +723,10 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
         if api_key and use_ai:
             enable_ai = True
 
-    # [ADDED v7.7.1 | 2026-02-19] Purpose: Get dynamic url prefix
     url_prefix = hass.data.get(DOMAIN, {}).get("config", {}).get("url_prefix", f"/local/{IMG_DIR}")
 
     conn = get_db_connection(hass); c = conn.cursor()
-    folders = []; items = []; shopping_list = []
+    folders = []; items = []; shopping_list = []; pending_list = []
     
     hierarchy = {}
     try:
@@ -727,20 +741,20 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
 
     try:
         if is_shopping:
+            # 1) Standard Shopping List
             c.execute("SELECT * FROM items WHERE quantity = 0 AND type='item' ORDER BY level_2 ASC, level_3 ASC")
             col_names = [description[0] for description in c.description]
             for r in c.fetchall():
                 r_dict = dict(zip(col_names, r))
                 fp = []; [fp.append(r_dict.get(f"level_{i}", "")) for i in range(1, 11) if r_dict.get(f"level_{i}")]
                 
-                # [MODIFIED v7.6.6 | 2026-02-18] Purpose: Handle Pointer Keys in GetView (Shopping)
                 img = None
                 raw_path = r_dict.get('image_path')
                 if raw_path:
-                    if raw_path.startswith("ICON_LIB"): img = raw_path # Return key directly
-                    # [MODIFIED v7.7.1 | 2026-02-19] Use dynamic prefix
+                    if raw_path.startswith("ICON_LIB"): img = raw_path
                     else: img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
 
+                # [MODIFIED v7.7.8 | 2026-02-24] Purpose: Added category and sub_category to shopping list for categorized view
                 shopping_list.append({
                     "id": r_dict['id'],
                     "name": r_dict['name'], 
@@ -749,11 +763,35 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                     "img": img, 
                     "location": " > ".join([p for p in fp if p]),
                     "main_location": r_dict.get("level_2", "General"),
-                    "sub_location": r_dict.get("level_3", "")
+                    "sub_location": r_dict.get("level_3", ""),
+                    "category": r_dict.get("category", ""),
+                    "sub_category": r_dict.get("sub_category", "")
+                })
+
+            # 2) Pending Items List
+            c.execute("SELECT * FROM items WHERE type='pending' ORDER BY created_at DESC")
+            for r in c.fetchall():
+                r_dict = dict(zip(col_names, r))
+                img = None
+                raw_path = r_dict.get('image_path')
+                if raw_path:
+                    if raw_path.startswith("ICON_LIB"): img = raw_path
+                    else: img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
+
+                pending_list.append({
+                    "id": r_dict['id'],
+                    "name": r_dict['name'], 
+                    "qty": r_dict['quantity'], 
+                    "img": img, 
+                    "level_1": r_dict.get("level_1", ""),
+                    "level_2": r_dict.get("level_2", ""),
+                    "level_3": r_dict.get("level_3", ""),
+                    "category": r_dict.get("category", ""),
+                    "sub_category": r_dict.get("sub_category", "")
                 })
 
         elif query or date_filter != "All":
-            sql = "SELECT * FROM items WHERE 1=1"; params = []
+            sql = "SELECT * FROM items WHERE type='item'"; params = []
             for i, p in enumerate(path_parts): sql += f" AND level_{i+1} = ?"; params.append(p)
 
             if query: sql += " AND name LIKE ?"; params.append(f"%{query}%")
@@ -767,28 +805,25 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
             for r in c.fetchall():
                 r_dict = dict(zip(col_names, r))
                 fp = []; [fp.append(r_dict.get(f"level_{i}", "")) for i in range(1, 11) if r_dict.get(f"level_{i}")]
-                if r_dict['type'] == 'item':
-                    # [MODIFIED v7.6.6 | 2026-02-18] Purpose: Handle Pointer Keys in GetView (Search)
-                    img = None
-                    raw_path = r_dict.get('image_path')
-                    if raw_path:
-                        if raw_path.startswith("ICON_LIB"): img = raw_path
-                        # [MODIFIED v7.7.1 | 2026-02-19] Use dynamic prefix
-                        else: img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
+                img = None
+                raw_path = r_dict.get('image_path')
+                if raw_path:
+                    if raw_path.startswith("ICON_LIB"): img = raw_path
+                    else: img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
 
-                    items.append({
-                        "id": r_dict['id'],
-                        "name": r_dict['name'], 
-                        "type": r_dict['type'], 
-                        "qty": r_dict['quantity'], 
-                        "date": r_dict['item_date'], 
-                        "img": img, 
-                        "location": " > ".join([p for p in fp if p]),
-                        "category": r_dict.get('category', ''),
-                        "sub_category": r_dict.get('sub_category', ''),
-                        "unit": r_dict.get('unit', ''),
-                        "unit_value": r_dict.get('unit_value', '')
-                    })
+                items.append({
+                    "id": r_dict['id'],
+                    "name": r_dict['name'], 
+                    "type": r_dict['type'], 
+                    "qty": r_dict['quantity'], 
+                    "date": r_dict['item_date'], 
+                    "img": img, 
+                    "location": " > ".join([p for p in fp if p]),
+                    "category": r_dict.get('category', ''),
+                    "sub_category": r_dict.get('sub_category', ''),
+                    "unit": r_dict.get('unit', ''),
+                    "unit_value": r_dict.get('unit_value', '')
+                })
 
         else:
             depth = len(path_parts)
@@ -807,12 +842,10 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                     c.execute(marker_sql, tuple(marker_params))
                     row = c.fetchone()
                     
-                    # [MODIFIED v7.6.6 | 2026-02-18] Purpose: Handle Pointer Keys in GetView (Folders)
                     img = None
                     if row and row[0]:
                         raw_path = row[0]
                         if raw_path.startswith("ICON_LIB"): img = raw_path
-                        # [MODIFIED v7.7.1 | 2026-02-19] Use dynamic prefix
                         else: img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
                         
                     folders.append({"name": f_name, "img": img})
@@ -822,12 +855,10 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                 col_names = [description[0] for description in c.description]
                 for r in c.fetchall():
                       r_dict = dict(zip(col_names, r))
-                      # [MODIFIED v7.6.6 | 2026-02-18] Purpose: Handle Pointer Keys in GetView (Items in root)
                       img = None
                       raw_path = r_dict.get('image_path')
                       if raw_path:
                           if raw_path.startswith("ICON_LIB"): img = raw_path
-                          # [MODIFIED v7.7.1 | 2026-02-19] Use dynamic prefix
                           else: img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
 
                       items.append({
@@ -855,12 +886,10 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                 fetched_items = []
                 for r in c.fetchall():
                     r_dict = dict(zip(col_names, r))
-                    # [MODIFIED v7.6.6 | 2026-02-18] Purpose: Handle Pointer Keys in GetView (Items in sub)
                     img = None
                     raw_path = r_dict.get('image_path')
                     if raw_path:
                         if raw_path.startswith("ICON_LIB"): img = raw_path
-                        # [MODIFIED v7.7.1 | 2026-02-19] Use dynamic prefix
                         else: img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
 
                     subloc = r_dict.get(f"level_{depth+1}", "")
@@ -888,6 +917,7 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
         "folders": folders,
         "items": items,
         "shopping_list": shopping_list,
+        "pending_list": pending_list,
         "app_version": VERSION,
         "depth": len(path_parts),
         "hierarchy": hierarchy,
@@ -904,7 +934,6 @@ async def register_services(hass, entry):
         name = call.data.get("item_name"); itype = call.data.get("item_type", "item")
         date = call.data.get("item_date"); img_b64 = call.data.get("image_data")
         fname = ""
-        # [ADDED v7.7.1 | 2026-02-19] Purpose: Get dynamic image path
         img_path_base = hass.data.get(DOMAIN, {}).get("config", {}).get("img_path", hass.config.path("www", IMG_DIR))
         
         if img_b64:
@@ -1049,8 +1078,6 @@ async def register_services(hass, entry):
         unit = call.data.get("unit")
         unit_value = call.data.get("unit_value")
         image_path = call.data.get("image_path")
-        
-        # [ADDED v7.6.0 | 2026-02-15] Purpose: Support direct path updates from location editor
         new_path = call.data.get("new_path") 
 
         parts = call.data.get("current_path", [])
@@ -1085,15 +1112,12 @@ async def register_services(hass, entry):
                 updates = []
                 params = []
                 
-                # [ADDED v7.6.0 | 2026-02-15] Purpose: Handle direct path update logic
                 if new_path is not None:
-                    # Normalize first to ensure Zone compliance
                     safe_path = normalize_zone_path(hass, new_path)
                     for i in range(1, 11):
                         val = safe_path[i-1] if i <= len(safe_path) else ""
                         updates.append(f"level_{i} = ?")
                         params.append(val)
-                # -----------------------------------------------------------
                 
                 if nn: updates.append("name = ?"); params.append(nn)
                 if nd is not None: updates.append("item_date = ?"); params.append(nd)
@@ -1124,27 +1148,19 @@ async def register_services(hass, entry):
         item_id = call.data.get("item_id")
         name = call.data.get("item_name")
         img_b64 = call.data.get("image_data")
-        
-        # [ADDED v7.6.7 | 2026-02-18] Purpose: Support direct icon key references (Pointers)
         icon_key = call.data.get("icon_key")
 
-        # [MODIFIED v7.6.7 | 2026-02-18] Purpose: Explicit safety check for mime_type to prevent NoneType error
         mime_type = call.data.get("mime_type")
         if not mime_type: mime_type = "image/jpeg"
             
         ext = ".pdf" if "pdf" in mime_type else ".jpg"
-        
         fname = ""
-        
-        # [ADDED v7.7.1 | 2026-02-19] Purpose: Get dynamic image path
         img_path_base = hass.data.get(DOMAIN, {}).get("config", {}).get("img_path", hass.config.path("www", IMG_DIR))
 
-        # [MODIFIED v7.6.7 | 2026-02-18] Purpose: If icon_key provided, use it as filename (pointer). Else save file.
         if icon_key:
             fname = icon_key
         elif img_b64:
             if "," in img_b64: img_b64 = img_b64.split(",")[1]
-            # [MODIFIED v7.6.7 | 2026-02-18] Purpose: Fallback for name if missing in folder update context
             if not name and not item_id: name = "unknown_item" 
             fname = f"{name}_{int(time.time())}{ext}"
             await hass.async_add_executor_job(lambda: open(os.path.join(img_path_base, fname), "wb").write(base64.b64decode(img_b64)))
@@ -1157,6 +1173,31 @@ async def register_services(hass, entry):
                 c.execute(f"UPDATE items SET image_path = ? WHERE name = ?", (fname, name))
             conn.commit(); conn.close()
         await hass.async_add_executor_job(save); broadcast_update()
+
+    async def handle_confirm_pending(call):
+        item_id = call.data.get("item_id")
+        name = call.data.get("name")
+        qty = int(call.data.get("quantity", 1))
+        parts = call.data.get("path", [])
+        parts = normalize_zone_path(hass, parts)
+
+        def db_confirm():
+            conn = get_db_connection(hass)
+            c = conn.cursor()
+            upd = ["type='item'", "name=?", "quantity=?"]
+            vals = [name, qty]
+
+            for i in range(1, 11):
+                upd.append(f"level_{i}=?")
+                vals.append(parts[i-1] if i <= len(parts) else "")
+
+            vals.append(item_id)
+            c.execute(f"UPDATE items SET {','.join(upd)} WHERE id=?", tuple(vals))
+            conn.commit()
+            conn.close()
+
+        await hass.async_add_executor_job(db_confirm)
+        broadcast_update()
 
     async def handle_ai_action(call):
         use_ai = entry.options.get(CONF_USE_AI, entry.data.get(CONF_USE_AI, True))
@@ -1177,17 +1218,19 @@ async def register_services(hass, entry):
 
         try:
             session = async_get_clientsession(hass)
-            async with session.post(url, json=payload) as resp:
-                if resp.status == 200:
-                    json_resp = await resp.json()
-                    text = json_resp["candidates"][0]["content"]["parts"][0]["text"].strip()
-                    hass.bus.async_fire("home_organizer_ai_result", {"result": text, "mode": mode})
-        except Exception as e: _LOGGER.error(f"AI Error: {e}")
+            res, err = await async_gemini_api_call(session, url, payload, 60)
+            if not err and res and "candidates" in res and res["candidates"]:
+                text = res["candidates"][0]["content"]["parts"][0]["text"].strip()
+                hass.bus.async_fire("home_organizer_ai_result", {"result": text, "mode": mode})
+            elif err:
+                _LOGGER.error(f"AI Error: {err}")
+        except Exception as e: _LOGGER.error(f"AI Exception: {e}")
 
     for n, h in [
         ("add_item", handle_add), ("update_image", handle_update_image),
         ("update_stock", handle_update_stock), ("update_qty", handle_update_qty), ("delete_item", handle_delete),
         ("clipboard_action", handle_clipboard), ("paste_item", handle_paste), ("ai_action", handle_ai_action),
-        ("update_item_details", handle_update_item_details), ("duplicate_item", handle_duplicate)
+        ("update_item_details", handle_update_item_details), ("duplicate_item", handle_duplicate),
+        ("confirm_pending", handle_confirm_pending)
     ]:
         hass.services.async_register(DOMAIN, n, h)

@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.6.32 (Update: Icon Picker UI layout, Square Buttons, 3D X Button)
+// Home Organizer Ultimate - Ver 7.6.43 (Update: Fixed AI Category sync and code structure)
  
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.10';
 import { ITEM_CATEGORIES } from './organizer-data.js?v=6.6.10';
@@ -7,13 +7,17 @@ class HomeOrganizerPanel extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this.content) {
-      console.log("%c Home Organizer v7.6.32 Fully Loaded ", "background: #e91e63; color: #fff; font-weight: bold;");
+      console.log("%c Home Organizer v7.6.43 Fully Loaded ", "background: #e91e63; color: #fff; font-weight: bold;");
       this.currentPath = [];
       this.catalogPath = []; 
       this.isEditMode = false;
       this.isSearch = false;
       this.isShopMode = false;
       this.isChatMode = false; 
+      
+      this.shopTab = 'list'; 
+      this.collapsedShopCats = new Set();
+      
       this.chatHistory = []; 
       this.viewMode = 'list'; 
       this.expandedIdx = null; 
@@ -71,6 +75,34 @@ class HomeOrganizerPanel extends HTMLElement {
         this.fetchData();
         this._hass.connection.subscribeEvents(() => this.fetchAllItems(), 'home_organizer_db_update');
     }
+  }
+
+  // [ADDED v7.6.40 | 2026-02-24] Purpose: Safely map a joined library category to the new split user categories.
+  getSplitCategoryMatch(libMain, libSub) {
+      let bestMain = libMain;
+      let bestSub = libSub;
+      
+      if (libMain) {
+          const parts = libMain.split(/[&,]/).map(p => p.trim());
+          for (const p of parts) {
+              if (ITEM_CATEGORIES[p]) {
+                  bestMain = p;
+                  break;
+              }
+          }
+      }
+
+      if (bestMain && ITEM_CATEGORIES[bestMain] && libSub) {
+          const subParts = libSub.split(/[&,]/).map(p => p.replace(/\(.*?\)/g, '').trim()).filter(p => p);
+          for (const p of subParts) {
+              if (ITEM_CATEGORIES[bestMain][p]) {
+                  bestSub = p;
+                  break;
+              }
+          }
+      }
+      
+      return { main: bestMain, sub: bestSub };
   }
 
   getSafeIcon(val) {
@@ -178,8 +210,18 @@ class HomeOrganizerPanel extends HTMLElement {
               this.translations[key][langCode] = (cols[j] || "").trim();
           }
       }
+      
       if (!this.translations['duplicate']) {
           this.translations['duplicate'] = { "en": "Duplicate", "he": "שכפל", "it": "Duplica", "es": "Duplicar", "fr": "Dupliquer", "ar": "تكرار" };
+      }
+      if (!this.translations['review_tab']) {
+          this.translations['review_tab'] = { "en": "AI Exports", "he": "ייצוא AI", "it": "Esportazioni AI", "es": "Exportaciones de IA", "fr": "Exportations IA", "ar": "صادرات الذكاء الاصطناعي" };
+      }
+      if (!this.translations['reject']) {
+          this.translations['reject'] = { "en": "Reject", "he": "דחה", "it": "Rifiuta", "es": "Rechazar", "fr": "Rejeter", "ar": "رفض" };
+      }
+      if (!this.translations['confirm']) {
+          this.translations['confirm'] = { "en": "Confirm", "he": "אישור", "it": "Conferma", "es": "Confirmar", "fr": "Confirmer", "ar": "تأكيد" };
       }
       this.changeLanguage(this.currentLang);
   }
@@ -246,7 +288,6 @@ class HomeOrganizerPanel extends HTMLElement {
     const MENU_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z" /></svg>';
     const INFO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>';
 
-    // [MODIFIED v7.6.32 | 2026-02-23] Purpose: Reverted buttons to Square formats, aligned text/icon to center, and ensured frame scrolling does not clip content.
     this.shadowRoot.innerHTML = `
       <link rel="stylesheet" href="/home_organizer_static/organizer-panel.css?v=${timestamp}">
       
@@ -296,6 +337,23 @@ class HomeOrganizerPanel extends HTMLElement {
               color: inherit;
               margin-top: 2px;
           }
+
+          .shop-tabs { display:flex; gap:10px; margin-bottom:15px; }
+          .shop-tab { flex:1; padding:10px; background:#222; color:#ccc; border-radius:8px; text-align:center; cursor:pointer; font-weight:bold; border:1px solid #444; transition: background 0.2s, color 0.2s; }
+          .shop-tab.active { background:var(--primary); color:white; border-color:var(--primary); }
+          .shop-badge { background:var(--danger); color:white; border-radius:12px; padding:2px 6px; font-size:11px; margin-inline-start:5px; }
+          
+          .pending-card { background:var(--bg-input-edit); border-radius:8px; padding:15px; margin-bottom:12px; border:1px solid var(--border-light); }
+          .pending-top { display:flex; gap:10px; align-items:center; margin-bottom:10px; }
+          .pending-name-input { flex:1; padding:8px; border-radius:4px; background:var(--bg-input, #111); color:var(--text-main, white); border:1px solid var(--border-input, #444); font-size:14px; }
+          .pending-qty-input { width: 45px; text-align:center; padding:8px; border-radius:4px; background:var(--bg-input, #111); color:var(--text-main, white); border:1px solid var(--border-input, #444); }
+          .pending-actions { display:flex; gap:8px; margin-top:12px; }
+          
+          .action-btn svg { width: 16px; height: 16px; fill: currentColor; }
+          
+          .light-mode .shop-tab { background:#f5f5f5; color:#000; border-color:#cccccc; }
+          .light-mode .shop-tab.active { background:var(--primary); color:white; border-color:var(--primary); }
+          .light-mode .pending-name-input, .light-mode .pending-qty-input { background:#ffffff; color:#000000; border-color:#cccccc; }
       </style>
 
       <div class="app-container" id="app">
@@ -355,8 +413,8 @@ class HomeOrganizerPanel extends HTMLElement {
 
             <div class="sub-bar-right">
                 <button class="nav-btn" id="btn-view-toggle" style="display:none;">
-                   <span id="icon-view-grid" style="display:block">${ICONS.view_grid}</span>
-                   <span id="icon-view-list" style="display:none">${ICONS.view_list}</span>
+                    <span id="icon-view-grid" style="display:block">${ICONS.view_grid}</span>
+                    <span id="icon-view-list" style="display:none">${ICONS.view_list}</span>
                 </button>
                 <button class="nav-btn" id="btn-toggle-ids" title="Toggle IDs">
                     ${ICONS.id_card}
@@ -400,7 +458,7 @@ class HomeOrganizerPanel extends HTMLElement {
               
               <div style="margin-top:20px; font-size:12px; color:#666; border-top:1px solid var(--border-light); padding-top:10px;">
                   Licensed under MIT License.<br>
-                  Version 7.6.32
+                  Version 7.6.43
               </div>
               
               <button class="action-btn" style="width:100%; margin-top:20px;" onclick="this.closest('#about-modal').style.display='none'" id="lbl-close">Close</button>
@@ -491,7 +549,6 @@ class HomeOrganizerPanel extends HTMLElement {
     this.applyStaticTranslations();
   }
 
-  // [MODIFIED v7.6.31] Removed lbl-cancel translation binding since it's just an X icon now
   applyStaticTranslations() {
       const el = (id) => this.shadowRoot.getElementById(id);
       if(el('lbl-lang')) el('lbl-lang').innerText = this.t('language');
@@ -566,9 +623,7 @@ class HomeOrganizerPanel extends HTMLElement {
           unit: match.unit,
           unit_value: match.unit_value,
           image_path: cleanPath
-      });
-      
-      setTimeout(() => this.fetchData(), 200); 
+      }).then(() => this.fetchData());
   }
 
   renderMenu() {
@@ -592,6 +647,11 @@ class HomeOrganizerPanel extends HTMLElement {
       }
       
       menuLang.innerHTML = html;
+  }
+
+  setShopTab(tab) {
+      this.shopTab = tab;
+      this.render();
   }
 
   bindEvents() {
@@ -766,6 +826,8 @@ class HomeOrganizerPanel extends HTMLElement {
             this.callHA('update_item_details', { 
             item_id: itemId, 
             new_path: newPath 
+        }).then(() => {
+            if (this.isShopMode) this.fetchData();
         });
     }
   }
@@ -775,7 +837,7 @@ class HomeOrganizerPanel extends HTMLElement {
       return `<div class="sub-title">${item.location || ''}</div>`;
   }
   
-  renderHierarchyControl(item) {
+  renderHierarchyControl(item, isPending = false) {
     const hierarchy = this.localData.hierarchy || {};
     const state = this.locationEditState[item.id] || {};
 
@@ -824,6 +886,7 @@ class HomeOrganizerPanel extends HTMLElement {
     if (l3 && !l3Found) l3Opts += `<option value="${l3}" selected>${l3}</option>`;
 
     const sep = `<span class="hierarchy-sep">&gt;</span>`;
+    const btnHtml = isPending ? '' : `<button class="hierarchy-update-btn" title="Apply Move" style="border-radius:50%;width:36px;height:36px;padding:0;display:flex;align-items:center;justify-content:center;min-width:36px" onclick="this.getRootNode().host.saveHierarchy('${item.id}')">${ICONS.check}</button>`;
 
     return `
       <div class="hierarchy-container">
@@ -838,7 +901,7 @@ class HomeOrganizerPanel extends HTMLElement {
           <select class="hierarchy-select" ${l3Disabled ? 'disabled' : ''} onchange="this.getRootNode().host.updateHierarchyState('${item.id}', 3, this.value)">
               ${l3Opts}
           </select>
-          <button class="hierarchy-update-btn" title="Apply Move" style="border-radius:50%;width:36px;height:36px;padding:0;display:flex;align-items:center;justify-content:center;min-width:36px" onclick="this.getRootNode().host.saveHierarchy('${item.id}')">${ICONS.check}</button>
+          ${btnHtml}
       </div>
     `;
   }
@@ -1108,22 +1171,155 @@ class HomeOrganizerPanel extends HTMLElement {
         }
     }
 
-    if (attrs.shopping_list && attrs.shopping_list.length > 0) {
+    if (this.isShopMode) {
+        const pendingCount = (attrs.pending_list || []).length;
+        const UPLOAD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>';
+        
+        const tabsHtml = `
+            <div class="shop-tabs">
+                <div class="shop-tab ${this.shopTab === 'list' ? 'active' : ''}" onclick="this.getRootNode().host.setShopTab('list')">${this.t('shopping_list')}</div>
+                <div class="shop-tab ${this.shopTab === 'review' ? 'active' : ''}" onclick="this.getRootNode().host.setShopTab('review')">
+                    ${this.t('review_tab')} 
+                    <span class="shop-badge">${pendingCount}</span>
+                </div>
+            </div>
+        `;
+        content.insertAdjacentHTML('beforeend', tabsHtml);
+
         const listContainer = document.createElement('div');
         listContainer.className = 'item-list';
-        const grouped = {};
-        attrs.shopping_list.forEach(item => {
-            const loc = item.main_location || "Other";
-            if(!grouped[loc]) grouped[loc] = [];
-            grouped[loc].push(item);
-        });
-        Object.keys(grouped).sort().forEach(locName => {
-            const header = document.createElement('div');
-            header.className = 'group-separator';
-            header.innerText = locName;
-            listContainer.appendChild(header);
-            grouped[locName].forEach(item => listContainer.appendChild(this.createItemRow(item, true)));
-        });
+
+        if (this.shopTab === 'list') {
+            if (attrs.shopping_list && attrs.shopping_list.length > 0) {
+                const grouped = {};
+                attrs.shopping_list.forEach(item => {
+                    const cat = item.category || "Other";
+                    const sub = item.sub_category || "General";
+                    if(!grouped[cat]) grouped[cat] = { total: 0, subs: {} };
+                    if(!grouped[cat].subs[sub]) grouped[cat].subs[sub] = [];
+                    grouped[cat].subs[sub].push(item);
+                    grouped[cat].total++;
+                });
+                
+                Object.keys(grouped).sort().forEach(catName => {
+                    const catData = grouped[catName];
+                    const isCollapsed = this.collapsedShopCats.has(catName);
+                    const icon = isCollapsed ? ICONS.chevron_right : ICONS.chevron_down;
+                    const translatedCat = this.t('cat_' + catName.replace(/[^a-zA-Z0-9]+/g, '_')) || catName;
+
+                    const header = document.createElement('div');
+                    header.className = 'group-separator';
+                    header.style.cursor = 'pointer';
+                    header.innerHTML = `
+                        <div style="display:flex;align-items:center;">
+                            <span style="margin-inline-end:5px;display:flex;align-items:center">${icon}</span>
+                            <span>${translatedCat}</span>
+                            <span class="shop-badge" style="background:#555;margin-inline-start:8px;">${catData.total}</span>
+                        </div>
+                    `;
+                    header.onclick = () => {
+                        if (this.collapsedShopCats.has(catName)) this.collapsedShopCats.delete(catName);
+                        else this.collapsedShopCats.add(catName);
+                        this.render();
+                    };
+                    listContainer.appendChild(header);
+
+                    if (!isCollapsed) {
+                        Object.keys(catData.subs).sort().forEach(subName => {
+                            if (subName && subName !== "General" || Object.keys(catData.subs).length > 1) {
+                                 const subHeader = document.createElement('div');
+                                 subHeader.className = 'sub-group-separator';
+                                 subHeader.style.padding = '8px 15px 4px 15px';
+                                 subHeader.style.fontSize = '13px';
+                                 subHeader.style.color = 'var(--primary)';
+                                 subHeader.style.fontWeight = 'bold';
+                                 subHeader.style.borderBottom = '1px solid var(--border-light)';
+                                 const translatedSub = this.t('sub_' + subName.replace(/[^a-zA-Z0-9]+/g, '_')) || subName;
+                                 subHeader.innerText = translatedSub;
+                                 listContainer.appendChild(subHeader);
+                            }
+                            catData.subs[subName].forEach(item => listContainer.appendChild(this.createItemRow(item, true)));
+                        });
+                    }
+                });
+            } else {
+                 listContainer.innerHTML = `<div style="text-align:center;padding:20px;color:#888;">No items in the list.</div>`;
+            }
+        } else if (this.shopTab === 'review') {
+            if (attrs.pending_list && attrs.pending_list.length > 0) {
+                attrs.pending_list.forEach(item => {
+                    if (!this.locationEditState[item.id]) {
+                        this.locationEditState[item.id] = {
+                            l1: item.level_1 || '',
+                            l2: item.level_2 || '',
+                            l3: item.level_3 || ''
+                        };
+                    }
+
+                    let mainCatOptions = `<option value="">${this.t('select_cat')}</option>`;
+                    Object.keys(ITEM_CATEGORIES).forEach(cat => {
+                        const selected = (item.category === cat) ? 'selected' : '';
+                        mainCatOptions += `<option value="${cat}" ${selected}>${this.t('cat_' + cat.replace(/[^a-zA-Z0-9]+/g, '_')) || cat}</option>`;
+                    });
+
+                    let subCatOptions = `<option value="">${this.t('select_sub')}</option>`;
+                    if (item.category && ITEM_CATEGORIES[item.category]) {
+                        const subs = ITEM_CATEGORIES[item.category];
+                        Object.keys(subs).forEach(sub => {
+                            const selected = (item.sub_category === sub) ? 'selected' : '';
+                            const transKey = 'sub_' + sub.replace(/[^a-zA-Z0-9]+/g, '_');
+                            subCatOptions += `<option value="${sub}" ${selected}>${this.t(transKey) || sub}</option>`;
+                        });
+                    }
+
+                    const card = document.createElement('div');
+                    card.className = 'pending-card';
+
+                    let iconHtml = `<div class="item-icon" style="margin-inline-end:10px;">${ICONS.item}</div>`;
+                    if (item.img) {
+                        if (item.img.startsWith('ICON_LIB')) {
+                            iconHtml = `<div class="item-icon" style="margin-inline-end:10px;">${this.getIconByKey(item.img)}</div>`;
+                        } else {
+                            iconHtml = `<img src="${item.img}" style="width:40px;height:40px;border-radius:4px;object-fit:cover;margin-inline-end:10px;">`;
+                        }
+                    }
+
+                    card.innerHTML = `
+                        <div class="pending-top">
+                            ${iconHtml}
+                            <input type="text" id="pending-name-${item.id}" class="pending-name-input" value="${item.name}">
+                            <input type="number" id="pending-qty-${item.id}" class="pending-qty-input" value="${item.qty}" min="1">
+                        </div>
+                        <div class="pending-mid" style="display:flex; flex-direction:column; gap:8px;">
+                            ${this.renderHierarchyControl(item, true)}
+                            <div style="display:flex; gap:5px;">
+                                <select class="move-select" id="pending-cat-main-${item.id}" style="flex:1;" onchange="this.getRootNode().host.updatePendingCategory('${item.id}', this.value, 'main')">
+                                    ${mainCatOptions}
+                                </select>
+                                <select class="move-select" id="pending-cat-sub-${item.id}" style="flex:1;" onchange="this.getRootNode().host.updatePendingCategory('${item.id}', this.value, 'sub')">
+                                    ${subCatOptions}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="pending-actions" style="justify-content:space-between; align-items:center; margin-top:12px;">
+                             <div style="display:flex;gap:10px;">
+                                <button class="action-btn" title="${this.t('take_photo')}" onclick="this.getRootNode().host.triggerCameraEdit('${item.id}', '${item.name}')">${ICONS.camera}</button>
+                                <button class="action-btn" title="${this.t('upload_file')}" onclick="this.getRootNode().host.triggerFileUploadEdit('${item.id}', '${item.name}')">${UPLOAD_SVG}</button>
+                                <button class="action-btn" title="${this.t('change_img')}" onclick="this.getRootNode().host.openIconPicker('${item.id}', 'item')">${ICONS.image}</button>
+                             </div>
+                             <div style="display:flex;gap:10px;">
+                                 <button class="action-btn btn-danger" title="${this.t('reject')}" onclick="this.getRootNode().host.deletePending('${item.id}')" style="display:flex;align-items:center;justify-content:center;">${ICONS.delete}</button>
+                                 <button class="action-btn" title="${this.t('confirm')}" style="background:var(--success);color:white;display:flex;align-items:center;justify-content:center;" onclick="this.getRootNode().host.confirmPending('${item.id}')">${ICONS.check}</button>
+                             </div>
+                        </div>
+                    `;
+                    listContainer.appendChild(card);
+                });
+            } else {
+                listContainer.innerHTML = `<div style="text-align:center;padding:20px;color:#888;">All caught up! No pending items to review.</div>`;
+            }
+        }
+        
         content.appendChild(listContainer);
         return;
     }
@@ -1624,6 +1820,31 @@ class HomeOrganizerPanel extends HTMLElement {
           if(msg.isStatus) {
               div.id = 'chat-status-msg'; 
           }
+          
+          if(msg.isError) {
+              const retryBtn = document.createElement('button');
+              retryBtn.className = 'action-btn';
+              retryBtn.style.marginTop = '10px';
+              retryBtn.style.background = 'var(--primary)';
+              retryBtn.style.color = 'white';
+              retryBtn.innerHTML = ICONS.refresh + " Send Again";
+              retryBtn.onclick = () => {
+                  this.chatImage = msg.retryImage;
+                  this.chatMimeType = msg.retryMime || "image/jpeg";
+                  const chatInput = this.shadowRoot.querySelector('.chat-input');
+                  if(chatInput) chatInput.value = msg.retryText || "";
+                  
+                  this.chatHistory = this.chatHistory.filter(m => m !== msg);
+                  this.render();
+                  
+                  setTimeout(() => {
+                      const sendBtn = this.shadowRoot.querySelector('.chat-send-btn');
+                      if(sendBtn) sendBtn.click();
+                  }, 100);
+              };
+              div.appendChild(retryBtn);
+          }
+          
           messagesDiv.appendChild(div);
       });
       
@@ -1751,8 +1972,8 @@ class HomeOrganizerPanel extends HTMLElement {
                         if (d.raw_json) {
                             debugHTML += `<details class="debug-details"><summary class="debug-summary">📄 Raw Invoice Data</summary><div class="debug-content">${esc(d.raw_json)}</div></details>`;
                         }
-                        if (d.intent === "add") {
-                            debugHTML += `<details class="debug-details"><summary class="debug-summary">➕ Items Added</summary><div class="debug-content">${JSON.stringify(d.json, null, 2)}</div></details>`;
+                        if (d.intent === "add" || d.intent === "add_invoice") {
+                            debugHTML += `<details class="debug-details"><summary class="debug-summary">➕ Items Added</summary><div class="debug-content">${JSON.stringify(d.json || d.raw_json, null, 2)}</div></details>`;
                         }
                         if (d.sql_query) {
                             debugHTML += `<details class="debug-details"><summary class="debug-summary">🔍 SQL Query</summary><div class="debug-content">${esc(d.sql_query)}</div></details>`;
@@ -1765,7 +1986,14 @@ class HomeOrganizerPanel extends HTMLElement {
                     statusMsg.text = "✔ " + this.t('complete') + debugHTML;
 
                     if (result.error) {
-                        this.chatHistory.push({ role: 'ai', text: "<b>" + this.t('error') + ":</b> " + result.error });
+                        this.chatHistory.push({ 
+                            role: 'ai', 
+                            text: "<b>" + this.t('error') + ":</b> " + result.error,
+                            isError: true,
+                            retryText: text,
+                            retryImage: imgData,
+                            retryMime: currentMime
+                        });
                     } else if (result.response) {
                         let formatted = result.response.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
                         formatted = formatted.replace(/\n/g, '<br>');
@@ -1774,7 +2002,14 @@ class HomeOrganizerPanel extends HTMLElement {
               }
           } catch (e) {
               statusMsg.text += "<br>❌ " + this.t('failed');
-              this.chatHistory.push({ role: 'ai', text: this.t('error') + ": " + e.message });
+              this.chatHistory.push({ 
+                  role: 'ai', 
+                  text: this.t('error') + ": " + e.message,
+                  isError: true,
+                  retryText: text,
+                  retryImage: imgData,
+                  retryMime: currentMime
+              });
           }
           
           this.render();
@@ -2221,7 +2456,8 @@ class HomeOrganizerPanel extends HTMLElement {
   showItemDetailsProxy(itemId) {
       if (!this.localData) return;
       const item = (this.localData.items || []).find(i => i.id == itemId) || 
-                   (this.localData.shopping_list || []).find(i => i.id == itemId);
+                   (this.localData.shopping_list || []).find(i => i.id == itemId) ||
+                   (this.localData.pending_list || []).find(i => i.id == itemId);
       if (item) this.showItemDetails(item);
   }
 
@@ -2376,6 +2612,52 @@ class HomeOrganizerPanel extends HTMLElement {
       this.callHA('duplicate_item', { item_id: itemId });
   }
 
+  confirmPending(id) {
+      const nameEl = this.shadowRoot.getElementById(`pending-name-${id}`);
+      const qtyEl = this.shadowRoot.getElementById(`pending-qty-${id}`);
+      const state = this.locationEditState[id] || {};
+      const path = [];
+      if(state.l1) path.push(state.l1);
+      if(state.l2) path.push(state.l2);
+      if(state.l3) path.push(state.l3);
+
+      this.callHA('confirm_pending', {
+          item_id: id,
+          name: nameEl ? nameEl.value.trim() : "",
+          quantity: qtyEl ? (parseInt(qtyEl.value) || 1) : 1,
+          path: path
+      });
+  }
+
+  deletePending(id) {
+      this.callHA('delete_item', { item_id: id, current_path: [], is_folder: false });
+  }
+
+  updatePendingCategory(itemId, value, type) {
+      const mainSelect = this.shadowRoot.getElementById(`pending-cat-main-${itemId}`);
+      const subSelect = this.shadowRoot.getElementById(`pending-cat-sub-${itemId}`);
+      
+      let mainCat = (type === 'main') ? value : (mainSelect ? mainSelect.value : "");
+      let subCat = (type === 'sub') ? value : (type === 'main' ? "" : (subSelect ? subSelect.value : ""));
+
+      if (type === 'main') {
+          let html = `<option value="">${this.t('select_sub')}</option>`;
+          if (mainCat && ITEM_CATEGORIES[mainCat]) {
+              Object.keys(ITEM_CATEGORIES[mainCat]).forEach(sub => {
+                  const transKey = 'sub_' + sub.replace(/[^a-zA-Z0-9]+/g, '_');
+                  html += `<option value="${sub}">${this.t(transKey) || sub}</option>`;
+              });
+          }
+          if (subSelect) subSelect.innerHTML = html;
+      }
+
+      this.callHA('update_item_details', { 
+          item_id: itemId, 
+          category: mainCat, 
+          sub_category: subCat
+      }).then(() => this.fetchData());
+  }
+
   createItemRow(item, isShopMode) {
      const div = document.createElement('div');
      const oosClass = (item.qty === 0) ? 'out-of-stock-frame' : '';
@@ -2516,8 +2798,8 @@ class HomeOrganizerPanel extends HTMLElement {
       const valInput = this.shadowRoot.getElementById(`unit-val-${itemId}`);
       const unitDisp = this.shadowRoot.getElementById(`unit-disp-${itemId}`);
       
-      let mainCat = (type === 'main') ? value : mainSelect.value;
-      let subCat = (type === 'sub') ? value : (type === 'main' ? "" : subSelect.value);
+      let mainCat = (type === 'main') ? value : (mainSelect ? mainSelect.value : "");
+      let subCat = (type === 'sub') ? value : (type === 'main' ? "" : (subSelect ? subSelect.value : ""));
       let unitVal = valInput ? valInput.value : "";
       let unit = "";
 
@@ -2529,26 +2811,28 @@ class HomeOrganizerPanel extends HTMLElement {
                   html += `<option value="${sub}">${this.t(transKey) || sub}</option>`;
               });
           }
-          subSelect.innerHTML = html;
+          if (subSelect) subSelect.innerHTML = html;
           subCat = ""; 
-          unitDisp.innerText = "-";
+          if (unitDisp) unitDisp.innerText = "-";
       }
 
       if (mainCat && subCat && ITEM_CATEGORIES[mainCat] && ITEM_CATEGORIES[mainCat][subCat]) {
           unit = ITEM_CATEGORIES[mainCat][subCat];
-          unitDisp.innerText = this.t('unit_' + unit) || unit;
+          if (unitDisp) unitDisp.innerText = this.t('unit_' + unit) || unit;
       } else {
-          unitDisp.innerText = "-";
+          if (unitDisp) unitDisp.innerText = "-";
       }
 
       this.callHA('update_item_details', { 
           item_id: itemId, 
-          original_name: itemName, 
+          original_name: itemName,
           category: mainCat, 
           sub_category: subCat, 
           unit: unit,
           unit_value: unitVal,
           current_path: this.currentPath
+      }).then(() => {
+          if (this.isShopMode) this.fetchData();
       });
   }
   
@@ -2631,7 +2915,7 @@ class HomeOrganizerPanel extends HTMLElement {
       this.expandedIdx = (this.expandedIdx === nId) ? null : nId; 
       
       if (this.expandedIdx === nId) {
-          const item = this.localData.items.find(i => i.id == id) || this.localData.shopping_list.find(i => i.id == id);
+          const item = this.localData.items.find(i => i.id == id) || this.localData.shopping_list.find(i => i.id == id) || (this.localData.pending_list || []).find(i => i.id == id);
           if (item) {
               const hierarchy = this.localData.hierarchy || {};
               let path = [];
@@ -2670,9 +2954,12 @@ class HomeOrganizerPanel extends HTMLElement {
   }
 
   updateQty(id, d) { this.callHA('update_qty', { item_id: id, change: d }); }
+  
   submitShopStock(id) { 
       const qty = this.shopQuantities[id] || 1;
-      this.callHA('update_stock', { item_id: id, quantity: qty }); 
+      this.callHA('update_stock', { item_id: id, quantity: qty }).then(() => {
+           if (this.isShopMode) this.fetchData();
+      }); 
       delete this.shopQuantities[id];
   }
   
@@ -2726,7 +3013,6 @@ class HomeOrganizerPanel extends HTMLElement {
       return ICON_LIB;
   }
 
-  // [MODIFIED v7.6.31 | 2026-02-23] Purpose: Removed pagination logic to just render entire 3-row grid.
   renderIconPickerGrid() {
       const lib = this.getCurrentPickerLib();
       const keys = Object.keys(lib);
@@ -2812,7 +3098,6 @@ class HomeOrganizerPanel extends HTMLElement {
 
       grid.innerHTML = '';
       
-      // Removed pagination logic, render all items
       keys.forEach(key => {
           const div = document.createElement('div');
           div.className = 'lib-icon';
@@ -2846,7 +3131,27 @@ class HomeOrganizerPanel extends HTMLElement {
 
       try {
           if(this.pendingItemId) {
-              await this.callHA('update_image', { item_id: this.pendingItemId, icon_key: fullKey });
+              if (this.pickerContext === 'item' && this.pickerMainCategory) {
+                  const matched = this.getSplitCategoryMatch(this.pickerMainCategory, this.pickerSubCategory);
+                  
+                  let newUnit = "Units";
+                  if (matched.main && ITEM_CATEGORIES[matched.main] && matched.sub && ITEM_CATEGORIES[matched.main][matched.sub]) {
+                      newUnit = ITEM_CATEGORIES[matched.main][matched.sub];
+                  }
+                  await this.callHA('update_item_details', { 
+                      item_id: this.pendingItemId, 
+                      image_path: fullKey,
+                      category: matched.main,
+                      sub_category: matched.sub || "",
+                      unit: newUnit
+                  }).then(() => {
+                      if (this.isShopMode) this.fetchData();
+                  });
+              } else {
+                  await this.callHA('update_image', { item_id: this.pendingItemId, icon_key: fullKey }).then(() => {
+                      if (this.isShopMode) this.fetchData();
+                  });
+              }
               this.refreshImageVersion(this.pendingItemId);
           } else if(this.pendingFolderIcon) {
               const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
@@ -2905,7 +3210,9 @@ class HomeOrganizerPanel extends HTMLElement {
 
       try {
           if(this.pendingItemId) {
-              await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
+              await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl }).then(() => {
+                  if (this.isShopMode) this.fetchData();
+              });
               this.refreshImageVersion(this.pendingItemId);
           } else if(this.pendingFolderIcon) {
               const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
@@ -2945,7 +3252,9 @@ class HomeOrganizerPanel extends HTMLElement {
 
           try {
               if(this.pendingItemId) {
-                   await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
+                   await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl }).then(() => {
+                       if (this.isShopMode) this.fetchData();
+                   });
                    this.refreshImageVersion(this.pendingItemId);
               } else if(this.pendingFolderIcon) {
                   const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
@@ -2969,7 +3278,9 @@ class HomeOrganizerPanel extends HTMLElement {
 
           try {
               if(this.pendingItemId) {
-                   await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
+                   await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl }).then(() => {
+                       if (this.isShopMode) this.fetchData();
+                   });
                    this.refreshImageVersion(this.pendingItemId);
               } else if(this.pendingFolderIcon) {
                   const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');

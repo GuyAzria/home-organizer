@@ -1,126 +1,201 @@
+// Home Organizer Data - Ver 2.1 (Update: Split Categories by '&' and matched to Icons)
+
 export const ITEM_CATEGORIES = {
   "Food": { 
-      "Fresh Produce": "Kg",
+      "Dairy": "Units",
+      "Eggs": "Units",
+      "Meat": "Kg",
+      "Poultry": "Kg",
+      "Fish": "Kg",
       "Vegetables": "Kg",
       "Fruits": "Kg",
-      "Meat & Fish": "Kg", 
-      "Dairy": "Liter", 
-      "Dry Goods": "Kg", 
-      "Frozen Food": "Kg", 
-      "Beverages": "Liter", 
-      "Snacks": "Units", 
-      "Spices & Herbs": "g", 
-      "Oils & Sauces": "Liter", 
-      "Canned Food": "Units" 
+      "Pantry": "Kg",
+      "Dry Goods": "Kg",
+      "Carbs": "Kg",
+      "Legumes": "Kg",
+      "Spices": "g",
+      "Baking Goods": "g",
+      "Sauces": "Units",
+      "Spreads": "Units",
+      "Canned Goods": "Units",
+      "Bread": "Units",
+      "Pastries": "Units",
+      "Beverages": "Liter",
+      "Snacks": "Units",
+      "Sweets": "Units",
+      "Dietary Supplements": "Units",
+      "Vitamins": "Units"
   },
-  "Clothing": { 
-      "Tops": "Units", 
-      "Bottoms": "Units", 
-      "Outerwear": "Units", 
-      "Shoes": "Units", 
-      "Underwear": "Units", 
-      "Accessories": "Units", 
-      "Workwear": "Units", 
-      "Sportswear": "Units" 
+  "Cleaning": { 
+      "General Cleaning": "Liter",
+      "Laundry": "Liter",
+      "Dishwashing": "Units",
+      "Accessories": "Units",
+      "Consumables": "Units"
   },
-  "Furniture": { 
-      "Seating": "Units", 
-      "Tables": "Units", 
-      "Storage Furniture": "Units", 
-      "Beds": "Units", 
-      "Shelving": "Units", 
-      "Outdoor Furniture": "Units" 
+  "Home Maintenance": { 
+      "General Cleaning": "Liter",
+      "Laundry": "Liter",
+      "Dishwashing": "Units",
+      "Accessories": "Units",
+      "Consumables": "Units",
+      "Hand Tools": "Units",
+      "Materials": "Units",
+      "Power Tools": "Units"
   },
-  "Electronics": { 
-      "Computing Devices": "Units", 
-      "Mobile Devices": "Units", 
-      "Audio Equipment": "Units", 
-      "Video Equipment": "Units", 
-      "Networking": "Units", 
-      "Accessories": "Units", 
-      "Batteries": "Units" 
+  "Toiletries": { 
+      "Personal Hygiene": "Units",
+      "Paper Products": "Units",
+      "First Aid": "Units",
+      "OTC Medicines": "Units"
+  },
+  "Pharmacy": { 
+      "Personal Hygiene": "Units",
+      "Paper Products": "Units",
+      "First Aid": "Units",
+      "OTC Medicines": "Units"
+  },
+  "General Supplies": { 
+      "Electrical": "Units",
+      "Lighting": "Units",
+      "Miscellaneous": "Units",
+      "Maintenance": "Units",
+      "Stationery": "Units",
+      "Desk Supplies": "Units"
+  },
+  "Home Office Supplies": { 
+      "Electrical": "Units",
+      "Lighting": "Units",
+      "Miscellaneous": "Units",
+      "Maintenance": "Units",
+      "Stationery": "Units",
+      "Desk Supplies": "Units"
   },
   "Tools": { 
-      "Hand Tools": "Units", 
-      "Power Tools": "Units", 
-      "Measuring Tools": "Units", 
-      "Cutting Tools": "Units", 
-      "Workshop Equipment": "Units" 
+      "Hand Tools": "Units",
+      "Materials": "Units",
+      "Accessories": "Units",
+      "Power Tools": "Units"
   },
-  "Cleaning Supplies": { 
-      "Liquid Cleaners": "Liter", 
-      "Powders & Tablets": "Kg", 
-      "Tools & Brushes": "Units", 
-      "Paper Products": "Units", 
-      "Disinfectants": "Liter" 
+  "Medicines": { 
+      "Pain Relievers": "Units",
+      "Fever Reducers": "Units",
+      "First Aid Supplies": "Units",
+      "Topical Treatments": "Units",
+      "Ointments": "Units",
+      "Miscellaneous": "Units",
+      "Winter Illnesses": "Units"
   },
-  "Stationery": { 
-      "Writing Tools": "Units", 
-      "Paper Products": "Units", 
-      "Office Accessories": "Units", 
-      "Printing Supplies": "Units", 
-      "Filing & Storage": "Units" 
+  "First Aid": { 
+      "Pain Relievers": "Units",
+      "Fever Reducers": "Units",
+      "First Aid Supplies": "Units",
+      "Topical Treatments": "Units",
+      "Ointments": "Units",
+      "Miscellaneous": "Units",
+      "Winter Illnesses": "Units"
   },
-  "Storage & Organization": { 
-      "Boxes & Bins": "Units", 
-      "Shelving Containers": "Units", 
-      "Bags & Covers": "Units", 
-      "Drawer Organizers": "Units" 
+  "Kitchenware": { 
+      "Pots": "Units",
+      "Pans": "Units",
+      "Dinnerware": "Units",
+      "Serving": "Units",
+      "Cooking Accessories": "Units",
+      "Baking Accessories": "Units",
+      "Cutting Accessories": "Units",
+      "Storage": "Units",
+      "Organization": "Units",
+      "Small Kitchen Appliances": "Units"
   },
-  "Personal Care": { 
-      "Skin Care": "ml", 
-      "Hair Care": "ml", 
-      "Oral Care": "Units", 
-      "Grooming Tools": "Units", 
-      "Cosmetics": "Units" 
+  "Electronics": { 
+      "Entertainment": "Units",
+      "Computing": "Units",
+      "Major Appliances": "Units",
+      "Small Home Appliances": "Units",
+      "Smart Tech": "Units"
   },
-  "Health & Medical": { 
-      "Medications": "Units", 
-      "Supplements": "Units", 
-      "First Aid": "Units", 
-      "Medical Devices": "Units", 
-      "Hygiene Protection": "Units" 
+  "Entertainment": { 
+      "Entertainment": "Units",
+      "Computing": "Units",
+      "Major Appliances": "Units",
+      "Small Home Appliances": "Units",
+      "Smart Tech": "Units"
   },
-  "Hardware": { 
-      "Fasteners": "Units", 
-      "Pipes & Fittings": "Units", 
-      "Electrical Parts": "Units", 
-      "Building Materials": "Kg", 
-      "Adhesives & Sealants": "ml" 
+  "Clothing": { 
+      "Everyday Clothing": "Units",
+      "Intimates": "Units",
+      "Loungewear": "Units",
+      "Winter Clothing": "Units",
+      "Transitional Clothing": "Units",
+      "Footwear": "Units",
+      "Accessories": "Units"
   },
-  "Garden": { 
-      "Plants": "Units", 
-      "Seeds": "g", 
-      "Soil & Compost": "Liter", 
-      "Fertilizers": "Kg", 
-      "Irrigation": "Units", 
-      "Garden Tools": "Units", 
-      "Pots & Planters": "Units", 
-      "Mulch & Ground Cover": "Liter", 
-      "Pest Control": "ml" 
+  "Footwear": { 
+      "Everyday Clothing": "Units",
+      "Intimates": "Units",
+      "Loungewear": "Units",
+      "Winter Clothing": "Units",
+      "Transitional Clothing": "Units",
+      "Footwear": "Units",
+      "Accessories": "Units"
   },
-  "Appliances": { 
-      "Kitchen Appliances": "Units", 
-      "Laundry Appliances": "Units", 
-      "Climate Control": "Units", 
-      "Small Appliances": "Units" 
+  "Home Textiles": { 
+      "Bed Linens": "Units",
+      "Bath Textiles": "Units",
+      "Kitchen Textiles": "Units"
   },
-  "Lighting": { 
-      "Bulbs": "Units", 
-      "Lamps": "Units", 
-      "Outdoor Lighting": "Units", 
-      "Fixtures": "Units" 
+  "Bedding": { 
+      "Bed Linens": "Units",
+      "Bath Textiles": "Units",
+      "Kitchen Textiles": "Units"
   },
-  "Toys & Games": { 
-      "Children Toys": "Units", 
-      "Board Games": "Units", 
-      "Outdoor Games": "Units", 
-      "Educational Toys": "Units" 
+  "Pet Supplies": { 
+      "Food": "Kg",
+      "Feeding": "Kg",
+      "Care": "Units",
+      "Accessories": "Units"
   },
-  "Miscellaneous": { 
-      "Decorations": "Units", 
-      "Seasonal Items": "Units", 
-      "Collectibles": "Units", 
-      "Other": "Units" 
+  "Baby Supplies": { 
+      "Feeding": "Units",
+      "Nursing": "Units",
+      "Diapering": "Units",
+      "Hygiene": "Units",
+      "Gear": "Units",
+      "Travel": "Units"
+  },
+  "Outdoor": { 
+      "Gardening Tools": "Units",
+      "Outdoor Maintenance": "Units",
+      "Outdoor Living": "Units",
+      "Entertainment": "Units"
+  },
+  "Garden Equipment": { 
+      "Gardening Tools": "Units",
+      "Outdoor Maintenance": "Units",
+      "Outdoor Living": "Units",
+      "Entertainment": "Units"
+  },
+  "Fitness Gear": { 
+      "Home Gym Basics": "Units",
+      "Recovery": "Units",
+      "Support": "Units"
+  },
+  "Toys": { 
+      "Action Figures": "Units",
+      "Playsets": "Units",
+      "Building Blocks": "Units",
+      "Construction": "Units",
+      "Dolls": "Units",
+      "Accessories": "Units",
+      "Vehicles": "Units",
+      "Remote Control": "Units",
+      "Arts": "Units",
+      "Crafts": "Units",
+      "Board Games": "Units",
+      "Puzzles": "Units",
+      "Plush": "Units",
+      "Stuffed Animals": "Units",
+      "Educational": "Units",
+      "STEM Toys": "Units"
   }
 };

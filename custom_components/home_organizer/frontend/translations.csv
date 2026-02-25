@@ -3,7 +3,7 @@ _direction,ltr,rtl,ltr,ltr,ltr,rtl
 app_title,Organizer,ארגונית,Organizzatore,Organizador,Organisateur,منظم
 default_path,Main,ראשי,Principale,Principal,Principal,رئيسي
 loading,Loading...,טוען...,Caricamento...,Cargando...,Chargement...,جار التحميل...
-shopping_list,Shopping List,רשימת קניות,Lista della spesa,Lista de la compra,Liste de courses,قائمة التسوق
+shopping_list,List,רשימה,Lista,Lista,Liste,قائمة
 search_results,Search Results,תוצאות חיפוש,Risultati di ricerca,Resultados de la búsqueda,Résultats de recherche,نتائج البحث
 search_placeholder,Search...,חיפוש...,Cerca...,Buscar...,Chercher...,بحث...
 change_icon,Change Icon,שנה סמל,Cambia icona,Cambiar icono,Changer d'icône,تغيير الرمز
@@ -36,9 +36,9 @@ select_sub,Select Subcategory,בחר תת-קטגוריה,Seleziona sottocategori
 zone_General_Rooms,General Rooms,חדרים כלליים,Stanze generali,Habitaciones generali,Pièces générales,غرف عامة
 quantity,Qty,כמות,Qtà,Cant,Qté,الكمية
 no_date,No Date,אין תאריך,Nessuna data,Sin fecha,Aucune date,لا يوجد تاريخ
-confirm_del_folder,Delete folder {0} and ALL its contents?,למחוק את התיקייה {0} ואת כל תוכנה?,Eliminare la cartella {0} e TUTTO il suo contenuto?,¿Eliminar la carpeta {0} y TODO su contenido?,Supprimer le dossier {0} et TOUT son contenu?,האם למחוק את התיקייה {0} ואת כל תוכנה?
-confirm_del_item,Delete this item?,למחוק פריט זה?,Eliminare questo articolo?,¿Eliminar este artículo?,Supprimer cet article?,האם למחוק פריט זה?
-confirm_del_zone,Delete zone {0}?,למחוק את אזור {0}?,Eliminare la zona {0}?,¿Eliminar la zona {0}?,Supprimer la zone {0}?,האם למחוק את אזור {0}?
+confirm_del_folder,Delete folder {0} and ALL its contents?,למחוק את התיקייה {0} ואת כל תוכנה?,Eliminare la cartella {0} e TUTTO il suo contenuto?,¿Eliminar la carpeta {0} y TODO su contenido?,Supprimer le dossier {0} et TOUT son contenu?,هل تريد حذف المجلد {0} وكل محتوياته؟
+confirm_del_item,Delete this item?,למחוק פריט זה?,Eliminare questo articolo?,¿Eliminar este artículo?,Supprimer cet article?,هل تريد حذف هذا العنصر؟
+confirm_del_zone,Delete zone {0}?,למחוק את אזור {0}?,Eliminare la zona {0}?,¿Eliminar la zona {0}?,Supprimer la zone {0}?,هل تريد حذف المنطقة {0}؟
 save_to,Save to,שמור אל,Salva in,Guardar en,Enregistrer dans,حفظ في
 take_photo,Take Photo,צלם תמונה,Scatta foto,Tomar foto,Prendre une photo,التقاط صورة
 change_img,Change Image,שנה תמונה,Cambia immagine,Cambiar imagen,Changer l'image,تغيير الصورة
@@ -352,7 +352,7 @@ item_Sparkling_water,Sparkling Water,סודה,Acqua frizzante,Agua con gas,Eau g
 item_Energy_drinks,Energy Drinks,משקאות אנרגיה,Bevande energetiche,Bebidas energéticas,Boissons énergisantes,مشروبات طاقة
 item_Bamba_Bisli_chips_pretzels,Salty Snacks,חטיפים מלוחים,Snack salati,Snacks salados,Snacks salés,وجبات خفيفة مالحة
 item_Bamba,Bamba,במבה,Bamba,Bamba,Bamba,بامبا
-item_Bisli,Bisli,ביסלי,Bisli,Bisli,Bisli,بيسلي
+item_Bisli,Bisli,ביסלי,ביסלי,Bisli,Bisli,بيسلي
 item_Chips,Chips,צ'יפס,Patatine,Patatas fritas,Chips,شيبس
 item_Pretzels,Pretzels,בייגלה,Salatini,Pretzels,Bretzels,بريتزل
 item_Chocolate_cookies_wafers,Chocolate & Cookies,שוקולד ועוגיות,Cioccolato e biscotti,Chocolate y galletas,Chocolat et biscuits,شوكولاتة وبسكويت
@@ -729,4 +729,107 @@ item_Regular_vacuum,Regular Vacuum,שואב אבק רגיל,Aspirapolvere,Aspira
 item_Iron,Iron,מגהץ,Ferro da stiro,Plancha,Fer à repasser,مكواة
 item_Hair_dryer_hair_straightener,Hair Dryer,פנים/מחליק,Asciugacapelli,Secador,Sèche-cheveux,مجفف شعر
 item_Hair_dryer,Hair Dryer,מייבש שיער (פן),Asciugacapelli,Secador de pelo,Sèche-cheveux,مجفف شعر
-item_Hair_straightener,Hair Straightener,מחליק שיער,Piastra capelli,Plancha pelo,Fer à lisser,م
+item_Hair_straightener,Hair Straightener,מחליק שיער,Piastra capelli,Plancha de pelo,Fer à lisser,مملس شعر
+review_tab,AI Exports,ייצוא AI,Esportazioni AI,Exportaciones de IA,Exportations IA,صادرات الذكاء الاصطناعي
+reject,Reject,דחה,Rifiuta,Rechazar,Rejeter,رفض
+confirm,Confirm,אישור,Conferma,Confirmar,Confirmer,تأكيد
+sub_Dairy,Dairy,מוצרי חלב,Latticini,Lácteos,Produits laitiers,ألبان
+sub_Eggs,Eggs,ביצים,Uova,Huevos,Œufs,بيض
+sub_Meat,Meat,בשר,Carne,Carne,Viande,لحم
+sub_Poultry,Poultry,עוף,Pollame,Aves,Volaille,دواجن
+sub_Fish,Fish,דגים,Pesce,Pescado,Poisson,سمك
+sub_Vegetables,Vegetables,ירקות,Verdure,Verduras,Légumes,خضروات
+sub_Fruits,Fruits,פירות,Frutta,Frutas,Fruits,فواكه
+sub_Pantry,Pantry,מזווה,Dispensa,Despensa,Garde-manger,مؤن
+sub_Dry_Goods,Dry Goods,מוצרים יבשים,Prodotti secchi,Productos secos,Produits secs,مواد جافة
+sub_Carbs,Carbs,פחמימות,Carboidrati,Carbohidratos,Glucides,كربوهيدرات
+sub_Legumes,Legumes,קטניות,Legumi,Legumbres,Légumineuses,بقوليات
+sub_Spices,Spices,תבלינים,Spezie,Especias,Épices,بهارات
+sub_Baking_Goods,Baking Goods,מוצרי אפייה,Prodotti da forno,Productos de repostería,Produits de pâtisserie,مستلزمات خبز
+sub_Sauces,Sauces,רטבים,Salse,Salsas,Sauces,صلصات
+sub_Spreads,Spreads,ממרחים,Creme spalmabili,Untables,Pâtes à tartiner,معاجين
+sub_Bread,Bread,לחם,Pane,Pan,Pain,خبز
+sub_Pastries,Pastries,מאפים,Pasticcini,Pasteles,Pâtisseries,معجنات
+sub_Snacks,Snacks,חטיפים,Snack,Snacks,Snacks,وجبات خفيفة
+sub_Sweets,Sweets,ממתקים,Dolci,Dulces,Bonbons,حلويات
+sub_Dietary_Supplements,Dietary Supplements,תוספי תזונה,Integratori alimentari,Suplementos dietéticos,Compléments alimentaires,مكملات غذائية
+sub_Vitamins,Vitamins,ויטמינים,Vitamine,Vitaminas,Vitamines,فيتامينات
+cat_Cleaning,Cleaning,ניקיון,Pulizia,Limpieza,Nettoyage,تنظيف
+cat_Home_Maintenance,Home Maintenance,תחזוקת הבית,Manutenzione casa,Mantenimiento del hogar,Entretien de la maison,صيانة المنزل
+cat_Toiletries,Toiletries,טואלטיקה,Articoli da toeletta,Artículos de aseo,Articles de toilette,لوازم الاستحمام
+cat_Pharmacy,Pharmacy,פארמה,Farmacia,Farmacia,Pharmacie,صيدلية
+sub_OTC_Medicines,OTC Medicines,תרופות ללא מרשם,Farmaci da banco,Medicamentos de venta libre,Médicaments en vente libre,أدوية بدون وصفة
+cat_General_Supplies,General Supplies,ציוד כללי,Forniture generali,Suministros generales,Fournitures générales,لوازم عامة
+cat_Home_Office_Supplies,Home Office Supplies,ציוד משרדי,Forniture per ufficio,Suministros de oficina,Fournitures de bureau,لوازم مكتبية
+sub_Electrical,Electrical,חשמל,Elettrico,Eléctrico,Électrique,كهرباء
+sub_Lighting,Lighting,תאורה,Illuminazione,Iluminación,Éclairage,إضاءة
+sub_Miscellaneous,Miscellaneous,שונות,Varie,Miscelánea,Divers,متفرقات
+sub_Maintenance,Maintenance,תחזוקה,Manutenzione,Mantenimiento,Entretien,صيانة
+sub_Stationery,Stationery,מכשירי כתיבה,Cancelleria,Papelería,Papeterie,قرطاسية
+sub_Desk_Supplies,Desk Supplies,ציוד לשולחן כתיבה,Forniture da scrivania,Suministros de escritorio,Fournitures de bureau,لوازم مكتبية
+sub_Materials,Materials,חומרים,Materiali,Materiales,Matériaux,مواد
+sub_Accessories,Accessories,אביזרים,Accessori,Accesorios,Accessoires,ملحقات
+sub_Power_Tools,Power Tools,כלי עבודה חשמליים,Elettroutensili,Herramientas eléctricas,Outils électriques,أدوات كهربائية
+sub_Pain_Relievers,Pain Relievers,משככי כאבים,Antidolorifici,Analgésicos,Analgésiques,مسكنات ألم
+sub_Fever_Reducers,Fever Reducers,מורידי חום,Antipiretici,Antitérmicos,Antipyrétiques,خافضات حرارة
+sub_Topical_Treatments,Topical Treatments,טיפולים מקומיים,Trattamenti topici,Tratamientos tópicos,Traitements topiques,علاجات موضعية
+sub_Ointments,Ointments,משחות,Unguenti,Ungüentos,Pommades,مراهم
+sub_Winter_Illnesses,Winter Illnesses,מחלות חורף,Malattie invernali,Enfermedades de invierno,Maladies d'hiver,أمراض الشتاء
+sub_Pots,Pots,סירים,Pentole,Ollas,Casseroles,أواني
+sub_Pans,Pans,מחבתות,Padelle,Sartenes,Poêles,مقالي
+sub_Dinnerware,Dinnerware,כלי אוכל,Stoviglie,Vajilla,Vaisselle,أطباق
+sub_Serving,Serving,הגשה,Servizio,Servir,Service,تقديم
+sub_Cooking_Accessories,Cooking Accessories,אביזרי בישול,Accessori da cucina,Accesorios de cocina,Accessoires de cuisine,ملحقات الطبخ
+sub_Baking_Accessories,Baking Accessories,אביזרי אפייה,Accessori da forno,Accesorios de repostería,Accessoires de pâtisserie,ملحقات الخבז
+sub_Cutting_Accessories,Cutting Accessories,אביזרי חיתוך,Accessori da taglio,Accesorios de corte,Accessoires de coupe,ملحقات التقطيع
+sub_Storage,Storage,אחסון,Conservazione,Almacenamiento,Rangement,تخزين
+sub_Organization,Organization,ארגון,Organizzazione,Organización,Organisation,تنظيم
+sub_Small_Kitchen_Appliances,Small Kitchen Appliances,מכשירי מטבח קטנים,Piccoli elettrodomestici da cucina,Pequeños electrodomésticos de cocina,Petits appareils de cuisine,أجهزة مطبخ صغيرة
+cat_Entertainment,Entertainment,בידור,Intrattenimento,Entretenimiento,Divertissement,ترفيه
+sub_Entertainment,Entertainment,בידור,Intrattenimento,Entretenimiento,Divertissement,ترفيه
+sub_Computing,Computing,מחשוב,Informatica,Informática,Informatique,حوسبة
+sub_Major_Appliances,Major Appliances,מכשירים גדולים,Grandi elettrodomestici,Electrodomésticos grandes,Gros électroménager,أجهزة رئيسية
+sub_Small_Home_Appliances,Small Home Appliances,מכשירי חשמל קטנים לבית,Piccoli elettrodomestici,Pequeños electrodomésticos,Petits appareils ménagers,أجهزة منزلية صغيرة
+sub_Smart_Tech,Smart Tech,טכנולוגיה חכמה,Tecnologia smart,Tecnología inteligente,Technologie intelligente,تكنولوجيا ذكية
+cat_Clothing,Clothing,ביגוד,Abbigliamento,Ropa,Vêtements,ملابس
+cat_Footwear,Footwear,הנעלה,Calzature,Calzado,Chaussures,أحذية
+sub_Footwear,Footwear,הנעלה,Calzature,Calzado,Chaussures,أحذية
+sub_Intimates,Intimates,הלבשה תחתונה,Intimo,Ropa íntima,Sous-vêtements,ملابس داخلية
+sub_Loungewear,Loungewear,בגדי בית,Abbigliamento da casa,Ropa de estar por casa,Vêtements de détente,ملابس نوم
+sub_Winter_Clothing,Winter Clothing,בגדי חורף,Abbigliamento invernale,Ropa de invierno,Vêtements d'hiver,ملابس شتوية
+sub_Transitional_Clothing,Transitional Clothing,בגדי מעבר,Abbigliamento mezza stagione,Ropa de entretiempo,Vêtements de mi-saison,ملابس انتقالية
+cat_Home_Textiles,Home Textiles,טקסטיל לבית,Tessili per la casa,Textiles para el hogar,Textiles de maison,منسوجات منزلية
+cat_Bedding,Bedding,מצעים,Biancheria da letto,Ropa de cama,Literie,مفارش
+sub_Bath_Textiles,Bath Textiles,טקסטיל אמבטיה,Tessili da bagno,Textiles de baño,Textiles de bain,منسوجات الحمام
+sub_Kitchen_Textiles,Kitchen Textiles,טקסטיל מטבח,Tessili da cucina,Textiles de cocina,Textiles de cuisine,منسوجات المطبخ
+sub_Food,Food,מזון,Cibo,Comida,Nourriture,طعام
+sub_Feeding,Feeding,האכלה,Alimentazione,Alimentación,Alimentation,إطعام
+sub_Care,Care,טיפוח,Cura,Cuidado,Soin,عناية
+sub_Nursing,Nursing,הנקה,Allattamento,Lactancia,Allaitement,رضاعة
+sub_Diapering,Diapering,החתלה,Pannolini,Cambio de pañales,Change,تغيير حفاضات
+sub_Hygiene,Hygiene,היגיינה,Igiene,Higiene,Hygiène,نظافة
+sub_Gear,Gear,ציוד,Attrezzatura,Equipamiento,Équipement,معدات
+sub_Travel,Travel,נסיעות,Viaggio,Viaje,Voyage,سفر
+cat_Outdoor,Outdoor,חוץ,Esterni,Exterior,Extérieur,خارجي
+cat_Garden_Equipment,Garden Equipment,ציוד גינה,Attrezzatura da giardino,Equipo de jardín,Équipement de jardin,معدات الحديقة
+sub_Gardening_Tools,Gardening Tools,כלי גינון,Attrezzi da giardinaggio,Herramientas de jardinería,Outils de jardinage,أدوات البستنة
+sub_Outdoor_Maintenance,Outdoor Maintenance,תחזוקת חוץ,Manutenzione esterna,Mantenimiento exterior,Entretien extérieur,صيانة خارجية
+sub_Outdoor_Living,Outdoor Living,פנאי בחוץ,Vita all'aperto,Vida al aire libre,Vie en plein air,معيشة خارجية
+sub_Home_Gym_Basics,Home Gym Basics,ציוד כושר בסיסי,Basi per palestra in casa,Básicos de gimnasio en casa,Bases de gym à domicile,أساسيات الصالة الرياضية المنزلية
+sub_Recovery,Recovery,התאוששות,Recupero,Recuperación,Récupération,تعافي
+sub_Support,Support,תמיכה,Supporto,Soporte,Soutien,دعم
+sub_Action_Figures,Action Figures,בובות פעולה,Action figures,Figuras de acción,Figurines d'action,مجسمات حركة
+sub_Playsets,Playsets,ערכות משחק,Playset,Sets de juego,Ensembles de jeu,مجموعات لعب
+sub_Building_Blocks,Building Blocks,קוביות בנייה,Costruzioni,Bloques de construcción,Blocs de construction,مكعبات بناء
+sub_Construction,Construction,בנייה,Costruzione,Construcción,Construction,بناء
+sub_Dolls,Dolls,בובות,Bambole,Muñecas,Poupées,دمى
+sub_Vehicles,Vehicles,רכבים,Veicoli,Vehículos,Véhicules,مركبات
+sub_Remote_Control,Remote Control,שלט רחוק,Telecomando,Control remoto,Télécommande,تحكم عن بعد
+sub_Arts,Arts,אמנות,Arti,Artes,Arts,فنون
+sub_Crafts,Crafts,יצירה,Mestieri,Manualidades,Bricolage,حرف
+sub_Board_Games,Board Games,משחקי קופסה,Giochi da tavolo,Juegos de mesa,Jeux de société,ألعاب لوحية
+sub_Puzzles,Puzzles,פאזלים,Puzzle,Puzles,Puzzles,ألغاز
+sub_Plush,Plush,פרווה,Peluche,Peluche,Peluche,فרו
+sub_Stuffed_Animals,Stuffed Animals,בובות פרווה,Animali di peluche,Animales de peluche,Animaux en peluche,حيوانات محشوة
+sub_Educational,Educational,חינוכי,Educativo,Educativo,Éducatif,تعليمي
+sub_STEM_Toys,STEM Toys,צעצועי STEM,Giocattoli STEM,Juguetes STEM,Jouets STEM,ألعاب STEM
