@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.6.43 (Update: Fixed AI Category sync and code structure)
+// Home Organizer Ultimate - Ver 7.7.5 (Update: Fixed icon grid spacing layout)
  
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.10';
 import { ITEM_CATEGORIES } from './organizer-data.js?v=6.6.10';
@@ -7,7 +7,7 @@ class HomeOrganizerPanel extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this.content) {
-      console.log("%c Home Organizer v7.6.43 Fully Loaded ", "background: #e91e63; color: #fff; font-weight: bold;");
+      console.log("%c Home Organizer v7.7.5 Fully Loaded ", "background: #e91e63; color: #fff; font-weight: bold;");
       this.currentPath = [];
       this.catalogPath = []; 
       this.isEditMode = false;
@@ -77,93 +77,58 @@ class HomeOrganizerPanel extends HTMLElement {
     }
   }
 
-  // [ADDED v7.6.40 | 2026-02-24] Purpose: Safely map a joined library category to the new split user categories.
-  getSplitCategoryMatch(libMain, libSub) {
-      let bestMain = libMain;
-      let bestSub = libSub;
-      
-      if (libMain) {
-          const parts = libMain.split(/[&,]/).map(p => p.trim());
-          for (const p of parts) {
-              if (ITEM_CATEGORIES[p]) {
-                  bestMain = p;
-                  break;
-              }
-          }
-      }
-
-      if (bestMain && ITEM_CATEGORIES[bestMain] && libSub) {
-          const subParts = libSub.split(/[&,]/).map(p => p.replace(/\(.*?\)/g, '').trim()).filter(p => p);
-          for (const p of subParts) {
-              if (ITEM_CATEGORIES[bestMain][p]) {
-                  bestSub = p;
-                  break;
-              }
-          }
-      }
-      
-      return { main: bestMain, sub: bestSub };
-  }
-
   getSafeIcon(val) {
       if (typeof val === 'string' && val.includes('<svg')) return val;
       return '';
   }
 
-  isThreeLevel(mainCat) {
-      if (!mainCat || !ICON_LIB_ITEM[mainCat]) return false;
-      const firstKey = Object.keys(ICON_LIB_ITEM[mainCat]).find(k => k !== '_icon');
-      if (!firstKey) return false;
-      const val = ICON_LIB_ITEM[mainCat][firstKey];
-      return val !== null && typeof val === 'object' && !Array.isArray(val);
-  }
-
   getIconByKey(keyString) {
-      if (!keyString) return '';
+      if (!keyString) return ICONS.item;
       
+      let searchItemName = "";
+
       if (keyString.startsWith('ICON_LIB_ITEM|')) {
           const parts = keyString.split('|');
           if (parts.length >= 4) {
-              return ICON_LIB_ITEM[parts[1]]?.[parts[2]]?.[parts[3]] || '';
-          } else if (parts.length === 3) {
-              return ICON_LIB_ITEM[parts[1]]?.[parts[2]] || '';
+              const mainCat = parts[1];
+              const subCat = parts[2];
+              const itemName = parts[3];
+              
+              searchItemName = itemName; 
+              
+              if (ICON_LIB_ITEM[mainCat] && ICON_LIB_ITEM[mainCat][subCat] && ICON_LIB_ITEM[mainCat][subCat][itemName]) {
+                  return ICON_LIB_ITEM[mainCat][subCat][itemName];
+              }
+          }
+      } 
+      else if (keyString.startsWith('ICON_LIB_')) {
+          const parts = keyString.split('_');
+          if (parts.length >= 4) {
+              const context = parts[2]; 
+              const key = parts.slice(3).join('_'); 
+
+              if (context === 'ROOM') return ICON_LIB_ROOM[key] || ICONS.folder;
+              if (context === 'LOCATION') return ICON_LIB_LOCATION[key] || ICONS.folder;
+              if (context === 'ITEM') {
+                  searchItemName = key.includes('_') ? key.split('_').pop() : key;
+              }
           }
       }
 
-      const parts = keyString.split('_');
-      if (parts.length < 4) return '';
-
-      const context = parts[2]; 
-      const key = parts.slice(3).join('_'); 
-
-      if (context === 'ROOM') return ICON_LIB_ROOM[key] || '';
-      if (context === 'LOCATION') return ICON_LIB_LOCATION[key] || '';
-      
-      if (context === 'ITEM') {
-          const searchKey = key.includes('_') ? key.substring(key.indexOf('_') + 1) : key;
-          const fallbackKey = key.includes('_') ? key.split('_').pop() : key;
-
+      if (searchItemName) {
           for (const mCat of Object.keys(ICON_LIB_ITEM)) {
               if (mCat === '_icon') continue;
-              
-              const sampleKey = Object.keys(ICON_LIB_ITEM[mCat]).find(k => k !== '_icon');
-              
-              if (sampleKey && typeof ICON_LIB_ITEM[mCat][sampleKey] === 'string') {
-                  if (ICON_LIB_ITEM[mCat][key]) return ICON_LIB_ITEM[mCat][key];
-                  if (ICON_LIB_ITEM[mCat][searchKey]) return ICON_LIB_ITEM[mCat][searchKey];
-                  if (ICON_LIB_ITEM[mCat][fallbackKey]) return ICON_LIB_ITEM[mCat][fallbackKey];
-              } else if (sampleKey && typeof ICON_LIB_ITEM[mCat][sampleKey] === 'object') {
-                  for (const sCat of Object.keys(ICON_LIB_ITEM[mCat])) {
-                      if (sCat === '_icon') continue;
-                      if (ICON_LIB_ITEM[mCat][sCat][key]) return ICON_LIB_ITEM[mCat][sCat][key];
-                      if (ICON_LIB_ITEM[mCat][sCat][searchKey]) return ICON_LIB_ITEM[mCat][sCat][searchKey];
-                      if (ICON_LIB_ITEM[mCat][sCat][fallbackKey]) return ICON_LIB_ITEM[mCat][sCat][fallbackKey];
+              for (const sCat of Object.keys(ICON_LIB_ITEM[mCat])) {
+                  if (sCat === '_icon') continue;
+                  
+                  if (ICON_LIB_ITEM[mCat][sCat][searchItemName]) {
+                      return ICON_LIB_ITEM[mCat][sCat][searchItemName];
                   }
               }
           }
       }
       
-      return '';
+      return ICONS.item; 
   }
 
   fetchAllItems() {
@@ -306,22 +271,20 @@ class HomeOrganizerPanel extends HTMLElement {
           .subcat-btn { width: 80px; height: 80px; min-height: 80px; min-width: 80px; background: #222; border: 1px solid #444; border-radius: 10px; color: #ccc; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 9px; text-align: center; padding: 6px; flex-shrink: 0; transition: all 0.2s; box-sizing: border-box; }
           .subcat-btn.active { border-color: var(--warning, #ffeb3b); background: #333; color: white; }
 
+          /* [MODIFIED] Perfect Grid Layout for Icons */
           .icon-grid { 
               display: grid; 
-              grid-template-rows: repeat(3, auto); 
-              grid-auto-flow: column; 
-              grid-auto-columns: minmax(75px, 1fr); 
-              gap: 10px; 
-              min-height: 250px; 
-              justify-items: center;
-              overflow-x: auto;
-              overflow-y: hidden;
-              padding-bottom: 10px;
+              grid-template-columns: repeat(auto-fill, minmax(75px, 1fr)); 
+              gap: 12px; 
+              max-height: 350px; 
+              overflow-y: auto;
+              overflow-x: hidden;
+              padding: 10px;
           }
-          .icon-grid::-webkit-scrollbar { height: 6px; }
+          .icon-grid::-webkit-scrollbar { width: 6px; }
           .icon-grid::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
 
-          .lib-icon { width: 75px; height: 75px; min-width: 75px; box-sizing: border-box; background: #333; border-radius: 8px; padding: 5px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 4px; }
+          .lib-icon { width: 100%; aspect-ratio: 1/1; box-sizing: border-box; background: #333; border-radius: 8px; padding: 5px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 4px; }
           .lib-icon:hover { background: #444; }
           .lib-icon svg { width: 32px; height: 32px; fill: #ccc; flex-shrink: 0; }
           
@@ -336,6 +299,8 @@ class HomeOrganizerPanel extends HTMLElement {
               line-height: 1.1;
               color: inherit;
               margin-top: 2px;
+              font-size: 10px;
+              text-align: center;
           }
 
           .shop-tabs { display:flex; gap:10px; margin-bottom:15px; }
@@ -458,7 +423,7 @@ class HomeOrganizerPanel extends HTMLElement {
               
               <div style="margin-top:20px; font-size:12px; color:#666; border-top:1px solid var(--border-light); padding-top:10px;">
                   Licensed under MIT License.<br>
-                  Version 7.6.43
+                  Version 7.7.5
               </div>
               
               <button class="action-btn" style="width:100%; margin-top:20px;" onclick="this.closest('#about-modal').style.display='none'" id="lbl-close">Close</button>
@@ -1278,7 +1243,8 @@ class HomeOrganizerPanel extends HTMLElement {
                     let iconHtml = `<div class="item-icon" style="margin-inline-end:10px;">${ICONS.item}</div>`;
                     if (item.img) {
                         if (item.img.startsWith('ICON_LIB')) {
-                            iconHtml = `<div class="item-icon" style="margin-inline-end:10px;">${this.getIconByKey(item.img)}</div>`;
+                            const svgContent = this.getIconByKey(item.img) || ICONS.item;
+                            iconHtml = `<div class="item-icon" style="margin-inline-end:10px;">${svgContent}</div>`;
                         } else {
                             iconHtml = `<img src="${item.img}" style="width:40px;height:40px;border-radius:4px;object-fit:cover;margin-inline-end:10px;">`;
                         }
@@ -1709,7 +1675,7 @@ class HomeOrganizerPanel extends HTMLElement {
                           let iconHtml = ICONS.item;
                           if (item.img) {
                               if (item.img.startsWith('ICON_LIB')) {
-                                  const svgContent = this.getIconByKey(item.img);
+                                  const svgContent = this.getIconByKey(item.img) || ICONS.item;
                                   iconHtml = `<div class="xl-icon-area">${svgContent}</div>`;
                               } else {
                                   const isLoading = this.loadingSet.has(item.id);
@@ -1757,13 +1723,83 @@ class HomeOrganizerPanel extends HTMLElement {
                 }
             }
         });
+        
         if (outOfStock.length > 0) {
+            const isExpandedOOS = (this.viewMode === 'grid') ? true : this.expandedSublocs.has('__OOS__');
+            const iconOOS = isExpandedOOS ? ICONS.chevron_down : ICONS.chevron_right;
+            const countBadgeOOS = `<span style="font-size:12px; background:var(--danger, #F44336); color:white; padding:2px 6px; border-radius:10px; margin-inline-start:8px;">${outOfStock.length}</span>`;
+            
             const oosHeader = document.createElement('div');
             oosHeader.className = 'group-separator oos-separator';
-            oosHeader.innerText = this.t('out_of_stock');
+            
+            if (this.viewMode === 'list') {
+                oosHeader.onclick = () => this.toggleSubloc('__OOS__');
+                oosHeader.style.cursor = 'pointer';
+            } else {
+                oosHeader.style.cursor = 'default';
+            }
+
+            oosHeader.innerHTML = `
+                <div style="display:flex;align-items:center; color: var(--danger, #F44336);">
+                    <span style="margin-inline-end:5px;display:flex;align-items:center; fill: currentColor;">${iconOOS}</span>
+                    <span style="font-weight:bold;">${this.t('out_of_stock')}</span>
+                    ${countBadgeOOS}
+                </div>
+            `;
             listContainer.appendChild(oosHeader);
-            outOfStock.forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
+
+            if (isExpandedOOS) {
+                if (this.viewMode === 'grid') {
+                    const gridDiv = document.createElement('div');
+                    gridDiv.className = 'xl-grid-container';
+                    outOfStock.forEach(item => {
+                          const card = document.createElement('div');
+                          card.className = 'xl-card';
+                          let iconHtml = ICONS.item;
+                          if (item.img) {
+                              if (item.img.startsWith('ICON_LIB')) {
+                                  const svgContent = this.getIconByKey(item.img) || ICONS.item;
+                                  iconHtml = `<div class="xl-icon-area">${svgContent}</div>`;
+                              } else {
+                                  const isLoading = this.loadingSet.has(item.id);
+                                  const ver = this.imageVersions[item.id] || '';
+                                  const src = item.img + (item.img.includes('?') ? '&' : '?') + 'v=' + ver;
+                                  let loaderHtml = '';
+                                  if (isLoading) {
+                                      loaderHtml = `<div class="loader-container"><span class="loader"></span></div>`;
+                                  }
+                                  iconHtml = `<div style="position:relative;width:80%;height:80%"><img src="${src}" style="width:100%;height:100%;object-fit:contain;border-radius:8px">${loaderHtml}</div>`;
+                              }
+                          }
+                          card.innerHTML = `
+                              <div class="xl-icon-area">${iconHtml}</div>
+                              <div class="xl-badge" style="background:var(--danger, #F44336);">${item.qty}</div>
+                              <div class="xl-info">
+                                  <div class="xl-name">${item.name}</div>
+                                  <div class="xl-date">${item.date || ''}</div>
+                              </div>
+                          `;
+                          const iconArea = card.querySelector('.xl-icon-area');
+                          if(iconArea) {
+                              iconArea.onclick = (e) => {
+                                  e.stopPropagation();
+                                  this.showItemDetails(item);
+                              };
+                          }
+                          card.onclick = () => { 
+                              this.viewMode = 'list';
+                              this.expandedIdx = item.id;
+                              this.render();
+                          };
+                          gridDiv.appendChild(card);
+                    });
+                    listContainer.appendChild(gridDiv);
+                } else {
+                    outOfStock.forEach(item => listContainer.appendChild(this.createItemRow(item, false)));
+                }
+            }
         }
+        
         if (this.isEditMode) {
             const gridContainer = document.createElement('div');
             gridContainer.className = 'folder-grid';
@@ -2660,7 +2696,7 @@ class HomeOrganizerPanel extends HTMLElement {
 
   createItemRow(item, isShopMode) {
      const div = document.createElement('div');
-     const oosClass = (item.qty === 0) ? 'out-of-stock-frame' : '';
+     const oosClass = (item.qty === 0 && !isShopMode) ? 'out-of-stock-frame' : '';
      div.className = `item-row ${this.expandedIdx === item.id ? 'expanded' : ''} ${oosClass}`;
      this.setupDragSource(div, item.name);
      const appEl = this.shadowRoot.getElementById('app');
@@ -2685,7 +2721,7 @@ class HomeOrganizerPanel extends HTMLElement {
      let iconHtml = `<span class="item-icon">${ICONS.item}</span>`;
      if (item.img) {
          if (item.img.startsWith('ICON_LIB')) {
-             const svgContent = this.getIconByKey(item.img);
+             const svgContent = this.getIconByKey(item.img) || ICONS.item;
              iconHtml = `<div class="item-icon" style="cursor:zoom-in;" onclick="event.stopPropagation(); this.getRootNode().host.showItemDetailsProxy('${item.id}')">${svgContent}</div>`;
          } else {
              const isLoading = this.loadingSet.has(item.id);
@@ -2729,7 +2765,7 @@ class HomeOrganizerPanel extends HTMLElement {
                  subCatOptions += `<option value="${sub}" ${selected}>${this.t(transKey) || sub}</option>`;
                  if (selected) currentUnit = subs[sub];
              });
-          }
+         }
          
          const COPY_SVG = ICONS.copy || ICONS.paste;
          const UPLOAD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>';
@@ -2968,14 +3004,26 @@ class HomeOrganizerPanel extends HTMLElement {
            this.pendingItemId = target;
            this.pendingFolderIcon = null; 
            
-           const mainCats = Object.keys(ICON_LIB_ITEM).filter(k => k !== '_icon');
-           this.pickerMainCategory = mainCats[0] || null;
+           let currentCat = null;
+           let currentSub = null;
            
-           if (this.pickerMainCategory && this.isThreeLevel(this.pickerMainCategory)) {
+           const item = (this.localData?.items || []).find(i => i.id == target) || 
+                        (this.localData?.shopping_list || []).find(i => i.id == target) ||
+                        (this.localData?.pending_list || []).find(i => i.id == target);
+           
+           if (item && item.category && ICON_LIB_ITEM[item.category]) {
+               currentCat = item.category;
+               if (item.sub_category && ICON_LIB_ITEM[item.category][item.sub_category]) {
+                   currentSub = item.sub_category;
+               }
+           }
+
+           const mainCats = Object.keys(ICON_LIB_ITEM).filter(k => k !== '_icon');
+           this.pickerMainCategory = currentCat || mainCats[0] || null;
+           
+           if (this.pickerMainCategory) {
                const subCats = Object.keys(ICON_LIB_ITEM[this.pickerMainCategory] || {}).filter(k => k !== '_icon');
-               this.pickerSubCategory = subCats[0] || null;
-           } else {
-               this.pickerSubCategory = null;
+               this.pickerSubCategory = currentSub || subCats[0] || null;
            }
       } else {
            this.pendingFolderIcon = target;
@@ -2994,16 +3042,8 @@ class HomeOrganizerPanel extends HTMLElement {
       if (this.pickerContext === 'room') return ICON_LIB_ROOM;
       if (this.pickerContext === 'location') return ICON_LIB_LOCATION;
       if (this.pickerContext === 'item') { 
-          if (!this.pickerMainCategory) return {};
-          
-          let targetLib = {};
-          if (this.isThreeLevel(this.pickerMainCategory)) {
-              if (!this.pickerSubCategory) return {};
-              targetLib = ICON_LIB_ITEM[this.pickerMainCategory]?.[this.pickerSubCategory] || {};
-          } else {
-              targetLib = ICON_LIB_ITEM[this.pickerMainCategory] || {};
-          }
-          
+          if (!this.pickerMainCategory || !this.pickerSubCategory) return {};
+          const targetLib = ICON_LIB_ITEM[this.pickerMainCategory]?.[this.pickerSubCategory] || {};
           const result = {};
           Object.keys(targetLib).forEach(k => {
               if (k !== '_icon') result[k] = targetLib[k];
@@ -3022,63 +3062,39 @@ class HomeOrganizerPanel extends HTMLElement {
 
       if (this.pickerContext === 'item') {
           mainCatBar.style.display = 'flex';
+          subCatBar.style.display = 'flex';
           mainCatBar.innerHTML = '';
+          subCatBar.innerHTML = '';
           
           Object.keys(ICON_LIB_ITEM).forEach(mainCat => {
               if (mainCat === '_icon') return;
               const btn = document.createElement('button');
               const isActive = this.pickerMainCategory === mainCat;
               
-              let iconSvg = this.getSafeIcon(ICON_LIB_ITEM[mainCat]['_icon']);
-              if (!iconSvg) {
-                  if (this.isThreeLevel(mainCat)) {
-                      const firstSub = Object.keys(ICON_LIB_ITEM[mainCat]).find(k => k !== '_icon');
-                      if (firstSub) {
-                          iconSvg = this.getSafeIcon(ICON_LIB_ITEM[mainCat][firstSub]['_icon']);
-                          if (!iconSvg) {
-                              const firstItem = Object.keys(ICON_LIB_ITEM[mainCat][firstSub]).find(k => k !== '_icon');
-                              iconSvg = this.getSafeIcon(ICON_LIB_ITEM[mainCat][firstSub][firstItem]);
-                          }
-                      }
-                  } else {
-                      const firstItem = Object.keys(ICON_LIB_ITEM[mainCat]).find(k => k !== '_icon');
-                      iconSvg = this.getSafeIcon(ICON_LIB_ITEM[mainCat][firstItem]);
-                  }
-              }
+              const iconSvg = this.getSafeIcon(ICON_LIB_ITEM[mainCat]['_icon']);
+              const translatedMainCat = this.t('cat_' + mainCat.replace(/[^a-zA-Z0-9]+/g, '_')) || mainCat;
               
-              const translatedMainCat = this.t('cat_' + mainCat.replace(/[^a-zA-Z0-9]+/g, '_'));
               btn.className = 'cat-btn' + (isActive ? ' active' : '');
               btn.innerHTML = `<div class="cat-svg-wrapper">${iconSvg || ''}</div><span>${translatedMainCat}</span>`;
               
               btn.onclick = () => { 
                   this.pickerMainCategory = mainCat; 
-                  if (this.isThreeLevel(mainCat)) {
-                      const subs = Object.keys(ICON_LIB_ITEM[mainCat]).filter(k => k !== '_icon');
-                      this.pickerSubCategory = subs[0];
-                  } else {
-                      this.pickerSubCategory = null;
-                  }
+                  const subs = Object.keys(ICON_LIB_ITEM[mainCat]).filter(k => k !== '_icon');
+                  this.pickerSubCategory = subs[0] || null;
                   this.renderIconPickerGrid(); 
               };
               mainCatBar.appendChild(btn);
           });
 
-          if (this.pickerMainCategory && this.isThreeLevel(this.pickerMainCategory)) {
-              subCatBar.style.display = 'flex';
-              subCatBar.innerHTML = '';
-
+          if (this.pickerMainCategory && ICON_LIB_ITEM[this.pickerMainCategory]) {
               Object.keys(ICON_LIB_ITEM[this.pickerMainCategory]).forEach(subCat => {
                   if (subCat === '_icon') return;
                   const btn = document.createElement('button');
                   const isActive = this.pickerSubCategory === subCat;
                   
-                  let iconSvg = this.getSafeIcon(ICON_LIB_ITEM[this.pickerMainCategory][subCat]['_icon']);
-                  if (!iconSvg) {
-                      const firstItem = Object.keys(ICON_LIB_ITEM[this.pickerMainCategory][subCat]).find(k => k !== '_icon');
-                      iconSvg = this.getSafeIcon(ICON_LIB_ITEM[this.pickerMainCategory][subCat][firstItem]);
-                  }
+                  const iconSvg = this.getSafeIcon(ICON_LIB_ITEM[this.pickerMainCategory][subCat]['_icon']);
+                  const translatedSubCat = this.t('sub_' + subCat.replace(/[^a-zA-Z0-9]+/g, '_')) || subCat;
                   
-                  const translatedSubCat = this.t('sub_' + subCat.replace(/[^a-zA-Z0-9]+/g, '_'));
                   btn.className = 'subcat-btn' + (isActive ? ' active' : '');
                   btn.innerHTML = `<div class="subcat-svg-wrapper">${iconSvg || ''}</div><span>${translatedSubCat}</span>`;
                   
@@ -3088,8 +3104,6 @@ class HomeOrganizerPanel extends HTMLElement {
                   };
                   subCatBar.appendChild(btn);
               });
-          } else {
-              subCatBar.style.display = 'none';
           }
       } else { 
           mainCatBar.style.display = 'none';
@@ -3097,11 +3111,10 @@ class HomeOrganizerPanel extends HTMLElement {
       }
 
       grid.innerHTML = '';
-      
       keys.forEach(key => {
           const div = document.createElement('div');
           div.className = 'lib-icon';
-          const translatedItem = this.t('item_' + key.replace(/[^a-zA-Z0-9]+/g, '_'));
+          const translatedItem = this.t('item_' + key.replace(/[^a-zA-Z0-9]+/g, '_')) || key;
           div.innerHTML = `${lib[key]}<span>${translatedItem}</span>`;
           div.onclick = () => this.selectLibraryIconKey(key);
           grid.appendChild(div);
@@ -3116,11 +3129,7 @@ class HomeOrganizerPanel extends HTMLElement {
       } else if (this.pickerContext === 'location') {
           fullKey = `ICON_LIB_LOCATION_${key}`;
       } else if (this.pickerContext === 'item') {
-          if (this.isThreeLevel(this.pickerMainCategory)) {
-              fullKey = `ICON_LIB_ITEM|${this.pickerMainCategory}|${this.pickerSubCategory}|${key}`;
-          } else {
-              fullKey = `ICON_LIB_ITEM_${this.pickerMainCategory}_${key}`; 
-          }
+          fullKey = `ICON_LIB_ITEM|${this.pickerMainCategory}|${this.pickerSubCategory}|${key}`;
       } else {
           fullKey = `ICON_LIB_${key}`;
       }
@@ -3132,32 +3141,30 @@ class HomeOrganizerPanel extends HTMLElement {
       try {
           if(this.pendingItemId) {
               if (this.pickerContext === 'item' && this.pickerMainCategory) {
-                  const matched = this.getSplitCategoryMatch(this.pickerMainCategory, this.pickerSubCategory);
                   
                   let newUnit = "Units";
-                  if (matched.main && ITEM_CATEGORIES[matched.main] && matched.sub && ITEM_CATEGORIES[matched.main][matched.sub]) {
-                      newUnit = ITEM_CATEGORIES[matched.main][matched.sub];
+                  if (this.pickerSubCategory && ITEM_CATEGORIES[this.pickerMainCategory] && ITEM_CATEGORIES[this.pickerMainCategory][this.pickerSubCategory]) {
+                      newUnit = ITEM_CATEGORIES[this.pickerMainCategory][this.pickerSubCategory];
                   }
+                  
                   await this.callHA('update_item_details', { 
                       item_id: this.pendingItemId, 
                       image_path: fullKey,
-                      category: matched.main,
-                      sub_category: matched.sub || "",
+                      category: this.pickerMainCategory,
+                      sub_category: this.pickerSubCategory || "",
                       unit: newUnit
-                  }).then(() => {
-                      if (this.isShopMode) this.fetchData();
                   });
               } else {
-                  await this.callHA('update_image', { item_id: this.pendingItemId, icon_key: fullKey }).then(() => {
-                      if (this.isShopMode) this.fetchData();
-                  });
+                  await this.callHA('update_image', { item_id: this.pendingItemId, icon_key: fullKey });
               }
               this.refreshImageVersion(this.pendingItemId);
+              this.fetchData(); 
           } else if(this.pendingFolderIcon) {
               const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
               const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
               await this.callHA('update_image', { item_name: markerName, icon_key: fullKey });
               this.refreshImageVersion(this.pendingFolderIcon);
+              this.fetchData(); 
           }
       } catch(e) { console.error(e); }
       finally {
@@ -3210,15 +3217,15 @@ class HomeOrganizerPanel extends HTMLElement {
 
       try {
           if(this.pendingItemId) {
-              await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl }).then(() => {
-                  if (this.isShopMode) this.fetchData();
-              });
+              await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
               this.refreshImageVersion(this.pendingItemId);
+              this.fetchData();
           } else if(this.pendingFolderIcon) {
               const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
               const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
               await this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
               this.refreshImageVersion(this.pendingFolderIcon);
+              this.fetchData();
           }
       } catch(e) { console.error(e); }
       finally {
@@ -3252,15 +3259,15 @@ class HomeOrganizerPanel extends HTMLElement {
 
           try {
               if(this.pendingItemId) {
-                   await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl }).then(() => {
-                       if (this.isShopMode) this.fetchData();
-                   });
+                   await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
                    this.refreshImageVersion(this.pendingItemId);
+                   this.fetchData();
               } else if(this.pendingFolderIcon) {
                   const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
                   const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
                   await this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
                   this.refreshImageVersion(this.pendingFolderIcon);
+                  this.fetchData();
               }
           } finally {
               if(target) this.setLoading(target, false);
@@ -3278,15 +3285,15 @@ class HomeOrganizerPanel extends HTMLElement {
 
           try {
               if(this.pendingItemId) {
-                   await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl }).then(() => {
-                       if (this.isShopMode) this.fetchData();
-                   });
+                   await this.callHA('update_image', { item_id: this.pendingItemId, image_data: dataUrl });
                    this.refreshImageVersion(this.pendingItemId);
+                   this.fetchData();
               } else if(this.pendingFolderIcon) {
                   const isFolderContext = (this.pickerContext === 'room' || this.pickerContext === 'location');
                   const markerName = isFolderContext ? `[Folder] ${this.pendingFolderIcon}` : this.pendingFolderIcon;
                   await this.callHA('update_image', { item_name: markerName, image_data: dataUrl });
                   this.refreshImageVersion(this.pendingFolderIcon);
+                  this.fetchData();
               }
           } catch(e) { console.error(e); }
           finally {

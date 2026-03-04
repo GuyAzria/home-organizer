@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.7.8 (Update: Added category metadata to shopping list payload)
+# Home Organizer Ultimate - ver 7.9.3 (Update: Fixed AI location path formatting to explicitly keep [Zone] brackets)
 
 import logging
 import sqlite3
@@ -30,24 +30,56 @@ STATIC_PATH_URL = "/home_organizer_static"
 GEMINI_MODEL = "gemini-3-flash-preview"
 
 ICON_PROMPT_CONTEXT = """
-Available Icon Keys (Format: ICON_LIB_ITEM|MainCategory|SubCategory|ExactItemName):
-ICON_LIB_ITEM|Food|Dairy & Eggs|Milk, Yellow cheese, White cheese, Cottage cheese, Butter, Yogurts, Sour cream, Sweet cream, Eggs, Plant-based milk
-ICON_LIB_ITEM|Food|Meat, Poultry & Fish|Chicken breast, Minced beef, Beef steaks, Salmon, Tuna, Sausages, Pastrami, Tofu
-ICON_LIB_ITEM|Food|Vegetables (Fresh)|Tomatoes, Cucumbers, Peppers, Dry onion, Garlic, Potatoes, Carrots, Zucchini, Eggplants, Lettuce, Mushrooms
-ICON_LIB_ITEM|Food|Fruits (Fresh)|Apples, Bananas, Oranges, Lemons, Watermelon, Grapes, Peaches, Strawberries, Berries
-ICON_LIB_ITEM|Food|Pantry & Dry Goods (Carbs & Legumes)|Rice, Pasta, Flour, Sugar, Oil, Legumes, Quinoa, Oats
-ICON_LIB_ITEM|Food|Spices & Baking Goods|Salt, Black pepper, Paprika, Cumin, Turmeric, Cinnamon, Baking powder, Cocoa powder
-ICON_LIB_ITEM|Food|Sauces & Spreads|Ketchup, Mayonnaise, Mustard, Soy sauce, Chocolate spread, Peanut butter, Honey
+Available Icon Paths (Format: ICON_LIB_ITEM|MainCategory|SubCategory|ExactItemName):
+ICON_LIB_ITEM|Food|Dairy|Milk, Yellow cheese, White cheese, Cottage cheese, Butter, Yogurts, Sour cream, Sweet cream, Plant-based milk
+ICON_LIB_ITEM|Food|Eggs|Eggs
+ICON_LIB_ITEM|Food|Meat|Minced beef, Beef steaks, Sausages, Pastrami, Tofu
+ICON_LIB_ITEM|Food|Poultry|Chicken breast, Schnitzels
+ICON_LIB_ITEM|Food|Fish|Salmon, Tuna, Tilapia
+ICON_LIB_ITEM|Food|Vegetables|Tomatoes, Cucumbers, Peppers, Dry onion, Garlic, Potatoes, Carrots, Zucchini, Eggplants, Lettuce, Mushrooms
+ICON_LIB_ITEM|Food|Fruits|Apples, Bananas, Oranges, Lemons, Watermelon, Grapes, Peaches, Strawberries, Berries
+ICON_LIB_ITEM|Food|Pantry|Flour, White sugar, Brown sugar, Canola oil, Olive oil
+ICON_LIB_ITEM|Food|Carbs|Rice, Pasta, Quinoa, Oats, Tortillas
+ICON_LIB_ITEM|Food|Legumes|Lentils, Chickpeas, Beans
+ICON_LIB_ITEM|Food|Spices|Salt, Black pepper, Paprika, Cumin, Turmeric, Cinnamon
+ICON_LIB_ITEM|Food|Baking Goods|Baking powder, Cocoa powder, Chocolate chips
+ICON_LIB_ITEM|Food|Sauces|Ketchup, Mayonnaise, Mustard, Soy sauce, Hot sauce
+ICON_LIB_ITEM|Food|Spreads|Chocolate spread, Peanut butter, Honey
 ICON_LIB_ITEM|Food|Canned Goods|Tuna, Corn, Peas, Baked beans, Olives, Pickles, Crushed tomatoes
-ICON_LIB_ITEM|Food|Bread & Pastries|Sliced bread, Rolls, Pita bread, Rice cakes, Bagels, Croissants
+ICON_LIB_ITEM|Food|Bread|Sliced bread, Rolls, Pita bread, Bagels
+ICON_LIB_ITEM|Food|Pastries|Croissants, Rice cakes
 ICON_LIB_ITEM|Food|Beverages|Black coffee, Instant coffee, Tea, Mineral water, Juices, Carbonated drinks
-ICON_LIB_ITEM|Food|Snacks & Sweets|Bamba, Bisli, Chips, Pretzels, Chocolate, Cookies, Nuts, Popcorn
-ICON_LIB_ITEM|Cleaning & Home Maintenance|General Cleaning|Floor cleaner, Bleach, Window cleaner, Toilet cleaner, Insect repellent
-ICON_LIB_ITEM|Cleaning & Home Maintenance|Laundry|Laundry detergent, Fabric softener, Stain remover
-ICON_LIB_ITEM|Cleaning & Home Maintenance|Dishwashing|Dish soap, Dishwasher tablets, Rinse aid
-ICON_LIB_ITEM|Toiletries & Pharmacy|Personal Hygiene|Shampoo, Body wash, Deodorant, Toothpaste, Toothbrushes, Razors, Feminine hygiene
-ICON_LIB_ITEM|Toiletries & Pharmacy|Paper Products|Toilet paper, Paper towels, Wet wipes, Tissues
-ICON_LIB_ITEM|Toiletries & Pharmacy|First Aid & OTC Medicines|Pain relievers, Band-aids, Polydine, Thermometer
+ICON_LIB_ITEM|Food|Snacks|Bamba, Bisli, Chips, Pretzels, Popcorn, Nuts
+ICON_LIB_ITEM|Food|Sweets|Chocolate, Cookies, Wafers
+ICON_LIB_ITEM|Cleaning|General Cleaning|Floor cleaner, Bleach, Window cleaner, Toilet cleaner, Insect repellent
+ICON_LIB_ITEM|Cleaning|Laundry|Laundry detergent, Fabric softener, Stain remover
+ICON_LIB_ITEM|Cleaning|Dishwashing|Dish soap, Dishwasher tablets, Rinse aid
+ICON_LIB_ITEM|Toiletries|Personal Hygiene|Shampoo, Body wash, Deodorant, Toothpaste, Toothbrushes, Razors, Feminine hygiene
+ICON_LIB_ITEM|Toiletries|Paper Products|Toilet paper, Paper towels, Wet wipes, Tissues
+ICON_LIB_ITEM|First Aid|First Aid Supplies|Pain relievers, Band-aids, Polydine, Thermometer
+ICON_LIB_ITEM|Kitchenware|Pots|Saucepan, Medium pot, Large pot
+ICON_LIB_ITEM|Kitchenware|Pans|Frying pan, Wok
+ICON_LIB_ITEM|Kitchenware|Dinnerware|Dinner plates, Bowls, Glasses, Mugs
+ICON_LIB_ITEM|Kitchenware|Cooking Accessories|Chef's knife, Cutting board, Spatula, Measuring cup
+ICON_LIB_ITEM|Kitchenware|Storage|Plastic food container, Glass jar
+ICON_LIB_ITEM|Kitchenware|Small Kitchen Appliances|Electric kettle, Pop-up toaster, Coffee maker
+ICON_LIB_ITEM|Electronics|Computing|Laptop, Keyboard, Mouse, Printer
+ICON_LIB_ITEM|Electronics|Major Appliances|Refrigerator, Freezer, Oven, Stove
+ICON_LIB_ITEM|Clothing|Everyday Clothing|Short sleeve shirt, Pants, Jeans, Dresses, Sportswear, Suits
+ICON_LIB_ITEM|Clothing|Footwear|Sneakers, Sandals, Boots
+ICON_LIB_ITEM|Home Textiles|Bed Linens|Bed sheets, Duvets, Blankets
+ICON_LIB_ITEM|Home Textiles|Bath Textiles|Bath towels, Hand towels
+ICON_LIB_ITEM|Pet Supplies|Food|Dry pet food, Wet pet food
+ICON_LIB_ITEM|Pet Supplies|Care|Leash, Collar, Litter box, Pet beds
+ICON_LIB_ITEM|Baby Supplies|Feeding|Baby bottles, Baby purees
+ICON_LIB_ITEM|Baby Supplies|Diapering|Disposable diapers, Cloth diapers
+ICON_LIB_ITEM|Outdoor|Gardening Tools|Shovel, Pruning shears, Watering can, Garden hose
+ICON_LIB_ITEM|Tools|Hand Tools|Hammer, Screwdriver, Pliers, Measuring tape, Utility knife
+ICON_LIB_ITEM|Tools|Power Tools|Cordless drill, Electric sander
+ICON_LIB_ITEM|Toys|Action Figures|Action figures, Dinosaurs
+ICON_LIB_ITEM|Toys|Building Blocks|LEGO, Wooden blocks
+ICON_LIB_ITEM|Toys|Vehicles|Toy cars, Remote control cars, Toy trains
+ICON_LIB_ITEM|Toys|Arts|Play-Doh, Coloring books, Paint sets
 """
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -259,7 +291,6 @@ def normalize_zone_path(hass, path_list):
     return path_list
 
 def add_item_db_safe(hass, name, qty, path_list, category="", sub_category="", item_type="item", icon_key=None):
-    """Internal helper to add items during AI Chat flow."""
     path_list = normalize_zone_path(hass, path_list)
     conn = get_db_connection(hass)
     c = conn.cursor()
@@ -354,7 +385,6 @@ async def async_gemini_api_call(session, url, payload, timeout_sec):
 
 @websocket_api.async_response
 async def websocket_ai_chat(hass, connection, msg):
-    """Updated AI Chat: Handles Text Actions (Add/Search) AND Invoice Scanning."""
 
     try:
         user_message = msg.get("message", "")
@@ -379,24 +409,23 @@ async def websocket_ai_chat(hass, connection, msg):
         existing_locs_str = ""
         existing_cats_str = ""
         
+        # [MODIFIED v7.9.3 | 2026-02-25] Purpose: Refactored context fetching to properly format exact JSON array strings (including brackets and level_3) so AI doesn't output broken ">" format.
         def fetch_context():
             nonlocal existing_locs_str, existing_cats_str
             try:
                 c_conn = get_db_connection(hass)
                 cc = c_conn.cursor()
-                cc.execute("SELECT DISTINCT level_1, level_2 FROM items WHERE type='item' OR type='folder'")
-                locs = set()
+                cc.execute("SELECT DISTINCT level_1, level_2, level_3 FROM items WHERE type='item' OR type='folder'")
+                loc_hierarchy = set()
                 for r in cc.fetchall():
-                    l1, l2 = r[0], r[1]
+                    l1, l2, l3 = r[0], r[1], r[2]
                     if l1:
-                        locs.add(l1)
-                        if l2: locs.add(f"{l1} > {l2}")
-                        if str(l1).startswith("[") and "] " in str(l1):
-                            try:
-                                _z_part, _r_part = str(l1).split("] ", 1)
-                                locs.add(f"{_z_part.replace('[', '')} > {_r_part}")
-                            except: pass
-                existing_locs_str = ", ".join(sorted(list(locs)))
+                        path_elements = [f'"{l1}"']
+                        if l2: path_elements.append(f'"{l2}"')
+                        if l3: path_elements.append(f'"{l3}"')
+                        loc_hierarchy.add(f"[{', '.join(path_elements)}]")
+                        
+                existing_locs_str = ", ".join(sorted(list(loc_hierarchy)))
                 
                 cc.execute("SELECT DISTINCT category FROM items WHERE category IS NOT NULL AND category != ''")
                 cats = [r[0] for r in cc.fetchall()]
@@ -411,17 +440,17 @@ async def websocket_ai_chat(hass, connection, msg):
             
             invoice_prompt = (
                 f"Analyze this document/receipt. Context:\n"
-                f"EXISTING LOCATIONS: [{existing_locs_str}]\n"
+                f"EXISTING PATHS (Use these EXACT arrays): {existing_locs_str}\n"
                 f"EXISTING CATEGORIES: [{existing_cats_str}]\n\n"
                 "RULES:\n"
                 "1. LANGUAGE: Detect the language of the items on the receipt and the user message. "
                 "   You MUST generate the 'message' response field strictly in this exact detected language. Do NOT translate unless requested.\n"
-                "2. MAPPING: Map items to the EXISTING LOCATIONS provided above. "
-                "   Do NOT create new root locations. If an item doesn't fit, use 'General' or ask for clarification.\n"
-                "3. ICON SELECTION: Assign the closest standard icon_key from the following list. If there is no exact match, guess the nearest category structure (ICON_LIB_ITEM|Main|Sub|Item).\n"
+                "2. MAPPING & SUBLOCATIONS: Map items strictly to one of the EXISTING PATHS provided above. You MUST copy the exact string formatting (including brackets like [Zone]). If a sublocation exists in the context, include it in the array.\n"
+                "3. ICON SELECTION & CATEGORIES: Assign the closest standard icon_key from the following list. \n"
+                "   CRITICAL: The 'category' and 'sub_category' JSON fields MUST exactly match the MainCategory and SubCategory from your chosen icon_key.\n"
                 f"{ICON_PROMPT_CONTEXT}\n"
                 "4. OUTPUT JSON ONLY:\n"
-                "   - If items are clear: {{\"intent\": \"add_invoice\", \"message\": \"<Short success sentence in the detected language>\", \"items\": [{\"name\": \"...\", \"qty\": 1, \"path\": [\"ExistingRoom\", \"ExistingSub\"], \"category\": \"...\", \"icon_key\": \"ICON_LIB_ITEM|Food|Dairy & Eggs|Milk\"}]}}\n"
+                "   - If items are clear: {{\"intent\": \"add_invoice\", \"message\": \"<Short success sentence in the detected language>\", \"items\": [{\"name\": \"...\", \"qty\": 1, \"path\": [\"[Floor 1] Kitchen\", \"Fridge\"], \"category\": \"Food\", \"sub_category\": \"Dairy\", \"icon_key\": \"ICON_LIB_ITEM|Food|Dairy|Milk\"}]}}\n"
                 "   - If ambiguous/unknown: {{\"intent\": \"clarify\", \"question\": \"<Question in the detected language>\"}}\n"
             )
 
@@ -507,11 +536,15 @@ async def websocket_ai_chat(hass, connection, msg):
         step1_prompt = (
             f"User says: '{user_message}'\n"
             "Determine if the user wants to ADD items or SEARCH/QUERY.\n"
-            "1. IF ADDING: Return JSON: {\"intent\": \"add\", \"items\": [{\"name\": \"Item\", \"qty\": 1, \"path\": [\"Room\", \"Furniture\"], \"category\": \"Cat\"}]}\n"
-            "   - Infer the location hierarchy if implied (e.g. 'fridge' -> ['Kitchen', 'Fridge']).\n"
+            "1. IF ADDING:\n"
+            f"   Context for icons: {ICON_PROMPT_CONTEXT}\n"
+            f"   EXISTING PATHS: {existing_locs_str}\n"
+            "   Return JSON: {\"intent\": \"add\", \"items\": [{\"name\": \"Item\", \"qty\": 1, \"path\": [\"[Zone] Room\", \"Furniture\"], \"category\": \"MainCat\", \"sub_category\": \"SubCat\", \"icon_key\": \"ICON_LIB_ITEM|MainCat|SubCat|ExactItemName\"}]}\n"
+            "   - For 'path', you MUST use exact matches from EXISTING PATHS including zone brackets (e.g. [\"[Zone] Room\", \"Subloc\"]). If the user specifies a location, format it similarly.\n"
+            "   - Choose the closest icon_key. 'category' and 'sub_category' MUST exactly match the chosen icon_key.\n"
             "2. IF SEARCHING: Return JSON: {\"intent\": \"search\", \"locations\": [\"loc1\"], \"keywords\": [\"item1\"], \"category_filter\": \"\"}\n"
             "   - CRITICAL: Only extract physical item names as 'keywords'. For general advice/recipes (e.g., 'breakfast'), leave 'keywords' empty [].\n"
-            "   - IF the request is general advice (meal, outfit, repair, etc.) AND no location is specified, set 'category_filter' to the best matching main category (e.g., 'Food', 'Clothing', 'Tools', 'Cleaning Supplies').\n"
+            "   - IF the request is general advice AND no location is specified, set 'category_filter' to the best matching main category (e.g., 'Food', 'Clothing', 'Tools', 'Cleaning Supplies').\n"
             "Return JSON ONLY. No markdown."
         )
 
@@ -552,8 +585,10 @@ async def websocket_ai_chat(hass, connection, msg):
                 qt = item.get("qty", 1)
                 pt = item.get("path", ["General"])
                 cat = item.get("category", "")
+                sub_cat = item.get("sub_category", "")
+                icon_key = item.get("icon_key", None)
                 
-                await hass.async_add_executor_job(add_item_db_safe, hass, nm, qt, pt, cat, "", "item", None)
+                await hass.async_add_executor_job(add_item_db_safe, hass, nm, qt, pt, cat, sub_cat, "item", icon_key)
                 added_log.append(f"{nm} (x{qt}) to {' > '.join(pt)}")
             
             hass.bus.async_fire("home_organizer_db_update")
@@ -754,7 +789,6 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                     if raw_path.startswith("ICON_LIB"): img = raw_path
                     else: img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
 
-                # [MODIFIED v7.7.8 | 2026-02-24] Purpose: Added category and sub_category to shopping list for categorized view
                 shopping_list.append({
                     "id": r_dict['id'],
                     "name": r_dict['name'], 

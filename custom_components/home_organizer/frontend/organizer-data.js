@@ -1,4 +1,4 @@
-// Home Organizer Data - Ver 2.1 (Update: Split Categories by '&' and matched to Icons)
+// Home Organizer Data - Ver 7.8.0 (Update: Perfectly synced 1:1 with ICON_LIB_ITEM)
 
 export const ITEM_CATEGORIES = {
   "Food": { 
