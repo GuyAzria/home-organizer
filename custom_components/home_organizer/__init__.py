@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.9.14 (Update: Upgraded to gemini-3.1-flash-lite-preview, added Auto-Merge DB migration for split folders, and Core Name Snapping to perfectly route AI outputs to existing marker folders)
+# Home Organizer Ultimate - ver 7.9.16 (Update: Upgraded to gemini-3.1-flash-lite-preview, Migrated Catalog ID generation and storage from Frontend local storage to Backend SQLite database for cross-device consistency)
 
 import logging
 import sqlite3
@@ -237,6 +237,9 @@ def init_db(hass):
     c = conn.cursor()
     c.execute("CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)")
     
+    # [ADDED v7.9.16] Table for persistent Catalog IDs
+    c.execute("CREATE TABLE IF NOT EXISTS persistent_ids (scope TEXT, item_name TEXT, seq_id INTEGER, PRIMARY KEY (scope, item_name))")
+
     c.execute("PRAGMA table_info(items)")
     existing_cols = [col[1] for col in c.fetchall()]
     
@@ -269,9 +272,7 @@ def init_db(hass):
         c.execute("CREATE INDEX IF NOT EXISTS idx_items_type ON items(type)")
     except Exception: pass
 
-    # [ADDED v7.9.14 | 2026-03-08] Purpose: DB Auto-Merge Migration. Fixes broken marker paths and merges split folders created by previous bugs
     try:
-        # Phase 1: Fix broken regex strings from previous bugs (e.g. ORDER_MARKER_020_Name -> [ORDER_MARKER_020] Name)
         c.execute("SELECT id, name, level_1, level_2, level_3, level_4, level_5, level_6, level_7, level_8, level_9, level_10 FROM items")
         all_items = c.fetchall()
         for row in all_items:
@@ -309,7 +310,6 @@ def init_db(hass):
                 upd_vals.append(r_id)
                 c.execute(f"UPDATE items SET {', '.join(upd_cols)} WHERE id = ?", tuple(upd_vals))
                 
-        # Phase 2: Merge items that lost their ORDER_MARKER (e.g. "Fridge Left Door") into the correct master folder
         c.execute("SELECT DISTINCT level_1, level_2, level_3, level_4, level_5, level_6, level_7, level_8, level_9, level_10 FROM items")
         rows = c.fetchall()
         marker_map = {}
@@ -357,6 +357,48 @@ def init_db(hass):
 
     conn.commit(); conn.close()
 
+# [ADDED v7.9.16] Scans DB and generates static sequential Catalog IDs to ensure web and mobile are perfectly matched
+def get_or_create_catalog_ids(hass):
+    conn = get_db_connection(hass)
+    c = conn.cursor()
+    c.execute("CREATE TABLE IF NOT EXISTS persistent_ids (scope TEXT, item_name TEXT, seq_id INTEGER, PRIMARY KEY (scope, item_name))")
+    
+    c.execute("SELECT scope, item_name, seq_id FROM persistent_ids")
+    existing = {}
+    for r in c.fetchall():
+        sc, nm, seq = r
+        if sc not in existing: existing[sc] = {}
+        existing[sc][nm] = seq
+        
+    changed = False
+    
+    def allocate(scope, name):
+        nonlocal changed
+        if not name: return
+        if scope not in existing: existing[scope] = {}
+        if name not in existing[scope]:
+            max_id = max(existing[scope].values()) if existing[scope] else 0
+            new_id = max_id + 1
+            existing[scope][name] = new_id
+            c.execute("INSERT INTO persistent_ids (scope, item_name, seq_id) VALUES (?, ?, ?)", (scope, name, new_id))
+            changed = True
+
+    c.execute("SELECT DISTINCT level_1, level_2, level_3 FROM items WHERE level_1 IS NOT NULL AND level_1 != ''")
+    rows = c.fetchall()
+    for r in rows:
+        l1, l2, l3 = r[0], r[1], r[2]
+        if l1:
+            allocate('root', l1)
+            if l2:
+                allocate(l1, l2)
+                if l3:
+                    allocate(f"{l1}_{l2}", l3)
+                    
+    if changed:
+        conn.commit()
+    conn.close()
+    return existing
+
 def normalize_zone_path(hass, path_list):
     if not path_list or len(path_list) < 2:
         return path_list
@@ -377,7 +419,6 @@ def normalize_zone_path(hass, path_list):
         _LOGGER.error(f"Zone normalization error: {e}")
     return path_list
 
-# [MODIFIED v7.9.14 | 2026-03-08] Purpose: Core Name Snapping. Automatically intercepts AI paths, finds their core name (ignoring brackets/markers), and forcefully snaps them to existing master folders in the DB to completely prevent duplicate split folders.
 def repair_path_against_db(hass, path_list):
     if not path_list: return path_list
     fixed = []
@@ -391,13 +432,11 @@ def repair_path_against_db(hass, path_list):
         for i, p in enumerate(path_list):
             col = f"level_{i+1}"
             
-            # 1. Check for exact match in permanent items
             c.execute(f"SELECT DISTINCT {col} FROM items WHERE {col} = ? AND type != 'pending'", (p,))
             if c.fetchone():
                 fixed.append(p)
                 continue
                 
-            # 2. Core match against permanent items to snap to master folder
             c.execute(f"SELECT DISTINCT {col} FROM items WHERE {col} IS NOT NULL AND {col} != '' AND type != 'pending'")
             existing = [row[0] for row in c.fetchall()]
             
@@ -405,12 +444,11 @@ def repair_path_against_db(hass, path_list):
             matched = False
             for ex in existing:
                 if get_core(ex) == core_p:
-                    fixed.append(ex) # Snap to the DB master folder string!
+                    fixed.append(ex) 
                     matched = True
                     break
                     
             if not matched:
-                # 3. Regex fallback format for completely brand new folders
                 m = re.match(r'^\[?(ORDER_MARKER_\d+)\]?[_\s]+(.*)', str(p))
                 if m:
                     fixed.append(f"[{m.group(1)}] {m.group(2)}")
@@ -421,7 +459,6 @@ def repair_path_against_db(hass, path_list):
         return fixed
     except Exception as e:
         _LOGGER.error(f"repair_path error: {e}")
-        # fallback if DB locked
         return [re.sub(r'^\[?(ORDER_MARKER_\d+)\]?[_\s]+(.*)', r'[\1] \2', str(x)) for x in path_list]
 
 def add_item_db_safe(hass, name, qty, path_list, category="", sub_category="", item_type="item", icon_key=None):
@@ -1113,6 +1150,9 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
 
     finally: conn.close()
 
+    # Pass the pre-computed static DB catalog map to frontend
+    catalog_map = get_or_create_catalog_ids(hass)
+
     return {
         "path_display": is_shopping and "Shopping List" or (query and "Search Results" or (" > ".join(path_parts) if path_parts else "Main")),
         "folders": folders,
@@ -1122,7 +1162,8 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
         "app_version": VERSION,
         "depth": len(path_parts),
         "hierarchy": hierarchy,
-        "enable_ai": enable_ai 
+        "enable_ai": enable_ai,
+        "catalog_map": catalog_map
     }
 
 async def register_services(hass, entry):
@@ -1287,8 +1328,14 @@ async def register_services(hass, entry):
         parts = normalize_zone_path(hass, parts)
         is_folder = call.data.get("is_folder", False)
 
-        def db_u():
-            conn = get_db_connection(hass); c = conn.cursor()
+        repaired_path = None
+        if new_path is not None:
+            repaired_path = normalize_zone_path(hass, new_path)
+            repaired_path = await hass.async_add_executor_job(repair_path_against_db, hass, repaired_path)
+
+        def db_update_sync():
+            conn = get_db_connection(hass)
+            c = conn.cursor()
             
             if is_folder:
                 depth = len(parts)
@@ -1310,12 +1357,34 @@ async def register_services(hass, entry):
                     
                     c.execute(f"UPDATE items SET name = ? WHERE type = 'folder_marker' AND name = ? AND {marker_where}", 
                               (f"[Folder] {nn}", f"[Folder] {orig}", *marker_args))
+
+                # Update the persistent DB to keep IDs consistent on folder rename
+                scope = 'root'
+                if depth == 1: scope = parts[0]
+                elif depth == 2: scope = f"{parts[0]}_{parts[1]}"
+                c.execute("UPDATE persistent_ids SET item_name = ? WHERE scope = ? AND item_name = ?", (nn, scope, orig))
+                
+                if depth == 0:
+                    c.execute("UPDATE persistent_ids SET scope = ? WHERE scope = ?", (nn, orig))
+                    c.execute("SELECT scope FROM persistent_ids WHERE scope LIKE ?", (f"{orig}_%",))
+                    for row in c.fetchall():
+                        old_sc = row[0]
+                        new_sc = old_sc.replace(f"{orig}_", f"{nn}_", 1)
+                        c.execute("UPDATE persistent_ids SET scope = ? WHERE scope = ?", (new_sc, old_sc))
+                elif depth == 1:
+                    old_sub_scope = f"{parts[0]}_{orig}"
+                    new_sub_scope = f"{parts[0]}_{nn}"
+                    c.execute("UPDATE persistent_ids SET scope = ? WHERE scope = ?", (new_sub_scope, old_sub_scope))
             else:
                 sql = "UPDATE items SET "
                 updates = []
                 params = []
                 
-                local_safe_path = None
+                if repaired_path is not None:
+                    for i in range(1, 11):
+                        val = repaired_path[i-1] if i <= len(repaired_path) else ""
+                        updates.append(f"level_{i} = ?")
+                        params.append(val)
                 
                 if nn: updates.append("name = ?"); params.append(nn)
                 if nd is not None: updates.append("item_date = ?"); params.append(nd)
@@ -1326,49 +1395,23 @@ async def register_services(hass, entry):
                 if unit_value is not None: updates.append("unit_value = ?"); params.append(unit_value)
                 if image_path is not None: updates.append("image_path = ?"); params.append(image_path)
                 
-                if updates or new_path is not None:
-                    # Execute the sync stuff outside of this scope...
-                    pass
-            conn.commit(); conn.close()
+                if updates:
+                    sql += ", ".join(updates)
+                    if item_id:
+                        sql += " WHERE id = ?"
+                        params.append(item_id)
+                    else:
+                        sql += " WHERE name = ?"
+                        params.append(orig)
+                        if parts:
+                            for i, p in enumerate(parts): sql += f" AND level_{i+1} = ?"; params.append(p)
+
+                    c.execute(sql, tuple(params))
+
+            conn.commit()
+            conn.close()
             
-        # Due to sync/async context, we handle new_path outside the db_u function
-        if new_path is not None:
-             safe_path = normalize_zone_path(hass, new_path)
-             safe_path = await hass.async_add_executor_job(repair_path_against_db, hass, safe_path)
-             
-             def db_u_path():
-                 conn = get_db_connection(hass); c = conn.cursor()
-                 sql = "UPDATE items SET "
-                 updates = []
-                 params = []
-                 for i in range(1, 11):
-                     val = safe_path[i-1] if i <= len(safe_path) else ""
-                     updates.append(f"level_{i} = ?")
-                     params.append(val)
-                     
-                 if nn: updates.append("name = ?"); params.append(nn)
-                 if nd is not None: updates.append("item_date = ?"); params.append(nd)
-                 if cat is not None: updates.append("category = ?"); params.append(cat)
-                 if sub_cat is not None: updates.append("sub_category = ?"); params.append(sub_cat)
-                 if unit is not None: updates.append("unit = ?"); params.append(unit)
-                 if unit_value is not None: updates.append("unit_value = ?"); params.append(unit_value)
-                 if image_path is not None: updates.append("image_path = ?"); params.append(image_path)
-                 
-                 sql += ", ".join(updates)
-                 if item_id:
-                     sql += " WHERE id = ?"
-                     params.append(item_id)
-                 else:
-                     sql += " WHERE name = ?"
-                     params.append(orig)
-                     if parts:
-                         for i, p in enumerate(parts): sql += f" AND level_{i+1} = ?"; params.append(p)
-                 c.execute(sql, tuple(params))
-                 conn.commit(); conn.close()
-             await hass.async_add_executor_job(db_u_path)
-        else:
-             await hass.async_add_executor_job(db_u)
-             
+        await hass.async_add_executor_job(db_update_sync)
         broadcast_update()
 
     async def handle_update_image(call):

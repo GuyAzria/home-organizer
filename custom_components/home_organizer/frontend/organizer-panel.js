@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.7.9 (Update: Added robust Catalog ID intercept for instant location search, and stripped ORDER_MARKER tags from UI displays)
+// Home Organizer Ultimate - Ver 7.7.10 (Update: Migrated Catalog ID storage from localStorage to backend DB for cross-device consistency, stripped ORDER_MARKER tags from UI)
  
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.10';
 import { ITEM_CATEGORIES } from './organizer-data.js?v=6.6.10';
@@ -7,10 +7,9 @@ class HomeOrganizerPanel extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this.content) {
-      console.log("%c Home Organizer v7.7.9 Fully Loaded ", "background: #e91e63; color: #fff; font-weight: bold;");
+      console.log("%c Home Organizer v7.7.10 Fully Loaded ", "background: #e91e63; color: #fff; font-weight: bold;");
       this.currentPath = [];
-      this.catalogPath = []
-      ; 
+      this.catalogPath = []; 
       this.isEditMode = false;
       this.isSearch = false;
       this.isShopMode = false;
@@ -47,13 +46,12 @@ class HomeOrganizerPanel extends HTMLElement {
 
       this.loadingSet = new Set(); 
       this.imageVersions = {}; 
+      this.persistentIds = {};
 
       try { 
-          this.persistentIds = JSON.parse(localStorage.getItem('home_organizer_ids')) || {}; 
           this.showIds = localStorage.getItem('home_organizer_show_ids') !== 'false'; 
       } 
       catch { 
-          this.persistentIds = {}; 
           this.showIds = true;
       }
       
@@ -202,11 +200,11 @@ class HomeOrganizerPanel extends HTMLElement {
   getPersistentID(scope, itemName) {
       if (!this.persistentIds[scope]) this.persistentIds[scope] = {};
       if (this.persistentIds[scope][itemName]) return this.persistentIds[scope][itemName];
+      
       const used = Object.values(this.persistentIds[scope]).map(Number);
       let idx = 1;
       while (used.includes(idx)) { idx++; }
       this.persistentIds[scope][itemName] = idx;
-      localStorage.setItem('home_organizer_ids', JSON.stringify(this.persistentIds));
       return idx;
   }
     
@@ -220,7 +218,6 @@ class HomeOrganizerPanel extends HTMLElement {
       return s || "A";
   }
 
-  // [ADDED v7.7.8] Purpose: Reverse translates an alpha-numeric Catalog ID to path hierarchy.
   resolveCatalogIdToPath(query) {
       const cleanQuery = query.trim().toUpperCase();
       const match = cleanQuery.match(/^([A-Z]+)(\d+)(?:\.(\d+))?$/);
@@ -257,7 +254,6 @@ class HomeOrganizerPanel extends HTMLElement {
       return path;
   }
 
-  // [ADDED v7.7.8] Purpose: Filters the local database items by a resolved path array and formats them for the search results UI.
   handleCatalogIdSearch(pathArray, query) {
       const filteredItems = this.allDbItems.filter(item => {
           let p = [];
@@ -319,6 +315,11 @@ class HomeOrganizerPanel extends HTMLElement {
               date_filter: "All",
               shopping_mode: this.isShopMode
           });
+          
+          if (data.catalog_map) {
+              this.persistentIds = data.catalog_map;
+          }
+          
           this.localData = data;
           this.updateUI();
       } catch (e) { console.error("Fetch error", e); }
@@ -448,7 +449,7 @@ class HomeOrganizerPanel extends HTMLElement {
               
               <div style="margin-top:20px; font-size:12px; color:#666; border-top:1px solid var(--border-light); padding-top:10px;">
                   Licensed under MIT License.<br>
-                  Version 7.7.9
+                  Version 7.7.10
               </div>
               
               <button class="action-btn" style="width:100%; margin-top:20px;" onclick="this.closest('#about-modal').style.display='none'" id="lbl-close">Close</button>
@@ -546,7 +547,6 @@ class HomeOrganizerPanel extends HTMLElement {
       }
   }
   
-  // [ADDED v7.7.9 | 2026-03-08] Purpose: Removes ORDER_MARKER tags so they are invisible to the user in the UI.
   stripMarkerForDisplay(text) {
       if (!text) return text;
       return text.replace(/\[?ORDER_MARKER_\d+\]?[_\s]*/g, '').trim();
@@ -843,7 +843,6 @@ class HomeOrganizerPanel extends HTMLElement {
   renderLocationControl(item, isShopMode) {
       if (!isShopMode) return `<div class="sub-title">${item.date || ''}</div>`;
       
-      // [MODIFIED v7.7.9] Strip markers from path string
       let displayLoc = item.location || '';
       displayLoc = displayLoc.split('>').map(p => this.stripMarkerForDisplay(p)).join(' > ');
       
@@ -893,7 +892,6 @@ class HomeOrganizerPanel extends HTMLElement {
             if (k.startsWith('ZONE_MARKER_')) return;
             const isSel = l3 === k;
             if(isSel) l3Found = true;
-            // [MODIFIED v7.7.9] Clean display name in dropdown
             const displayK = this.stripMarkerForDisplay(k);
             l3Opts += `<option value="${k}" ${isSel ? 'selected' : ''}>${displayK}</option>`;
         });
@@ -1674,7 +1672,6 @@ class HomeOrganizerPanel extends HTMLElement {
             const icon = isExpanded ? ICONS.chevron_down : ICONS.chevron_right;
             const countBadge = `<span style="font-size:12px; background:var(--bg-badge); color:var(--text-badge); padding:2px 6px; border-radius:10px; margin-inline-start:8px;">${count}</span>`;
             
-            // [MODIFIED v7.7.9] Strip markers from the group separator headers
             const cleanSubName = this.stripMarkerForDisplay(subName);
 
             const header = document.createElement('div');
@@ -2672,7 +2669,6 @@ class HomeOrganizerPanel extends HTMLElement {
       if (!itemName) return;
       let targetPath = [...this.currentPath];
       
-      // [MODIFIED v7.7.9] Append original un-stripped subloc back to path for accurate DB targeting
       const realSubName = this.resolveRealName(targetSubloc);
       if (realSubName !== "General") targetPath.push(realSubName);
       
