@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.9.3 (Update: Fixed AI location path formatting to explicitly keep [Zone] brackets)
+# Home Organizer Ultimate - ver 7.9.14 (Update: Upgraded to gemini-3.1-flash-lite-preview, added Auto-Merge DB migration for split folders, and Core Name Snapping to perfectly route AI outputs to existing marker folders)
 
 import logging
 import sqlite3
@@ -27,7 +27,8 @@ WS_GET_ALL_ITEMS = "home_organizer/get_all_items"
 WS_AI_CHAT = "home_organizer/ai_chat" 
 
 STATIC_PATH_URL = "/home_organizer_static"
-GEMINI_MODEL = "gemini-3-flash-preview"
+
+GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
 
 ICON_PROMPT_CONTEXT = """
 Available Icon Paths (Format: ICON_LIB_ITEM|MainCategory|SubCategory|ExactItemName):
@@ -268,6 +269,92 @@ def init_db(hass):
         c.execute("CREATE INDEX IF NOT EXISTS idx_items_type ON items(type)")
     except Exception: pass
 
+    # [ADDED v7.9.14 | 2026-03-08] Purpose: DB Auto-Merge Migration. Fixes broken marker paths and merges split folders created by previous bugs
+    try:
+        # Phase 1: Fix broken regex strings from previous bugs (e.g. ORDER_MARKER_020_Name -> [ORDER_MARKER_020] Name)
+        c.execute("SELECT id, name, level_1, level_2, level_3, level_4, level_5, level_6, level_7, level_8, level_9, level_10 FROM items")
+        all_items = c.fetchall()
+        for row in all_items:
+            r_id = row[0]
+            name = row[1]
+            levels = list(row[2:])
+            changed = False
+            
+            new_name = name
+            if name and name.startswith("[Folder] ") and "ORDER_MARKER" in name:
+                val = name.replace("[Folder] ", "")
+                m = re.match(r'^\[?(ORDER_MARKER_\d+)\]?[_\s]+(.*)', val)
+                if m:
+                    new_name = f"[Folder] [{m.group(1)}] {m.group(2)}"
+                    if new_name != name: changed = True
+            
+            new_levels = []
+            for lvl in levels:
+                if lvl and "ORDER_MARKER" in lvl:
+                    m = re.match(r'^\[?(ORDER_MARKER_\d+)\]?[_\s]+(.*)', lvl)
+                    if m:
+                        fixed_lvl = f"[{m.group(1)}] {m.group(2)}"
+                        if fixed_lvl != lvl:
+                            changed = True
+                            new_levels.append(fixed_lvl)
+                            continue
+                new_levels.append(lvl)
+                
+            if changed:
+                upd_cols = ["name = ?"]
+                upd_vals = [new_name]
+                for i, n_lvl in enumerate(new_levels):
+                    upd_cols.append(f"level_{i+1} = ?")
+                    upd_vals.append(n_lvl)
+                upd_vals.append(r_id)
+                c.execute(f"UPDATE items SET {', '.join(upd_cols)} WHERE id = ?", tuple(upd_vals))
+                
+        # Phase 2: Merge items that lost their ORDER_MARKER (e.g. "Fridge Left Door") into the correct master folder
+        c.execute("SELECT DISTINCT level_1, level_2, level_3, level_4, level_5, level_6, level_7, level_8, level_9, level_10 FROM items")
+        rows = c.fetchall()
+        marker_map = {}
+        for row in rows:
+            for lvl in row:
+                if lvl and "ORDER_MARKER" in lvl:
+                    core = re.sub(r'\[?ORDER_MARKER_\d+\]?[_\s]*', '', str(lvl)).strip()
+                    if core:
+                        marker_map[core] = lvl
+
+        if marker_map:
+            c.execute("SELECT id, name, level_1, level_2, level_3, level_4, level_5, level_6, level_7, level_8, level_9, level_10 FROM items")
+            all_items = c.fetchall()
+            for row in all_items:
+                r_id = row[0]
+                name = row[1]
+                levels = list(row[2:])
+                changed = False
+                
+                new_levels = []
+                for lvl in levels:
+                    if lvl and lvl in marker_map and "ORDER_MARKER" not in lvl:
+                        new_levels.append(marker_map[lvl])
+                        changed = True
+                    else:
+                        new_levels.append(lvl)
+                        
+                new_name = name
+                if name and name.startswith("[Folder] "):
+                    folder_name = name.replace("[Folder] ", "").strip()
+                    if folder_name in marker_map and "ORDER_MARKER" not in folder_name:
+                        new_name = f"[Folder] {marker_map[folder_name]}"
+                        changed = True
+                        
+                if changed:
+                    upd_cols = ["name = ?"]
+                    upd_vals = [new_name]
+                    for i, n_lvl in enumerate(new_levels):
+                        upd_cols.append(f"level_{i+1} = ?")
+                        upd_vals.append(n_lvl)
+                    upd_vals.append(r_id)
+                    c.execute(f"UPDATE items SET {', '.join(upd_cols)} WHERE id = ?", tuple(upd_vals))
+    except Exception as e:
+        _LOGGER.error(f"DB Cleanup Error: {e}")
+
     conn.commit(); conn.close()
 
 def normalize_zone_path(hass, path_list):
@@ -290,8 +377,57 @@ def normalize_zone_path(hass, path_list):
         _LOGGER.error(f"Zone normalization error: {e}")
     return path_list
 
+# [MODIFIED v7.9.14 | 2026-03-08] Purpose: Core Name Snapping. Automatically intercepts AI paths, finds their core name (ignoring brackets/markers), and forcefully snaps them to existing master folders in the DB to completely prevent duplicate split folders.
+def repair_path_against_db(hass, path_list):
+    if not path_list: return path_list
+    fixed = []
+    try:
+        conn = get_db_connection(hass)
+        c = conn.cursor()
+        
+        def get_core(s):
+            return re.sub(r'\[?ORDER_MARKER_\d+\]?[_\s]*', '', str(s)).strip()
+
+        for i, p in enumerate(path_list):
+            col = f"level_{i+1}"
+            
+            # 1. Check for exact match in permanent items
+            c.execute(f"SELECT DISTINCT {col} FROM items WHERE {col} = ? AND type != 'pending'", (p,))
+            if c.fetchone():
+                fixed.append(p)
+                continue
+                
+            # 2. Core match against permanent items to snap to master folder
+            c.execute(f"SELECT DISTINCT {col} FROM items WHERE {col} IS NOT NULL AND {col} != '' AND type != 'pending'")
+            existing = [row[0] for row in c.fetchall()]
+            
+            core_p = get_core(p)
+            matched = False
+            for ex in existing:
+                if get_core(ex) == core_p:
+                    fixed.append(ex) # Snap to the DB master folder string!
+                    matched = True
+                    break
+                    
+            if not matched:
+                # 3. Regex fallback format for completely brand new folders
+                m = re.match(r'^\[?(ORDER_MARKER_\d+)\]?[_\s]+(.*)', str(p))
+                if m:
+                    fixed.append(f"[{m.group(1)}] {m.group(2)}")
+                else:
+                    fixed.append(str(p))
+                    
+        conn.close()
+        return fixed
+    except Exception as e:
+        _LOGGER.error(f"repair_path error: {e}")
+        # fallback if DB locked
+        return [re.sub(r'^\[?(ORDER_MARKER_\d+)\]?[_\s]+(.*)', r'[\1] \2', str(x)) for x in path_list]
+
 def add_item_db_safe(hass, name, qty, path_list, category="", sub_category="", item_type="item", icon_key=None):
     path_list = normalize_zone_path(hass, path_list)
+    path_list = repair_path_against_db(hass, path_list)
+    
     conn = get_db_connection(hass)
     c = conn.cursor()
     try:
@@ -337,17 +473,39 @@ def websocket_get_all_items(hass, connection, msg):
     url_prefix = hass.data.get(DOMAIN, {}).get("config", {}).get("url_prefix", f"/local/{IMG_DIR}")
 
     try:
-        c.execute("SELECT name, category, sub_category, unit, unit_value, image_path FROM items WHERE type='item' GROUP BY name")
+        c.execute("SELECT * FROM items WHERE type='item'")
         col_names = [description[0] for description in c.description]
         results = []
+        
         for r in c.fetchall():
-            item = dict(zip(col_names, r))
-            if item['image_path']:
-                if item['image_path'].startswith("ICON_LIB"):
-                    pass 
-                else:
-                    item['image_path'] = f"{url_prefix}/{item['image_path']}?v={int(time.time())}"
-            results.append(item)
+            r_dict = dict(zip(col_names, r))
+            img = None
+            raw_path = r_dict.get('image_path')
+            if raw_path:
+                if raw_path.startswith("ICON_LIB"): 
+                    img = raw_path
+                else: 
+                    img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
+
+            fp = []
+            for i in range(1, 11):
+                if r_dict.get(f"level_{i}"): fp.append(r_dict.get(f"level_{i}"))
+
+            results.append({
+                "id": r_dict['id'],
+                "name": r_dict['name'],
+                "qty": r_dict['quantity'],
+                "date": r_dict.get('item_date', ''),
+                "img": img,
+                "location": " > ".join(fp),
+                "level_1": r_dict.get('level_1', ''),
+                "level_2": r_dict.get('level_2', ''),
+                "level_3": r_dict.get('level_3', ''),
+                "category": r_dict.get('category', ''),
+                "sub_category": r_dict.get('sub_category', ''),
+                "unit": r_dict.get('unit', ''),
+                "unit_value": r_dict.get('unit_value', '')
+            })
         connection.send_result(msg["id"], results)
     finally:
         conn.close()
@@ -409,7 +567,6 @@ async def websocket_ai_chat(hass, connection, msg):
         existing_locs_str = ""
         existing_cats_str = ""
         
-        # [MODIFIED v7.9.3 | 2026-02-25] Purpose: Refactored context fetching to properly format exact JSON array strings (including brackets and level_3) so AI doesn't output broken ">" format.
         def fetch_context():
             nonlocal existing_locs_str, existing_cats_str
             try:
@@ -418,7 +575,9 @@ async def websocket_ai_chat(hass, connection, msg):
                 cc.execute("SELECT DISTINCT level_1, level_2, level_3 FROM items WHERE type='item' OR type='folder'")
                 loc_hierarchy = set()
                 for r in cc.fetchall():
-                    l1, l2, l3 = r[0], r[1], r[2]
+                    l1 = repair_path_against_db(hass, [r[0]])[0] if r[0] else None
+                    l2 = repair_path_against_db(hass, [r[1]])[0] if r[1] else None
+                    l3 = repair_path_against_db(hass, [r[2]])[0] if r[2] else None
                     if l1:
                         path_elements = [f'"{l1}"']
                         if l2: path_elements.append(f'"{l2}"')
@@ -443,14 +602,14 @@ async def websocket_ai_chat(hass, connection, msg):
                 f"EXISTING PATHS (Use these EXACT arrays): {existing_locs_str}\n"
                 f"EXISTING CATEGORIES: [{existing_cats_str}]\n\n"
                 "RULES:\n"
-                "1. LANGUAGE: Detect the language of the items on the receipt and the user message. "
-                "   You MUST generate the 'message' response field strictly in this exact detected language. Do NOT translate unless requested.\n"
-                "2. MAPPING & SUBLOCATIONS: Map items strictly to one of the EXISTING PATHS provided above. You MUST copy the exact string formatting (including brackets like [Zone]). If a sublocation exists in the context, include it in the array.\n"
+                "1. LANGUAGE: DO NOT translate item names. The 'name' field MUST be in the exact language the user typed or the receipt shows (e.g. if Hebrew 'מיונז', keep 'מיונז'). Generate the 'message' field in the detected language.\n"
+                "2. MAPPING & SUBLOCATIONS: Map the user's natural language locations strictly to the exact strings in EXISTING PATHS. "
+                "   CRITICAL: If the EXISTING PATH contains brackets like `[ORDER_MARKER_020]`, you MUST output the FULL string including the brackets. Example: User says 'Left Door', but EXISTING PATHS has '[ORDER_MARKER_020] Left Door' -> you MUST output '[ORDER_MARKER_020] Left Door'. Do NOT strip brackets or convert spaces to underscores.\n"
                 "3. ICON SELECTION & CATEGORIES: Assign the closest standard icon_key from the following list. \n"
                 "   CRITICAL: The 'category' and 'sub_category' JSON fields MUST exactly match the MainCategory and SubCategory from your chosen icon_key.\n"
                 f"{ICON_PROMPT_CONTEXT}\n"
                 "4. OUTPUT JSON ONLY:\n"
-                "   - If items are clear: {{\"intent\": \"add_invoice\", \"message\": \"<Short success sentence in the detected language>\", \"items\": [{\"name\": \"...\", \"qty\": 1, \"path\": [\"[Floor 1] Kitchen\", \"Fridge\"], \"category\": \"Food\", \"sub_category\": \"Dairy\", \"icon_key\": \"ICON_LIB_ITEM|Food|Dairy|Milk\"}]}}\n"
+                "   - If items are clear: {{\"intent\": \"add_invoice\", \"message\": \"<Short success sentence in the detected language>\", \"items\": [{\"name\": \"...\", \"qty\": 1, \"path\": [\"[Floor 1] Kitchen\", \"Fridge\", \"[ORDER_MARKER_010] Right Door\"], \"category\": \"Food\", \"sub_category\": \"Dairy\", \"icon_key\": \"ICON_LIB_ITEM|Food|Dairy|Milk\"}]}}\n"
                 "   - If ambiguous/unknown: {{\"intent\": \"clarify\", \"question\": \"<Question in the detected language>\"}}\n"
             )
 
@@ -501,12 +660,16 @@ async def websocket_ai_chat(hass, connection, msg):
 
                 if parsed.get("intent") == "add_invoice" and "items" in parsed:
                     for item in parsed["items"]:
+                        
+                        raw_path = item.get("path", ["General"])
+                        clean_path = await hass.async_add_executor_job(repair_path_against_db, hass, raw_path)
+
                         await hass.async_add_executor_job(
                             add_item_db_safe, 
                             hass, 
                             item.get("name", "Unknown"), 
                             int(item.get("qty", 1)), 
-                            item.get("path", ["General"]), 
+                            clean_path, 
                             item.get("category", ""), 
                             item.get("sub_category", ""),
                             "pending", 
@@ -519,7 +682,8 @@ async def websocket_ai_chat(hass, connection, msg):
                     ai_message = parsed.get("message", f"✅ I have scanned the document and added {added_count} items to the Review tab.")
                     response_text = f"{ai_message}\n\n"
                     for i in parsed["items"]:
-                        path_str = " > ".join(i.get("path", []))
+                        p_repaired = await hass.async_add_executor_job(repair_path_against_db, hass, i.get("path", []))
+                        path_str = " > ".join(p_repaired)
                         response_text += f"- **{i.get('name')}** (x{i.get('qty')}) -> _{path_str}_\n"
 
                     connection.send_result(msg["id"], {
@@ -532,15 +696,15 @@ async def websocket_ai_chat(hass, connection, msg):
                 connection.send_result(msg["id"], {"response": f"❌ Could not parse invoice data. Error: {str(e)}", "debug": {"raw": clean_txt}})
                 return
 
-        
         step1_prompt = (
             f"User says: '{user_message}'\n"
             "Determine if the user wants to ADD items or SEARCH/QUERY.\n"
             "1. IF ADDING:\n"
             f"   Context for icons: {ICON_PROMPT_CONTEXT}\n"
             f"   EXISTING PATHS: {existing_locs_str}\n"
-            "   Return JSON: {\"intent\": \"add\", \"items\": [{\"name\": \"Item\", \"qty\": 1, \"path\": [\"[Zone] Room\", \"Furniture\"], \"category\": \"MainCat\", \"sub_category\": \"SubCat\", \"icon_key\": \"ICON_LIB_ITEM|MainCat|SubCat|ExactItemName\"}]}\n"
-            "   - For 'path', you MUST use exact matches from EXISTING PATHS including zone brackets (e.g. [\"[Zone] Room\", \"Subloc\"]). If the user specifies a location, format it similarly.\n"
+            "   Return JSON: {\"intent\": \"add\", \"items\": [{\"name\": \"Item Name\", \"qty\": 1, \"path\": [\"[Zone] Room\", \"Furniture\", \"[ORDER_MARKER_010] Right Door\"], \"category\": \"MainCat\", \"sub_category\": \"SubCat\", \"icon_key\": \"ICON_LIB_ITEM|MainCat|SubCat|ExactItemName\"}]}\n"
+            "   - LANGUAGE CRITICAL: DO NOT translate the item name. If the user wrote in Hebrew (e.g., 'מיונז'), the 'name' field MUST be 'מיונז'.\n"
+            "   - PATH MAPPING CRITICAL: Map natural language to EXACT EXISTING PATHS. If an existing path contains `[ORDER_MARKER_...]`, you MUST include the full string WITH brackets. Example: User says 'מקרר דלת שמאל' -> output MUST be `\"[ORDER_MARKER_020] מקרר דלת שמאל\"` if it exists in the paths. DO NOT strip or alter the markers.\n"
             "   - Choose the closest icon_key. 'category' and 'sub_category' MUST exactly match the chosen icon_key.\n"
             "2. IF SEARCHING: Return JSON: {\"intent\": \"search\", \"locations\": [\"loc1\"], \"keywords\": [\"item1\"], \"category_filter\": \"\"}\n"
             "   - CRITICAL: Only extract physical item names as 'keywords'. For general advice/recipes (e.g., 'breakfast'), leave 'keywords' empty [].\n"
@@ -584,16 +748,19 @@ async def websocket_ai_chat(hass, connection, msg):
                 nm = item.get("name")
                 qt = item.get("qty", 1)
                 pt = item.get("path", ["General"])
+                
+                pt_clean = await hass.async_add_executor_job(repair_path_against_db, hass, pt)
+
                 cat = item.get("category", "")
                 sub_cat = item.get("sub_category", "")
                 icon_key = item.get("icon_key", None)
                 
-                await hass.async_add_executor_job(add_item_db_safe, hass, nm, qt, pt, cat, sub_cat, "item", icon_key)
-                added_log.append(f"{nm} (x{qt}) to {' > '.join(pt)}")
+                await hass.async_add_executor_job(add_item_db_safe, hass, nm, qt, pt_clean, cat, sub_cat, "pending", icon_key)
+                added_log.append(f"{nm} (x{qt}) to {' > '.join(pt_clean)}")
             
             hass.bus.async_fire("home_organizer_db_update")
             
-            resp_text = f"✅ Added {len(added_log)} items:\n" + "\n".join([f"- {l}" for l in added_log])
+            resp_text = f"✅ Added {len(added_log)} items to the Review tab:\n" + "\n".join([f"- {l}" for l in added_log])
             
             connection.send_result(msg["id"], {
                 "response": resp_text,
@@ -979,6 +1146,7 @@ async def register_services(hass, entry):
 
         parts = call.data.get("current_path", [])
         parts = normalize_zone_path(hass, parts)
+        parts = await hass.async_add_executor_job(repair_path_against_db, hass, parts)
         depth = len(parts)
         cols = ["name", "type", "quantity", "item_date", "image_path"]
         
@@ -1071,6 +1239,7 @@ async def register_services(hass, entry):
     async def handle_paste(call):
         target_path = call.data.get("target_path")
         target_path = normalize_zone_path(hass, target_path)
+        target_path = await hass.async_add_executor_job(repair_path_against_db, hass, target_path)
         clipboard = hass.data.get(DOMAIN, {}).get("clipboard") 
         if not clipboard: return
         
@@ -1146,12 +1315,7 @@ async def register_services(hass, entry):
                 updates = []
                 params = []
                 
-                if new_path is not None:
-                    safe_path = normalize_zone_path(hass, new_path)
-                    for i in range(1, 11):
-                        val = safe_path[i-1] if i <= len(safe_path) else ""
-                        updates.append(f"level_{i} = ?")
-                        params.append(val)
+                local_safe_path = None
                 
                 if nn: updates.append("name = ?"); params.append(nn)
                 if nd is not None: updates.append("item_date = ?"); params.append(nd)
@@ -1162,21 +1326,50 @@ async def register_services(hass, entry):
                 if unit_value is not None: updates.append("unit_value = ?"); params.append(unit_value)
                 if image_path is not None: updates.append("image_path = ?"); params.append(image_path)
                 
-                if updates:
-                    sql += ", ".join(updates)
-                    if item_id:
-                        sql += " WHERE id = ?"
-                        params.append(item_id)
-                    else:
-                        sql += " WHERE name = ?"
-                        params.append(orig)
-                        if parts:
-                            for i, p in enumerate(parts): sql += f" AND level_{i+1} = ?"; params.append(p)
-
-                    c.execute(sql, tuple(params))
-
+                if updates or new_path is not None:
+                    # Execute the sync stuff outside of this scope...
+                    pass
             conn.commit(); conn.close()
-        await hass.async_add_executor_job(db_u); broadcast_update()
+            
+        # Due to sync/async context, we handle new_path outside the db_u function
+        if new_path is not None:
+             safe_path = normalize_zone_path(hass, new_path)
+             safe_path = await hass.async_add_executor_job(repair_path_against_db, hass, safe_path)
+             
+             def db_u_path():
+                 conn = get_db_connection(hass); c = conn.cursor()
+                 sql = "UPDATE items SET "
+                 updates = []
+                 params = []
+                 for i in range(1, 11):
+                     val = safe_path[i-1] if i <= len(safe_path) else ""
+                     updates.append(f"level_{i} = ?")
+                     params.append(val)
+                     
+                 if nn: updates.append("name = ?"); params.append(nn)
+                 if nd is not None: updates.append("item_date = ?"); params.append(nd)
+                 if cat is not None: updates.append("category = ?"); params.append(cat)
+                 if sub_cat is not None: updates.append("sub_category = ?"); params.append(sub_cat)
+                 if unit is not None: updates.append("unit = ?"); params.append(unit)
+                 if unit_value is not None: updates.append("unit_value = ?"); params.append(unit_value)
+                 if image_path is not None: updates.append("image_path = ?"); params.append(image_path)
+                 
+                 sql += ", ".join(updates)
+                 if item_id:
+                     sql += " WHERE id = ?"
+                     params.append(item_id)
+                 else:
+                     sql += " WHERE name = ?"
+                     params.append(orig)
+                     if parts:
+                         for i, p in enumerate(parts): sql += f" AND level_{i+1} = ?"; params.append(p)
+                 c.execute(sql, tuple(params))
+                 conn.commit(); conn.close()
+             await hass.async_add_executor_job(db_u_path)
+        else:
+             await hass.async_add_executor_job(db_u)
+             
+        broadcast_update()
 
     async def handle_update_image(call):
         item_id = call.data.get("item_id")
@@ -1214,6 +1407,7 @@ async def register_services(hass, entry):
         qty = int(call.data.get("quantity", 1))
         parts = call.data.get("path", [])
         parts = normalize_zone_path(hass, parts)
+        parts = await hass.async_add_executor_job(repair_path_against_db, hass, parts)
 
         def db_confirm():
             conn = get_db_connection(hass)

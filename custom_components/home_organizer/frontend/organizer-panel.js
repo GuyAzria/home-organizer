@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.7.5 (Update: Fixed icon grid spacing layout)
+// Home Organizer Ultimate - Ver 7.7.9 (Update: Added robust Catalog ID intercept for instant location search, and stripped ORDER_MARKER tags from UI displays)
  
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.10';
 import { ITEM_CATEGORIES } from './organizer-data.js?v=6.6.10';
@@ -7,9 +7,10 @@ class HomeOrganizerPanel extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this.content) {
-      console.log("%c Home Organizer v7.7.5 Fully Loaded ", "background: #e91e63; color: #fff; font-weight: bold;");
+      console.log("%c Home Organizer v7.7.9 Fully Loaded ", "background: #e91e63; color: #fff; font-weight: bold;");
       this.currentPath = [];
-      this.catalogPath = []; 
+      this.catalogPath = []
+      ; 
       this.isEditMode = false;
       this.isSearch = false;
       this.isShopMode = false;
@@ -219,13 +220,102 @@ class HomeOrganizerPanel extends HTMLElement {
       return s || "A";
   }
 
+  // [ADDED v7.7.8] Purpose: Reverse translates an alpha-numeric Catalog ID to path hierarchy.
+  resolveCatalogIdToPath(query) {
+      const cleanQuery = query.trim().toUpperCase();
+      const match = cleanQuery.match(/^([A-Z]+)(\d+)(?:\.(\d+))?$/);
+      if (!match) return null;
+
+      const alphaPart = match[1];
+      const locPart = parseInt(match[2], 10);
+      const subPart = match[3] ? parseInt(match[3], 10) : null;
+
+      let roomNum = 0;
+      for (let i = 0; i < alphaPart.length; i++) {
+          roomNum = roomNum * 26 + (alphaPart.charCodeAt(i) - 64);
+      }
+
+      const rootIds = this.persistentIds['root'] || {};
+      const roomName = Object.keys(rootIds).find(k => rootIds[k] === roomNum);
+      if (!roomName) return null;
+
+      let path = [roomName];
+      
+      const locIds = this.persistentIds[roomName] || {};
+      const locName = Object.keys(locIds).find(k => locIds[k] === locPart);
+      if (!locName) return null;
+      path.push(locName);
+
+      if (subPart !== null) {
+          const subScope = `${roomName}_${locName}`;
+          const subIds = this.persistentIds[subScope] || {};
+          const subName = Object.keys(subIds).find(k => subIds[k] === subPart);
+          if (!subName) return null;
+          path.push(subName);
+      }
+
+      return path;
+  }
+
+  // [ADDED v7.7.8] Purpose: Filters the local database items by a resolved path array and formats them for the search results UI.
+  handleCatalogIdSearch(pathArray, query) {
+      const filteredItems = this.allDbItems.filter(item => {
+          let p = [];
+          if (item.location) {
+              let cleanLoc = item.location.replace(/&gt;/g, '>'); 
+              p = cleanLoc.split('>').map(s => s.trim());
+          }
+          
+          const l1 = p[0] || item.main_location || item.level_1 || '';
+          const l2 = p[1] || item.sub_location || item.level_2 || '';
+          const l3 = p[2] || item.level_3 || '';
+
+          const pathL1 = pathArray[0] || '';
+          const pathL2 = pathArray[1] || '';
+          const pathL3 = pathArray[2] || '';
+
+          const stripZone = (s) => s.replace(/^\[.*?\]\s*/, '').replace(/^ZONE_MARKER_\d+_/, '');
+          const stripOrder = (s) => s.replace(/^ORDER_MARKER_\d+_/, '');
+
+          const l1Match = (l1 === pathL1) || (stripZone(l1) === stripZone(pathL1));
+          const l2Match = l2 === pathL2;
+          const l3Match = stripOrder(l3) === stripOrder(pathL3);
+
+          if (pathArray.length === 1) {
+              return l1Match;
+          } else if (pathArray.length === 2) {
+              return l1Match && l2Match;
+          } else if (pathArray.length === 3) {
+              return l1Match && l2Match && l3Match;
+          }
+          return false;
+      });
+
+      this.localData = {
+          path_display: `Search: ${query} (${pathArray.join(' > ').replace(/(ZONE|ORDER)_MARKER_\d+_/g, '')})`,
+          items: filteredItems,
+          depth: 0 
+      };
+      this.updateUI();
+  }
+
   async fetchData() {
       if (!this._hass) return;
       try {
+          const query = this.shadowRoot.getElementById('search-input')?.value || "";
+          
+          if (this.isSearch && query.length > 0) {
+              const resolvedPath = this.resolveCatalogIdToPath(query);
+              if (resolvedPath) {
+                  this.handleCatalogIdSearch(resolvedPath, query);
+                  return; 
+              }
+          }
+
           const data = await this._hass.callWS({
               type: 'home_organizer/get_data',
               path: this.currentPath,
-              search_query: this.shadowRoot.getElementById('search-input')?.value || "",
+              search_query: query,
               date_filter: "All",
               shopping_mode: this.isShopMode
           });
@@ -256,71 +346,6 @@ class HomeOrganizerPanel extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <link rel="stylesheet" href="/home_organizer_static/organizer-panel.css?v=${timestamp}">
       
-      <style>
-          #picker-main-categories::-webkit-scrollbar, #picker-sub-categories::-webkit-scrollbar { height: 6px; }
-          #picker-main-categories::-webkit-scrollbar-thumb, #picker-sub-categories::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
-          
-          .cat-svg-wrapper { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; margin-bottom: 2px; pointer-events: none; flex-shrink: 0; }
-          .cat-svg-wrapper svg { width: 100%; height: 100%; object-fit: contain; }
-          .subcat-svg-wrapper { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; margin-bottom: 2px; pointer-events: none; flex-shrink: 0; }
-          .subcat-svg-wrapper svg { width: 100%; height: 100%; object-fit: contain; }
-          
-          .cat-btn { width: 85px; height: 85px; min-height: 85px; min-width: 85px; background: #333; border: 2px solid transparent; border-radius: 12px; color: white; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; text-align: center; padding: 6px; flex-shrink: 0; transition: all 0.2s; box-sizing: border-box; }
-          .cat-btn.active { border-color: var(--primary, #03a9f4); background: rgba(3, 169, 244, 0.15); font-weight: bold; }
-          
-          .subcat-btn { width: 80px; height: 80px; min-height: 80px; min-width: 80px; background: #222; border: 1px solid #444; border-radius: 10px; color: #ccc; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 9px; text-align: center; padding: 6px; flex-shrink: 0; transition: all 0.2s; box-sizing: border-box; }
-          .subcat-btn.active { border-color: var(--warning, #ffeb3b); background: #333; color: white; }
-
-          /* [MODIFIED] Perfect Grid Layout for Icons */
-          .icon-grid { 
-              display: grid; 
-              grid-template-columns: repeat(auto-fill, minmax(75px, 1fr)); 
-              gap: 12px; 
-              max-height: 350px; 
-              overflow-y: auto;
-              overflow-x: hidden;
-              padding: 10px;
-          }
-          .icon-grid::-webkit-scrollbar { width: 6px; }
-          .icon-grid::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
-
-          .lib-icon { width: 100%; aspect-ratio: 1/1; box-sizing: border-box; background: #333; border-radius: 8px; padding: 5px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 4px; }
-          .lib-icon:hover { background: #444; }
-          .lib-icon svg { width: 32px; height: 32px; fill: #ccc; flex-shrink: 0; }
-          
-          .cat-btn span, .subcat-btn span, .lib-icon span {
-              white-space: normal;
-              word-wrap: break-word;
-              display: -webkit-box;
-              -webkit-line-clamp: 2;
-              -webkit-box-orient: vertical;
-              overflow: hidden;
-              width: 100%;
-              line-height: 1.1;
-              color: inherit;
-              margin-top: 2px;
-              font-size: 10px;
-              text-align: center;
-          }
-
-          .shop-tabs { display:flex; gap:10px; margin-bottom:15px; }
-          .shop-tab { flex:1; padding:10px; background:#222; color:#ccc; border-radius:8px; text-align:center; cursor:pointer; font-weight:bold; border:1px solid #444; transition: background 0.2s, color 0.2s; }
-          .shop-tab.active { background:var(--primary); color:white; border-color:var(--primary); }
-          .shop-badge { background:var(--danger); color:white; border-radius:12px; padding:2px 6px; font-size:11px; margin-inline-start:5px; }
-          
-          .pending-card { background:var(--bg-input-edit); border-radius:8px; padding:15px; margin-bottom:12px; border:1px solid var(--border-light); }
-          .pending-top { display:flex; gap:10px; align-items:center; margin-bottom:10px; }
-          .pending-name-input { flex:1; padding:8px; border-radius:4px; background:var(--bg-input, #111); color:var(--text-main, white); border:1px solid var(--border-input, #444); font-size:14px; }
-          .pending-qty-input { width: 45px; text-align:center; padding:8px; border-radius:4px; background:var(--bg-input, #111); color:var(--text-main, white); border:1px solid var(--border-input, #444); }
-          .pending-actions { display:flex; gap:8px; margin-top:12px; }
-          
-          .action-btn svg { width: 16px; height: 16px; fill: currentColor; }
-          
-          .light-mode .shop-tab { background:#f5f5f5; color:#000; border-color:#cccccc; }
-          .light-mode .shop-tab.active { background:var(--primary); color:white; border-color:var(--primary); }
-          .light-mode .pending-name-input, .light-mode .pending-qty-input { background:#ffffff; color:#000000; border-color:#cccccc; }
-      </style>
-
       <div class="app-container" id="app">
         <div class="top-bar" style="direction: ltr;">
             <button class="nav-btn" id="btn-ha-menu" title="Toggle Sidebar">
@@ -423,7 +448,7 @@ class HomeOrganizerPanel extends HTMLElement {
               
               <div style="margin-top:20px; font-size:12px; color:#666; border-top:1px solid var(--border-light); padding-top:10px;">
                   Licensed under MIT License.<br>
-                  Version 7.7.5
+                  Version 7.7.9
               </div>
               
               <button class="action-btn" style="width:100%; margin-top:20px;" onclick="this.closest('#about-modal').style.display='none'" id="lbl-close">Close</button>
@@ -512,6 +537,19 @@ class HomeOrganizerPanel extends HTMLElement {
 
     this.bindEvents();
     this.applyStaticTranslations();
+  }
+
+  clearSearchInput() {
+      const searchInput = this.shadowRoot.getElementById('search-input');
+      if (searchInput) {
+          searchInput.value = '';
+      }
+  }
+  
+  // [ADDED v7.7.9 | 2026-03-08] Purpose: Removes ORDER_MARKER tags so they are invisible to the user in the UI.
+  stripMarkerForDisplay(text) {
+      if (!text) return text;
+      return text.replace(/\[?ORDER_MARKER_\d+\]?[_\s]*/g, '').trim();
   }
 
   applyStaticTranslations() {
@@ -646,6 +684,7 @@ class HomeOrganizerPanel extends HTMLElement {
     click('btn-up', () => this.navigate('up'));
     click('btn-home', () => { 
         this.isShopMode = false; this.isSearch = false; this.isChatMode = false; 
+        this.clearSearchInput();
         this.navigate('root'); 
     });
     click('btn-shop', () => { 
@@ -657,7 +696,11 @@ class HomeOrganizerPanel extends HTMLElement {
         this.isSearch = true; this.isShopMode = false; this.isChatMode = false; 
         this.render(); 
     });
-    click('search-close', () => { this.isSearch = false; this.fetchData(); });
+    click('search-close', () => { 
+        this.isSearch = false; 
+        this.clearSearchInput(); 
+        this.fetchData(); 
+    });
     bind('search-input', 'oninput', (e) => this.fetchData());
     click('btn-edit', () => { 
         this.isEditMode = !this.isEditMode; this.isShopMode = false; this.isChatMode = false;
@@ -799,7 +842,12 @@ class HomeOrganizerPanel extends HTMLElement {
 
   renderLocationControl(item, isShopMode) {
       if (!isShopMode) return `<div class="sub-title">${item.date || ''}</div>`;
-      return `<div class="sub-title">${item.location || ''}</div>`;
+      
+      // [MODIFIED v7.7.9] Strip markers from path string
+      let displayLoc = item.location || '';
+      displayLoc = displayLoc.split('>').map(p => this.stripMarkerForDisplay(p)).join(' > ');
+      
+      return `<div class="sub-title">${displayLoc}</div>`;
   }
   
   renderHierarchyControl(item, isPending = false) {
@@ -842,13 +890,15 @@ class HomeOrganizerPanel extends HTMLElement {
     let l3Found = false;
     if (l1 && l2 && hierarchy[l1] && !Array.isArray(hierarchy[l1]) && hierarchy[l1][l2]) {
         hierarchy[l1][l2].sort().forEach(k => {
-            if (k.startsWith('ZONE_MARKER_') || k.startsWith('ORDER_MARKER_')) return;
+            if (k.startsWith('ZONE_MARKER_')) return;
             const isSel = l3 === k;
             if(isSel) l3Found = true;
-            l3Opts += `<option value="${k}" ${isSel ? 'selected' : ''}>${k}</option>`;
+            // [MODIFIED v7.7.9] Clean display name in dropdown
+            const displayK = this.stripMarkerForDisplay(k);
+            l3Opts += `<option value="${k}" ${isSel ? 'selected' : ''}>${displayK}</option>`;
         });
     }
-    if (l3 && !l3Found) l3Opts += `<option value="${l3}" selected>${l3}</option>`;
+    if (l3 && !l3Found) l3Opts += `<option value="${l3}" selected>${this.stripMarkerForDisplay(l3)}</option>`;
 
     const sep = `<span class="hierarchy-sep">&gt;</span>`;
     const btnHtml = isPending ? '' : `<button class="hierarchy-update-btn" title="Apply Move" style="border-radius:50%;width:36px;height:36px;padding:0;display:flex;align-items:center;justify-content:center;min-width:36px" onclick="this.getRootNode().host.saveHierarchy('${item.id}')">${ICONS.check}</button>`;
@@ -1624,6 +1674,9 @@ class HomeOrganizerPanel extends HTMLElement {
             const icon = isExpanded ? ICONS.chevron_down : ICONS.chevron_right;
             const countBadge = `<span style="font-size:12px; background:var(--bg-badge); color:var(--text-badge); padding:2px 6px; border-radius:10px; margin-inline-start:8px;">${count}</span>`;
             
+            // [MODIFIED v7.7.9] Strip markers from the group separator headers
+            const cleanSubName = this.stripMarkerForDisplay(subName);
+
             const header = document.createElement('div');
             header.className = 'group-separator';
             this.setupDropTarget(header, subName);
@@ -1640,7 +1693,7 @@ class HomeOrganizerPanel extends HTMLElement {
                 header.innerHTML = `
                     <div style="display:flex;align-items:center;">
                         <span style="margin-inline-end:5px;display:flex;align-items:center">${icon}</span>
-                        <span class="subloc-title">${subName}</span>
+                        <span class="subloc-title">${cleanSubName}</span>
                         ${countBadge}
                     </div>
                     <div style="display:flex;align-items:center;gap:10px;">
@@ -1657,7 +1710,7 @@ class HomeOrganizerPanel extends HTMLElement {
                 header.innerHTML = `
                     <div style="display:flex;align-items:center;">
                         <span style="margin-inline-end:5px;display:flex;align-items:center">${icon}</span>
-                        <span>${subName}</span>
+                        <span>${cleanSubName}</span>
                         ${countBadge}
                     </div>
                     ${idHtml}
@@ -2618,7 +2671,11 @@ class HomeOrganizerPanel extends HTMLElement {
   async handleDropAction(targetSubloc, itemName) {
       if (!itemName) return;
       let targetPath = [...this.currentPath];
-      if (targetSubloc !== "General") targetPath.push(targetSubloc);
+      
+      // [MODIFIED v7.7.9] Append original un-stripped subloc back to path for accurate DB targeting
+      const realSubName = this.resolveRealName(targetSubloc);
+      if (realSubName !== "General") targetPath.push(realSubName);
+      
       try {
           await this.callHA('clipboard_action', {action: 'cut', item_name: itemName});
           await this.callHA('paste_item', {target_path: targetPath});
