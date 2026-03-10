@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.7.10 (Update: Migrated Catalog ID storage from localStorage to backend DB for cross-device consistency, stripped ORDER_MARKER tags from UI)
+// Home Organizer Ultimate - Ver 7.7.11 (Update: Migrated Catalog ID storage from localStorage to backend DB for cross-device consistency, stripped ORDER_MARKER tags from UI, added escapeJSArg to fix quote escaping in inline HTML)
  
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.10';
 import { ITEM_CATEGORIES } from './organizer-data.js?v=6.6.10';
@@ -7,7 +7,7 @@ class HomeOrganizerPanel extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this.content) {
-      console.log("%c Home Organizer v7.7.10 Fully Loaded ", "background: #e91e63; color: #fff; font-weight: bold;");
+      console.log("%c Home Organizer v7.7.11 Fully Loaded ", "background: #e91e63; color: #fff; font-weight: bold;");
       this.currentPath = [];
       this.catalogPath = []; 
       this.isEditMode = false;
@@ -74,6 +74,12 @@ class HomeOrganizerPanel extends HTMLElement {
         this.fetchData();
         this._hass.connection.subscribeEvents(() => this.fetchAllItems(), 'home_organizer_db_update');
     }
+  }
+
+  // [ADDED v7.7.11 | 2026-03-10] Purpose: Safely escape single and double quotes in strings to prevent breaking inline HTML event handlers.
+  escapeJSArg(str) {
+      if (!str) return '';
+      return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
   }
 
   getSafeIcon(val) {
@@ -449,7 +455,7 @@ class HomeOrganizerPanel extends HTMLElement {
               
               <div style="margin-top:20px; font-size:12px; color:#666; border-top:1px solid var(--border-light); padding-top:10px;">
                   Licensed under MIT License.<br>
-                  Version 7.7.10
+                  Version 7.7.11
               </div>
               
               <button class="action-btn" style="width:100%; margin-top:20px;" onclick="this.closest('#about-modal').style.display='none'" id="lbl-close">Close</button>
@@ -1317,8 +1323,8 @@ class HomeOrganizerPanel extends HTMLElement {
                         </div>
                         <div class="pending-actions" style="justify-content:space-between; align-items:center; margin-top:12px;">
                              <div style="display:flex;gap:10px;">
-                                <button class="action-btn" title="${this.t('take_photo')}" onclick="this.getRootNode().host.triggerCameraEdit('${item.id}', '${item.name}')">${ICONS.camera}</button>
-                                <button class="action-btn" title="${this.t('upload_file')}" onclick="this.getRootNode().host.triggerFileUploadEdit('${item.id}', '${item.name}')">${UPLOAD_SVG}</button>
+                                <button class="action-btn" title="${this.t('take_photo')}" onclick="this.getRootNode().host.triggerCameraEdit('${item.id}', '${this.escapeJSArg(item.name)}')">${ICONS.camera}</button>
+                                <button class="action-btn" title="${this.t('upload_file')}" onclick="this.getRootNode().host.triggerFileUploadEdit('${item.id}', '${this.escapeJSArg(item.name)}')">${UPLOAD_SVG}</button>
                                 <button class="action-btn" title="${this.t('change_img')}" onclick="this.getRootNode().host.openIconPicker('${item.id}', 'item')">${ICONS.image}</button>
                              </div>
                              <div style="display:flex;gap:10px;">
@@ -1435,11 +1441,11 @@ class HomeOrganizerPanel extends HTMLElement {
                         <span class="subloc-title">${translatedZone}</span>
                     </div>
                     <div style="display:flex;gap:5px;align-items:center">
-                        <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveZone('${zoneName}', -1)" title="Move Up">${ICONS.arrow_up}</button>
-                        <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveZone('${zoneName}', 1)" style="transform:rotate(180deg)" title="Move Down">${ICONS.arrow_up}</button>
+                        <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveZone('${this.escapeJSArg(zoneName)}', -1)" title="Move Up">${ICONS.arrow_up}</button>
+                        <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveZone('${this.escapeJSArg(zoneName)}', 1)" style="transform:rotate(180deg)" title="Move Down">${ICONS.arrow_up}</button>
                         <div style="width:1px;height:15px;background:#444;margin:0 5px"></div>
-                        <button class="edit-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableZoneRename(this, '${zoneName}')">${ICONS.edit}</button>
-                        <button class="delete-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteZone('${zoneName}')">${ICONS.delete}</button>
+                        <button class="edit-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableZoneRename(this, '${this.escapeJSArg(zoneName)}')">${ICONS.edit}</button>
+                        <button class="delete-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteZone('${this.escapeJSArg(zoneName)}')">${ICONS.delete}</button>
                     </div>`;
             }
             header.innerHTML = headerContent;
@@ -1477,9 +1483,9 @@ class HomeOrganizerPanel extends HTMLElement {
                     }
                 }
 
-                const deleteBtnHtml = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.originalName}')">✕</div>` : '';
-                const editBtnHtml = this.isEditMode ? `<div class="folder-edit-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'), '${folder.originalName}')">${ICONS.edit}</div>` : '';
-                const imgBtnHtml = this.isEditMode ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${folder.originalName}', 'room')">${ICONS.image}</div>` : '';
+                const deleteBtnHtml = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${this.escapeJSArg(folder.originalName)}')">✕</div>` : '';
+                const editBtnHtml = this.isEditMode ? `<div class="folder-edit-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'), '${this.escapeJSArg(folder.originalName)}')">${ICONS.edit}</div>` : '';
+                const imgBtnHtml = this.isEditMode ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${this.escapeJSArg(folder.originalName)}', 'room')">${ICONS.image}</div>` : '';
 
                 el.innerHTML = `
                     <div class="android-folder-icon">
@@ -1550,10 +1556,10 @@ class HomeOrganizerPanel extends HTMLElement {
                         }
                     }
 
-                    const deleteBtnHtml = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${folder.name}')">✕</div>` : '';
-                    const editBtnHtml = this.isEditMode ? `<div class="folder-edit-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'), '${folder.name}')">${ICONS.edit}</div>` : '';
+                    const deleteBtnHtml = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteFolder('${this.escapeJSArg(folder.name)}')">✕</div>` : '';
+                    const editBtnHtml = this.isEditMode ? `<div class="folder-edit-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'), '${this.escapeJSArg(folder.name)}')">${ICONS.edit}</div>` : '';
                     const context = attrs.depth === 0 ? 'room' : 'location';
-                    const imgBtnHtml = this.isEditMode ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${folder.name}', '${context}')">${ICONS.image}</div>` : '';
+                    const imgBtnHtml = this.isEditMode ? `<div class="folder-img-btn" onclick="event.stopPropagation(); this.getRootNode().host.openIconPicker('${this.escapeJSArg(folder.name)}', '${context}')">${ICONS.image}</div>` : '';
 
                     el.innerHTML = `
                         <div class="android-folder-icon">
@@ -1696,11 +1702,11 @@ class HomeOrganizerPanel extends HTMLElement {
                     <div style="display:flex;align-items:center;gap:10px;">
                         ${idHtml}
                         <div style="display:flex;gap:5px;align-items:center">
-                            <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveSubLoc('${subName}', -1)" title="Move Up">${ICONS.arrow_up}</button>
-                            <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveSubLoc('${subName}', 1)" style="transform:rotate(180deg)" title="Move Down">${ICONS.arrow_up}</button>
+                            <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveSubLoc('${this.escapeJSArg(subName)}', -1)" title="Move Up">${ICONS.arrow_up}</button>
+                            <button class="arrow-btn" onclick="event.stopPropagation(); this.getRootNode().host.moveSubLoc('${this.escapeJSArg(subName)}', 1)" style="transform:rotate(180deg)" title="Move Down">${ICONS.arrow_up}</button>
                             <div style="width:1px;height:15px;background:#444;margin:0 5px"></div>
-                            <button class="edit-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableSublocRename(this, '${subName}')">${ICONS.edit}</button>
-                            <button class="delete-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteSubloc('${subName}')">${ICONS.delete}</button>
+                            <button class="edit-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.enableSublocRename(this, '${this.escapeJSArg(subName)}')">${ICONS.edit}</button>
+                            <button class="delete-subloc-btn" onclick="event.stopPropagation(); this.getRootNode().host.deleteSubloc('${this.escapeJSArg(subName)}')">${ICONS.delete}</button>
                         </div>
                     </div>`;
             } else {
@@ -1768,7 +1774,7 @@ class HomeOrganizerPanel extends HTMLElement {
                 if (this.isEditMode) {
                       const addRow = document.createElement('div');
                       addRow.className = "group-add-row";
-                      addRow.innerHTML = `<button class="text-add-btn" onclick="this.getRootNode().host.addQuickItem('${subName}')">${ICONS.plus} ${this.t('add')}</button>`;
+                      addRow.innerHTML = `<button class="text-add-btn" onclick="this.getRootNode().host.addQuickItem('${this.escapeJSArg(subName)}')">${ICONS.plus} ${this.t('add')}</button>`;
                       listContainer.appendChild(addRow);
                 }
             }
@@ -2831,7 +2837,7 @@ class HomeOrganizerPanel extends HTMLElement {
                         autocomplete="off"
                         oninput="this.getRootNode().host.handleNameInput(this, '${item.id}')"
                         onblur="setTimeout(() => { if(this.parentElement.querySelector('.suggestions-box')) this.parentElement.querySelector('.suggestions-box').remove() }, 200)"
-                        onkeydown="if(event.key==='Enter') { this.blur(); this.getRootNode().host.autoSaveItem('${item.id}', 'name', '${item.name}') }">
+                        onkeydown="if(event.key==='Enter') { this.blur(); this.getRootNode().host.autoSaveItem('${item.id}', 'name', '${this.escapeJSArg(item.name)}') }">
                 </div>
 
                 <div style="position:relative; width:120px; height:36px; margin-inline-start:5px;">
@@ -2841,20 +2847,20 @@ class HomeOrganizerPanel extends HTMLElement {
                     </button>
                     <input type="date" id="date-${item.id}" value="${item.date}" 
                         style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;"
-                        onchange="this.previousElementSibling.innerText = this.value || '${this.t('set_date')}'; this.getRootNode().host.autoSaveItem('${item.id}', 'date', '${item.name}')">
+                        onchange="this.previousElementSibling.innerText = this.value || '${this.t('set_date')}'; this.getRootNode().host.autoSaveItem('${item.id}', 'date', '${this.escapeJSArg(item.name)}')">
                 </div>
             </div>
             
             <div class="detail-row" style="margin-top:10px; gap:5px; align-items:center;">
-                <select class="move-select" id="cat-main-${item.id}" onchange="this.getRootNode().host.updateItemCategory('${item.id}', this.value, 'main', '${item.name}')">
+                <select class="move-select" id="cat-main-${item.id}" onchange="this.getRootNode().host.updateItemCategory('${item.id}', this.value, 'main', '${this.escapeJSArg(item.name)}')">
                     ${mainCatOptions}
                 </select>
-                <select class="move-select" id="cat-sub-${item.id}" onchange="this.getRootNode().host.updateItemCategory('${item.id}', this.value, 'sub', '${item.name}')">
+                <select class="move-select" id="cat-sub-${item.id}" onchange="this.getRootNode().host.updateItemCategory('${item.id}', this.value, 'sub', '${this.escapeJSArg(item.name)}')">
                     ${subCatOptions}
                 </select>
                 <input type="text" id="unit-val-${item.id}" value="${item.unit_value || ''}" placeholder="Val" 
                     style="width:60px;padding:8px;background:var(--bg-input-edit);color:var(--text-main);border:1px solid var(--border-light);border-radius:4px;text-align:center"
-                    onchange="this.getRootNode().host.updateItemCategory('${item.id}', null, 'val', '${item.name}')">
+                    onchange="this.getRootNode().host.updateItemCategory('${item.id}', null, 'val', '${this.escapeJSArg(item.name)}')">
                 <div id="unit-disp-${item.id}" style="background:var(--bg-badge);color:var(--text-badge);padding:4px 8px;border-radius:4px;font-size:11px;min-width:30px;text-align:center;">
                     ${this.t('unit_' + currentUnit) || currentUnit || '-'}
                 </div>
@@ -2862,8 +2868,8 @@ class HomeOrganizerPanel extends HTMLElement {
 
             <div class="detail-row" style="justify-content:space-between; margin-top:10px;">
                  <div style="display:flex;gap:10px;">
-                    <button class="action-btn" title="${this.t('take_photo')}" onclick="this.getRootNode().host.triggerCameraEdit('${item.id}', '${item.name}')">${ICONS.camera}</button>
-                    <button class="action-btn" title="${this.t('upload_file')}" onclick="this.getRootNode().host.triggerFileUploadEdit('${item.id}', '${item.name}')">${UPLOAD_SVG}</button>
+                    <button class="action-btn" title="${this.t('take_photo')}" onclick="this.getRootNode().host.triggerCameraEdit('${item.id}', '${this.escapeJSArg(item.name)}')">${ICONS.camera}</button>
+                    <button class="action-btn" title="${this.t('upload_file')}" onclick="this.getRootNode().host.triggerFileUploadEdit('${item.id}', '${this.escapeJSArg(item.name)}')">${UPLOAD_SVG}</button>
                     <button class="action-btn" title="${this.t('change_img')}" onclick="this.getRootNode().host.openIconPicker('${item.id}', 'item')">${ICONS.image}</button>
                  </div>
                  <div style="display:flex;gap:10px;">

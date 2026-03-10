@@ -131,11 +131,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     sidebar_translations = {
         "he": "ארגונית",
-        "it": "Organizzatore",
-        "es": "Organizador",
-        "fr": "Organisateur",
+        "it": "HO-AI",
+        "es": "HO-AI",
+        "fr": "HO-AI",
         "ar": "المنظم",
-        "en": "Home Organizer"
+        "en": "HO-AI"
     }
 
     sidebar_label = sidebar_translations.get(hass.config.language, "Home Organizer")
