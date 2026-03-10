@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.9.16 (Update: Upgraded to gemini-3.1-flash-lite-preview, Migrated Catalog ID generation and storage from Frontend local storage to Backend SQLite database for cross-device consistency)
+# Home Organizer Ultimate - ver 7.9.18 (Update: Resolved critical AI timeout bug by implementing proper DB connection closures, optimizing bulk queries to prevent SQLite locks, and reducing redundant executor jobs)
 
 import logging
 import sqlite3
@@ -225,54 +225,54 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
         except Exception as e:
             _LOGGER.error(f"Error deleting Home Organizer data: {e}")
 
+# [MODIFIED v7.9.18] Added timeout to sqlite3.connect to gracefully handle locks rather than freezing.
 def get_db_connection(hass):
     db_path = hass.data.get(DOMAIN, {}).get("config", {}).get("db_path", hass.config.path(DB_FILE))
-    return sqlite3.connect(db_path)
+    return sqlite3.connect(db_path, timeout=10.0)
 
 def init_db(hass):
     img_path = hass.data.get(DOMAIN, {}).get("config", {}).get("img_path", hass.config.path("www", IMG_DIR))
     if not os.path.exists(img_path): os.makedirs(img_path)
     
-    conn = get_db_connection(hass)
-    c = conn.cursor()
-    c.execute("CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)")
-    
-    # [ADDED v7.9.16] Table for persistent Catalog IDs
-    c.execute("CREATE TABLE IF NOT EXISTS persistent_ids (scope TEXT, item_name TEXT, seq_id INTEGER, PRIMARY KEY (scope, item_name))")
-
-    c.execute("PRAGMA table_info(items)")
-    existing_cols = [col[1] for col in c.fetchall()]
-    
-    needed_cols = {
-        'type': "TEXT DEFAULT 'item'",
-        'quantity': "INTEGER DEFAULT 1",
-        'item_date': "TEXT",
-        'image_path': "TEXT",
-        'category': "TEXT",
-        'sub_category': "TEXT",
-        'unit': "TEXT",
-        'unit_value': "TEXT",
-        'created_at': "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
-    }
-    
-    for i in range(1, 11): 
-        needed_cols[f"level_{i}"] = "TEXT"
-
-    for col, dtype in needed_cols.items():
-        if col not in existing_cols:
-            try: c.execute(f"ALTER TABLE items ADD COLUMN {col} {dtype}")
-            except: pass
-
+    conn = None
     try:
-        c.execute("CREATE INDEX IF NOT EXISTS idx_items_name ON items(name)")
-        c.execute("CREATE INDEX IF NOT EXISTS idx_items_category ON items(category)")
-        c.execute("CREATE INDEX IF NOT EXISTS idx_items_level1 ON items(level_1)")
-        c.execute("CREATE INDEX IF NOT EXISTS idx_items_level2 ON items(level_2)")
-        c.execute("CREATE INDEX IF NOT EXISTS idx_items_level3 ON items(level_3)")
-        c.execute("CREATE INDEX IF NOT EXISTS idx_items_type ON items(type)")
-    except Exception: pass
+        conn = get_db_connection(hass)
+        c = conn.cursor()
+        c.execute("CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)")
+        c.execute("CREATE TABLE IF NOT EXISTS persistent_ids (scope TEXT, item_name TEXT, seq_id INTEGER, PRIMARY KEY (scope, item_name))")
 
-    try:
+        c.execute("PRAGMA table_info(items)")
+        existing_cols = [col[1] for col in c.fetchall()]
+        
+        needed_cols = {
+            'type': "TEXT DEFAULT 'item'",
+            'quantity': "INTEGER DEFAULT 1",
+            'item_date': "TEXT",
+            'image_path': "TEXT",
+            'category': "TEXT",
+            'sub_category': "TEXT",
+            'unit': "TEXT",
+            'unit_value': "TEXT",
+            'created_at': "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        }
+        
+        for i in range(1, 11): 
+            needed_cols[f"level_{i}"] = "TEXT"
+
+        for col, dtype in needed_cols.items():
+            if col not in existing_cols:
+                try: c.execute(f"ALTER TABLE items ADD COLUMN {col} {dtype}")
+                except: pass
+
+        try:
+            c.execute("CREATE INDEX IF NOT EXISTS idx_items_name ON items(name)")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_items_category ON items(category)")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_items_level1 ON items(level_1)")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_items_level2 ON items(level_2)")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_items_level3 ON items(level_3)")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_items_type ON items(type)")
+        except Exception: pass
+
         c.execute("SELECT id, name, level_1, level_2, level_3, level_4, level_5, level_6, level_7, level_8, level_9, level_10 FROM items")
         all_items = c.fetchall()
         for row in all_items:
@@ -352,56 +352,64 @@ def init_db(hass):
                         upd_vals.append(n_lvl)
                     upd_vals.append(r_id)
                     c.execute(f"UPDATE items SET {', '.join(upd_cols)} WHERE id = ?", tuple(upd_vals))
-    except Exception as e:
-        _LOGGER.error(f"DB Cleanup Error: {e}")
-
-    conn.commit(); conn.close()
-
-# [ADDED v7.9.16] Scans DB and generates static sequential Catalog IDs to ensure web and mobile are perfectly matched
-def get_or_create_catalog_ids(hass):
-    conn = get_db_connection(hass)
-    c = conn.cursor()
-    c.execute("CREATE TABLE IF NOT EXISTS persistent_ids (scope TEXT, item_name TEXT, seq_id INTEGER, PRIMARY KEY (scope, item_name))")
-    
-    c.execute("SELECT scope, item_name, seq_id FROM persistent_ids")
-    existing = {}
-    for r in c.fetchall():
-        sc, nm, seq = r
-        if sc not in existing: existing[sc] = {}
-        existing[sc][nm] = seq
         
-    changed = False
-    
-    def allocate(scope, name):
-        nonlocal changed
-        if not name: return
-        if scope not in existing: existing[scope] = {}
-        if name not in existing[scope]:
-            max_id = max(existing[scope].values()) if existing[scope] else 0
-            new_id = max_id + 1
-            existing[scope][name] = new_id
-            c.execute("INSERT INTO persistent_ids (scope, item_name, seq_id) VALUES (?, ?, ?)", (scope, name, new_id))
-            changed = True
-
-    c.execute("SELECT DISTINCT level_1, level_2, level_3 FROM items WHERE level_1 IS NOT NULL AND level_1 != ''")
-    rows = c.fetchall()
-    for r in rows:
-        l1, l2, l3 = r[0], r[1], r[2]
-        if l1:
-            allocate('root', l1)
-            if l2:
-                allocate(l1, l2)
-                if l3:
-                    allocate(f"{l1}_{l2}", l3)
-                    
-    if changed:
         conn.commit()
-    conn.close()
-    return existing
+    except Exception as e:
+        _LOGGER.error(f"DB Init Cleanup Error: {e}")
+    finally:
+        if conn: conn.close()
+
+# [MODIFIED v7.9.18] Fully optimized logic with proper try/finally blocks to prevent SQLite deadlock and massive speed up via executemany.
+def get_or_create_catalog_ids(hass):
+    conn = None
+    try:
+        conn = get_db_connection(hass)
+        c = conn.cursor()
+        c.execute("CREATE TABLE IF NOT EXISTS persistent_ids (scope TEXT, item_name TEXT, seq_id INTEGER, PRIMARY KEY (scope, item_name))")
+        
+        c.execute("SELECT scope, item_name, seq_id FROM persistent_ids")
+        existing = {}
+        for r in c.fetchall():
+            sc, nm, seq = r
+            if sc not in existing: existing[sc] = {}
+            existing[sc][nm] = seq
+            
+        new_inserts = []
+        
+        def allocate(scope, name):
+            if not name: return
+            if scope not in existing: existing[scope] = {}
+            if name not in existing[scope]:
+                max_id = max(existing[scope].values()) if existing[scope] else 0
+                new_id = max_id + 1
+                existing[scope][name] = new_id
+                new_inserts.append((scope, name, new_id))
+
+        c.execute("SELECT DISTINCT level_1, level_2, level_3 FROM items WHERE level_1 IS NOT NULL AND level_1 != ''")
+        rows = c.fetchall()
+        for r in rows:
+            l1, l2, l3 = r[0], r[1], r[2]
+            if l1:
+                allocate('root', l1)
+                if l2:
+                    allocate(l1, l2)
+                    if l3:
+                        allocate(f"{l1}_{l2}", l3)
+                        
+        if new_inserts:
+            c.executemany("INSERT INTO persistent_ids (scope, item_name, seq_id) VALUES (?, ?, ?)", new_inserts)
+            conn.commit()
+        return existing
+    except Exception as e:
+        _LOGGER.error(f"Catalog ID Error: {e}")
+        return {}
+    finally:
+        if conn: conn.close()
 
 def normalize_zone_path(hass, path_list):
     if not path_list or len(path_list) < 2:
         return path_list
+    conn = None
     try:
         path_list = list(path_list)
         z_name = path_list[0]
@@ -412,16 +420,19 @@ def normalize_zone_path(hass, path_list):
         c = conn.cursor()
         c.execute("SELECT 1 FROM items WHERE (type='folder_marker' AND name LIKE ?) OR (level_1 LIKE ?)", (f"%_{z_name}", f"[{z_name}]%"))
         is_zone = c.fetchone()
-        conn.close()
         if is_zone:
             return [f"[{z_name}] {r_name}"] + path_list[2:]
     except Exception as e:
         _LOGGER.error(f"Zone normalization error: {e}")
+    finally:
+        if conn: conn.close()
     return path_list
 
+# [MODIFIED v7.9.18] Fixed missing conn.close() in exception case, which was the main cause of the DB lock/timeout.
 def repair_path_against_db(hass, path_list):
     if not path_list: return path_list
     fixed = []
+    conn = None
     try:
         conn = get_db_connection(hass)
         c = conn.cursor()
@@ -455,19 +466,21 @@ def repair_path_against_db(hass, path_list):
                 else:
                     fixed.append(str(p))
                     
-        conn.close()
         return fixed
     except Exception as e:
         _LOGGER.error(f"repair_path error: {e}")
         return [re.sub(r'^\[?(ORDER_MARKER_\d+)\]?[_\s]+(.*)', r'[\1] \2', str(x)) for x in path_list]
+    finally:
+        if conn: conn.close()
 
 def add_item_db_safe(hass, name, qty, path_list, category="", sub_category="", item_type="item", icon_key=None):
     path_list = normalize_zone_path(hass, path_list)
     path_list = repair_path_against_db(hass, path_list)
     
-    conn = get_db_connection(hass)
-    c = conn.cursor()
+    conn = None
     try:
+        conn = get_db_connection(hass)
+        c = conn.cursor()
         today = datetime.now().strftime("%Y-%m-%d")
         cols = ["name", "type", "quantity", "item_date", "category", "sub_category"]
         vals = [name, item_type, qty, today, category, sub_category]
@@ -492,7 +505,7 @@ def add_item_db_safe(hass, name, qty, path_list, category="", sub_category="", i
         _LOGGER.error(f"DB Add Error: {e}")
         return False
     finally:
-        conn.close()
+        if conn: conn.close()
 
 @callback
 def websocket_get_data(hass, connection, msg):
@@ -505,11 +518,12 @@ def websocket_get_data(hass, connection, msg):
 
 @callback
 def websocket_get_all_items(hass, connection, msg):
-    conn = get_db_connection(hass)
-    c = conn.cursor()
-    url_prefix = hass.data.get(DOMAIN, {}).get("config", {}).get("url_prefix", f"/local/{IMG_DIR}")
-
+    conn = None
     try:
+        conn = get_db_connection(hass)
+        c = conn.cursor()
+        url_prefix = hass.data.get(DOMAIN, {}).get("config", {}).get("url_prefix", f"/local/{IMG_DIR}")
+
         c.execute("SELECT * FROM items WHERE type='item'")
         col_names = [description[0] for description in c.description]
         results = []
@@ -544,12 +558,15 @@ def websocket_get_all_items(hass, connection, msg):
                 "unit_value": r_dict.get('unit_value', '')
             })
         connection.send_result(msg["id"], results)
+    except Exception as e:
+        _LOGGER.error(f"websocket_get_all_items error: {e}")
     finally:
-        conn.close()
+        if conn: conn.close()
 
+# [MODIFIED v7.9.18] Reduced retries and delays to fail gracefully before HA core connection completely drops out.
 async def async_gemini_api_call(session, url, payload, timeout_sec):
-    max_retries = 3
-    delays = [1, 2, 4]
+    max_retries = 2
+    delays = [1, 2]
     for attempt in range(max_retries + 1):
         try:
             async with session.post(url, json=payload, timeout=ClientTimeout(total=timeout_sec)) as resp:
@@ -606,15 +623,23 @@ async def websocket_ai_chat(hass, connection, msg):
         
         def fetch_context():
             nonlocal existing_locs_str, existing_cats_str
+            conn = None
             try:
-                c_conn = get_db_connection(hass)
-                cc = c_conn.cursor()
-                cc.execute("SELECT DISTINCT level_1, level_2, level_3 FROM items WHERE type='item' OR type='folder'")
+                conn = get_db_connection(hass)
+                cc = conn.cursor()
+                cc.execute("SELECT DISTINCT level_1, level_2, level_3 FROM items WHERE type != 'pending'")
                 loc_hierarchy = set()
+                
+                def local_quick_regex(s):
+                    if not s: return s
+                    m = re.match(r'^\[?(ORDER_MARKER_\d+)\]?[_\s]+(.*)', str(s))
+                    if m: return f"[{m.group(1)}] {m.group(2)}"
+                    return str(s)
+
                 for r in cc.fetchall():
-                    l1 = repair_path_against_db(hass, [r[0]])[0] if r[0] else None
-                    l2 = repair_path_against_db(hass, [r[1]])[0] if r[1] else None
-                    l3 = repair_path_against_db(hass, [r[2]])[0] if r[2] else None
+                    l1 = local_quick_regex(r[0]) if r[0] else None
+                    l2 = local_quick_regex(r[1]) if r[1] else None
+                    l3 = local_quick_regex(r[2]) if r[2] else None
                     if l1:
                         path_elements = [f'"{l1}"']
                         if l2: path_elements.append(f'"{l2}"')
@@ -626,8 +651,10 @@ async def websocket_ai_chat(hass, connection, msg):
                 cc.execute("SELECT DISTINCT category FROM items WHERE category IS NOT NULL AND category != ''")
                 cats = [r[0] for r in cc.fetchall()]
                 existing_cats_str = ", ".join(sorted(cats))
-                c_conn.close()
-            except: pass
+            except Exception as ex:
+                _LOGGER.error(f"Context fetch error: {ex}")
+            finally:
+                if conn: conn.close()
             
         await hass.async_add_executor_job(fetch_context)
 
@@ -671,7 +698,7 @@ async def websocket_ai_chat(hass, connection, msg):
                 }]
             }
 
-            res, err = await async_gemini_api_call(session, gen_url, payload, 120)
+            res, err = await async_gemini_api_call(session, gen_url, payload, 45)
             if err:
                 connection.send_result(msg["id"], {"error": f"AI Error: {err}"})
                 return
@@ -697,16 +724,13 @@ async def websocket_ai_chat(hass, connection, msg):
 
                 if parsed.get("intent") == "add_invoice" and "items" in parsed:
                     for item in parsed["items"]:
-                        
                         raw_path = item.get("path", ["General"])
-                        clean_path = await hass.async_add_executor_job(repair_path_against_db, hass, raw_path)
-
                         await hass.async_add_executor_job(
                             add_item_db_safe, 
                             hass, 
                             item.get("name", "Unknown"), 
                             int(item.get("qty", 1)), 
-                            clean_path, 
+                            raw_path, 
                             item.get("category", ""), 
                             item.get("sub_category", ""),
                             "pending", 
@@ -719,7 +743,9 @@ async def websocket_ai_chat(hass, connection, msg):
                     ai_message = parsed.get("message", f"✅ I have scanned the document and added {added_count} items to the Review tab.")
                     response_text = f"{ai_message}\n\n"
                     for i in parsed["items"]:
-                        p_repaired = await hass.async_add_executor_job(repair_path_against_db, hass, i.get("path", []))
+                        def ui_clean(p_list):
+                            return [re.sub(r'^\[?(ORDER_MARKER_\d+)\]?[_\s]+(.*)', r'[\1] \2', str(x)) for x in p_list]
+                        p_repaired = ui_clean(i.get("path", []))
                         path_str = " > ".join(p_repaired)
                         response_text += f"- **{i.get('name')}** (x{i.get('qty')}) -> _{path_str}_\n"
 
@@ -761,7 +787,7 @@ async def websocket_ai_chat(hass, connection, msg):
         analysis_json = {}
         raw_analysis = ""
 
-        res, err = await async_gemini_api_call(session, gen_url, payload_1, 15)
+        res, err = await async_gemini_api_call(session, gen_url, payload_1, 20)
         if not err and res:
             if "candidates" not in res or not res["candidates"]:
                 connection.send_result(msg["id"], {"error": f"AI Response Format Error (Content may be blocked): {res}"})
@@ -785,14 +811,15 @@ async def websocket_ai_chat(hass, connection, msg):
                 nm = item.get("name")
                 qt = item.get("qty", 1)
                 pt = item.get("path", ["General"])
-                
-                pt_clean = await hass.async_add_executor_job(repair_path_against_db, hass, pt)
-
                 cat = item.get("category", "")
                 sub_cat = item.get("sub_category", "")
                 icon_key = item.get("icon_key", None)
                 
-                await hass.async_add_executor_job(add_item_db_safe, hass, nm, qt, pt_clean, cat, sub_cat, "pending", icon_key)
+                await hass.async_add_executor_job(add_item_db_safe, hass, nm, qt, pt, cat, sub_cat, "pending", icon_key)
+                
+                def ui_clean(p_list):
+                    return [re.sub(r'^\[?(ORDER_MARKER_\d+)\]?[_\s]+(.*)', r'[\1] \2', str(x)) for x in p_list]
+                pt_clean = ui_clean(pt)
                 added_log.append(f"{nm} (x{qt}) to {' > '.join(pt_clean)}")
             
             hass.bus.async_fire("home_organizer_db_update")
@@ -819,6 +846,7 @@ async def websocket_ai_chat(hass, connection, msg):
         
         def get_inventory():
             nonlocal final_sql, final_params
+            conn = None
             try:
                 conn = get_db_connection(hass)
                 conn.row_factory = sqlite3.Row 
@@ -863,10 +891,11 @@ async def websocket_ai_chat(hass, connection, msg):
                 
                 c.execute(sql, tuple(params))
                 rows = [dict(row) for row in c.fetchall()]
-                conn.close()
                 return rows
             except Exception as e:
                 return [{"_error": str(e)}]
+            finally:
+                if conn: conn.close()
 
         rows = await hass.async_add_executor_job(get_inventory)
         
@@ -887,16 +916,19 @@ async def websocket_ai_chat(hass, connection, msg):
             
         if not rows:
             def get_all_inventory_fallback():
+                conn = None
                 try:
                     conn = get_db_connection(hass)
                     conn.row_factory = sqlite3.Row 
                     c = conn.cursor()
                     c.execute("SELECT * FROM items WHERE type='item' AND quantity > 0")
                     f_rows = [dict(row) for row in c.fetchall()]
-                    conn.close()
                     return f_rows
                 except Exception as e:
                     return [{"_error": str(e)}]
+                finally:
+                    if conn: conn.close()
+
             rows = await hass.async_add_executor_job(get_all_inventory_fallback)
             final_sql += " -- (Fallback 4 applied: forced fetch of ALL available items)"
 
@@ -925,7 +957,7 @@ async def websocket_ai_chat(hass, connection, msg):
 
         payload_3 = {"contents": [{"parts": [{"text": step3_prompt}]}]}
 
-        res, err = await async_gemini_api_call(session, gen_url, payload_3, 60)
+        res, err = await async_gemini_api_call(session, gen_url, payload_3, 40)
         if not err and res:
             if "candidates" not in res or not res["candidates"]:
                 connection.send_result(msg["id"], {"error": f"AI Response Format Error (Content may be blocked): {res}"})
@@ -947,7 +979,7 @@ async def websocket_ai_chat(hass, connection, msg):
 
     except asyncio.TimeoutError:
         _LOGGER.error("AI Chat Timeout Processing Document", exc_info=True)
-        connection.send_result(msg["id"], {"error": "Timeout Error: File is too large or AI processing took too long (over 120s)."})
+        connection.send_result(msg["id"], {"error": "Timeout Error: File is too large or AI processing took too long."})
     except Exception as e:
         _LOGGER.error(f"AI Chat general error: {e}", exc_info=True)
         connection.send_result(msg["id"], {"error": f"General Error: {str(e)}"})
@@ -964,23 +996,23 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
 
     url_prefix = hass.data.get(DOMAIN, {}).get("config", {}).get("url_prefix", f"/local/{IMG_DIR}")
 
-    conn = get_db_connection(hass); c = conn.cursor()
-    folders = []; items = []; shopping_list = []; pending_list = []
-    
-    hierarchy = {}
+    conn = None
     try:
-        c.execute("SELECT DISTINCT level_1, level_2, level_3 FROM items WHERE level_1 IS NOT NULL AND level_1 != ''")
-        for r in c.fetchall():
-            l1, l2, l3 = r[0], r[1], r[2]
-            if l1 not in hierarchy: hierarchy[l1] = {}
-            if l2:
-                if l2 not in hierarchy[l1]: hierarchy[l1][l2] = []
-                if l3 and l3 not in hierarchy[l1][l2]: hierarchy[l1][l2].append(l3)
-    except: pass
+        conn = get_db_connection(hass); c = conn.cursor()
+        folders = []; items = []; shopping_list = []; pending_list = []
+        
+        hierarchy = {}
+        try:
+            c.execute("SELECT DISTINCT level_1, level_2, level_3 FROM items WHERE level_1 IS NOT NULL AND level_1 != ''")
+            for r in c.fetchall():
+                l1, l2, l3 = r[0], r[1], r[2]
+                if l1 not in hierarchy: hierarchy[l1] = {}
+                if l2:
+                    if l2 not in hierarchy[l1]: hierarchy[l1][l2] = []
+                    if l3 and l3 not in hierarchy[l1][l2]: hierarchy[l1][l2].append(l3)
+        except: pass
 
-    try:
         if is_shopping:
-            # 1) Standard Shopping List
             c.execute("SELECT * FROM items WHERE quantity = 0 AND type='item' ORDER BY level_2 ASC, level_3 ASC")
             col_names = [description[0] for description in c.description]
             for r in c.fetchall():
@@ -1006,7 +1038,6 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                     "sub_category": r_dict.get("sub_category", "")
                 })
 
-            # 2) Pending Items List
             c.execute("SELECT * FROM items WHERE type='pending' ORDER BY created_at DESC")
             for r in c.fetchall():
                 r_dict = dict(zip(col_names, r))
@@ -1147,10 +1178,11 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                 
                 for s in sublocations: folders.append({"name": s})
                 items = fetched_items
+    except Exception as e:
+        _LOGGER.error(f"get_view_data error: {e}")
+    finally:
+        if conn: conn.close()
 
-    finally: conn.close()
-
-    # Pass the pre-computed static DB catalog map to frontend
     catalog_map = get_or_create_catalog_ids(hass)
 
     return {
@@ -1199,9 +1231,13 @@ async def register_services(hass, entry):
             cols.append(f"level_{depth+1}"); vals.append(name); qs.append("?")
             
             def db_ins():
-                conn = get_db_connection(hass); c = conn.cursor()
-                c.execute(f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})", tuple(vals))
-                conn.commit(); conn.close()
+                conn = None
+                try:
+                    conn = get_db_connection(hass); c = conn.cursor()
+                    c.execute(f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})", tuple(vals))
+                    conn.commit()
+                finally:
+                    if conn: conn.close()
             await hass.async_add_executor_job(db_ins)
         else:
             vals = [name, itype, 1, date, fname]
@@ -1209,9 +1245,13 @@ async def register_services(hass, entry):
             for i, p in enumerate(parts): cols.append(f"level_{i+1}"); vals.append(p); qs.append("?")
 
             def db_ins():
-                conn = get_db_connection(hass); c = conn.cursor()
-                c.execute(f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})", tuple(vals))
-                conn.commit(); conn.close()
+                conn = None
+                try:
+                    conn = get_db_connection(hass); c = conn.cursor()
+                    c.execute(f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})", tuple(vals))
+                    conn.commit()
+                finally:
+                    if conn: conn.close()
             await hass.async_add_executor_job(db_ins)
 
         broadcast_update()
@@ -1220,12 +1260,16 @@ async def register_services(hass, entry):
         item_id = call.data.get("item_id")
         if not item_id: return
         def db_dup():
-            conn = get_db_connection(hass); c = conn.cursor()
-            c.execute("PRAGMA table_info(items)")
-            columns = [col[1] for col in c.fetchall() if col[1] not in ('id', 'created_at')]
-            col_str = ", ".join(columns)
-            c.execute(f"INSERT INTO items ({col_str}) SELECT {col_str} FROM items WHERE id = ?", (item_id,))
-            conn.commit(); conn.close()
+            conn = None
+            try:
+                conn = get_db_connection(hass); c = conn.cursor()
+                c.execute("PRAGMA table_info(items)")
+                columns = [col[1] for col in c.fetchall() if col[1] not in ('id', 'created_at')]
+                col_str = ", ".join(columns)
+                c.execute(f"INSERT INTO items ({col_str}) SELECT {col_str} FROM items WHERE id = ?", (item_id,))
+                conn.commit()
+            finally:
+                if conn: conn.close()
         await hass.async_add_executor_job(db_dup)
         broadcast_update()
 
@@ -1234,10 +1278,14 @@ async def register_services(hass, entry):
         change = int(call.data.get("change"))
         today = datetime.now().strftime("%Y-%m-%d")
         def db_q():
-            conn = get_db_connection(hass); c = conn.cursor()
-            if item_id:
-                c.execute(f"UPDATE items SET quantity = MAX(0, quantity + ?), item_date = ? WHERE id = ?", (change, today, item_id))
-            conn.commit(); conn.close()
+            conn = None
+            try:
+                conn = get_db_connection(hass); c = conn.cursor()
+                if item_id:
+                    c.execute(f"UPDATE items SET quantity = MAX(0, quantity + ?), item_date = ? WHERE id = ?", (change, today, item_id))
+                conn.commit()
+            finally:
+                if conn: conn.close()
         await hass.async_add_executor_job(db_q); broadcast_update()
 
     async def handle_update_stock(call):
@@ -1245,10 +1293,14 @@ async def register_services(hass, entry):
         qty = int(call.data.get("quantity"))
         today = datetime.now().strftime("%Y-%m-%d")
         def db_upd():
-            conn = get_db_connection(hass); c = conn.cursor()
-            if item_id:
-                c.execute(f"UPDATE items SET quantity = ?, item_date = ? WHERE id = ?", (qty, today, item_id))
-            conn.commit(); conn.close()
+            conn = None
+            try:
+                conn = get_db_connection(hass); c = conn.cursor()
+                if item_id:
+                    c.execute(f"UPDATE items SET quantity = ?, item_date = ? WHERE id = ?", (qty, today, item_id))
+                conn.commit()
+            finally:
+                if conn: conn.close()
         await hass.async_add_executor_job(db_upd); broadcast_update()
 
     async def handle_delete(call):
@@ -1259,22 +1311,26 @@ async def register_services(hass, entry):
         is_folder = call.data.get("is_folder", False)
 
         def db_del(): 
-            conn = get_db_connection(hass); c = conn.cursor()
-            if is_folder:
-                depth = len(parts)
-                target_col = f"level_{depth+1}"
-                conditions = [f"{target_col} = ?"]
-                args = [name]
-                for i, p in enumerate(parts):
-                    conditions.append(f"level_{i+1} = ?")
-                    args.append(p)
-                c.execute(f"DELETE FROM items WHERE {' AND '.join(conditions)}", tuple(args))
-            else:
-                if item_id:
-                    c.execute(f"DELETE FROM items WHERE id = ?", (item_id,))
+            conn = None
+            try:
+                conn = get_db_connection(hass); c = conn.cursor()
+                if is_folder:
+                    depth = len(parts)
+                    target_col = f"level_{depth+1}"
+                    conditions = [f"{target_col} = ?"]
+                    args = [name]
+                    for i, p in enumerate(parts):
+                        conditions.append(f"level_{i+1} = ?")
+                        args.append(p)
+                    c.execute(f"DELETE FROM items WHERE {' AND '.join(conditions)}", tuple(args))
                 else:
-                    c.execute(f"DELETE FROM items WHERE name = ?", (name,))
-            conn.commit(); conn.close()
+                    if item_id:
+                        c.execute(f"DELETE FROM items WHERE id = ?", (item_id,))
+                    else:
+                        c.execute(f"DELETE FROM items WHERE name = ?", (name,))
+                conn.commit()
+            finally:
+                if conn: conn.close()
         await hass.async_add_executor_job(db_del); broadcast_update()
 
     async def handle_paste(call):
@@ -1288,16 +1344,20 @@ async def register_services(hass, entry):
         item_name = clipboard.get("name") if isinstance(clipboard, dict) else clipboard
 
         def db_mv():
-            conn = get_db_connection(hass); c = conn.cursor()
-            upd = [f"level_{i} = ?" for i in range(1, 11)]
-            vals = [target_path[i-1] if i <= len(target_path) else None for i in range(1, 11)]
-            
-            if item_id:
-                c.execute(f"UPDATE items SET {','.join(upd)} WHERE id = ?", (*vals, item_id))
-            else:
-                c.execute(f"UPDATE items SET {','.join(upd)} WHERE name = ?", (*vals, item_name))
+            conn = None
+            try:
+                conn = get_db_connection(hass); c = conn.cursor()
+                upd = [f"level_{i} = ?" for i in range(1, 11)]
+                vals = [target_path[i-1] if i <= len(target_path) else None for i in range(1, 11)]
                 
-            conn.commit(); conn.close()
+                if item_id:
+                    c.execute(f"UPDATE items SET {','.join(upd)} WHERE id = ?", (*vals, item_id))
+                else:
+                    c.execute(f"UPDATE items SET {','.join(upd)} WHERE name = ?", (*vals, item_name))
+                    
+                conn.commit()
+            finally:
+                if conn: conn.close()
         await hass.async_add_executor_job(db_mv)
         hass.data[DOMAIN]["clipboard"] = None
         broadcast_update()
@@ -1334,82 +1394,84 @@ async def register_services(hass, entry):
             repaired_path = await hass.async_add_executor_job(repair_path_against_db, hass, repaired_path)
 
         def db_update_sync():
-            conn = get_db_connection(hass)
-            c = conn.cursor()
-            
-            if is_folder:
-                depth = len(parts)
-                if depth < 10:
-                    target_col = f"level_{depth+1}"
-                    where_clause = f"{target_col} = ?"
-                    where_args = [orig]
-                    for i, p in enumerate(parts):
-                        where_clause += f" AND level_{i+1} = ?"
-                        where_args.append(p)
-                    
-                    c.execute(f"UPDATE items SET {target_col} = ? WHERE {where_clause}", [nn] + where_args)
-                    
-                    marker_where = f"{target_col} = ?"
-                    marker_args = [nn] 
-                    for i, p in enumerate(parts):
-                        marker_where += f" AND level_{i+1} = ?"
-                        marker_args.append(p)
-                    
-                    c.execute(f"UPDATE items SET name = ? WHERE type = 'folder_marker' AND name = ? AND {marker_where}", 
-                              (f"[Folder] {nn}", f"[Folder] {orig}", *marker_args))
+            conn = None
+            try:
+                conn = get_db_connection(hass)
+                c = conn.cursor()
+                
+                if is_folder:
+                    depth = len(parts)
+                    if depth < 10:
+                        target_col = f"level_{depth+1}"
+                        where_clause = f"{target_col} = ?"
+                        where_args = [orig]
+                        for i, p in enumerate(parts):
+                            where_clause += f" AND level_{i+1} = ?"
+                            where_args.append(p)
+                        
+                        c.execute(f"UPDATE items SET {target_col} = ? WHERE {where_clause}", [nn] + where_args)
+                        
+                        marker_where = f"{target_col} = ?"
+                        marker_args = [nn] 
+                        for i, p in enumerate(parts):
+                            marker_where += f" AND level_{i+1} = ?"
+                            marker_args.append(p)
+                        
+                        c.execute(f"UPDATE items SET name = ? WHERE type = 'folder_marker' AND name = ? AND {marker_where}", 
+                                  (f"[Folder] {nn}", f"[Folder] {orig}", *marker_args))
 
-                # Update the persistent DB to keep IDs consistent on folder rename
-                scope = 'root'
-                if depth == 1: scope = parts[0]
-                elif depth == 2: scope = f"{parts[0]}_{parts[1]}"
-                c.execute("UPDATE persistent_ids SET item_name = ? WHERE scope = ? AND item_name = ?", (nn, scope, orig))
-                
-                if depth == 0:
-                    c.execute("UPDATE persistent_ids SET scope = ? WHERE scope = ?", (nn, orig))
-                    c.execute("SELECT scope FROM persistent_ids WHERE scope LIKE ?", (f"{orig}_%",))
-                    for row in c.fetchall():
-                        old_sc = row[0]
-                        new_sc = old_sc.replace(f"{orig}_", f"{nn}_", 1)
-                        c.execute("UPDATE persistent_ids SET scope = ? WHERE scope = ?", (new_sc, old_sc))
-                elif depth == 1:
-                    old_sub_scope = f"{parts[0]}_{orig}"
-                    new_sub_scope = f"{parts[0]}_{nn}"
-                    c.execute("UPDATE persistent_ids SET scope = ? WHERE scope = ?", (new_sub_scope, old_sub_scope))
-            else:
-                sql = "UPDATE items SET "
-                updates = []
-                params = []
-                
-                if repaired_path is not None:
-                    for i in range(1, 11):
-                        val = repaired_path[i-1] if i <= len(repaired_path) else ""
-                        updates.append(f"level_{i} = ?")
-                        params.append(val)
-                
-                if nn: updates.append("name = ?"); params.append(nn)
-                if nd is not None: updates.append("item_date = ?"); params.append(nd)
-                
-                if cat is not None: updates.append("category = ?"); params.append(cat)
-                if sub_cat is not None: updates.append("sub_category = ?"); params.append(sub_cat)
-                if unit is not None: updates.append("unit = ?"); params.append(unit)
-                if unit_value is not None: updates.append("unit_value = ?"); params.append(unit_value)
-                if image_path is not None: updates.append("image_path = ?"); params.append(image_path)
-                
-                if updates:
-                    sql += ", ".join(updates)
-                    if item_id:
-                        sql += " WHERE id = ?"
-                        params.append(item_id)
-                    else:
-                        sql += " WHERE name = ?"
-                        params.append(orig)
-                        if parts:
-                            for i, p in enumerate(parts): sql += f" AND level_{i+1} = ?"; params.append(p)
+                    scope = 'root'
+                    if depth == 1: scope = parts[0]
+                    elif depth == 2: scope = f"{parts[0]}_{parts[1]}"
+                    c.execute("UPDATE persistent_ids SET item_name = ? WHERE scope = ? AND item_name = ?", (nn, scope, orig))
+                    
+                    if depth == 0:
+                        c.execute("UPDATE persistent_ids SET scope = ? WHERE scope = ?", (nn, orig))
+                        c.execute("SELECT scope FROM persistent_ids WHERE scope LIKE ?", (f"{orig}_%",))
+                        for row in c.fetchall():
+                            old_sc = row[0]
+                            new_sc = old_sc.replace(f"{orig}_", f"{nn}_", 1)
+                            c.execute("UPDATE persistent_ids SET scope = ? WHERE scope = ?", (new_sc, old_sc))
+                    elif depth == 1:
+                        old_sub_scope = f"{parts[0]}_{orig}"
+                        new_sub_scope = f"{parts[0]}_{nn}"
+                        c.execute("UPDATE persistent_ids SET scope = ? WHERE scope = ?", (new_sub_scope, old_sub_scope))
+                else:
+                    sql = "UPDATE items SET "
+                    updates = []
+                    params = []
+                    
+                    if repaired_path is not None:
+                        for i in range(1, 11):
+                            val = repaired_path[i-1] if i <= len(repaired_path) else ""
+                            updates.append(f"level_{i} = ?")
+                            params.append(val)
+                    
+                    if nn: updates.append("name = ?"); params.append(nn)
+                    if nd is not None: updates.append("item_date = ?"); params.append(nd)
+                    
+                    if cat is not None: updates.append("category = ?"); params.append(cat)
+                    if sub_cat is not None: updates.append("sub_category = ?"); params.append(sub_cat)
+                    if unit is not None: updates.append("unit = ?"); params.append(unit)
+                    if unit_value is not None: updates.append("unit_value = ?"); params.append(unit_value)
+                    if image_path is not None: updates.append("image_path = ?"); params.append(image_path)
+                    
+                    if updates:
+                        sql += ", ".join(updates)
+                        if item_id:
+                            sql += " WHERE id = ?"
+                            params.append(item_id)
+                        else:
+                            sql += " WHERE name = ?"
+                            params.append(orig)
+                            if parts:
+                                for i, p in enumerate(parts): sql += f" AND level_{i+1} = ?"; params.append(p)
 
-                    c.execute(sql, tuple(params))
+                        c.execute(sql, tuple(params))
 
-            conn.commit()
-            conn.close()
+                conn.commit()
+            finally:
+                if conn: conn.close()
             
         await hass.async_add_executor_job(db_update_sync)
         broadcast_update()
@@ -1436,12 +1498,16 @@ async def register_services(hass, entry):
             await hass.async_add_executor_job(lambda: open(os.path.join(img_path_base, fname), "wb").write(base64.b64decode(img_b64)))
         
         def save():
-            conn = get_db_connection(hass); c = conn.cursor()
-            if item_id:
-                c.execute(f"UPDATE items SET image_path = ? WHERE id = ?", (fname, item_id))
-            else:
-                c.execute(f"UPDATE items SET image_path = ? WHERE name = ?", (fname, name))
-            conn.commit(); conn.close()
+            conn = None
+            try:
+                conn = get_db_connection(hass); c = conn.cursor()
+                if item_id:
+                    c.execute(f"UPDATE items SET image_path = ? WHERE id = ?", (fname, item_id))
+                else:
+                    c.execute(f"UPDATE items SET image_path = ? WHERE name = ?", (fname, name))
+                conn.commit()
+            finally:
+                if conn: conn.close()
         await hass.async_add_executor_job(save); broadcast_update()
 
     async def handle_confirm_pending(call):
@@ -1453,19 +1519,22 @@ async def register_services(hass, entry):
         parts = await hass.async_add_executor_job(repair_path_against_db, hass, parts)
 
         def db_confirm():
-            conn = get_db_connection(hass)
-            c = conn.cursor()
-            upd = ["type='item'", "name=?", "quantity=?"]
-            vals = [name, qty]
+            conn = None
+            try:
+                conn = get_db_connection(hass)
+                c = conn.cursor()
+                upd = ["type='item'", "name=?", "quantity=?"]
+                vals = [name, qty]
 
-            for i in range(1, 11):
-                upd.append(f"level_{i}=?")
-                vals.append(parts[i-1] if i <= len(parts) else "")
+                for i in range(1, 11):
+                    upd.append(f"level_{i}=?")
+                    vals.append(parts[i-1] if i <= len(parts) else "")
 
-            vals.append(item_id)
-            c.execute(f"UPDATE items SET {','.join(upd)} WHERE id=?", tuple(vals))
-            conn.commit()
-            conn.close()
+                vals.append(item_id)
+                c.execute(f"UPDATE items SET {','.join(upd)} WHERE id=?", tuple(vals))
+                conn.commit()
+            finally:
+                if conn: conn.close()
 
         await hass.async_add_executor_job(db_confirm)
         broadcast_update()
