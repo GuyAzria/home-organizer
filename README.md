@@ -48,28 +48,121 @@ Home Organizer is a dedicated full-screen application for your Home Assistant si
 
 ---
 
-## 📘 How to Use the AI Features
+## 📖 User Manual & Visual Guide
 
-The AI Assistant in Home Organizer is designed to do the heavy lifting for you. Here is how to get the most out of it:
+Welcome to Home Organizer! This step-by-step guide will walk you through setting up your home, managing your items, and unleashing the power of the AI Assistant.
 
-### 1. Scanning a Grocery Receipt (Bulk Add)
-Instead of manually typing out 30 items from a shopping trip, let the AI do it:
-1. Click the **Robot Icon** in the top navigation bar to open the AI Chat.
-2. Click the **Camera Icon** to take a picture of your receipt, or the **Upload Icon** to attach a saved photo/PDF.
-3. Press **Send**. 
-4. The AI will analyze the receipt, map the items to your existing rooms (e.g., `Kitchen > Fridge`), assign icons, and place them in the **Review Tab**.
-5. Navigate to the **Shopping Cart Icon** > **Review Tab** to quickly confirm (✅) or reject (🗑️) the imported items.
+### 1. Personalizing Your Settings (Language & Themes)
+Before you start, make the app your own! Click the **Gear Icon (⚙️)** in the top right corner of the navigation bar.
+* **Language:** Home Organizer fully supports multiple languages natively. Select your preferred language (English, Hebrew, etc.) and the entire interface—including text direction (LTR/RTL)—will instantly adapt.
+* **Theme:** Choose between a sleek **Dark Theme** (great for wall-mounted tablets) or a clean **Light Theme** depending on your preference.
 
-### 2. Adding Items via Text
-You can quickly add items just by telling the AI what to do.
-* **Example:** Type *"Add 3 packs of pasta and 2 cans of tuna to the Kitchen Pantry."*
-* The AI will instantly create the items, assign the correct "Carbs" and "Canned Goods" categories, pick the exact icons, and place them directly into your database.
+<p align="center">
+  <img src="images/16.png" width="48%" alt="Dark Theme View">
+  <img src="images/23.png" width="48%" alt="Light Theme View">
+</p>
 
-### 3. Querying Your Inventory
-Treat the AI like a personal home manager. It can see your entire database.
-* *"I have a headache, where is the Acamol/Ibuprofen?"*
-* *"What ingredients do we have in the fridge to make a salad?"*
-* *"Show me everything we have stored in the Garage."*
+### 2. Setting up Zones and Rooms
+Think of your home in broad categories first. To start building your home's layout, click the **Pencil Icon (✏️)** in the top right to enter **Edit Mode**.
+* Click **Add Zone** at the bottom to create broad areas like "First Floor", "Second Floor", or "Outdoors".
+* Inside those zones, click the large green **+ Add Room** button to create specific rooms like "Kitchen", "Master Bedroom", or "Garage".
+* *Tip: You can use the up (↑) and down (↓) arrows to reorder your zones and rooms exactly how you want them!*
+
+<p align="center">
+  <img src="images/1.png" width="32%" alt="Empty Root Screen">
+  <img src="images/2.png" width="32%" alt="Adding First Floor">
+  <img src="images/3.png" width="32%" alt="Multiple Zones Added">
+</p>
+
+### 3. Customizing Icons
+Visuals make finding things much faster. While still in **Edit Mode (✏️)**, notice the small picture icon on the corner of your room folders. 
+* Click the picture icon to open the **Icon Picker**.
+* Browse through hundreds of beautiful 3D icons built right into the app, organized by category.
+* Don't see what you need? Use the **Upload File** button to take a picture of your actual room, or paste an image URL directly!
+
+<p align="center">
+  <img src="images/4.png" width="48%" alt="Room Editing Options">
+  <img src="images/5.png" width="48%" alt="Room Icon Picker Library">
+</p>
+
+### 4. Storage Locations & Sublocations
+Now let's get specific. Click on a Room (e.g., Kitchen) to enter it. 
+* Add a **Storage Location** (like "Fridge" or "Pantry Cabinets").
+* Click into the Fridge, and click **+ Add Sublocation** to get granular. You can create sections like "Left Door", "Right Door", or "Top Shelf". This hierarchy ensures you always know *exactly* where an item is.
+
+<p align="center">
+  <img src="images/6.png" width="48%" alt="Kitchen Storage Locations">
+  <img src="images/7.png" width="48%" alt="Fridge Sublocations">
+</p>
+
+### 5. Adding and Managing Items manually
+Turn off **Edit Mode** to view your items cleanly. Navigate to a sublocation and click **+ Add** to create a new item manually.
+* Click on any item row to expand its **Detailed View**.
+* **Categorize:** Select the Main Category (e.g., Food) and Sub-category (e.g., Sauces). 
+* **Details:** Assign an expiration date, input the unit size (e.g., 500ml), or use the hierarchy dropdowns to instantly move the item to another room.
+* **Media:** Click the Camera icon to snap a real photo of the item, or the Image icon to pick from the built-in library.
+
+<p align="center">
+  <img src="images/8.png" width="32%" alt="Item inside Sublocation">
+  <img src="images/10.png" width="32%" alt="Expanded Item Details">
+  <img src="images/9.png" width="32%" alt="Item Icon Library">
+</p>
+
+### 6. Grid View & Live Tracking
+Managing stock should be effortless. Use the **View Toggle** icon in the sub-bar to switch between a detailed List View and a beautiful visual **Grid View**.
+* Easily hit the **+** or **-** buttons to update how much of an item you have left. 
+* When an item hits `0`, it is automatically flagged as **Out of Stock** (marked with a red badge) and sent directly to your Shopping List!
+
+<p align="center">
+  <img src="images/11.png" width="48%" alt="Sublocation Grid View">
+  <img src="images/16.png" width="48%" alt="Populated Fridge Grid View">
+</p>
+
+### 7. Fast Search
+Looking for something specific? Click the **Magnifying Glass (🔍)** icon in the top bar to open the search field. Just start typing, and the app will instantly locate the item and show you the exact path (Zone > Room > Location > Sublocation) to find it!
+
+<p align="center">
+  <img src="images/21.png" width="48%" alt="Live Search Results">
+</p>
+
+---
+
+## 🤖 The AI Assistant: Let Home Organizer Do The Work
+
+Why type manually when the AI can do it for you? Click the **Robot Icon (🤖)** in the top bar to open your personal AI Chat Assistant. 
+
+### Adding Items via Text & Smart Queries
+You can talk to the AI naturally. 
+* Tell it: *"Add 3 batteries to the kitchen fridge."* The AI will parse your request, assign the correct category, find a battery icon, and add it to your inventory.
+* **Ask for advice:** Because the AI knows exactly what is in your database, you can ask it questions! Type *"Recommend preparing breakfast from ingredients in the kitchen"*, and it will generate a recipe based *only* on the items you currently have in stock.
+
+<p align="center">
+  <img src="images/18.png" width="48%" alt="Adding Items via Text">
+  <img src="images/17.png" width="48%" alt="AI Recommending Recipes">
+</p>
+
+### Invoice & Receipt Scanning (Bulk Add)
+Just got back from the grocery store? Don't type out 40 items by hand!
+1. Open the AI Chat and click the **Camera Icon** (to take a photo) or the **Upload Icon** (to attach a saved PDF/Image).
+2. You can add a prompt like *"Add these to the fridge"* or just send the image blank.
+3. The AI will read the receipt, translate it, map the items to your existing rooms, apply icons, and prepare them for import.
+
+<p align="center">
+  <img src="images/22.png" width="24%" alt="Original Receipt/Invoice">
+  <img src="images/12.png" width="24%" alt="AI Chat Ready with Attached File">
+  <img src="images/13.png" width="24%" alt="Sending Prompt with File">
+  <img src="images/20.png" width="24%" alt="AI Processed Invoice">
+</p>
+
+### Shopping Mode & AI Exports (Review Tab)
+Click the **Shopping Cart (🛒)** icon in the top bar to enter Shopping Mode. 
+* **List Tab:** Shows everything currently at `0` stock, organized by category so you can easily shop at the store.
+* **AI Exports (Review) Tab:** When the AI scans a receipt or adds an item via text, it goes here first for your safety. Review what the AI extracted, adjust quantities or categories if needed, and click the **Checkmark (✅)** to officially add them to your home, or the **Trash (🗑️)** to reject them.
+
+<p align="center">
+  <img src="images/19.png" width="48%" alt="Reviewing Text-Added Items">
+  <img src="images/15.png" width="48%" alt="AI Exports Review Tab (List)">
+</p>
 
 ---
 
