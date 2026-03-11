@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.9.18 (Update: Resolved critical AI timeout bug by implementing proper DB connection closures, optimizing bulk queries to prevent SQLite locks, and reducing redundant executor jobs)
+# Home Organizer Ultimate - ver 7.9.20 (Update: Restructured step3_prompt to place strict language and translation rules at the very end, preventing context bleed from Hebrew DB items)
 
 import logging
 import sqlite3
@@ -654,19 +654,20 @@ async def websocket_ai_chat(hass, connection, msg):
             except Exception as ex:
                 _LOGGER.error(f"Context fetch error: {ex}")
             finally:
-                if conn: conn.close()
+                if conn: cc.close()
             
         await hass.async_add_executor_job(fetch_context)
 
         if image_data:
             if "," in image_data: image_data = image_data.split(",")[1]
             
+            # [MODIFIED v7.9.19 | 2026-03-10] Purpose: Removed explicit Hebrew characters from prompt to prevent Gemini from biasing its language output.
             invoice_prompt = (
                 f"Analyze this document/receipt. Context:\n"
                 f"EXISTING PATHS (Use these EXACT arrays): {existing_locs_str}\n"
                 f"EXISTING CATEGORIES: [{existing_cats_str}]\n\n"
                 "RULES:\n"
-                "1. LANGUAGE: DO NOT translate item names. The 'name' field MUST be in the exact language the user typed or the receipt shows (e.g. if Hebrew 'מיונז', keep 'מיונז'). Generate the 'message' field in the detected language.\n"
+                "1. LANGUAGE: DO NOT translate item names. The 'name' field MUST be in the exact language the user typed or the receipt shows. Generate the 'message' field in the detected language.\n"
                 "2. MAPPING & SUBLOCATIONS: Map the user's natural language locations strictly to the exact strings in EXISTING PATHS. "
                 "   CRITICAL: If the EXISTING PATH contains brackets like `[ORDER_MARKER_020]`, you MUST output the FULL string including the brackets. Example: User says 'Left Door', but EXISTING PATHS has '[ORDER_MARKER_020] Left Door' -> you MUST output '[ORDER_MARKER_020] Left Door'. Do NOT strip brackets or convert spaces to underscores.\n"
                 "3. ICON SELECTION & CATEGORIES: Assign the closest standard icon_key from the following list. \n"
@@ -759,6 +760,7 @@ async def websocket_ai_chat(hass, connection, msg):
                 connection.send_result(msg["id"], {"response": f"❌ Could not parse invoice data. Error: {str(e)}", "debug": {"raw": clean_txt}})
                 return
 
+        # [MODIFIED v7.9.19 | 2026-03-10] Purpose: Removed explicit language biases to ensure the AI strictly follows the user's input language.
         step1_prompt = (
             f"User says: '{user_message}'\n"
             "Determine if the user wants to ADD items or SEARCH/QUERY.\n"
@@ -766,8 +768,8 @@ async def websocket_ai_chat(hass, connection, msg):
             f"   Context for icons: {ICON_PROMPT_CONTEXT}\n"
             f"   EXISTING PATHS: {existing_locs_str}\n"
             "   Return JSON: {\"intent\": \"add\", \"items\": [{\"name\": \"Item Name\", \"qty\": 1, \"path\": [\"[Zone] Room\", \"Furniture\", \"[ORDER_MARKER_010] Right Door\"], \"category\": \"MainCat\", \"sub_category\": \"SubCat\", \"icon_key\": \"ICON_LIB_ITEM|MainCat|SubCat|ExactItemName\"}]}\n"
-            "   - LANGUAGE CRITICAL: DO NOT translate the item name. If the user wrote in Hebrew (e.g., 'מיונז'), the 'name' field MUST be 'מיונז'.\n"
-            "   - PATH MAPPING CRITICAL: Map natural language to EXACT EXISTING PATHS. If an existing path contains `[ORDER_MARKER_...]`, you MUST include the full string WITH brackets. Example: User says 'מקרר דלת שמאל' -> output MUST be `\"[ORDER_MARKER_020] מקרר דלת שמאל\"` if it exists in the paths. DO NOT strip or alter the markers.\n"
+            "   - LANGUAGE CRITICAL: DO NOT translate the item name. The 'name' field MUST be exactly as the user wrote it in their original language.\n"
+            "   - PATH MAPPING CRITICAL: Map natural language to EXACT EXISTING PATHS. If an existing path contains `[ORDER_MARKER_...]`, you MUST include the full string WITH brackets. Example: User says 'Left Door' -> output MUST be `\"[ORDER_MARKER_020] Left Door\"` if it exists in the paths. DO NOT strip or alter the markers.\n"
             "   - Choose the closest icon_key. 'category' and 'sub_category' MUST exactly match the chosen icon_key.\n"
             "2. IF SEARCHING: Return JSON: {\"intent\": \"search\", \"locations\": [\"loc1\"], \"keywords\": [\"item1\"], \"category_filter\": \"\"}\n"
             "   - CRITICAL: Only extract physical item names as 'keywords'. For general advice/recipes (e.g., 'breakfast'), leave 'keywords' empty [].\n"
@@ -943,16 +945,20 @@ async def websocket_ai_chat(hass, connection, msg):
         
         inventory_context = "\n".join(context_lines) if context_lines else "(empty - no items found)"
 
+        # [MODIFIED v7.9.20 | 2026-03-10] Purpose: Restructured the final prompt to place strict language and translation rules at the very end to combat context-language bleed from the database items.
         step3_prompt = (
-            "You are a helpful home assistant. "
-            "CRITICAL LANGUAGE RULE: Automatically detect the exact language of the 'User Request' below. "
-            "You MUST generate your ENTIRE response ONLY in that exact detected language. Do NOT default to English unless the request is in English. "
-            "(e.g., If Hebrew -> respond ONLY in Hebrew. If Arabic -> respond ONLY in Arabic).\n"
-            "Use the provided inventory list to answer the user's request.\n"
-            "If the list is empty, apologize IN THE DETECTED LANGUAGE.\n"
-            "\n"
-            "Inventory List:\n" + inventory_context + "\n\n"
-            "User Request: " + user_message
+            "You are a smart home inventory assistant.\n\n"
+            "=== RAW INVENTORY DATA ===\n"
+            f"{inventory_context}\n"
+            "==========================\n\n"
+            "=== USER REQUEST ===\n"
+            f"{user_message}\n"
+            "====================\n\n"
+            "CRITICAL OUTPUT INSTRUCTIONS:\n"
+            "1. Identify the language of the 'USER REQUEST'.\n"
+            "2. Your ENTIRE response MUST be in THAT EXACT LANGUAGE.\n"
+            "3. If the USER REQUEST is in English, you MUST translate ALL inventory items and locations from the raw data into English.\n"
+            "4. NEVER mix languages. Base your recommendations ONLY on the raw inventory data provided."
         )
 
         payload_3 = {"contents": [{"parts": [{"text": step3_prompt}]}]}
