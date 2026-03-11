@@ -5,10 +5,14 @@
     "@GuyAzria"
   ],
   "config_flow": true,
-  "dependencies": [],
+  "dependencies": [
+    "http",
+    "panel_custom",
+    "websocket_api"
+  ],
   "documentation": "https://github.com/GuyAzria/home-organizer",
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/GuyAzria/home-organizer/issues",
   "requirements": [],
-  "version": "2026.3.10"
+  "version": "2026.3.11"
 }

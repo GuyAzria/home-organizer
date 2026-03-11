@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.9.20 (Update: Restructured step3_prompt to place strict language and translation rules at the very end, preventing context bleed from Hebrew DB items)
+# Home Organizer Ultimate - ver 7.9.21 (Update: Added CONFIG_SCHEMA to pass Hassfest validation for config_flow integrations)
 
 import logging
 import sqlite3
@@ -18,9 +18,13 @@ from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.components import panel_custom, websocket_api
 from homeassistant.components.http import StaticPathConfig 
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+import homeassistant.helpers.config_validation as cv
 from .const import DOMAIN, CONF_API_KEY, CONF_DEBUG, CONF_USE_AI, DB_FILE, IMG_DIR, VERSION, CONF_STORAGE_METHOD, CONF_DELETE_ON_REMOVE, STORAGE_METHOD_WWW, STORAGE_METHOD_MEDIA
 
 _LOGGER = logging.getLogger(__name__)
+
+# [ADDED v7.9.21 | 2026-03-11] Purpose: Added CONFIG_SCHEMA to satisfy Hassfest strict validation for UI-configured integrations.
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 WS_GET_DATA = "home_organizer/get_data"
 WS_GET_ALL_ITEMS = "home_organizer/get_all_items" 
