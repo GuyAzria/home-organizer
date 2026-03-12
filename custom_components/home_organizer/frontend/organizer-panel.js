@@ -1,4 +1,4 @@
-// Home Organizer Ultimate - Ver 7.7.11 (Update: Migrated Catalog ID storage from localStorage to backend DB for cross-device consistency, stripped ORDER_MARKER tags from UI, added escapeJSArg to fix quote escaping in inline HTML)
+// Home Organizer Ultimate - Ver 7.7.15 (Update: Added bulk delete selection checkboxes to grid view xl-cards)
  
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.10';
 import { ITEM_CATEGORIES } from './organizer-data.js?v=6.6.10';
@@ -7,7 +7,7 @@ class HomeOrganizerPanel extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this.content) {
-      console.log("%c Home Organizer v7.7.11 Fully Loaded ", "background: #e91e63; color: #fff; font-weight: bold;");
+      console.log("%c Home Organizer v7.7.15 Fully Loaded ", "background: #e91e63; color: #fff; font-weight: bold;");
       this.currentPath = [];
       this.catalogPath = []; 
       this.isEditMode = false;
@@ -48,6 +48,8 @@ class HomeOrganizerPanel extends HTMLElement {
       this.imageVersions = {}; 
       this.persistentIds = {};
 
+      this.selectedItems = new Set();
+
       try { 
           this.showIds = localStorage.getItem('home_organizer_show_ids') !== 'false'; 
       } 
@@ -76,10 +78,82 @@ class HomeOrganizerPanel extends HTMLElement {
     }
   }
 
-  // [ADDED v7.7.11 | 2026-03-10] Purpose: Safely escape single and double quotes in strings to prevent breaking inline HTML event handlers.
+  toggleItemSelection(id, isChecked) {
+      const numId = Number(id);
+      if (isChecked) {
+          this.selectedItems.add(numId);
+      } else {
+          this.selectedItems.delete(numId);
+      }
+      this.render();
+  }
+
+  async bulkDeleteItems() {
+      if (this.selectedItems.size === 0) return;
+      
+      const count = this.selectedItems.size;
+      const fallbackMsg = `Are you sure you want to delete ${count} selected items?`;
+      const confirmMsg = this.translations['confirm_bulk_del'] ? this.t('confirm_bulk_del', count) : fallbackMsg;
+      
+      if (confirm(confirmMsg)) {
+          for (let id of this.selectedItems) {
+              await this.callHA('delete_item', { item_id: id, current_path: this.currentPath, is_folder: false });
+          }
+          this.selectedItems.clear();
+          setTimeout(() => this.fetchData(), 500); 
+      }
+  }
+
   escapeJSArg(str) {
       if (!str) return '';
       return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  }
+
+  enableSublocRename(btn, oldName) {
+      const header = btn.closest('.group-separator');
+      if (header.querySelector('input')) return; 
+      const titleSpan = header.querySelector('.subloc-title');
+      if(!titleSpan) return;
+      
+      const input = document.createElement('input');
+      input.value = this.stripMarkerForDisplay(oldName);
+      input.className = 'add-folder-input';
+      input.style.width = '200px';
+      input.style.textAlign = 'start';
+      input.onclick = (e) => e.stopPropagation();
+      
+      titleSpan.replaceWith(input);
+      input.focus();
+      
+      let isSaving = false;
+      const save = () => {
+          if (isSaving) return;
+          isSaving = true;
+          const newVal = input.value.trim();
+          if (newVal && newVal !== this.stripMarkerForDisplay(oldName)) {
+              this.batchUpdateSubloc(oldName, newVal);
+          } else this.render();
+      };
+      
+      input.onkeydown = (e) => { if (e.key === 'Enter') input.blur(); };
+      input.onblur = () => save();
+  }
+
+  batchUpdateSubloc(oldName, newNameOnly) {
+      const markerRegex = /^ORDER_MARKER_(\d+)_(.*)$/;
+      let finalNewName = newNameOnly;
+      
+      const match = oldName.match(markerRegex);
+      if (match) {
+          finalNewName = `ORDER_MARKER_${match[1]}_${newNameOnly}`;
+      }
+
+      this.callHA('update_item_details', { 
+          original_name: oldName, 
+          new_name: finalNewName, 
+          current_path: this.currentPath, 
+          is_folder: true 
+      }).then(() => this.fetchData());
   }
 
   getSafeIcon(val) {
@@ -406,6 +480,7 @@ class HomeOrganizerPanel extends HTMLElement {
             <div class="sub-bar-left">
                 <button class="nav-btn" id="btn-home">${ICONS.home}</button>
                 <button class="nav-btn" id="btn-up" style="display:none;">${ICONS.arrow_up}</button>
+                <button class="nav-btn" id="btn-bulk-delete" style="display:none; color: var(--danger, #F44336); align-items:center; gap:5px;" title="Delete Selected"></button>
             </div>
 
             <div class="sub-bar-right">
@@ -455,7 +530,7 @@ class HomeOrganizerPanel extends HTMLElement {
               
               <div style="margin-top:20px; font-size:12px; color:#666; border-top:1px solid var(--border-light); padding-top:10px;">
                   Licensed under MIT License.<br>
-                  Version 7.7.11
+                  Version 7.7.15
               </div>
               
               <button class="action-btn" style="width:100%; margin-top:20px;" onclick="this.closest('#about-modal').style.display='none'" id="lbl-close">Close</button>
@@ -710,6 +785,7 @@ class HomeOrganizerPanel extends HTMLElement {
     bind('search-input', 'oninput', (e) => this.fetchData());
     click('btn-edit', () => { 
         this.isEditMode = !this.isEditMode; this.isShopMode = false; this.isChatMode = false;
+        if (!this.isEditMode) this.selectedItems.clear(); 
         this.render(); 
     });
     
@@ -749,6 +825,8 @@ class HomeOrganizerPanel extends HTMLElement {
     click('btn-cam-snap', () => this.snapPhoto());
     click('btn-cam-switch', () => this.switchCamera());
     click('btn-cam-wb', () => this.toggleWhiteBG());
+
+    click('btn-bulk-delete', () => this.bulkDeleteItems());
   }
   
   openFileUpload(context) {
@@ -1158,6 +1236,16 @@ class HomeOrganizerPanel extends HTMLElement {
     if (editBtn) {
         if (this.isEditMode) editBtn.classList.add('edit-active');
         else editBtn.classList.remove('edit-active');
+    }
+
+    const bulkDelBtn = root.getElementById('btn-bulk-delete');
+    if (bulkDelBtn) {
+        if (this.isEditMode && this.selectedItems.size > 0) {
+            bulkDelBtn.style.display = 'flex';
+            bulkDelBtn.innerHTML = `${ICONS.delete} <span style="font-size:12px; font-weight:bold; margin-inline-start:5px;">(${this.selectedItems.size})</span>`;
+        } else {
+            bulkDelBtn.style.display = 'none';
+        }
     }
 
     const content = root.getElementById('content');
@@ -1728,6 +1816,15 @@ class HomeOrganizerPanel extends HTMLElement {
                       items.forEach(item => {
                           const card = document.createElement('div');
                           card.className = 'xl-card';
+                          card.style.position = 'relative';
+
+                          let checkboxHtml = '';
+                          if (this.isEditMode) {
+                              checkboxHtml = `<input type="checkbox" class="item-select-cb" style="position:absolute; top:8px; inset-inline-start:8px; z-index:20; transform: scale(1.3); cursor: pointer;" 
+                                  ${this.selectedItems.has(Number(item.id)) ? 'checked' : ''} 
+                                  onclick="event.stopPropagation(); this.getRootNode().host.toggleItemSelection('${item.id}', this.checked)">`;
+                          }
+
                           let iconHtml = ICONS.item;
                           if (item.img) {
                               if (item.img.startsWith('ICON_LIB')) {
@@ -1745,6 +1842,7 @@ class HomeOrganizerPanel extends HTMLElement {
                               }
                           }
                           card.innerHTML = `
+                              ${checkboxHtml}
                               <div class="xl-icon-area">${iconHtml}</div>
                               <div class="xl-badge">${item.qty}</div>
                               <div class="xl-info">
@@ -1772,10 +1870,10 @@ class HomeOrganizerPanel extends HTMLElement {
                 }
 
                 if (this.isEditMode) {
-                      const addRow = document.createElement('div');
-                      addRow.className = "group-add-row";
-                      addRow.innerHTML = `<button class="text-add-btn" onclick="this.getRootNode().host.addQuickItem('${this.escapeJSArg(subName)}')">${ICONS.plus} ${this.t('add')}</button>`;
-                      listContainer.appendChild(addRow);
+                    const addRow = document.createElement('div');
+                    addRow.className = "group-add-row";
+                    addRow.innerHTML = `<button class="text-add-btn" onclick="this.getRootNode().host.addQuickItem('${this.escapeJSArg(subName)}')">${ICONS.plus} ${this.t('add')}</button>`;
+                    listContainer.appendChild(addRow);
                 }
             }
         });
@@ -1811,6 +1909,15 @@ class HomeOrganizerPanel extends HTMLElement {
                     outOfStock.forEach(item => {
                           const card = document.createElement('div');
                           card.className = 'xl-card';
+                          card.style.position = 'relative';
+
+                          let checkboxHtml = '';
+                          if (this.isEditMode) {
+                              checkboxHtml = `<input type="checkbox" class="item-select-cb" style="position:absolute; top:8px; inset-inline-start:8px; z-index:20; transform: scale(1.3); cursor: pointer;" 
+                                  ${this.selectedItems.has(Number(item.id)) ? 'checked' : ''} 
+                                  onclick="event.stopPropagation(); this.getRootNode().host.toggleItemSelection('${item.id}', this.checked)">`;
+                          }
+
                           let iconHtml = ICONS.item;
                           if (item.img) {
                               if (item.img.startsWith('ICON_LIB')) {
@@ -1828,6 +1935,7 @@ class HomeOrganizerPanel extends HTMLElement {
                               }
                           }
                           card.innerHTML = `
+                              ${checkboxHtml}
                               <div class="xl-icon-area">${iconHtml}</div>
                               <div class="xl-badge" style="background:var(--danger, #F44336);">${item.qty}</div>
                               <div class="xl-info">
@@ -2249,9 +2357,9 @@ class HomeOrganizerPanel extends HTMLElement {
                   });
               } else if (!oldMarkerName) {
                   await this.callHA('add_item', { 
-                      item_name: "OrderMarker", 
-                      item_type: 'item', 
-                      current_path: [...this.currentPath, newMarkerName]
+                      item_name: newMarkerName, 
+                      item_type: 'folder', 
+                      current_path: this.currentPath
                   });
               }
           }
@@ -2777,6 +2885,13 @@ class HomeOrganizerPanel extends HTMLElement {
      
      const subText = this.renderLocationControl(item, isShopMode);
      
+     let checkboxHtml = '';
+     if (this.isEditMode && !isShopMode) {
+         checkboxHtml = `<input type="checkbox" class="item-select-cb" style="margin-inline-end: 10px; transform: scale(1.3); cursor: pointer;" 
+            ${this.selectedItems.has(Number(item.id)) ? 'checked' : ''} 
+            onclick="event.stopPropagation(); this.getRootNode().host.toggleItemSelection('${item.id}', this.checked)">`;
+     }
+
      let iconHtml = `<span class="item-icon">${ICONS.item}</span>`;
      if (item.img) {
          if (item.img.startsWith('ICON_LIB')) {
@@ -2797,7 +2912,7 @@ class HomeOrganizerPanel extends HTMLElement {
 
      div.innerHTML = `
         <div class="item-main" onclick="this.getRootNode().host.toggleRow('${item.id}')">
-            <div class="item-left">${iconHtml}<div><div>${item.name}</div>${typeof subText === 'string' && subText.startsWith('<') ? subText : `<div class="sub-title">${subText}</div>`}</div></div>
+            <div class="item-left">${checkboxHtml}${iconHtml}<div><div>${item.name}</div>${typeof subText === 'string' && subText.startsWith('<') ? subText : `<div class="sub-title">${subText}</div>`}</div></div>
             <div class="item-qty-ctrl">${controls}</div>
         </div>
      `;
