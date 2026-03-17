@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.9.44 (Update: Added barcode field to get_data responses for frontend UI)
+# Home Organizer Ultimate - ver 7.9.45 (Update: Header updated to note DuckDuckGo usage)
+# Powered by DuckDuckGo HTML Search for fallback barcode resolution (Free, but subject to standard web-scraping rate limits).
 
+# [MODIFIED v7.9.45 | 2026-03-17] Purpose: Added DuckDuckGo usage notes to the file header.
 import logging
 import sqlite3
 import os
