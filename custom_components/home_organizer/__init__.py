@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.9.21 (Update: Added CONFIG_SCHEMA to pass Hassfest validation for config_flow integrations)
+# Home Organizer Ultimate - ver 7.9.44 (Update: Added barcode field to get_data responses for frontend UI)
 
 import logging
 import sqlite3
@@ -29,6 +29,7 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 WS_GET_DATA = "home_organizer/get_data"
 WS_GET_ALL_ITEMS = "home_organizer/get_all_items" 
 WS_AI_CHAT = "home_organizer/ai_chat" 
+WS_LOOKUP_BARCODE = "home_organizer/lookup_barcode"
 
 STATIC_PATH_URL = "/home_organizer_static"
 
@@ -172,6 +173,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 vol.Optional("shopping_mode", default=False): bool,
             })
         )
+    except Exception: pass
+    
+    try:
         websocket_api.async_register_command(
             hass,
             WS_GET_ALL_ITEMS,
@@ -180,6 +184,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 vol.Required("type"): WS_GET_ALL_ITEMS
             })
         )
+    except Exception: pass
+    
+    try:
         websocket_api.async_register_command(
             hass,
             WS_AI_CHAT,
@@ -188,11 +195,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 vol.Required("type"): WS_AI_CHAT,
                 vol.Optional("message", default=""): str,
                 vol.Optional("image_data"): vol.Any(str, None),
-                vol.Optional("mime_type", default="image/jpeg"): str
+                vol.Optional("mime_type", default="image/jpeg"): str,
+                vol.Optional("language", default="en"): str 
             })
         )
-    except Exception:
-        pass 
+    except Exception: pass
+    
+    try:
+        websocket_api.async_register_command(
+            hass,
+            WS_LOOKUP_BARCODE,
+            websocket_lookup_barcode,
+            websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend({
+                vol.Required("type"): WS_LOOKUP_BARCODE,
+                vol.Required("barcode"): cv.string, 
+                vol.Optional("language", default="en"): str 
+            })
+        )
+    except Exception: pass 
 
     await register_services(hass, entry)
     entry.async_on_unload(entry.add_update_listener(update_listener))
@@ -229,7 +249,6 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
         except Exception as e:
             _LOGGER.error(f"Error deleting Home Organizer data: {e}")
 
-# [MODIFIED v7.9.18] Added timeout to sqlite3.connect to gracefully handle locks rather than freezing.
 def get_db_connection(hass):
     db_path = hass.data.get(DOMAIN, {}).get("config", {}).get("db_path", hass.config.path(DB_FILE))
     return sqlite3.connect(db_path, timeout=10.0)
@@ -257,6 +276,7 @@ def init_db(hass):
             'sub_category': "TEXT",
             'unit': "TEXT",
             'unit_value': "TEXT",
+            'barcode': "TEXT DEFAULT '0'",
             'created_at': "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
         }
         
@@ -268,6 +288,24 @@ def init_db(hass):
                 try: c.execute(f"ALTER TABLE items ADD COLUMN {col} {dtype}")
                 except: pass
 
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS barcode_history (
+                barcode TEXT PRIMARY KEY, 
+                name TEXT, 
+                category TEXT, 
+                sub_category TEXT, 
+                icon_key TEXT,
+                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        c.execute("PRAGMA table_info(barcode_history)")
+        bh_cols = [col[1] for col in c.fetchall()]
+        for lvl in ["level_1", "level_2", "level_3"]:
+            if lvl not in bh_cols:
+                try: c.execute(f"ALTER TABLE barcode_history ADD COLUMN {lvl} TEXT")
+                except: pass
+
         try:
             c.execute("CREATE INDEX IF NOT EXISTS idx_items_name ON items(name)")
             c.execute("CREATE INDEX IF NOT EXISTS idx_items_category ON items(category)")
@@ -275,6 +313,7 @@ def init_db(hass):
             c.execute("CREATE INDEX IF NOT EXISTS idx_items_level2 ON items(level_2)")
             c.execute("CREATE INDEX IF NOT EXISTS idx_items_level3 ON items(level_3)")
             c.execute("CREATE INDEX IF NOT EXISTS idx_items_type ON items(type)")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_items_barcode ON items(barcode)")
         except Exception: pass
 
         c.execute("SELECT id, name, level_1, level_2, level_3, level_4, level_5, level_6, level_7, level_8, level_9, level_10 FROM items")
@@ -363,7 +402,6 @@ def init_db(hass):
     finally:
         if conn: conn.close()
 
-# [MODIFIED v7.9.18] Fully optimized logic with proper try/finally blocks to prevent SQLite deadlock and massive speed up via executemany.
 def get_or_create_catalog_ids(hass):
     conn = None
     try:
@@ -410,6 +448,14 @@ def get_or_create_catalog_ids(hass):
     finally:
         if conn: conn.close()
 
+def to_alpha_id(num):
+    s = ""
+    while num > 0:
+        rem = (num - 1) % 26
+        s = chr(65 + rem) + s
+        num = (num - 1) // 26
+    return s or "A"
+
 def normalize_zone_path(hass, path_list):
     if not path_list or len(path_list) < 2:
         return path_list
@@ -432,7 +478,6 @@ def normalize_zone_path(hass, path_list):
         if conn: conn.close()
     return path_list
 
-# [MODIFIED v7.9.18] Fixed missing conn.close() in exception case, which was the main cause of the DB lock/timeout.
 def repair_path_against_db(hass, path_list):
     if not path_list: return path_list
     fixed = []
@@ -477,7 +522,7 @@ def repair_path_against_db(hass, path_list):
     finally:
         if conn: conn.close()
 
-def add_item_db_safe(hass, name, qty, path_list, category="", sub_category="", item_type="item", icon_key=None):
+def add_item_db_safe(hass, name, qty, path_list, category="", sub_category="", item_type="item", icon_key=None, barcode="0"):
     path_list = normalize_zone_path(hass, path_list)
     path_list = repair_path_against_db(hass, path_list)
     
@@ -486,9 +531,9 @@ def add_item_db_safe(hass, name, qty, path_list, category="", sub_category="", i
         conn = get_db_connection(hass)
         c = conn.cursor()
         today = datetime.now().strftime("%Y-%m-%d")
-        cols = ["name", "type", "quantity", "item_date", "category", "sub_category"]
-        vals = [name, item_type, qty, today, category, sub_category]
-        qs = ["?", "?", "?", "?", "?", "?"]
+        cols = ["name", "type", "quantity", "item_date", "category", "sub_category", "barcode"]
+        vals = [name, item_type, qty, today, category, sub_category, barcode]
+        qs = ["?", "?", "?", "?", "?", "?", "?"]
         
         if icon_key:
             cols.append("image_path")
@@ -503,6 +548,16 @@ def add_item_db_safe(hass, name, qty, path_list, category="", sub_category="", i
         
         sql = f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})"
         c.execute(sql, tuple(vals))
+        
+        if barcode and barcode != "0":
+            l1 = path_list[0] if len(path_list) > 0 else ""
+            l2 = path_list[1] if len(path_list) > 1 else ""
+            l3 = path_list[2] if len(path_list) > 2 else ""
+            c.execute('''
+                REPLACE INTO barcode_history (barcode, name, category, sub_category, icon_key, level_1, level_2, level_3)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (barcode, name, category, sub_category, icon_key or "", l1, l2, l3))
+            
         conn.commit()
         return True
     except Exception as e:
@@ -546,6 +601,7 @@ def websocket_get_all_items(hass, connection, msg):
             for i in range(1, 11):
                 if r_dict.get(f"level_{i}"): fp.append(r_dict.get(f"level_{i}"))
 
+            # [MODIFIED v7.9.44 | 2026-03-17] Purpose: Injected barcode field to frontend fetch
             results.append({
                 "id": r_dict['id'],
                 "name": r_dict['name'],
@@ -559,7 +615,8 @@ def websocket_get_all_items(hass, connection, msg):
                 "category": r_dict.get('category', ''),
                 "sub_category": r_dict.get('sub_category', ''),
                 "unit": r_dict.get('unit', ''),
-                "unit_value": r_dict.get('unit_value', '')
+                "unit_value": r_dict.get('unit_value', ''),
+                "barcode": r_dict.get('barcode', '0')
             })
         connection.send_result(msg["id"], results)
     except Exception as e:
@@ -567,7 +624,6 @@ def websocket_get_all_items(hass, connection, msg):
     finally:
         if conn: conn.close()
 
-# [MODIFIED v7.9.18] Reduced retries and delays to fail gracefully before HA core connection completely drops out.
 async def async_gemini_api_call(session, url, payload, timeout_sec):
     max_retries = 2
     delays = [1, 2]
@@ -600,12 +656,141 @@ async def async_gemini_api_call(session, url, payload, timeout_sec):
     return None, "Max retries exceeded"
 
 @websocket_api.async_response
+async def websocket_lookup_barcode(hass, connection, msg):
+    try:
+        barcode = str(msg.get("barcode", ""))
+        lang_code = msg.get("language", hass.config.language)
+        
+        def check_hist():
+            conn = None
+            try:
+                conn = get_db_connection(hass)
+                conn.row_factory = sqlite3.Row
+                c = conn.cursor()
+                c.execute("SELECT * FROM barcode_history WHERE barcode=?", (barcode,))
+                return c.fetchone()
+            except:
+                return None
+            finally:
+                if conn: conn.close()
+        
+        history_row = await hass.async_add_executor_job(check_hist)
+        if history_row:
+            h_dict = dict(history_row)
+            raw_path = [h_dict.get("level_1", ""), h_dict.get("level_2", ""), h_dict.get("level_3", "")]
+            final_path = [p for p in raw_path if p]
+            
+            connection.send_result(msg["id"], {
+                "found": True,
+                "item": {
+                    "name": h_dict.get("name", ""),
+                    "category": h_dict.get("category", ""),
+                    "sub_category": h_dict.get("sub_category", ""),
+                    "icon_key": h_dict.get("icon_key", ""),
+                    "path": final_path
+                }
+            })
+            return
+
+        entries = hass.config_entries.async_entries(DOMAIN)
+        api_key = entries[0].options.get(CONF_API_KEY, entries[0].data.get(CONF_API_KEY)) if entries else None
+        
+        suggestion = {"name": f"Scanned Product ({barcode})", "category": "", "sub_category": "", "icon_key": ""}
+        
+        if api_key:
+            session = async_get_clientsession(hass)
+            gen_url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={api_key}"
+            
+            lang_map = {"en": "English", "he": "Hebrew", "it": "Italian", "es": "Spanish", "fr": "French", "ar": "Arabic"}
+            target_lang = lang_map.get(lang_code, "English")
+            
+            external_hint = ""
+            
+            try:
+                off_url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
+                async with session.get(off_url, timeout=ClientTimeout(total=3)) as off_resp:
+                    if off_resp.status == 200:
+                        off_data = await off_resp.json()
+                        product = off_data.get("product", {})
+                        if product:
+                            external_hint = product.get(f"product_name_{lang_code}") or product.get("product_name") or product.get("generic_name", "")
+            except Exception: pass
+
+            if not external_hint:
+                try:
+                    upc_url = f"https://api.upcitemdb.com/prod/trial/lookup?upc={barcode}"
+                    async with session.get(upc_url, timeout=ClientTimeout(total=3)) as upc_resp:
+                        if upc_resp.status == 200:
+                            upc_data = await upc_resp.json()
+                            if upc_data.get("items") and len(upc_data["items"]) > 0:
+                                external_hint = upc_data["items"][0].get("title", "")
+                except Exception: pass
+
+            if not external_hint:
+                try:
+                    ddg_url = f"https://html.duckduckgo.com/html/?q={barcode}"
+                    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+                    async with session.get(ddg_url, headers=headers, timeout=ClientTimeout(total=3)) as ddg_resp:
+                        if ddg_resp.status == 200:
+                            html = await ddg_resp.text()
+                            match = re.search(r'<a class="result__snippet[^>]*>(.*?)</a>', html, re.IGNORECASE | re.DOTALL)
+                            if match:
+                                external_hint = re.sub(r'<[^>]+>', '', match.group(1)).strip()
+                except Exception: pass
+
+            hint_prompt = ""
+            if external_hint:
+                hint_prompt = f"I found this exact product name from an external barcode database: '{external_hint}'. YOU MUST USE THIS EXACT PRODUCT as your base, but format/translate it cleanly into {target_lang}."
+            else:
+                hint_prompt = "I could not find this barcode in external databases. Make your absolute best guess what this retail product is based on the manufacturer prefix. If unknown, just return 'Unknown Product'."
+            
+            prompt = (
+                f"You are an advanced retail product database. A user scanned barcode (UPC/EAN): {barcode}\n\n"
+                f"{hint_prompt}\n\n"
+                "CRITICAL INSTRUCTIONS:\n"
+                "1. Identify the real-world product name based on the hint above.\n"
+                "2. You MUST return ONLY a raw JSON object. NO markdown formatting, NO conversational text.\n"
+                f"3. LANGUAGE RULE: You MUST translate the product name into exactly this language: {target_lang}.\n"
+                "Output exactly this structure:\n"
+                "{\"name\": \"<PRODUCT NAME>\", \"category\": \"<MainCat>\", \"sub_category\": \"<SubCat>\", \"icon_key\": \"<ICON_LIB_ITEM...>\"}\n\n"
+                f"Choose the most logical category, sub_category, and icon_key from this list:\n{ICON_PROMPT_CONTEXT}"
+            )
+            
+            payload = {"contents": [{"parts": [{"text": prompt}]}]}
+            res, err = await async_gemini_api_call(session, gen_url, payload, 20)
+            
+            if not err and res and "candidates" in res and res["candidates"]:
+                raw_txt = res["candidates"][0]["content"]["parts"][0]["text"].strip()
+                clean_txt = re.sub(r'```json\s*|```\s*', '', raw_txt).strip()
+                try:
+                    parsed = json.loads(clean_txt)
+                    if "name" in parsed:
+                        suggestion = parsed
+                except Exception as e:
+                    _LOGGER.error(f"Barcode JSON parse error: {e}")
+        
+        connection.send_result(msg["id"], {
+            "found": False,
+            "suggestion": suggestion
+        })
+    except Exception as e:
+        _LOGGER.error(f"Fatal error in websocket_lookup_barcode: {e}")
+        connection.send_result(msg["id"], {
+            "found": False,
+            "suggestion": {"name": f"Scanned Product ({msg.get('barcode', 'unknown')})"}
+        })
+
+@websocket_api.async_response
 async def websocket_ai_chat(hass, connection, msg):
 
     try:
         user_message = msg.get("message", "")
         image_data = msg.get("image_data") 
         mime_val = msg.get("mime_type", "image/jpeg") 
+        
+        lang_code = msg.get("language", hass.config.language)
+        lang_map = {"en": "English", "he": "Hebrew", "it": "Italian", "es": "Spanish", "fr": "French", "ar": "Arabic"}
+        target_lang = lang_map.get(lang_code, "English")
         
         entries = hass.config_entries.async_entries(DOMAIN)
         if not entries:
@@ -624,15 +809,18 @@ async def websocket_ai_chat(hass, connection, msg):
 
         existing_locs_str = ""
         existing_cats_str = ""
+        loc_hierarchy_map = {}
         
         def fetch_context():
-            nonlocal existing_locs_str, existing_cats_str
+            nonlocal existing_locs_str, existing_cats_str, loc_hierarchy_map
             conn = None
             try:
                 conn = get_db_connection(hass)
                 cc = conn.cursor()
+                
+                catalog_map = get_or_create_catalog_ids(hass)
+                
                 cc.execute("SELECT DISTINCT level_1, level_2, level_3 FROM items WHERE type != 'pending'")
-                loc_hierarchy = set()
                 
                 def local_quick_regex(s):
                     if not s: return s
@@ -640,17 +828,35 @@ async def websocket_ai_chat(hass, connection, msg):
                     if m: return f"[{m.group(1)}] {m.group(2)}"
                     return str(s)
 
+                loc_prompt_list = []
                 for r in cc.fetchall():
                     l1 = local_quick_regex(r[0]) if r[0] else None
                     l2 = local_quick_regex(r[1]) if r[1] else None
                     l3 = local_quick_regex(r[2]) if r[2] else None
                     if l1:
-                        path_elements = [f'"{l1}"']
-                        if l2: path_elements.append(f'"{l2}"')
-                        if l3: path_elements.append(f'"{l3}"')
-                        loc_hierarchy.add(f"[{', '.join(path_elements)}]")
+                        path_list = [l1]
+                        root_id_num = catalog_map.get('root', {}).get(l1)
+                        if not root_id_num: continue
+                        alpha_id = to_alpha_id(root_id_num)
+                        cat_id = alpha_id
+
+                        if l2:
+                            path_list.append(l2)
+                            l2_id_num = catalog_map.get(l1, {}).get(l2)
+                            if l2_id_num:
+                                cat_id = f"{alpha_id}{l2_id_num}"
+                            
+                            if l3:
+                                path_list.append(l3)
+                                l3_id_num = catalog_map.get(f"{l1}_{l2}", {}).get(l3)
+                                if l3_id_num:
+                                    cat_id = f"{alpha_id}{l2_id_num}.{l3_id_num}"
                         
-                existing_locs_str = ", ".join(sorted(list(loc_hierarchy)))
+                        if cat_id not in loc_hierarchy_map:
+                            loc_hierarchy_map[cat_id] = path_list
+                            loc_prompt_list.append(f"ID '{cat_id}': {' > '.join(path_list)}")
+                        
+                existing_locs_str = "\n".join(loc_prompt_list)
                 
                 cc.execute("SELECT DISTINCT category FROM items WHERE category IS NOT NULL AND category != ''")
                 cats = [r[0] for r in cc.fetchall()]
@@ -665,21 +871,19 @@ async def websocket_ai_chat(hass, connection, msg):
         if image_data:
             if "," in image_data: image_data = image_data.split(",")[1]
             
-            # [MODIFIED v7.9.19 | 2026-03-10] Purpose: Removed explicit Hebrew characters from prompt to prevent Gemini from biasing its language output.
             invoice_prompt = (
                 f"Analyze this document/receipt. Context:\n"
-                f"EXISTING PATHS (Use these EXACT arrays): {existing_locs_str}\n"
+                f"EXISTING LOCATIONS:\n{existing_locs_str}\n\n"
                 f"EXISTING CATEGORIES: [{existing_cats_str}]\n\n"
                 "RULES:\n"
-                "1. LANGUAGE: DO NOT translate item names. The 'name' field MUST be in the exact language the user typed or the receipt shows. Generate the 'message' field in the detected language.\n"
-                "2. MAPPING & SUBLOCATIONS: Map the user's natural language locations strictly to the exact strings in EXISTING PATHS. "
-                "   CRITICAL: If the EXISTING PATH contains brackets like `[ORDER_MARKER_020]`, you MUST output the FULL string including the brackets. Example: User says 'Left Door', but EXISTING PATHS has '[ORDER_MARKER_020] Left Door' -> you MUST output '[ORDER_MARKER_020] Left Door'. Do NOT strip brackets or convert spaces to underscores.\n"
+                f"1. LANGUAGE: You MUST generate the 'message' and translate ALL item names exactly into this language: {target_lang}. Do NOT use the document's original language if it differs from {target_lang}.\n"
+                "2. MAPPING & SUBLOCATIONS: Assign the item to a logical physical location by selecting the appropriate ID from the EXISTING LOCATIONS list above. Do NOT use category names like 'Food' or 'Dairy' as locations.\n"
                 "3. ICON SELECTION & CATEGORIES: Assign the closest standard icon_key from the following list. \n"
-                "   CRITICAL: The 'category' and 'sub_category' JSON fields MUST exactly match the MainCategory and SubCategory from your chosen icon_key.\n"
                 f"{ICON_PROMPT_CONTEXT}\n"
                 "4. OUTPUT JSON ONLY:\n"
-                "   - If items are clear: {{\"intent\": \"add_invoice\", \"message\": \"<Short success sentence in the detected language>\", \"items\": [{\"name\": \"...\", \"qty\": 1, \"path\": [\"[Floor 1] Kitchen\", \"Fridge\", \"[ORDER_MARKER_010] Right Door\"], \"category\": \"Food\", \"sub_category\": \"Dairy\", \"icon_key\": \"ICON_LIB_ITEM|Food|Dairy|Milk\"}]}}\n"
+                "   - If items are clear: {{\"intent\": \"add_invoice\", \"message\": \"<Short success sentence in the detected language>\", \"items\": [{\"name\": \"...\", \"qty\": 1, \"barcode\": \"12345\", \"location_id\": \"A1.1\", \"category\": \"Food\", \"sub_category\": \"Dairy\", \"icon_key\": \"ICON_LIB_ITEM|Food|Dairy|Milk\"}]}}\n"
                 "   - If ambiguous/unknown: {{\"intent\": \"clarify\", \"question\": \"<Question in the detected language>\"}}\n"
+                "   - If a barcode or item number is visible next to the item on the receipt, include it in the 'barcode' field (as a string). Otherwise, use '0' for the barcode.\n"
             )
 
             if user_message and user_message.strip() != "" and user_message != "Scanned Invoice":
@@ -729,28 +933,65 @@ async def websocket_ai_chat(hass, connection, msg):
 
                 if parsed.get("intent") == "add_invoice" and "items" in parsed:
                     for item in parsed["items"]:
-                        raw_path = item.get("path", ["General"])
+                        bcode = str(item.get("barcode", "0")).strip()
+                        
+                        hist_data = None
+                        if bcode and bcode != "0":
+                            def check_bcode_hist(b):
+                                conn = None
+                                try:
+                                    conn = get_db_connection(hass)
+                                    conn.row_factory = sqlite3.Row
+                                    cc = conn.cursor()
+                                    cc.execute("SELECT * FROM barcode_history WHERE barcode=?", (b,))
+                                    return cc.fetchone()
+                                except: return None
+                                finally:
+                                    if conn: conn.close()
+                            
+                            hist_row = await hass.async_add_executor_job(check_bcode_hist, bcode)
+                            if hist_row:
+                                hist_data = dict(hist_row)
+
+                        if hist_data:
+                            nm = hist_data.get("name", item.get("name", "Unknown"))
+                            cat = hist_data.get("category", item.get("category", ""))
+                            scat = hist_data.get("sub_category", item.get("sub_category", ""))
+                            icon = hist_data.get("icon_key", item.get("icon_key", None))
+                            raw_path = [hist_data.get("level_1", ""), hist_data.get("level_2", ""), hist_data.get("level_3", "")]
+                            raw_path = [p for p in raw_path if p]
+                        else:
+                            nm = item.get("name", "Unknown")
+                            cat = item.get("category", "")
+                            scat = item.get("sub_category", "")
+                            icon = item.get("icon_key", None)
+                            loc_id = item.get("location_id", "")
+                            raw_path = loc_hierarchy_map.get(loc_id)
+                            if not raw_path: raw_path = ["General"]
+                        
                         await hass.async_add_executor_job(
                             add_item_db_safe, 
                             hass, 
-                            item.get("name", "Unknown"), 
+                            nm, 
                             int(item.get("qty", 1)), 
                             raw_path, 
-                            item.get("category", ""), 
-                            item.get("sub_category", ""),
+                            cat, 
+                            scat,
                             "pending", 
-                            item.get("icon_key", None)
+                            icon,
+                            bcode
                         )
                         added_count += 1
+                        
+                        item["name"] = nm 
+                        item["_resolved_path"] = raw_path
                     
                     hass.bus.async_fire("home_organizer_db_update")
                     
                     ai_message = parsed.get("message", f"✅ I have scanned the document and added {added_count} items to the Review tab.")
                     response_text = f"{ai_message}\n\n"
                     for i in parsed["items"]:
-                        def ui_clean(p_list):
-                            return [re.sub(r'^\[?(ORDER_MARKER_\d+)\]?[_\s]+(.*)', r'[\1] \2', str(x)) for x in p_list]
-                        p_repaired = ui_clean(i.get("path", []))
+                        p_repaired = i.get("_resolved_path", ["General"])
                         path_str = " > ".join(p_repaired)
                         response_text += f"- **{i.get('name')}** (x{i.get('qty')}) -> _{path_str}_\n"
 
@@ -764,50 +1005,88 @@ async def websocket_ai_chat(hass, connection, msg):
                 connection.send_result(msg["id"], {"response": f"❌ Could not parse invoice data. Error: {str(e)}", "debug": {"raw": clean_txt}})
                 return
 
-        # [MODIFIED v7.9.19 | 2026-03-10] Purpose: Removed explicit language biases to ensure the AI strictly follows the user's input language.
-        step1_prompt = (
-            f"User says: '{user_message}'\n"
-            "Determine if the user wants to ADD items or SEARCH/QUERY.\n"
-            "1. IF ADDING:\n"
-            f"   Context for icons: {ICON_PROMPT_CONTEXT}\n"
-            f"   EXISTING PATHS: {existing_locs_str}\n"
-            "   Return JSON: {\"intent\": \"add\", \"items\": [{\"name\": \"Item Name\", \"qty\": 1, \"path\": [\"[Zone] Room\", \"Furniture\", \"[ORDER_MARKER_010] Right Door\"], \"category\": \"MainCat\", \"sub_category\": \"SubCat\", \"icon_key\": \"ICON_LIB_ITEM|MainCat|SubCat|ExactItemName\"}]}\n"
-            "   - LANGUAGE CRITICAL: DO NOT translate the item name. The 'name' field MUST be exactly as the user wrote it in their original language.\n"
-            "   - PATH MAPPING CRITICAL: Map natural language to EXACT EXISTING PATHS. If an existing path contains `[ORDER_MARKER_...]`, you MUST include the full string WITH brackets. Example: User says 'Left Door' -> output MUST be `\"[ORDER_MARKER_020] Left Door\"` if it exists in the paths. DO NOT strip or alter the markers.\n"
-            "   - Choose the closest icon_key. 'category' and 'sub_category' MUST exactly match the chosen icon_key.\n"
-            "2. IF SEARCHING: Return JSON: {\"intent\": \"search\", \"locations\": [\"loc1\"], \"keywords\": [\"item1\"], \"category_filter\": \"\"}\n"
-            "   - CRITICAL: Only extract physical item names as 'keywords'. For general advice/recipes (e.g., 'breakfast'), leave 'keywords' empty [].\n"
-            "   - IF the request is general advice AND no location is specified, set 'category_filter' to the best matching main category (e.g., 'Food', 'Clothing', 'Tools', 'Cleaning Supplies').\n"
-            "Return JSON ONLY. No markdown."
-        )
-
-        hass.bus.async_fire("home_organizer_chat_progress", {
-            "step": "Analyzing Intent...",
-            "debug_type": "prompt_sent",
-            "debug_label": "Intent Analysis Prompt",
-            "debug_content": step1_prompt
-        })
-
-        payload_1 = {"contents": [{"parts": [{"text": step1_prompt}]}]}
+        skip_gemini = False
+        is_barcode_resolution = False
+        barcode_id = "0"
         
         analysis_json = {}
-        raw_analysis = ""
 
-        res, err = await async_gemini_api_call(session, gen_url, payload_1, 20)
-        if not err and res:
-            if "candidates" not in res or not res["candidates"]:
-                connection.send_result(msg["id"], {"error": f"AI Response Format Error (Content may be blocked): {res}"})
-                return
-                
-            raw_analysis = res["candidates"][0]["content"]["parts"][0]["text"].strip()
-            clean_txt = re.sub(r'```json\s*|```\s*', '', raw_analysis).strip()
-            try:
-                analysis_json = json.loads(clean_txt)
-            except:
-                analysis_json = {}
+        if user_message.startswith("RESOLVE_BARCODE:"):
+            is_barcode_resolution = True
+            barcode_parts = user_message.replace('RESOLVE_BARCODE:', '').split('-', 1)
+            barcode_id = barcode_parts[0].strip()
+            manual_name = barcode_parts[1].strip() if len(barcode_parts) > 1 else ""
+
+            progress_step = f"Categorizing {manual_name}..."
+            hint_text = f"The user scanned a barcode and verified the name is: '{manual_name}'. YOU MUST USE EXACTLY THIS NAME for the product name. Do not invent a different name. Categorize this item logically and assign it to a physical room."
+
+            step1_prompt = (
+                f"{hint_text}\n\n"
+                f"EXISTING LOCATIONS:\n{existing_locs_str}\n\n"
+                "CRITICAL INSTRUCTIONS:\n"
+                "1. You MUST return ONLY a raw JSON object. NO markdown formatting, NO conversational text.\n"
+                f"2. LANGUAGE RULE: You MUST translate the final product name into exactly this language: {target_lang}.\n"
+                "3. LOCATION MAPPING: You MUST assign the item to a logical physical location strictly by outputting the 'location_id' chosen from the EXISTING LOCATIONS above. Do NOT put categories like 'Food' or 'Dairy' into the location!\n\n"
+                "Output exactly this structure:\n"
+                "{\"intent\": \"add\", \"items\": [{\"name\": \"<PRODUCT NAME>\", \"qty\": 1, \"location_id\": \"A1.1\", \"category\": \"<MainCat>\", \"sub_category\": \"<SubCat>\", \"icon_key\": \"<ICON_LIB_ITEM...>\"}]}\n\n"
+                f"Choose the most logical category, sub_category, and icon_key from this list:\n{ICON_PROMPT_CONTEXT}"
+            )
+            
+            hass.bus.async_fire("home_organizer_chat_progress", {
+                "step": progress_step,
+                "debug_type": "prompt_sent",
+                "debug_label": "Intent Analysis Prompt",
+                "debug_content": step1_prompt
+            })
+
+            payload_1 = {
+                "contents": [{"parts": [{"text": step1_prompt}]}]
+            }
         else:
-            connection.send_result(msg["id"], {"error": f"AI API Error: {err}"})
-            return
+            progress_step = "Analyzing Intent..."
+            step1_prompt = (
+                f"User says: '{user_message}'\n"
+                "Determine if the user wants to ADD items or SEARCH/QUERY.\n"
+                "1. IF ADDING:\n"
+                f"   Context for icons: {ICON_PROMPT_CONTEXT}\n"
+                f"   EXISTING LOCATIONS:\n{existing_locs_str}\n"
+                "   Return JSON: {\"intent\": \"add\", \"items\": [{\"name\": \"Item Name\", \"qty\": 1, \"location_id\": \"A1.1\", \"category\": \"MainCat\", \"sub_category\": \"SubCat\", \"icon_key\": \"ICON_LIB_ITEM|MainCat|SubCat|ExactItemName\"}]}\n"
+                f"   - LANGUAGE CRITICAL: You MUST translate the item name and all responses into this exact language: {target_lang}.\n"
+                "   - LOCATION MAPPING CRITICAL: Assign the item to a physical location by selecting the exact ID from EXISTING LOCATIONS. Output the ID in 'location_id'.\n"
+                "   - Choose the closest icon_key. 'category' and 'sub_category' MUST exactly match the chosen icon_key.\n"
+                "2. IF SEARCHING: Return JSON: {\"intent\": \"search\", \"locations\": [\"loc1\"], \"keywords\": [\"item1\"], \"category_filter\": \"\"}\n"
+                "   - CRITICAL: Only extract physical item names as 'keywords'. For general advice/recipes (e.g., 'breakfast'), leave 'keywords' empty [].\n"
+                "   - IF the request is general advice AND no location is specified, set 'category_filter' to the best matching main category (e.g., 'Food', 'Clothing', 'Tools', 'Cleaning Supplies').\n"
+                "Return JSON ONLY. No markdown."
+            )
+
+            hass.bus.async_fire("home_organizer_chat_progress", {
+                "step": progress_step,
+                "debug_type": "prompt_sent",
+                "debug_label": "Intent Analysis Prompt",
+                "debug_content": step1_prompt
+            })
+
+            payload_1 = {
+                "contents": [{"parts": [{"text": step1_prompt}]}]
+            }
+
+        if not skip_gemini:
+            res, err = await async_gemini_api_call(session, gen_url, payload_1, 20)
+            if not err and res:
+                if "candidates" not in res or not res["candidates"]:
+                    connection.send_result(msg["id"], {"error": f"AI Response Format Error (Content may be blocked): {res}"})
+                    return
+                    
+                raw_analysis = res["candidates"][0]["content"]["parts"][0]["text"].strip()
+                clean_txt = re.sub(r'```json\s*|```\s*', '', raw_analysis).strip()
+                try:
+                    analysis_json = json.loads(clean_txt)
+                except:
+                    analysis_json = {}
+            else:
+                connection.send_result(msg["id"], {"error": f"AI API Error: {err}"})
+                return
 
         if analysis_json.get("intent") == "add":
             items_to_add = analysis_json.get("items", [])
@@ -816,17 +1095,21 @@ async def websocket_ai_chat(hass, connection, msg):
             for item in items_to_add:
                 nm = item.get("name")
                 qt = item.get("qty", 1)
-                pt = item.get("path", ["General"])
+                loc_id = item.get("location_id", "")
+                pt = loc_hierarchy_map.get(loc_id)
+                if not pt: pt = ["General"]
+                
                 cat = item.get("category", "")
                 sub_cat = item.get("sub_category", "")
                 icon_key = item.get("icon_key", None)
                 
-                await hass.async_add_executor_job(add_item_db_safe, hass, nm, qt, pt, cat, sub_cat, "pending", icon_key)
+                bcode = item.get("barcode", "0")
+                if bcode == "0" and is_barcode_resolution:
+                    bcode = barcode_id
                 
-                def ui_clean(p_list):
-                    return [re.sub(r'^\[?(ORDER_MARKER_\d+)\]?[_\s]+(.*)', r'[\1] \2', str(x)) for x in p_list]
-                pt_clean = ui_clean(pt)
-                added_log.append(f"{nm} (x{qt}) to {' > '.join(pt_clean)}")
+                await hass.async_add_executor_job(add_item_db_safe, hass, nm, qt, pt, cat, sub_cat, "pending", icon_key, bcode)
+                
+                added_log.append(f"{nm} (x{qt}) to {' > '.join(pt)}")
             
             hass.bus.async_fire("home_organizer_db_update")
             
@@ -949,7 +1232,6 @@ async def websocket_ai_chat(hass, connection, msg):
         
         inventory_context = "\n".join(context_lines) if context_lines else "(empty - no items found)"
 
-        # [MODIFIED v7.9.20 | 2026-03-10] Purpose: Restructured the final prompt to place strict language and translation rules at the very end to combat context-language bleed from the database items.
         step3_prompt = (
             "You are a smart home inventory assistant.\n\n"
             "=== RAW INVENTORY DATA ===\n"
@@ -959,13 +1241,14 @@ async def websocket_ai_chat(hass, connection, msg):
             f"{user_message}\n"
             "====================\n\n"
             "CRITICAL OUTPUT INSTRUCTIONS:\n"
-            "1. Identify the language of the 'USER REQUEST'.\n"
-            "2. Your ENTIRE response MUST be in THAT EXACT LANGUAGE.\n"
-            "3. If the USER REQUEST is in English, you MUST translate ALL inventory items and locations from the raw data into English.\n"
-            "4. NEVER mix languages. Base your recommendations ONLY on the raw inventory data provided."
+            f"1. LANGUAGE RULE: Your ENTIRE response MUST be strictly in this exact language: {target_lang}.\n"
+            f"2. You MUST translate ALL inventory items, advice, and conversational text into {target_lang}.\n"
+            "3. NEVER mix languages. Base your recommendations ONLY on the raw inventory data provided."
         )
 
-        payload_3 = {"contents": [{"parts": [{"text": step3_prompt}]}]}
+        payload_3 = {
+            "contents": [{"parts": [{"text": step3_prompt}]}]
+        }
 
         res, err = await async_gemini_api_call(session, gen_url, payload_3, 40)
         if not err and res:
@@ -1027,7 +1310,9 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
             col_names = [description[0] for description in c.description]
             for r in c.fetchall():
                 r_dict = dict(zip(col_names, r))
-                fp = []; [fp.append(r_dict.get(f"level_{i}", "")) for i in range(1, 11) if r_dict.get(f"level_{i}")]
+                fp = []
+                for i in range(1, 11):
+                    if r_dict.get(f"level_{i}"): fp.append(r_dict.get(f"level_{i}"))
                 
                 img = None
                 raw_path = r_dict.get('image_path')
@@ -1035,6 +1320,7 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                     if raw_path.startswith("ICON_LIB"): img = raw_path
                     else: img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
 
+                # [MODIFIED v7.9.44 | 2026-03-17] Purpose: Added barcode field to get_data responses for frontend UI
                 shopping_list.append({
                     "id": r_dict['id'],
                     "name": r_dict['name'], 
@@ -1045,7 +1331,8 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                     "main_location": r_dict.get("level_2", "General"),
                     "sub_location": r_dict.get("level_3", ""),
                     "category": r_dict.get("category", ""),
-                    "sub_category": r_dict.get("sub_category", "")
+                    "sub_category": r_dict.get("sub_category", ""),
+                    "barcode": r_dict.get("barcode", "0")
                 })
 
             c.execute("SELECT * FROM items WHERE type='pending' ORDER BY created_at DESC")
@@ -1057,6 +1344,7 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                     if raw_path.startswith("ICON_LIB"): img = raw_path
                     else: img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
 
+                # [MODIFIED v7.9.44 | 2026-03-17] Purpose: Added barcode field to get_data responses for frontend UI
                 pending_list.append({
                     "id": r_dict['id'],
                     "name": r_dict['name'], 
@@ -1066,7 +1354,8 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                     "level_2": r_dict.get("level_2", ""),
                     "level_3": r_dict.get("level_3", ""),
                     "category": r_dict.get("category", ""),
-                    "sub_category": r_dict.get("sub_category", "")
+                    "sub_category": r_dict.get("sub_category", ""),
+                    "barcode": r_dict.get("barcode", "0")
                 })
 
         elif query or date_filter != "All":
@@ -1083,13 +1372,16 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
             col_names = [description[0] for description in c.description]
             for r in c.fetchall():
                 r_dict = dict(zip(col_names, r))
-                fp = []; [fp.append(r_dict.get(f"level_{i}", "")) for i in range(1, 11) if r_dict.get(f"level_{i}")]
+                fp = []
+                for i in range(1, 11):
+                    if r_dict.get(f"level_{i}"): fp.append(r_dict.get(f"level_{i}"))
                 img = None
                 raw_path = r_dict.get('image_path')
                 if raw_path:
                     if raw_path.startswith("ICON_LIB"): img = raw_path
                     else: img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
 
+                # [MODIFIED v7.9.44 | 2026-03-17] Purpose: Added barcode field to get_data responses for frontend UI
                 items.append({
                     "id": r_dict['id'],
                     "name": r_dict['name'], 
@@ -1101,7 +1393,8 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                     "category": r_dict.get('category', ''),
                     "sub_category": r_dict.get('sub_category', ''),
                     "unit": r_dict.get('unit', ''),
-                    "unit_value": r_dict.get('unit_value', '')
+                    "unit_value": r_dict.get('unit_value', ''),
+                    "barcode": r_dict.get("barcode", "0")
                 })
 
         else:
@@ -1140,6 +1433,7 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                           if raw_path.startswith("ICON_LIB"): img = raw_path
                           else: img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
 
+                      # [MODIFIED v7.9.44 | 2026-03-17] Purpose: Added barcode field to get_data responses for frontend UI
                       items.append({
                           "id": r_dict['id'],
                           "name": r_dict['name'], 
@@ -1150,7 +1444,8 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                           "category": r_dict.get('category', ''),
                           "sub_category": r_dict.get('sub_category', ''),
                           "unit": r_dict.get('unit', ''),
-                          "unit_value": r_dict.get('unit_value', '')
+                          "unit_value": r_dict.get('unit_value', ''),
+                          "barcode": r_dict.get("barcode", "0")
                       })
             else:
                 sublocations = []
@@ -1172,6 +1467,8 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                         else: img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
 
                     subloc = r_dict.get(f"level_{depth+1}", "")
+                    
+                    # [MODIFIED v7.9.44 | 2026-03-17] Purpose: Added barcode field to get_data responses for frontend UI
                     fetched_items.append({
                         "id": r_dict['id'],
                         "name": r_dict['name'], 
@@ -1183,7 +1480,8 @@ def get_view_data(hass, path_parts, query, date_filter, is_shopping):
                         "category": r_dict.get('category', ''),
                         "sub_category": r_dict.get('sub_category', ''),
                         "unit": r_dict.get('unit', ''),
-                        "unit_value": r_dict.get('unit_value', '')
+                        "unit_value": r_dict.get('unit_value', ''),
+                        "barcode": r_dict.get("barcode", "0")
                     })
                 
                 for s in sublocations: folders.append({"name": s})
@@ -1217,10 +1515,17 @@ async def register_services(hass, entry):
     async def handle_add(call):
         name = call.data.get("item_name"); itype = call.data.get("item_type", "item")
         date = call.data.get("item_date"); img_b64 = call.data.get("image_data")
+        category = call.data.get("category", "")
+        sub_category = call.data.get("sub_category", "")
+        icon_key = call.data.get("icon_key", None)
+        barcode = call.data.get("barcode", "0")
+        
         fname = ""
         img_path_base = hass.data.get(DOMAIN, {}).get("config", {}).get("img_path", hass.config.path("www", IMG_DIR))
         
-        if img_b64:
+        if icon_key:
+            fname = icon_key
+        elif img_b64:
             try:
                 if "," in img_b64: img_b64 = img_b64.split(",")[1]
                 fname = f"img_{int(time.time())}.jpg"
@@ -1231,12 +1536,12 @@ async def register_services(hass, entry):
         parts = normalize_zone_path(hass, parts)
         parts = await hass.async_add_executor_job(repair_path_against_db, hass, parts)
         depth = len(parts)
-        cols = ["name", "type", "quantity", "item_date", "image_path"]
+        cols = ["name", "type", "quantity", "item_date", "image_path", "category", "sub_category", "barcode"]
         
         if itype == 'folder':
             if depth >= 10: return
-            vals = [f"[Folder] {name}", "folder_marker", 0, date, fname]
-            qs = ["?", "?", "?", "?", "?"]
+            vals = [f"[Folder] {name}", "folder_marker", 0, date, fname, category, sub_category, barcode]
+            qs = ["?", "?", "?", "?", "?", "?", "?", "?"]
             for i, p in enumerate(parts): cols.append(f"level_{i+1}"); vals.append(p); qs.append("?")
             cols.append(f"level_{depth+1}"); vals.append(name); qs.append("?")
             
@@ -1250,8 +1555,8 @@ async def register_services(hass, entry):
                     if conn: conn.close()
             await hass.async_add_executor_job(db_ins)
         else:
-            vals = [name, itype, 1, date, fname]
-            qs = ["?", "?", "?", "?", "?"]
+            vals = [name, itype, 1, date, fname, category, sub_category, barcode]
+            qs = ["?", "?", "?", "?", "?", "?", "?", "?"]
             for i, p in enumerate(parts): cols.append(f"level_{i+1}"); vals.append(p); qs.append("?")
 
             def db_ins():
@@ -1259,6 +1564,15 @@ async def register_services(hass, entry):
                 try:
                     conn = get_db_connection(hass); c = conn.cursor()
                     c.execute(f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})", tuple(vals))
+                    
+                    if barcode and barcode != "0":
+                        l1 = parts[0] if len(parts) > 0 else ""
+                        l2 = parts[1] if len(parts) > 1 else ""
+                        l3 = parts[2] if len(parts) > 2 else ""
+                        c.execute('''
+                            REPLACE INTO barcode_history (barcode, name, category, sub_category, icon_key, level_1, level_2, level_3)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', (barcode, name, category, sub_category, fname, l1, l2, l3))
                     conn.commit()
                 finally:
                     if conn: conn.close()
@@ -1478,6 +1792,15 @@ async def register_services(hass, entry):
                                 for i, p in enumerate(parts): sql += f" AND level_{i+1} = ?"; params.append(p)
 
                         c.execute(sql, tuple(params))
+                        
+                        if item_id:
+                            c.execute("SELECT barcode, name, category, sub_category, image_path, level_1, level_2, level_3 FROM items WHERE id=?", (item_id,))
+                            row = c.fetchone()
+                            if row and row[0] and str(row[0]) not in ("0", "None", ""):
+                                c.execute('''
+                                    REPLACE INTO barcode_history (barcode, name, category, sub_category, icon_key, level_1, level_2, level_3)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                ''', (row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7]))
 
                 conn.commit()
             finally:
@@ -1513,6 +1836,14 @@ async def register_services(hass, entry):
                 conn = get_db_connection(hass); c = conn.cursor()
                 if item_id:
                     c.execute(f"UPDATE items SET image_path = ? WHERE id = ?", (fname, item_id))
+                    
+                    c.execute("SELECT barcode, name, category, sub_category, image_path, level_1, level_2, level_3 FROM items WHERE id=?", (item_id,))
+                    row = c.fetchone()
+                    if row and row[0] and str(row[0]) not in ("0", "None", ""):
+                        c.execute('''
+                            REPLACE INTO barcode_history (barcode, name, category, sub_category, icon_key, level_1, level_2, level_3)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', (row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7]))
                 else:
                     c.execute(f"UPDATE items SET image_path = ? WHERE name = ?", (fname, name))
                 conn.commit()
@@ -1533,6 +1864,14 @@ async def register_services(hass, entry):
             try:
                 conn = get_db_connection(hass)
                 c = conn.cursor()
+                
+                c.execute("SELECT barcode, image_path, category, sub_category FROM items WHERE id=?", (item_id,))
+                row = c.fetchone()
+                bcode = row[0] if row else "0"
+                icon_k = row[1] if row else ""
+                cat = row[2] if row else ""
+                scat = row[3] if row else ""
+
                 upd = ["type='item'", "name=?", "quantity=?"]
                 vals = [name, qty]
 
@@ -1542,6 +1881,16 @@ async def register_services(hass, entry):
 
                 vals.append(item_id)
                 c.execute(f"UPDATE items SET {','.join(upd)} WHERE id=?", tuple(vals))
+                
+                if bcode and bcode != "0":
+                    l1 = parts[0] if len(parts) > 0 else ""
+                    l2 = parts[1] if len(parts) > 1 else ""
+                    l3 = parts[2] if len(parts) > 2 else ""
+                    c.execute('''
+                        REPLACE INTO barcode_history (barcode, name, category, sub_category, icon_key, level_1, level_2, level_3)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (bcode, name, cat, scat, icon_k, l1, l2, l3))
+
                 conn.commit()
             finally:
                 if conn: conn.close()
@@ -1576,11 +1925,60 @@ async def register_services(hass, entry):
                 _LOGGER.error(f"AI Error: {err}")
         except Exception as e: _LOGGER.error(f"AI Exception: {e}")
 
+    async def handle_clear_barcode_history(call):
+        def db_clear_hist():
+            conn = None
+            try:
+                conn = get_db_connection(hass)
+                c = conn.cursor()
+                c.execute("DELETE FROM barcode_history")
+                conn.commit()
+                _LOGGER.info("Home Organizer: Barcode history cleared.")
+            except Exception as e:
+                _LOGGER.error(f"Error clearing barcode history: {e}")
+            finally:
+                if conn: conn.close()
+        await hass.async_add_executor_job(db_clear_hist)
+
+    async def handle_clear_all_items(call):
+        def db_clear_items():
+            conn = None
+            try:
+                conn = get_db_connection(hass)
+                c = conn.cursor()
+                c.execute("DELETE FROM items WHERE type = 'item' OR type = 'pending'")
+                conn.commit()
+                _LOGGER.info("Home Organizer: All items cleared.")
+            except Exception as e:
+                _LOGGER.error(f"Error clearing items: {e}")
+            finally:
+                if conn: conn.close()
+        await hass.async_add_executor_job(db_clear_items)
+        broadcast_update()
+
+    async def handle_clear_all_data(call):
+        def db_clear_data():
+            conn = None
+            try:
+                conn = get_db_connection(hass)
+                c = conn.cursor()
+                c.execute("DELETE FROM items")
+                c.execute("DELETE FROM persistent_ids")
+                conn.commit()
+                _LOGGER.info("Home Organizer: Entire inventory database cleared.")
+            except Exception as e:
+                _LOGGER.error(f"Error clearing database: {e}")
+            finally:
+                if conn: conn.close()
+        await hass.async_add_executor_job(db_clear_data)
+        broadcast_update()
+
     for n, h in [
         ("add_item", handle_add), ("update_image", handle_update_image),
         ("update_stock", handle_update_stock), ("update_qty", handle_update_qty), ("delete_item", handle_delete),
         ("clipboard_action", handle_clipboard), ("paste_item", handle_paste), ("ai_action", handle_ai_action),
         ("update_item_details", handle_update_item_details), ("duplicate_item", handle_duplicate),
-        ("confirm_pending", handle_confirm_pending)
+        ("confirm_pending", handle_confirm_pending), ("clear_barcode_history", handle_clear_barcode_history),
+        ("clear_all_items", handle_clear_all_items), ("clear_all_data", handle_clear_all_data)
     ]:
         hass.services.async_register(DOMAIN, n, h)

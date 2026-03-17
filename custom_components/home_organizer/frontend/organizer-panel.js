@@ -1,5 +1,16 @@
-// Home Organizer Ultimate - Ver 7.7.15 (Update: Added bulk delete selection checkboxes to grid view xl-cards)
- 
+// Incrementing version to 7.7.28
+// [MODIFIED v7.7.28 | 2026-03-17] Purpose: Restored truncated file end and added barcode ID display to regular item list rows
+// [MODIFIED v7.7.27 | 2026-03-17] Purpose: Added barcode display under regular items and pending items with LTR/Theme compliance
+// [MODIFIED v7.7.26 | 2026-03-16] Purpose: Added 90-degree canvas rotation fallback to reliably scan both vertical and horizontal barcodes
+// [MODIFIED v7.7.25 | 2026-03-16] Purpose: Added multi-frame confidence check and restricted formats to retail (EAN/UPC) to prevent incorrect barcode numbers
+// [MODIFIED v7.7.24 | 2026-03-16] Purpose: Fully restored file to fix truncation issue from previous version
+// [MODIFIED v7.7.23 | 2026-03-16] Purpose: Barcode handles location paths from history and uses strict AI categorization upon UI confirmation
+// [MODIFIED v7.7.22 | 2026-03-16] Purpose: Moved barcode confirmation from modal to inline Chat UI
+// [MODIFIED v7.7.21 | 2026-03-16] Purpose: Added Barcode Modal and completely separated barcode lookup from Chat UI
+// [MODIFIED v7.7.20 | 2026-03-16] Purpose: Prevent auto-submit on barcode scan to allow user to type product name
+// [MODIFIED v7.7.19 | 2026-03-16] Purpose: Passed language parameter to backend enforcing UI language translation
+// [ADDED v7.7.18 | 2026-03-15] Purpose: Enhanced barcode scanning (HD resolution, autofocus, polyfill, throttling)
+// Guy Azria
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.10';
 import { ITEM_CATEGORIES } from './organizer-data.js?v=6.6.10';
 
@@ -7,7 +18,7 @@ class HomeOrganizerPanel extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this.content) {
-      console.log("%c Home Organizer v7.7.15 Fully Loaded ", "background: #e91e63; color: #fff; font-weight: bold;");
+      console.log("%c Home Organizer v7.7.27 Fully Loaded ", "background: #e91e63; color: #fff; font-weight: bold;");
       this.currentPath = [];
       this.catalogPath = []; 
       this.isEditMode = false;
@@ -426,6 +437,19 @@ class HomeOrganizerPanel extends HTMLElement {
 
     this.shadowRoot.innerHTML = `
       <link rel="stylesheet" href="/home_organizer_static/organizer-panel.css?v=${timestamp}">
+      <style>
+        .barcode-overlay {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 250px; height: 150px;
+            transform: translate(-50%, -50%);
+            border: 2px solid #0f0;
+            box-shadow: 0 0 0 4000px rgba(0,0,0,0.5);
+            display: none;
+            pointer-events: none;
+            z-index: 10;
+        }
+      </style>
       
       <div class="app-container" id="app">
         <div class="top-bar" style="direction: ltr;">
@@ -530,7 +554,7 @@ class HomeOrganizerPanel extends HTMLElement {
               
               <div style="margin-top:20px; font-size:12px; color:#666; border-top:1px solid var(--border-light); padding-top:10px;">
                   Licensed under MIT License.<br>
-                  Version 7.7.15
+                  Version 7.7.27
               </div>
               
               <button class="action-btn" style="width:100%; margin-top:20px;" onclick="this.closest('#about-modal').style.display='none'" id="lbl-close">Close</button>
@@ -565,6 +589,7 @@ class HomeOrganizerPanel extends HTMLElement {
       
       <div id="camera-modal">
           <video id="camera-video" autoplay playsinline muted></video>
+          <div id="barcode-overlay" class="barcode-overlay"></div>
           <div class="camera-controls">
               <button class="close-cam-btn" id="btn-cam-switch">${ICONS.refresh}</button>
               <button class="snap-btn" id="btn-cam-snap"></button>
@@ -1063,6 +1088,8 @@ class HomeOrganizerPanel extends HTMLElement {
 
   async openCamera(context) {
       this.cameraContext = context;
+      const overlay = this.shadowRoot.getElementById('barcode-overlay');
+      if (overlay) overlay.style.display = context === 'barcode' ? 'block' : 'none';
       
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
           console.warn("Secure context required for Camera API. Switching to native file input.");
@@ -1073,9 +1100,31 @@ class HomeOrganizerPanel extends HTMLElement {
       const modal = this.shadowRoot.getElementById('camera-modal');
       const video = this.shadowRoot.getElementById('camera-video');
       modal.style.display = 'flex';
+      
+      let constraints = { video: { facingMode: this.facingMode || "environment" } };
+      if (context === 'barcode') {
+          constraints = { 
+              video: { 
+                  facingMode: "environment", 
+                  width: { ideal: 1920 }, 
+                  height: { ideal: 1080 }
+              } 
+          };
+      }
+
       try {
-          this.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: this.facingMode || "environment" } });
+          this.stream = await navigator.mediaDevices.getUserMedia(constraints);
           video.srcObject = this.stream;
+          
+          if (context === 'barcode') {
+              const track = this.stream.getVideoTracks()[0];
+              if (track && track.getCapabilities) {
+                  const caps = track.getCapabilities();
+                  if (caps.focusMode && caps.focusMode.includes('continuous')) {
+                      await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(()=>console.warn("Focus unsupported"));
+                  }
+              }
+          }
       } catch (err) {
           alert("Camera Error: " + err.message);
           modal.style.display = 'none';
@@ -1141,6 +1190,8 @@ class HomeOrganizerPanel extends HTMLElement {
   stopCamera() {
       const modal = this.shadowRoot.getElementById('camera-modal');
       const video = this.shadowRoot.getElementById('camera-video');
+      const overlay = this.shadowRoot.getElementById('barcode-overlay');
+      if (overlay) overlay.style.display = 'none';
       if (this.stream) this.stream.getTracks().forEach(track => track.stop());
       video.srcObject = null;
       modal.style.display = 'none';
@@ -1278,6 +1329,9 @@ class HomeOrganizerPanel extends HTMLElement {
         }
     }
 
+    // [ADDED v7.7.27 | 2026-03-17] Purpose: Reusable tiny inline SVG for the barcode icon
+    const miniBarcodeSvg = '<svg style="width:12px;height:12px" viewBox="0 0 24 24"><path fill="currentColor" d="M3,6H5V18H3V6M7,6H8V18H7V6M9,6H12V18H9V6M13,6H14V18H13V6M16,6H18V18H16V6M19,6H21V18H19V6Z"/></svg>';
+
     if (this.isShopMode) {
         const pendingCount = (attrs.pending_list || []).length;
         const UPLOAD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>';
@@ -1392,10 +1446,14 @@ class HomeOrganizerPanel extends HTMLElement {
                         }
                     }
 
+                    // [MODIFIED v7.7.27 | 2026-03-17] Purpose: Added LTR-forced tiny barcode display under the input in the pending list
                     card.innerHTML = `
                         <div class="pending-top">
                             ${iconHtml}
-                            <input type="text" id="pending-name-${item.id}" class="pending-name-input" value="${item.name}">
+                            <div style="display:flex; flex-direction:column; flex:1; margin-inline-end:10px;">
+                                <input type="text" id="pending-name-${item.id}" class="pending-name-input" value="${item.name}" style="width:100%;">
+                                ${item.barcode && item.barcode !== '0' ? `<div style="font-size:10px; color:var(--text-sub); margin-top:4px; display:inline-flex; align-items:center; gap:4px; opacity:0.8; direction:ltr; align-self:flex-start;">${miniBarcodeSvg} ${item.barcode}</div>` : ''}
+                            </div>
                             <input type="number" id="pending-qty-${item.id}" class="pending-qty-input" value="${item.qty}" min="1">
                         </div>
                         <div class="pending-mid" style="display:flex; flex-direction:column; gap:8px;">
@@ -1979,6 +2037,7 @@ class HomeOrganizerPanel extends HTMLElement {
     }
   }
 
+  // [MODIFIED v7.7.27 | 2026-03-17] Purpose: Reusable tiny inline SVG for the barcode icon
   renderChatUI(container) {
       const chatContainer = document.createElement('div');
       chatContainer.className = 'chat-container';
@@ -2001,48 +2060,107 @@ class HomeOrganizerPanel extends HTMLElement {
           messagesDiv.appendChild(welcome);
       }
       
-      this.chatHistory.forEach(msg => {
+      this.chatHistory.forEach((msg, idx) => {
           const div = document.createElement('div');
           div.className = `message ${msg.role}`;
-          div.innerHTML = msg.text; 
-          if(msg.image) {
-              const img = document.createElement('img');
-              if (msg.mime_type === 'application/pdf') {
-                  img.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 24 24"><path fill="gray" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h6v6h6v10H6z"/></svg>';
-              } else {
-                  img.src = msg.image;
-              }
-              img.style.maxWidth = "100%";
-              img.style.borderRadius = "8px";
-              img.style.marginTop = "5px";
-              div.appendChild(img);
-          }
-          if(msg.isStatus) {
-              div.id = 'chat-status-msg'; 
-          }
           
-          if(msg.isError) {
-              const retryBtn = document.createElement('button');
-              retryBtn.className = 'action-btn';
-              retryBtn.style.marginTop = '10px';
-              retryBtn.style.background = 'var(--primary)';
-              retryBtn.style.color = 'white';
-              retryBtn.innerHTML = ICONS.refresh + " Send Again";
-              retryBtn.onclick = () => {
-                  this.chatImage = msg.retryImage;
-                  this.chatMimeType = msg.retryMime || "image/jpeg";
-                  const chatInput = this.shadowRoot.querySelector('.chat-input');
-                  if(chatInput) chatInput.value = msg.retryText || "";
-                  
-                  this.chatHistory = this.chatHistory.filter(m => m !== msg);
-                  this.render();
-                  
-                  setTimeout(() => {
-                      const sendBtn = this.shadowRoot.querySelector('.chat-send-btn');
-                      if(sendBtn) sendBtn.click();
-                  }, 100);
-              };
-              div.appendChild(retryBtn);
+          if (msg.isBarcodeConfirm) {
+              div.innerHTML = `
+                  <div style="margin-bottom:8px; color: var(--primary);"><b>Barcode Scanned: ${msg.barcode}</b></div>
+                  <div style="margin-bottom:8px; font-size:13px;">Confirm or edit the AI suggested name:</div>
+                  <input type="text" id="chat-bcode-input-${idx}" style="width:100%; padding:8px; margin-bottom:10px; border-radius:6px; border:1px solid var(--border-light); background:var(--bg-input-edit, #333); color:var(--text-main, #fff); font-size:14px; box-sizing:border-box;">
+                  <button class="action-btn" id="chat-bcode-btn-${idx}" style="width:100%; background:var(--success, #4caf50); color:white; padding:8px; border-radius:6px;">Confirm & Add</button>
+              `;
+              
+              setTimeout(() => {
+                  const btn = this.shadowRoot.getElementById(`chat-bcode-btn-${idx}`);
+                  const inp = this.shadowRoot.getElementById(`chat-bcode-input-${idx}`);
+                  if (btn && inp) {
+                      inp.value = msg.suggestion.name || '';
+                      inp.focus();
+                      
+                      const confirmAction = async () => {
+                          const finalName = inp.value.trim() || msg.suggestion.name;
+                          
+                          msg.isBarcodeConfirm = false;
+                          msg.text = `Categorizing <b>${finalName}</b>...`;
+                          this.render();
+                          
+                          try {
+                              const result = await this._hass.callWS({
+                                  type: 'home_organizer/ai_chat',
+                                  message: `RESOLVE_BARCODE: ${msg.barcode} - ${finalName}`,
+                                  image_data: null,
+                                  mime_type: 'image/jpeg',
+                                  language: this.currentLang
+                              });
+                              
+                              if (result) {
+                                  let debugHTML = "";
+                                  if (result.debug) {
+                                      const d = result.debug;
+                                      const esc = (s) => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+                                      if (d.raw_json) debugHTML += `<details class="debug-details"><summary class="debug-summary">📄 Raw Data</summary><div class="debug-content">${esc(d.raw_json)}</div></details>`;
+                                  }
+                                  
+                                  if (result.error) {
+                                      msg.text = `❌ Error: ${result.error}`;
+                                  } else if (result.response) {
+                                      let formatted = result.response.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+                                      msg.text = formatted + debugHTML;
+                                  }
+                              }
+                          } catch (e) {
+                              msg.text = `❌ Failed to categorize: ${e.message}`;
+                          }
+                          this.render();
+                      };
+                      
+                      btn.onclick = confirmAction;
+                      inp.onkeydown = (e) => { if(e.key === 'Enter') confirmAction(); };
+                  }
+              }, 0);
+          } else {
+              div.innerHTML = msg.text; 
+              if(msg.image) {
+                  const img = document.createElement('img');
+                  if (msg.mime_type === 'application/pdf') {
+                      img.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 24 24"><path fill="gray" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h6v6h6v10H6z"/></svg>';
+                  } else {
+                      img.src = msg.image;
+                  }
+                  img.style.maxWidth = "100%";
+                  img.style.borderRadius = "8px";
+                  img.style.marginTop = "5px";
+                  div.appendChild(img);
+              }
+              if(msg.isStatus) {
+                  div.id = 'chat-status-msg'; 
+              }
+              
+              if(msg.isError) {
+                  const retryBtn = document.createElement('button');
+                  retryBtn.className = 'action-btn';
+                  retryBtn.style.marginTop = '10px';
+                  retryBtn.style.background = 'var(--primary)';
+                  retryBtn.style.color = 'white';
+                  retryBtn.innerHTML = ICONS.refresh + " Send Again";
+                  retryBtn.onclick = () => {
+                      this.chatImage = msg.retryImage;
+                      this.chatMimeType = msg.retryMime || "image/jpeg";
+                      const chatInput = this.shadowRoot.querySelector('.chat-input');
+                      if(chatInput) chatInput.value = msg.retryText || "";
+                      
+                      this.chatHistory = this.chatHistory.filter(m => m !== msg);
+                      this.render();
+                      
+                      setTimeout(() => {
+                          const sendBtn = this.shadowRoot.querySelector('.chat-send-btn');
+                          if(sendBtn) sendBtn.click();
+                      }, 100);
+                  };
+                  div.appendChild(retryBtn);
+              }
           }
           
           messagesDiv.appendChild(div);
@@ -2107,6 +2225,13 @@ class HomeOrganizerPanel extends HTMLElement {
       uploadBtn.style.flexShrink = "0";
       uploadBtn.onclick = () => this.openFileUpload('chat');
 
+      const barcodeBtn = document.createElement('button');
+      barcodeBtn.className = 'chat-cam-btn';
+      barcodeBtn.innerHTML = ICONS.barcode;
+      barcodeBtn.title = "Scan Barcode";
+      barcodeBtn.style.color = "var(--primary)";
+      barcodeBtn.onclick = () => this.handleBarcodeScan();
+
       const input = document.createElement('input');
       input.type = 'text';
       input.className = 'chat-input';
@@ -2160,7 +2285,8 @@ class HomeOrganizerPanel extends HTMLElement {
                   type: 'home_organizer/ai_chat',
                   message: text,
                   image_data: imgData,
-                  mime_type: currentMime 
+                  mime_type: currentMime,
+                  language: this.currentLang
               });
               
               if (result) {
@@ -2223,6 +2349,7 @@ class HomeOrganizerPanel extends HTMLElement {
       input.onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
       
       inputBar.appendChild(camBtn); 
+      inputBar.appendChild(barcodeBtn); 
       inputBar.appendChild(uploadBtn); 
       inputBar.appendChild(input);
       inputBar.appendChild(sendBtn);
@@ -2231,7 +2358,174 @@ class HomeOrganizerPanel extends HTMLElement {
       container.appendChild(chatContainer);
       setTimeout(() => messagesDiv.scrollTop = messagesDiv.scrollHeight, 0);
   }
-  
+
+  playBeep() {
+      try {
+          const ctx = new (window.AudioContext || window.webkitAudioContext)();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = 'sine';
+          osc.frequency.value = 800;
+          gain.gain.setValueAtTime(0, ctx.currentTime);
+          gain.gain.linearRampToValueAtTime(1, ctx.currentTime + 0.02);
+          gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.15);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.15);
+      } catch(e) { console.warn("Beep failed", e); }
+  }
+
+  async ensureBarcodeDetector() {
+      if ('BarcodeDetector' in window) return true;
+      try {
+          await new Promise((resolve, reject) => {
+              const script = document.createElement('script');
+              script.src = "https://cdn.jsdelivr.net/npm/barcode-detector@2.1.2/dist/barcode-detector.umd.js";
+              script.onload = resolve;
+              script.onerror = reject;
+              document.head.appendChild(script);
+          });
+          if (window.barcodeDetector && window.barcodeDetector.BarcodeDetector) {
+              window.BarcodeDetector = window.barcodeDetector.BarcodeDetector;
+              return true;
+          }
+      } catch (e) {
+          console.warn("Failed to load BarcodeDetector polyfill", e);
+      }
+      return false;
+  }
+
+  async handleBarcodeScan() {
+    const isSupported = await this.ensureBarcodeDetector();
+    if (!isSupported) {
+        alert("Barcode scanning is completely unsupported on this device/browser.");
+        return;
+    }
+    
+    this.openCamera('barcode');
+    
+    let detector;
+    try {
+        detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e'] });
+    } catch(e) {
+        detector = new BarcodeDetector();
+    }
+
+    const video = this.shadowRoot.getElementById('camera-video');
+    
+    const rotCanvas = document.createElement('canvas');
+    const rotCtx = rotCanvas.getContext('2d', { willReadFrequently: true });
+    
+    let lastCode = null;
+    let confidence = 0;
+    const REQUIRED_CONFIDENCE = 3;
+
+    const scanFrame = async () => {
+        if (this.cameraContext !== 'barcode' || !video.srcObject) return;
+        
+        if (video.readyState >= 2) { 
+            try {
+                let barcodes = await detector.detect(video);
+
+                if (barcodes.length === 0 && video.videoWidth > 0) {
+                    rotCanvas.width = video.videoHeight;
+                    rotCanvas.height = video.videoWidth;
+                    rotCtx.save();
+                    rotCtx.translate(rotCanvas.width / 2, rotCanvas.height / 2);
+                    rotCtx.rotate(90 * Math.PI / 180);
+                    rotCtx.drawImage(video, -video.videoWidth / 2, -video.videoHeight / 2);
+                    rotCtx.restore();
+                    
+                    barcodes = await detector.detect(rotCanvas);
+                }
+
+                if (barcodes.length > 0) {
+                    const code = barcodes[0].rawValue;
+
+                    if (code === lastCode) {
+                        confidence++;
+                    } else {
+                        lastCode = code;
+                        confidence = 1;
+                    }
+
+                    if (confidence >= REQUIRED_CONFIDENCE) {
+                        this.playBeep();
+                        this.stopCamera();
+                        
+                        if (!this.isChatMode) {
+                            this.isChatMode = true;
+                            this.isShopMode = false; this.isSearch = false; this.isEditMode = false;
+                        }
+                        
+                        const statusMsg = { role: 'system', text: `Looking up barcode: <b>${code}</b>...`, isStatus: true };
+                        this.chatHistory.push(statusMsg);
+                        this.render();
+                        
+                        setTimeout(() => {
+                            const msgs = this.shadowRoot.querySelector('.chat-messages');
+                            if(msgs) msgs.scrollTop = msgs.scrollHeight;
+                        }, 50);
+
+                        try {
+                            const res = await this._hass.callWS({
+                                type: 'home_organizer/lookup_barcode',
+                                barcode: code,
+                                language: this.currentLang
+                            });
+                            
+                            statusMsg.isStatus = false;
+                            
+                            if (res.found) {
+                                const pathArr = res.item.path || [];
+                                this.callHA('add_item', {
+                                    item_name: res.item.name,
+                                    category: res.item.category || "",
+                                    sub_category: res.item.sub_category || "",
+                                    icon_key: res.item.icon_key || null,
+                                    barcode: code,
+                                    item_type: 'pending',
+                                    current_path: pathArr.filter(p => p)
+                                });
+                                statusMsg.text = `✅ Found in memory! Added <b>${res.item.name}</b> to Review tab.`;
+                            } else {
+                                statusMsg.text = "";
+                                statusMsg.isBarcodeConfirm = true;
+                                statusMsg.barcode = code;
+                                statusMsg.suggestion = res.suggestion || {name: `Scanned Product (${code})`};
+                            }
+                            this.render();
+                            
+                            setTimeout(() => {
+                                const msgs = this.shadowRoot.querySelector('.chat-messages');
+                                if(msgs) msgs.scrollTop = msgs.scrollHeight;
+                            }, 50);
+                        } catch (wsErr) {
+                            console.error("Barcode lookup failed", wsErr);
+                            statusMsg.text = `❌ Barcode lookup failed.`;
+                            statusMsg.isStatus = false;
+                            this.render();
+                        }
+                        
+                        return; 
+                    } else {
+                        setTimeout(() => requestAnimationFrame(scanFrame), 100);
+                        return;
+                    }
+                }
+            } catch (e) { 
+            }
+        }
+        setTimeout(() => requestAnimationFrame(scanFrame), 150);
+    };
+    
+    video.onloadeddata = () => {
+        video.play();
+        requestAnimationFrame(scanFrame);
+    };
+  }
+
   handleChatCamera() {
       this.openCamera('chat');
   }
@@ -2888,8 +3182,8 @@ class HomeOrganizerPanel extends HTMLElement {
      let checkboxHtml = '';
      if (this.isEditMode && !isShopMode) {
          checkboxHtml = `<input type="checkbox" class="item-select-cb" style="margin-inline-end: 10px; transform: scale(1.3); cursor: pointer;" 
-            ${this.selectedItems.has(Number(item.id)) ? 'checked' : ''} 
-            onclick="event.stopPropagation(); this.getRootNode().host.toggleItemSelection('${item.id}', this.checked)">`;
+             ${this.selectedItems.has(Number(item.id)) ? 'checked' : ''} 
+             onclick="event.stopPropagation(); this.getRootNode().host.toggleItemSelection('${item.id}', this.checked)">`;
      }
 
      let iconHtml = `<span class="item-icon">${ICONS.item}</span>`;
@@ -2910,9 +3204,22 @@ class HomeOrganizerPanel extends HTMLElement {
          }
      }
 
+     // [MODIFIED v7.7.28 | 2026-03-17] Added tiny inline barcode display to the regular item row
+     const miniBarcodeSvg = '<svg style="width:12px;height:12px" viewBox="0 0 24 24"><path fill="currentColor" d="M3,6H5V18H3V6M7,6H8V18H7V6M9,6H12V18H9V6M13,6H14V18H13V6M16,6H18V18H16V6M19,6H21V18H19V6Z"/></svg>';
+     const barcodeHtml = (item.barcode && item.barcode !== '0') 
+         ? `<div style="font-size:10px; color:var(--text-sub); margin-top:2px; display:inline-flex; align-items:center; gap:4px; opacity:0.8; direction:ltr;">${miniBarcodeSvg} ${item.barcode}</div>` 
+         : '';
+
      div.innerHTML = `
         <div class="item-main" onclick="this.getRootNode().host.toggleRow('${item.id}')">
-            <div class="item-left">${checkboxHtml}${iconHtml}<div><div>${item.name}</div>${typeof subText === 'string' && subText.startsWith('<') ? subText : `<div class="sub-title">${subText}</div>`}</div></div>
+            <div class="item-left">
+                ${checkboxHtml}${iconHtml}
+                <div style="display:flex; flex-direction:column; justify-content:center;">
+                    <div>${item.name}</div>
+                    ${barcodeHtml}
+                    ${typeof subText === 'string' && subText.startsWith('<') ? subText : `<div class="sub-title">${subText}</div>`}
+                </div>
+            </div>
             <div class="item-qty-ctrl">${controls}</div>
         </div>
      `;
