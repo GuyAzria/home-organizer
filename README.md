@@ -131,6 +131,14 @@ Looking for something specific? Click the **Magnifying Glass (🔍)** icon in th
 
 Why type manually when the AI can do it for you? Click the **Robot Icon (🤖)** in the top bar to open your personal AI Chat Assistant. 
 
+### 🏷️ Smart Barcode & Memory System
+
+Native Barcode Scanner — A lightning-fast, orientation-independent barcode scanner built right into the chat bar to quickly log groceries and home supplies.
+
+Intelligent Barcode Memory — The system learns your home! When you confirm a scanned item's room (like Kitchen > Fridge) once, it remembers it forever. Scan it again, and it bypasses the AI completely to instantly drop the item into your list with your exact preferred details.
+
+3-Layer Accuracy Engine — Cross-references new barcodes against Open Food Facts, UPCItemDB, and Live Web Scraping to perfectly identify even local/regional products before asking the AI to categorize them.
+
 ### Adding Items via Text & Smart Queries
 You can talk to the AI naturally. 
 * Tell it: *"Add 3 batteries to the kitchen fridge."* The AI will parse your request, assign the correct category, find a battery icon, and add it to your inventory.

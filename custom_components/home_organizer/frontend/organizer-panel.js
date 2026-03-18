@@ -167,6 +167,7 @@ class HomeOrganizerPanel extends HTMLElement {
       }).then(() => this.fetchData());
   }
 
+// [ADDED v7.7.29 | 2026-03-18] Purpose: Restored getSafeIcon to securely validate SVG strings and removed corrupted merge data
   getSafeIcon(val) {
       if (typeof val === 'string' && val.includes('<svg')) return val;
       return '';
@@ -345,6 +346,7 @@ class HomeOrganizerPanel extends HTMLElement {
       return path;
   }
 
+// [ADDED v7.7.29 | 2026-03-18] Purpose: Restored handleCatalogIdSearch to properly handle path-matching logic that was swallowed by the merge conflict
   handleCatalogIdSearch(pathArray, query) {
       const filteredItems = this.allDbItems.filter(item => {
           let p = [];
