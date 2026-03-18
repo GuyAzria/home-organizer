@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate - ver 7.9.45 (Update: Header updated to note DuckDuckGo usage)
+# Home Organizer Ultimate - ver 7.9.46 ( Purpose: Restored getSafeIcon to securely validate SVG strings and removed corrupted merge data)
 # Powered by DuckDuckGo HTML Search for fallback barcode resolution (Free, but subject to standard web-scraping rate limits).
 
 # [MODIFIED v7.9.45 | 2026-03-17] Purpose: Added DuckDuckGo usage notes to the file header.
