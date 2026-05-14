@@ -66,13 +66,26 @@ class HomeOrganizerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema({
-                vol.Required(CONF_PROCESSING_MODE, default=MODE_HYBRID):
-                    vol.In([MODE_LOCAL_ONLY, MODE_CLOUD_ONLY, MODE_HYBRID]),
-                vol.Required(CONF_AI_PROVIDER, default=PROVIDER_GEMINI):
-                    vol.In([PROVIDER_GEMINI, PROVIDER_OPENAI, PROVIDER_CLAUDE]),
-                vol.Optional(CONF_USE_STYLIST, default=False): bool,
-                vol.Optional(CONF_STORAGE_METHOD, default=STORAGE_METHOD_WWW):
-                    vol.In([STORAGE_METHOD_WWW, STORAGE_METHOD_MEDIA]),
+                vol.Required(
+                    CONF_PROCESSING_MODE, 
+                    default=MODE_HYBRID,
+                    description="Select AI Processing Mode. Hybrid uses Local AI for text and Cloud AI for image processing."
+                ): vol.In([MODE_LOCAL_ONLY, MODE_CLOUD_ONLY, MODE_HYBRID]),
+                vol.Required(
+                    CONF_AI_PROVIDER, 
+                    default=PROVIDER_GEMINI,
+                    description="Select Cloud AI Provider (Only used if mode is Cloud/Hybrid). Gemini offers a generous free tier."
+                ): vol.In([PROVIDER_GEMINI, PROVIDER_OPENAI, PROVIDER_CLAUDE]),
+                vol.Optional(
+                    CONF_USE_STYLIST, 
+                    default=False,
+                    description="Enable Virtual Try-On Stylist features (Requires additional setup)."
+                ): bool,
+                vol.Optional(
+                    CONF_STORAGE_METHOD, 
+                    default=STORAGE_METHOD_WWW,
+                    description="Choose where to save uploaded images. 'www' is highly recommended for compatibility."
+                ): vol.In([STORAGE_METHOD_WWW, STORAGE_METHOD_MEDIA]),
             })
         )
 
@@ -89,16 +102,40 @@ class HomeOrganizerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         provider = self.data.get(CONF_AI_PROVIDER)
 
         if mode in [MODE_CLOUD_ONLY, MODE_HYBRID]:
-            schema[vol.Optional(CONF_API_KEY, default="")] = str
-            schema[vol.Optional("cloud_model", default="")] = str
+            schema[vol.Optional(
+                CONF_API_KEY, 
+                default="",
+                description="Cloud API Key. For Gemini: Get it free at aistudio.google.com. For OpenAI: platform.openai.com."
+            )] = str
+            schema[vol.Optional(
+                "cloud_model", 
+                default="",
+                description="Exact Cloud Model Name. Gemini: 'gemini-1.5-flash-latest'. OpenAI: 'gpt-4o'."
+            )] = str
 
             if provider == PROVIDER_CLAUDE:
-                schema[vol.Optional("custom_cloud_url", default="")] = str
+                schema[vol.Optional(
+                    "custom_cloud_url", 
+                    default="",
+                    description="Custom Cloud Endpoint URL (Optional, typically used for enterprise proxies)."
+                )] = str
 
         if mode in [MODE_LOCAL_ONLY, MODE_HYBRID]:
-            schema[vol.Optional("local_api_url", default="http://192.168.1.100:1234/v1")] = str
-            schema[vol.Optional("local_api_key", default="")] = str
-            schema[vol.Optional("local_model", default="gpt-oss:120b")] = str
+            schema[vol.Optional(
+                "local_api_url", 
+                default="http://192.168.1.100:1234/v1",
+                description="Local AI URL. Ollama: http://<IP>:11434/v1 | LM Studio: http://<IP>:1234/v1. MUST end in /v1"
+            )] = str
+            schema[vol.Optional(
+                "local_api_key", 
+                default="",
+                description="Local API Key. Local servers don't require keys, but DO NOT leave this blank. Type 'ollama' or 'local'."
+            )] = str
+            schema[vol.Optional(
+                "local_model", 
+                default="gpt-oss:120b",
+                description="Exact Local Model Name. Ollama: Run 'ollama list' and copy the name exactly (e.g., llama3:8b)."
+            )] = str
 
         if not schema:
             if self.data.get(CONF_USE_STYLIST):
@@ -116,15 +153,31 @@ class HomeOrganizerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="stylist",
             data_schema=vol.Schema({
-                vol.Required(CONF_VTO_PROVIDER, default=VTO_PROVIDER_FAL): vol.In([
+                vol.Required(
+                    CONF_VTO_PROVIDER, 
+                    default=VTO_PROVIDER_FAL,
+                    description="Select the Virtual Try-On image generation provider."
+                ): vol.In([
                     VTO_PROVIDER_FAL,
                     VTO_PROVIDER_COMFYUI,
                     VTO_PROVIDER_HUGGINGFACE,
                     VTO_PROVIDER_FASHN,
                 ]),
-                vol.Optional(CONF_VTO_URL, default=""): str,
-                vol.Optional(CONF_VTO_KEY, default=""): str,
-                vol.Optional(CONF_VTO_MODEL, default=""): str,
+                vol.Optional(
+                    CONF_VTO_URL, 
+                    default="",
+                    description="VTO Endpoint URL (Required for ComfyUI local instances)."
+                ): str,
+                vol.Optional(
+                    CONF_VTO_KEY, 
+                    default="",
+                    description="VTO API Key (Required for Fal.ai or Fashn.ai cloud providers)."
+                ): str,
+                vol.Optional(
+                    CONF_VTO_MODEL, 
+                    default="",
+                    description="VTO Model identifier (if using a custom workflow)."
+                ): str,
             })
         )
 
@@ -137,15 +190,51 @@ class HomeOrganizerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="triggers",
             data_schema=vol.Schema({
-                vol.Optional(CONF_TRIGGER_INVENTORY,  default=DEFAULT_TRIGGER_INVENTORY):  str,
-                vol.Optional(CONF_TRIGGER_SHOPPING,   default=DEFAULT_TRIGGER_SHOPPING):   str,
-                vol.Optional(CONF_TRIGGER_COOKING,    default=DEFAULT_TRIGGER_COOKING):    str,
-                vol.Optional(CONF_TRIGGER_SMART_HOME, default=DEFAULT_TRIGGER_SMART_HOME): str,
-                vol.Optional(CONF_TRIGGER_STYLIST,    default=DEFAULT_TRIGGER_STYLIST):    str,
-                vol.Optional(CONF_TRIGGER_REMINDER,   default=DEFAULT_TRIGGER_REMINDER):   str,
-                vol.Optional(CONF_TRIGGER_CALENDAR,   default=DEFAULT_TRIGGER_CALENDAR):   str,
-                vol.Optional(CONF_DEBUG,            default=False): bool,
-                vol.Optional(CONF_DELETE_ON_REMOVE, default=False): bool,
+                vol.Optional(
+                    CONF_TRIGGER_INVENTORY,  
+                    default=DEFAULT_TRIGGER_INVENTORY,
+                    description="Comma-separated words to trigger Inventory management."
+                ): str,
+                vol.Optional(
+                    CONF_TRIGGER_SHOPPING,   
+                    default=DEFAULT_TRIGGER_SHOPPING,
+                    description="Comma-separated words to trigger the Shopping List."
+                ): str,
+                vol.Optional(
+                    CONF_TRIGGER_COOKING,    
+                    default=DEFAULT_TRIGGER_COOKING,
+                    description="Comma-separated words to trigger Recipe and Cooking mode."
+                ): str,
+                vol.Optional(
+                    CONF_TRIGGER_SMART_HOME, 
+                    default=DEFAULT_TRIGGER_SMART_HOME,
+                    description="Comma-separated words to trigger Smart Home control."
+                ): str,
+                vol.Optional(
+                    CONF_TRIGGER_STYLIST,    
+                    default=DEFAULT_TRIGGER_STYLIST,
+                    description="Comma-separated words to trigger the AI Stylist."
+                ): str,
+                vol.Optional(
+                    CONF_TRIGGER_REMINDER,   
+                    default=DEFAULT_TRIGGER_REMINDER,
+                    description="Comma-separated words to trigger Timers and Reminders."
+                ): str,
+                vol.Optional(
+                    CONF_TRIGGER_CALENDAR,   
+                    default=DEFAULT_TRIGGER_CALENDAR,
+                    description="Comma-separated words to trigger Calendar events."
+                ): str,
+                vol.Optional(
+                    CONF_DEBUG,            
+                    default=False,
+                    description="Enable detailed debugging logs in Home Assistant console."
+                ): bool,
+                vol.Optional(
+                    CONF_DELETE_ON_REMOVE, 
+                    default=False,
+                    description="CAUTION: If enabled, removing this integration will permanently wipe the database and images."
+                ): bool,
             })
         )
 
@@ -173,14 +262,17 @@ class HomeOrganizerOptionsFlowHandler(config_entries.OptionsFlow):
                 vol.Required(
                     CONF_PROCESSING_MODE,
                     default=self.data.get(CONF_PROCESSING_MODE, MODE_HYBRID),
+                    description="Select AI Mode. Hybrid uses Local AI for text and Cloud AI for heavy image processing."
                 ): vol.In([MODE_LOCAL_ONLY, MODE_CLOUD_ONLY, MODE_HYBRID]),
                 vol.Required(
                     CONF_AI_PROVIDER,
                     default=self.data.get(CONF_AI_PROVIDER, PROVIDER_GEMINI),
+                    description="Select Cloud AI Provider (Only used if mode is Cloud/Hybrid)."
                 ): vol.In([PROVIDER_GEMINI, PROVIDER_OPENAI, PROVIDER_CLAUDE]),
                 vol.Optional(
                     CONF_USE_STYLIST,
                     default=self.data.get(CONF_USE_STYLIST, False),
+                    description="Enable Virtual Try-On Stylist features."
                 ): bool,
             })
         )
@@ -200,30 +292,36 @@ class HomeOrganizerOptionsFlowHandler(config_entries.OptionsFlow):
             schema[vol.Optional(
                 CONF_API_KEY,
                 default=self.data.get(CONF_API_KEY, ""),
+                description="Cloud API Key. For Gemini: Get it free at aistudio.google.com. For OpenAI: platform.openai.com."
             )] = str
             schema[vol.Optional(
                 "cloud_model",
                 default=self.data.get("cloud_model", ""),
+                description="Exact Cloud Model Name. Gemini: 'gemini-1.5-flash-latest'. OpenAI: 'gpt-4o'."
             )] = str
 
             if provider == PROVIDER_CLAUDE:
                 schema[vol.Optional(
                     "custom_cloud_url",
                     default=self.data.get("custom_cloud_url", ""),
+                    description="Custom Cloud Endpoint URL (Optional, typically used for enterprise proxies)."
                 )] = str
 
         if mode in [MODE_LOCAL_ONLY, MODE_HYBRID]:
             schema[vol.Optional(
                 "local_api_url",
-                default=self.data.get("local_api_url", "http://192.168.1.100:1234/v1"),
+                default=self.data.get("local_api_url", "http://192.168.1.100:11434/v1"),
+                description="Local AI URL. Ollama: http://<IP>:11434/v1 | LM Studio: http://<IP>:1234/v1. MUST end in /v1"
             )] = str
             schema[vol.Optional(
                 "local_api_key",
                 default=self.data.get("local_api_key", ""),
+                description="Local API Key. Local servers don't require keys, but DO NOT leave this blank. Type 'ollama' or 'local'."
             )] = str
             schema[vol.Optional(
                 "local_model",
                 default=self.data.get("local_model", "gpt-oss:120b"),
+                description="Exact Local Model Name. Ollama: Run 'ollama list' and copy the name exactly (e.g., llama3:8b)."
             )] = str
 
         if not schema:
@@ -244,6 +342,7 @@ class HomeOrganizerOptionsFlowHandler(config_entries.OptionsFlow):
                 vol.Required(
                     CONF_VTO_PROVIDER,
                     default=self.data.get(CONF_VTO_PROVIDER, VTO_PROVIDER_FAL),
+                    description="Select the Virtual Try-On image generation provider."
                 ): vol.In([
                     VTO_PROVIDER_FAL,
                     VTO_PROVIDER_COMFYUI,
@@ -253,14 +352,17 @@ class HomeOrganizerOptionsFlowHandler(config_entries.OptionsFlow):
                 vol.Optional(
                     CONF_VTO_URL,
                     default=self.data.get(CONF_VTO_URL, ""),
+                    description="VTO Endpoint URL (Required for ComfyUI local instances)."
                 ): str,
                 vol.Optional(
                     CONF_VTO_KEY,
                     default=self.data.get(CONF_VTO_KEY, ""),
+                    description="VTO API Key (Required for Fal.ai or Fashn.ai cloud providers)."
                 ): str,
                 vol.Optional(
                     CONF_VTO_MODEL,
                     default=self.data.get(CONF_VTO_MODEL, ""),
+                    description="VTO Model identifier (if using a custom workflow)."
                 ): str,
             })
         )
@@ -276,38 +378,47 @@ class HomeOrganizerOptionsFlowHandler(config_entries.OptionsFlow):
                 vol.Optional(
                     CONF_TRIGGER_INVENTORY,
                     default=self.data.get(CONF_TRIGGER_INVENTORY, DEFAULT_TRIGGER_INVENTORY),
+                    description="Comma-separated words to trigger Inventory management."
                 ): str,
                 vol.Optional(
                     CONF_TRIGGER_SHOPPING,
                     default=self.data.get(CONF_TRIGGER_SHOPPING, DEFAULT_TRIGGER_SHOPPING),
+                    description="Comma-separated words to trigger the Shopping List."
                 ): str,
                 vol.Optional(
                     CONF_TRIGGER_COOKING,
                     default=self.data.get(CONF_TRIGGER_COOKING, DEFAULT_TRIGGER_COOKING),
+                    description="Comma-separated words to trigger Recipe and Cooking mode."
                 ): str,
                 vol.Optional(
                     CONF_TRIGGER_SMART_HOME,
                     default=self.data.get(CONF_TRIGGER_SMART_HOME, DEFAULT_TRIGGER_SMART_HOME),
+                    description="Comma-separated words to trigger Smart Home control."
                 ): str,
                 vol.Optional(
                     CONF_TRIGGER_STYLIST,
                     default=self.data.get(CONF_TRIGGER_STYLIST, DEFAULT_TRIGGER_STYLIST),
+                    description="Comma-separated words to trigger the AI Stylist."
                 ): str,
                 vol.Optional(
                     CONF_TRIGGER_REMINDER,
                     default=self.data.get(CONF_TRIGGER_REMINDER, DEFAULT_TRIGGER_REMINDER),
+                    description="Comma-separated words to trigger Timers and Reminders."
                 ): str,
                 vol.Optional(
                     CONF_TRIGGER_CALENDAR,
                     default=self.data.get(CONF_TRIGGER_CALENDAR, DEFAULT_TRIGGER_CALENDAR),
+                    description="Comma-separated words to trigger Calendar events."
                 ): str,
                 vol.Optional(
                     CONF_DEBUG,
                     default=self.data.get(CONF_DEBUG, False),
+                    description="Enable detailed debugging logs in Home Assistant console."
                 ): bool,
                 vol.Optional(
                     CONF_DELETE_ON_REMOVE,
                     default=self.data.get(CONF_DELETE_ON_REMOVE, False),
+                    description="CAUTION: If enabled, removing this integration will permanently wipe the database and images."
                 ): bool,
             })
         )
