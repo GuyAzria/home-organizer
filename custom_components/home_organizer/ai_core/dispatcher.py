@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# // [MODIFIED v9.8.1 | 2026-05-14] Purpose: Offloaded dynamic agent module imports to a background thread using hass.async_add_executor_job to resolve asyncio blocking I/O loop errors.
 # // [MODIFIED v9.8.0 | 2026-05-12] Purpose: Refined the LLM classifier prompt to explicitly include examples for deleting specific time-based reminders and clearing daily reminders. Expanded the English fallback triggers to catch direct cancellation phrases faster.
 # // [MODIFIED v9.7.0 | 2026-05-04] Purpose: Added a 'GENERAL' agent catch-all domain for jokes, stories, trivia, and open-ended conversation. Updated the LLM classifier to route unmatched general queries to this new agent.
 # // [MODIFIED v9.6.0 | 2026-05-04] Purpose: Updated the LLM classifier prompt to route time, date, weather, news directly to the smart home agent.
@@ -232,7 +233,9 @@ async def _dispatch(domain_name, hass, entry, messages, target_lang,
         return f"❌ Unknown domain: {domain_name}"
 
     try:
-        module = importlib.import_module(
+        # // [MODIFIED v9.8.1 | 2026-05-14] Purpose: Offloaded importlib.import_module to an executor thread to prevent blocking the Home Assistant async event loop.
+        module = await hass.async_add_executor_job(
+            importlib.import_module,
             f"custom_components.home_organizer.agents.{module_name}"
         )
     except Exception as e:
