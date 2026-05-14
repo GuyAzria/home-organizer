@@ -1,0 +1,46 @@
+{
+  "config": {
+    "step": {
+      "api_keys": {
+        "title": "AI Models & Connections",
+        "description": "Configure your connection to Cloud or Local AI providers.",
+        "data": {
+          "api_key": "Cloud API Key (Gemini/OpenAI)",
+          "cloud_model": "Cloud Model Name",
+          "local_api_url": "Local API URL (Ollama or LM Studio)",
+          "local_api_key": "Local API Key",
+          "local_model": "Local Model Name"
+        },
+        "data_description": {
+          "api_key": "If using Gemini, get a free key at aistudio.google.com.",
+          "cloud_model": "Example for Gemini: gemini-1.5-flash-latest",
+          "local_api_url": "Ollama: http://YOUR_IP:11434/v1 \nLM Studio: http://YOUR_IP:1234/v1 \n(Must end in /v1)",
+          "local_api_key": "Local servers do not require keys, but DO NOT leave this blank. Type 'ollama' or 'local'.",
+          "local_model": "Ollama: Run 'ollama list' and copy the name exactly (e.g., llama3:8b)."
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "api_keys": {
+        "title": "AI Models & Connections",
+        "description": "Configure your connection to Cloud or Local AI providers.",
+        "data": {
+          "api_key": "Cloud API Key (Gemini/OpenAI)",
+          "cloud_model": "Cloud Model Name",
+          "local_api_url": "Local API URL (Ollama or LM Studio)",
+          "local_api_key": "Local API Key",
+          "local_model": "Local Model Name"
+        },
+        "data_description": {
+          "api_key": "If using Gemini, get a free key at aistudio.google.com.",
+          "cloud_model": "Example for Gemini: gemini-1.5-flash-latest",
+          "local_api_url": "Ollama: http://YOUR_IP:11434/v1 \nLM Studio: http://YOUR_IP:1234/v1 \n(Must end in /v1)",
+          "local_api_key": "Local servers do not require keys, but DO NOT leave this blank. Type 'ollama' or 'local'.",
+          "local_model": "Ollama: Run 'ollama list' and copy the name exactly (e.g., llama3:8b)."
+        }
+      }
+    }
+  }
+}
