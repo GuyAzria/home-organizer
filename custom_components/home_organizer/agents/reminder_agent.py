@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# // [ADDED v10.0.1 | 2026-06-11] Purpose: Added high priority and ttl data fields to push notifications to bypass mobile OS battery-saving sleep modes (Doze Mode / Samsung deep sleep pooling) and prevent delayed reminders.
+# // [ADDED v10.0.0 | 2026-06-11] Purpose: Multi-language broadcast support. The prompt instruction was updated to evaluate the broadcast intent ("notify_all") dynamically based on the active target UI language, catching "everyone" or "כולם". Added broadcast routing logic to trigger_reminder.
 # // [v9.9.8 | 2026-05-12] Purpose: Added ambiguity resolution for AM/PM, reminder listing, and deletion capability. Uses hass.data memory registry to hold and cancel callbacks.
 # // [v9.9.7 | 2026-04-19] Purpose: Personal reminders. A reminder now fires
 # // ONLY on the device that set it -- if Yulia asks from her phone, only
@@ -70,6 +72,7 @@ def cancel_active_reminder(hass, reminder_id):
 # ==========================================
 # PROMPT
 # ==========================================
+# // [MODIFIED v10.0.0 | 2026-06-11] Purpose: Abstracted broadcast detection into a language-agnostic conceptual rule for the LLM.
 # // [MODIFIED v9.9.8 | 2026-05-12] Purpose: Passed active_reminders_str to the prompt and added instructions for clarification, listing, and deleting.
 def get_reminder_prompt(target_lang, current_time_str, history_text, active_reminders_str=""):
     return f"""You are a strict, precise Time Reminder Assistant for a Smart Home.
@@ -85,10 +88,11 @@ CRITICAL INSTRUCTIONS:
 2. AMBIGUITY CHECK: If the user says a time like "3" or "3:00" without specifying AM or PM, morning or afternoon, you MUST output the intent "clarify_time" and ask them to clarify in `spoken_confirmation`. Do not schedule it yet.
 3. LIST REMINDERS: If the user asks to list or show reminders, output intent "list_reminders" and formulate a natural response listing the ACTIVE REMINDERS in {target_lang}.
 4. DELETE REMINDER: If the user asks to delete a reminder, match it to the ACTIVE REMINDERS. Output intent "delete_reminder" and put the reminder's ID in "delete_target_id".
-5. SCHEDULE REMINDER: Calculate the exact future date and time. Format strictly in ISO 8601: YYYY-MM-DDTHH:MM:SS.
-6. Extract the core message the user wants to be reminded about into {target_lang}.
-7. Create a natural, spoken confirmation phrase in {target_lang}.
-8. You MUST return ONLY a raw JSON object. NO markdown tables. NO backticks. NO conversational text outside the JSON.
+5. TARGET AUDIENCE (BROADCAST DETECTION): Carefully evaluate if the user wants this reminder to target everyone/all users in the house, or just themselves. If the input in {target_lang} explicitly implies broadcasting to the whole family/all members (e.g., equivalent to "everyone", "all", "כולם", "todos", "tous", "alle", etc.), you MUST set "notify_all" to true. Otherwise, set it to false.
+6. SCHEDULE REMINDER: Calculate the exact future date and time. Format strictly in ISO 8601: YYYY-MM-DDTHH:MM:SS.
+7. Extract the core message the user wants to be reminded about into {target_lang}.
+8. Create a natural, spoken confirmation phrase in {target_lang}.
+9. You MUST return ONLY a raw JSON object. NO markdown tables. NO backticks. NO conversational text outside the JSON.
 
 OUTPUT FORMAT:
 {{
@@ -96,7 +100,8 @@ OUTPUT FORMAT:
   "target_timestamp": "YYYY-MM-DDTHH:MM:SS",
   "spoken_confirmation": "<Natural confirmation, list, or clarification question in {target_lang}>",
   "reminder_message": "<The actual notification text to show/speak later in {target_lang}>",
-  "delete_target_id": "<ID of the reminder to delete, if applicable>"
+  "delete_target_id": "<ID of the reminder to delete, if applicable>",
+  "notify_all": true | false
 }}
 
 CHAT HISTORY:
@@ -182,6 +187,8 @@ def _resolve_notify_service_for_device(hass, device_id):
 # ==========================================
 # RUN LOOP
 # ==========================================
+# // [MODIFIED v10.0.1 | 2026-06-11] Purpose: Integrated high priority and ttl data keys inside async_call parameters to force real-time delivery on Android/Samsung device sleep modes.
+# // [MODIFIED v10.0.0 | 2026-06-11] Purpose: Extracted 'notify_all' from JSON and applied it in the notification routing.
 # // [MODIFIED v9.9.8 | 2026-05-12] Purpose: Pass active reminders to the AI, and intercept new intents for clarification, listing, and deletion.
 async def run(hass, entry, messages, target_lang, existing_locs_str,
               loc_hierarchy_map, history_text, last_user_msg, recipe_name,
@@ -232,6 +239,7 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
 
     target_time_str = parsed.get("target_timestamp")
     remind_msg = parsed.get("reminder_message")
+    notify_all = parsed.get("notify_all", False)
 
     try:
         target_dt = datetime.strptime(target_time_str, "%Y-%m-%dT%H:%M:%S")
@@ -252,7 +260,7 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
             _LOGGER.info(
                 f"[HO-REMINDER] FIRE | msg={remind_msg!r} | "
                 f"device_id={device_id} | user_id={user_id} | "
-                f"notify_target={notify_service!r}"
+                f"notify_target={notify_service!r} | notify_all={notify_all}"
             )
 
             # 1. Fire the event regardless -- automations can listen.
@@ -263,13 +271,36 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
                 event_data["user_id"] = user_id
             hass.bus.async_fire("ho_reminder_triggered", event_data)
 
-            # 2. Push ONLY to the requesting device. Never broadcast.
-            if notify_service:
+            # 2. Push notification delivery with real-time FCM overrides
+            if notify_all:
+                _LOGGER.info(f"[HO-REMINDER] Broadcasting to ALL users for message: {remind_msg!r}")
+                hass.async_create_task(
+                    hass.services.async_call(
+                        "notify",
+                        "notify",
+                        {
+                            "message": remind_msg, 
+                            "title": "\u23f0",
+                            "data": {
+                                "ttl": 0,
+                                "priority": "high"
+                            }
+                        },
+                    )
+                )
+            elif notify_service:
                 hass.async_create_task(
                     hass.services.async_call(
                         "notify",
                         notify_service,
-                        {"message": remind_msg, "title": "\u23f0"},
+                        {
+                            "message": remind_msg, 
+                            "title": "\u23f0",
+                            "data": {
+                                "ttl": 0,
+                                "priority": "high"
+                            }
+                        },
                     )
                 )
             else:
@@ -287,7 +318,7 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
 
         _LOGGER.info(
             f"[HO-REMINDER] scheduled for {target_dt.isoformat()} | ID={reminder_id} | "
-            f"device_id={device_id} | notify={notify_service!r}"
+            f"device_id={device_id} | notify={notify_service!r} | notify_all={notify_all}"
         )
         return spoken_conf
 
