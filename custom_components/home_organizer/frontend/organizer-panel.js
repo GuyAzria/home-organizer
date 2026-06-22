@@ -1,22 +1,22 @@
 // organizer-panel.js — Home Organizer Ultimate v10.4.1
 // [MODIFIED v10.4.1 | 2026-04-17] Purpose: Version bump to bypass cache for the new Interactive Unit Select Dropdown in the Inventory View.
 
-import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=10.6.0';
-import { ITEM_CATEGORIES } from './organizer-data.js?v=10.6.0';
-import { UtilsMixin }  from './organizer-utils.js?v=10.6.0';
-import { StateMixin }  from './organizer-state.js?v=10.6.0';
-import { APIMixin }    from './organizer-api.js?v=10.6.0';
-import { CameraMixin } from './organizer-camera.js?v=10.6.0';
-import { NavMixin }    from './organizer-nav.js?v=10.6.0';
-import { IconsMixin }  from './organizer-icons.js?v=10.6.0';
-import { UIMixin }     from './organizer-ui.js?v=10.6.0';
+import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=10.6.7';
+import { ITEM_CATEGORIES } from './organizer-data.js?v=10.6.7';
+import { UtilsMixin }  from './organizer-utils.js?v=10.6.7';
+import { StateMixin }  from './organizer-state.js?v=10.6.7';
+import { APIMixin }    from './organizer-api.js?v=10.6.7';
+import { CameraMixin } from './organizer-camera.js?v=10.6.7';
+import { NavMixin }    from './organizer-nav.js?v=10.6.7';
+import { IconsMixin }  from './organizer-icons.js?v=10.6.7';
+import { UIMixin }     from './organizer-ui.js?v=10.6.7';
 
-import { StylistMixin }   from './pages/view-stylist.js?v=10.6.0';
-import { BarcodeMixin }   from './pages/view-barcode.js?v=10.6.0';
-import { InventoryMixin } from './pages/view-inventory.js?v=10.6.0';
-import { ChatMixin }      from './pages/view-chat.js?v=10.6.0';
-import { ShoppingMixin }  from './pages/view-shopping.js?v=10.6.0';
-import { SearchMixin }    from './pages/view-search.js?v=10.6.0';
+import { StylistMixin }   from './pages/view-stylist.js?v=10.6.7';
+import { BarcodeMixin }   from './pages/view-barcode.js?v=10.6.7';
+import { InventoryMixin } from './pages/view-inventory.js?v=10.6.7';
+import { ChatMixin }      from './pages/view-chat.js?v=10.6.7';
+import { ShoppingMixin }  from './pages/view-shopping.js?v=10.6.7';
+import { SearchMixin }    from './pages/view-search.js?v=10.6.7';
 
 class HomeOrganizerPanel extends APIMixin(CameraMixin(SearchMixin(ShoppingMixin(ChatMixin(InventoryMixin(BarcodeMixin(StylistMixin(UIMixin(NavMixin(IconsMixin(UtilsMixin(StateMixin(HTMLElement))))))))))))) {
   set hass(hass) {

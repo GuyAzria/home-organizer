@@ -1,4 +1,7 @@
 // pages/view-inventory.js
+// [MODIFIED v10.0.24 | 2026-06-22] Purpose: Version bump to match restored CSS grid layout explicitly protecting the square shape and 15px gap.
+// [MODIFIED v10.0.22 | 2026-06-22] Purpose: Moved the qtyControlsHtml inside the xl-info container so it sits precisely 1mm above the product name, structurally detached from the image area.
+// [MODIFIED v10.0.20 | 2026-06-22] Purpose: Fixed grid quantity controls not rendering. Injected the plus/minus HTML natively inside buildGridSection, matching the RTL logic from createItemRow, and adding explicit stopPropagation so the card doesn't expand when adjusting quantity.
 // [MODIFIED v10.0.18 | 2026-05-03] Purpose: Replaced explicit save buttons (name edit & hierarchy edit) with a standard action-btn style and a floppy disk icon for better UI consistency.
 // [MODIFIED v10.0.17 | 2026-05-03] Purpose: Added an explicit 'Save' button (check icon) right next to the item name input. This provides a bulletproof way to save name edits directly from mobile devices where soft-keyboard 'blur'/'next' events are unreliable.
 // [MODIFIED v10.0.16 | 2026-04-20] Purpose: unit_value input now calls the dedicated updateUnitValue (not updateItemCategory) so typing a unit value works on the Shopping List and on legacy items. Added onblur as a safety trigger alongside onchange.
@@ -336,28 +339,52 @@ export const InventoryMixin = (Base) => class extends Base {
 
   buildGridSection(items, isOOS) {
     const gridDiv = document.createElement('div'); gridDiv.className = 'xl-grid-container';
+    
+    // Check if the app is in RTL mode (Hebrew layout) to align plus/minus buttons accordingly
+    const app = this.shadowRoot ? this.shadowRoot.getElementById('app') : null;
+    const isRTL = app && !app.classList.contains('ltr');
+
     items.forEach(item => {
-      const card = document.createElement('div'); card.className = 'xl-card'; card.style.position = 'relative';
+      const card = document.createElement('div'); card.className = 'xl-card';
       let checkboxHtml = '';
       if (this.isEditMode) checkboxHtml = `<input type="checkbox" class="item-select-cb" style="position:absolute;top:8px;inset-inline-start:8px;z-index:20;transform:scale(1.3);cursor:pointer;" ${this.selectedItems.has(Number(item.id))?'checked':''} onclick="event.stopPropagation();this.getRootNode().host.toggleItemSelection('${item.id}',this.checked)">`;
+      
       let iconHtml = ICONS.item;
       if (item.img) {
         if (item.img.startsWith('ICON_LIB')) {
-          iconHtml = `<div class="xl-icon-area">${this.getIconByKey(item.img)||ICONS.item}</div>`;
+          iconHtml = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">${this.getIconByKey(item.img)||ICONS.item}</div>`;
         } else {
           let cleanPath = item.img.split('?')[0]; 
           const ver = this.imageVersions[item.id] || 'ok';
           const src = `${cleanPath}?v=${ver}`;
           const loader = this.loadingSet.has(item.id) ? `<div class="loader-container"><span class="loader"></span></div>` : '';
-          iconHtml = `<div style="position:relative;width:80%;height:80%"><img src="${src}" style="width:100%;height:100%;object-fit:contain;border-radius:8px">${loader}</div>`;
+          iconHtml = `<img src="${src}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:8px">${loader}`;
         }
       }
-      const badgeStyle = isOOS ? 'background:var(--danger,#F44336);' : '';
       
       const fitAlert = (typeof this.checkFitWarning === 'function') ? this.checkFitWarning(item.measurements) : null;
       const fitBadge = fitAlert ? `<div class="grid-fit-badge">${this._t('item_too_small_badge', '⚠️ Small')}</div>` : '';
 
-      card.innerHTML = `${checkboxHtml}${fitBadge}<div class="xl-icon-area">${iconHtml}</div><div class="xl-badge" style="${badgeStyle}">${item.qty}</div><div class="xl-info"><div class="xl-name">${item.name}</div><div class="xl-date">${item.date||''}</div></div>`;
+      const badgeStyle = isOOS ? 'background:var(--danger,#F44336); color:white;' : 'background:var(--bg-input-edit, #f0f0f0); color:var(--text-main, #333);';
+      
+      const plusBtn  = `<button class="grid-qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.id}',1)">${ICONS.plus}</button>`;
+      const minusBtn = `<button class="grid-qty-btn" onclick="event.stopPropagation();this.getRootNode().host.updateQty('${item.id}',-1)">${ICONS.minus}</button>`;
+      const qtyVal   = `<div class="grid-qty-val">${item.qty}</div>`;
+      
+      // Mirror the button layout exactly as you did in createItemRow depending on language
+      const ctrlContent = isRTL ? `${plusBtn}${qtyVal}${minusBtn}` : `${minusBtn}${qtyVal}${plusBtn}`;
+      const qtyControlsHtml = `<div class="grid-qty-ctrl" style="${badgeStyle}" onclick="event.stopPropagation()">${ctrlContent}</div>`;
+
+      card.innerHTML = `
+        ${checkboxHtml}${fitBadge}
+        <div class="xl-icon-area">${iconHtml}</div>
+        <div class="xl-info">
+          ${qtyControlsHtml}
+          <div class="xl-name">${item.name}</div>
+          <div class="xl-date">${item.date||''}</div>
+        </div>
+      `;
+      
       const iconArea = card.querySelector('.xl-icon-area');
       if (iconArea) iconArea.onclick = e => { e.stopPropagation(); this.showItemDetails(item); };
       card.onclick = () => { this.viewMode = 'list'; this.expandedIdx = item.id; this.render(); };
@@ -569,10 +596,8 @@ export const InventoryMixin = (Base) => class extends Base {
       }
 
       details.innerHTML = `
-        <!-- TOP ROW: Image+Date (Left) and Name+Units (Right) -->
         <div style="display:flex; gap:12px; margin-bottom:12px; align-items:flex-start;">
             
-            <!-- LEFT COLUMN: Image + Date constrained to 100px -->
             <div style="display:flex; flex-direction:column; gap:8px; width:100px; flex-shrink:0;">
                 <div style="width:100px; height:100px; border-radius:10px; border:1px solid var(--border-light); background:var(--bg-input); box-shadow:inset 0 2px 4px rgba(0,0,0,0.2); position:relative;">
                     ${expandedIconHtml}
@@ -587,7 +612,6 @@ export const InventoryMixin = (Base) => class extends Base {
                 </div>
             </div>
             
-            <!-- RIGHT COLUMN: Name & Units -->
             <div style="flex:1; display:flex; flex-direction:column; gap:8px; min-width:0;">
                 <div style="position:relative; display:flex; gap:8px; align-items:center; width:100%;">
                     <input type="text" id="name-${item.id}" value="${item.name}"
@@ -613,7 +637,6 @@ export const InventoryMixin = (Base) => class extends Base {
             </div>
         </div>
 
-        <!-- SECOND ROW: Categories (Full Width below Image/Name) -->
         <div style="display:flex; gap:8px; margin-bottom:12px; width:100%;">
             <select class="move-select" id="cat-main-${item.id}" style="flex:1; min-width:0; padding:8px; border-radius:6px; border:1px solid var(--border-light); background:var(--bg-input-edit); color:var(--text-main); font-size:13px;" onchange="if(typeof this.getRootNode().host.updateItemCategory === 'function') this.getRootNode().host.updateItemCategory('${item.id}',this.value,'main','${this.escapeJSArg(item.name)}')">${mainCatOptions}</select>
             
@@ -622,7 +645,6 @@ export const InventoryMixin = (Base) => class extends Base {
 
         ${stylistHtml}
 
-        <!-- BOTTOM AREA: Hierarchy (1 row) & Action Buttons -->
         <div style="display:flex; flex-direction:column; gap:15px; margin-top:15px; padding-top:15px; border-top:1px solid var(--border-light);">
             ${this.renderHierarchyControl(item)}
             

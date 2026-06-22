@@ -1,4 +1,4 @@
-/* pages/inventory.css | v10.0.1 */
+/* pages/inventory.css | v10.0.7 */
 .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 15px; margin-bottom: 20px; }
 .folder-item { background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 12px; padding: 15px; text-align: center; cursor: pointer; transition: all 0.2s; position: relative; }
 .folder-item:hover { background: var(--bg-card-hover); transform: translateY(-2px); border-color: var(--primary); }
@@ -19,3 +19,90 @@
 
 .expanded-details { padding: 15px; background: rgba(0,0,0,0.2); border-top: 1px solid var(--border-light); display: flex; flex-direction: column; gap: 10px; }
 .group-separator { margin-top: 15px; margin-bottom: 5px; padding-bottom: 5px; border-bottom: 1px solid var(--border-light); color: var(--primary); font-size: 14px; font-weight: bold; display: flex; align-items: center; }
+
+/* [MODIFIED v10.0.7 | 2026-06-22] Purpose: Enforced strict grid wrapping and gap rules with !important to calculate screen width and go down a row when full, preventing the cards from squishing. */
+.xl-grid-container {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(105px, 1fr)) !important;
+  gap: 15px !important; /* Forces the ~4mm space between items horizontally and vertically */
+  margin-bottom: 20px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+.xl-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 12px 8px !important;
+  min-height: 155px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  position: relative !important;
+  cursor: pointer;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  transition: all 0.2s;
+}
+.xl-card:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--primary);
+  transform: translateY(-2px);
+}
+.xl-icon-area {
+  flex-grow: 1;
+  width: 100%;
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 5px;
+}
+.xl-icon-area img, .xl-icon-area svg {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.xl-info {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+.grid-qty-ctrl {
+  position: relative;
+  margin: 0 auto 4px auto; /* 4px is precisely the 1mm gap strictly above the name */
+  width: fit-content;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  padding: 0 4px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  border: 1px solid var(--border-light);
+  z-index: 10;
+}
+.grid-qty-btn {
+  background: transparent;
+  border: none;
+  color: inherit;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  padding: 0;
+}
+.grid-qty-btn svg { width: 14px; height: 14px; }
+.grid-qty-val {
+  font-weight: bold;
+  font-size: 13px;
+  min-width: 20px;
+  text-align: center;
+  margin: 0 4px;
+  color: inherit;
+}
+.xl-name { font-size: 13px; font-weight: bold; text-align: center; word-break: break-word; }
+.xl-date { font-size: 11px; color: var(--text-sub, #888); margin-top: 2px; }
