@@ -210,8 +210,7 @@ Click the **Robot Icon (🤖)** in the top bar to open your personal AI Chat Ass
 2. Click **Add Integration** and search for **Home Organizer**.
 3. Select your preferred **AI Provider** (Cloud or Local) and enter the relevant API Key or local URL when prompted. The Organizer icon will appear in your sidebar.
 
-## 📄 License
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+
 
 ---
 <p align="center">Made with ❤️ for the Home Assistant community by Guy Azria</p>
