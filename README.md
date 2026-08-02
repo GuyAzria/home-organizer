@@ -42,8 +42,8 @@ HO can now be configured as your official **Home Assistant Conversation Agent**!
 * **Calendar Secretary:** Seamlessly manage your schedule. Just say, *"Add a meeting tomorrow morning with Mr. Bean,"* and it's booked.
 * **Free-Speech HA Control:** Control your lights, switches, and devices using completely natural language, or ask for the time, weather, and daily news.
 
-### 📱 `HOCameraApp` (Native Android Companion App) - Version: "2026.6.16"
-Modern browsers often block camera and microphone access over local HTTP connections. We built **HOCameraApp**—a native Android companion app that fixes this and adds serious magic:
+### 📱 `HO-Mind AI` (Native Android Companion App) - Version: "2026.6.16"
+Modern browsers often block camera and microphone access over local HTTP connections. We built **HO-Mind AI**—a native Android companion app that fixes this and adds serious magic:
 * **"Ghost Screen" & Shake-to-Speak:** Run the app silently in the background as a transparent overlay. Enable "Shake to Speak" to wake the assistant with a simple shake—no need to say *"Hey Google"* or press any buttons!
 * **🎧 Universal Bluetooth Control (AirPods Supported):** Full hardware button interception allows you to trigger the voice assistant using any Bluetooth headset (single/double clicks), even when the screen is locked or external music apps (like Spotify) are installed.
 * **📺 Live Teleprompter Notification:** The Android Media Player widget (on the lock screen and quick settings) has been repurposed. Instead of showing static song details, it dynamically updates in real-time to display the exact words you are dictating to the Speech-To-Text engine.
@@ -70,7 +70,7 @@ Intercepting Bluetooth hardware buttons on modern Android devices (12+) requires
 
 If you are using Apple AirPods with this app on an Android device, please note the following hardware limitations:
 * **In-Ear Detection:** AirPods will not transmit hardware clicks unless they detect they are physically inside your ear.
-* **The iOS Configuration Trick:** AirPods store their tap-gestures locally on their internal chip. For the best experience on Android, connect your AirPods to an iPhone/iPad first, go to Bluetooth settings, and configure the Double-Tap action to **"Play/Pause"** for both ears. Once reconnected to your Android device, the hardware clicks will be captured perfectly by HOCameraApp.
+* **The iOS Configuration Trick:** AirPods store their tap-gestures locally on their internal chip. For the best experience on Android, connect your AirPods to an iPhone/iPad first, go to Bluetooth settings, and configure the Double-Tap action to **"Play/Pause"** for both ears. Once reconnected to your Android device, the hardware clicks will be captured perfectly by HO-Mind AI.
 
 ---
 
@@ -172,14 +172,14 @@ Click the **Robot Icon (🤖)** in the top bar to open your personal AI Chat Ass
   <img src="images/20.png" width="24%" alt="AI Processed Invoice">
 </p>
 
-### 8. Setting up the Voice Assistant & HOCameraApp
+### 8. Setting up the Voice Assistant & HO-Mind AI
 
 **Part A: Set HO as Your HA Voice Assistant**
 1. In your main Home Assistant menu, go to **Settings ➔ Voice Assistants**.
 2. Click **+ Add Assistant**.
 3. Under **Conversation Agent**, select **HO-AI Agent** (`conversation.ho_ai_agent`). Save.
 
-**Part B: Install & Configure HOCameraApp (Android Users Only)**
+**Part B: Install & Configure HO-Mind AI (Android Users Only)**
 1. Open the HO dashboard on your phone. Go to the Chat screen, tap the Camera icon (📸), then the Gear icon (⚙️). Click **Download Android APK** and install.
 2. Open the app and tap the Gear icon (⚙️) to open Settings.
 3. **URL:** Enter your exact internal HA IP (e.g., `http://192.168.1.100:8123`).
