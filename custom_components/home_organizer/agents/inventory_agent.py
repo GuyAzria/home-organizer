@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# // [MODIFIED v9.1.12 | 2026-08-02] Purpose: Refactored database interactions to use aiosqlite for full asynchronous I/O. Replaced get_db_connection with get_db_path and removed async_add_executor_job wrappers to prevent Event Loop blocking.
 # // [ADDED v9.1.11 | 2026-04-14] Purpose: Fixed sub-location logic where AI created new sub-locations instead of using existing ones. Rewrote Rule 3 to explicitly enforce 'USER LOCATION MATCHING', requiring the AI to match user input to an existing location_id first, and forbidding the use of the sub_location parameter unless explicit permission for a NEW location was granted.
 # // [ADDED v9.1.10 | 2026-04-14] Purpose: Fixed 'Invalid Format' crash caused by the AI using double quotes inside JSON string values. Added JSON FORMATTING SAFETY rule. Also fixed the 'Unsure how to proceed' error by restoring the 'intent: reply' Example 5 and adding the SYSTEM TOOL RESPONSES rule so the AI knows how to acknowledge tool successes.
 # // [ADDED v9.1.9 | 2026-04-14] Purpose: Fixed continuation failure where the AI returned an invalid intent after the user agreed to create a new sub-location. Added Rule 3 explicit instructions to retrieve item context from history, and added Example 4 to explicitly show how to resume the 'tool' intent.
@@ -20,9 +21,10 @@
 # // implementations. Nothing outside this file may modify inventory tools.
 
 import logging
+import aiosqlite
 from datetime import datetime
 
-from ..database import get_db_connection, add_item_db_safe
+from ..database import get_db_path, async_add_item_db_safe
 from ..ai_core.router import safe_smart_router
 from ..ai_core.json_utils import safe_parse_json, apply_voice_rules
 from ..ai_core.localized_strings import get_strings_for_language
@@ -186,47 +188,39 @@ async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map):
         if len(base_path) < 2:
             main_loc = kwargs.get("main_location", loc_id)
 
-            def db_get_subs_fallback():
-                conn = None
+            async def db_get_subs_fallback():
                 try:
-                    conn = get_db_connection(hass)
-                    c = conn.cursor()
-                    c.execute(
-                        "SELECT DISTINCT level_3 FROM items "
-                        "WHERE level_2 LIKE ? AND level_3 IS NOT NULL AND level_3 != ''",
-                        (f"%{main_loc}%",),
-                    )
-                    return [r[0] for r in c.fetchall()]
+                    db_path = get_db_path(hass)
+                    async with aiosqlite.connect(db_path, timeout=10.0) as db:
+                        async with db.execute(
+                            "SELECT DISTINCT level_3 FROM items "
+                            "WHERE level_2 LIKE ? AND level_3 IS NOT NULL AND level_3 != ''",
+                            (f"%{main_loc}%",),
+                        ) as cursor:
+                            return [r[0] for r in await cursor.fetchall()]
                 except Exception:
                     return []
-                finally:
-                    if conn:
-                        conn.close()
 
-            subs = await hass.async_add_executor_job(db_get_subs_fallback)
+            subs = await db_get_subs_fallback()
             target_name = main_loc
         else:
             l1, l2 = base_path[0], base_path[1]
             target_name = l2
 
-            def db_get_subs():
-                conn = None
+            async def db_get_subs():
                 try:
-                    conn = get_db_connection(hass)
-                    c = conn.cursor()
-                    c.execute(
-                        "SELECT DISTINCT level_3 FROM items "
-                        "WHERE level_1=? AND level_2=? AND level_3 IS NOT NULL AND level_3 != ''",
-                        (l1, l2),
-                    )
-                    return [r[0] for r in c.fetchall()]
+                    db_path = get_db_path(hass)
+                    async with aiosqlite.connect(db_path, timeout=10.0) as db:
+                        async with db.execute(
+                            "SELECT DISTINCT level_3 FROM items "
+                            "WHERE level_1=? AND level_2=? AND level_3 IS NOT NULL AND level_3 != ''",
+                            (l1, l2),
+                        ) as cursor:
+                            return [r[0] for r in await cursor.fetchall()]
                 except Exception:
                     return []
-                finally:
-                    if conn:
-                        conn.close()
 
-            subs = await hass.async_add_executor_job(db_get_subs)
+            subs = await db_get_subs()
 
         import re as _re
         cleaned_subs = []
@@ -268,8 +262,8 @@ async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map):
         if sl:
             full_path.append(sl)
 
-        await hass.async_add_executor_job(
-            add_item_db_safe, hass, nm, qt, full_path, cat, scat, "item", icon, "0"
+        await async_add_item_db_safe(
+            hass, nm, qt, full_path, cat, scat, "item", icon, "0"
         )
         hass.bus.async_fire("home_organizer_db_update")
         loc_str = " > ".join(full_path)
@@ -299,12 +293,10 @@ async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map):
         full_path = list(base_path)
         full_path.append(new_sub)
 
-        # In Home Organizer DB, empty folders are created as type 'folder_marker'
-        # with the name prefixed by '[Folder] '
         folder_name = f"[Folder] {new_sub}"
         
-        await hass.async_add_executor_job(
-            add_item_db_safe, hass, folder_name, 0, full_path, "Folder", "", "folder_marker", None, "0"
+        await async_add_item_db_safe(
+            hass, folder_name, 0, full_path, "Folder", "", "folder_marker", None, "0"
         )
         hass.bus.async_fire("home_organizer_db_update")
         loc_str = " > ".join(base_path)
@@ -315,92 +307,81 @@ async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map):
         new_n = kwargs.get("new_name", old_n)
         new_sl = kwargs.get("new_sub_location")
 
-        def db_update():
-            conn = None
+        async def db_update():
             try:
-                conn = get_db_connection(hass)
-                c = conn.cursor()
-                if new_sl:
-                    c.execute(
-                        "UPDATE items SET name=?, level_3=? WHERE name=? AND type='item'",
-                        (new_n, new_sl, old_n),
-                    )
-                else:
-                    c.execute(
-                        "UPDATE items SET name=? WHERE name=? AND type='item'",
-                        (new_n, old_n),
-                    )
-                conn.commit()
-                return "Updated successfully."
+                db_path = get_db_path(hass)
+                async with aiosqlite.connect(db_path, timeout=10.0) as db:
+                    if new_sl:
+                        await db.execute(
+                            "UPDATE items SET name=?, level_3=? WHERE name=? AND type='item'",
+                            (new_n, new_sl, old_n),
+                        )
+                    else:
+                        await db.execute(
+                            "UPDATE items SET name=? WHERE name=? AND type='item'",
+                            (new_n, old_n),
+                        )
+                    await db.commit()
+                    return "Updated successfully."
             except Exception as e:
                 return f"Error: {e}"
-            finally:
-                if conn:
-                    conn.close()
 
-        res = await hass.async_add_executor_job(db_update)
+        res = await db_update()
         hass.bus.async_fire("home_organizer_db_update")
         return res
 
     elif tool_name == "remove_item":
         nm = kwargs.get("item_name", "")
 
-        def db_remove():
-            conn = None
+        async def db_remove():
             try:
-                conn = get_db_connection(hass)
-                c = conn.cursor()
-                c.execute(
-                    "SELECT id, name, level_2, level_3 FROM items "
-                    "WHERE name LIKE ? ORDER BY id DESC LIMIT 1",
-                    (f"%{nm}%",),
-                )
-                row = c.fetchone()
-                if row:
-                    c.execute("DELETE FROM items WHERE id = ?", (row[0],))
-                    conn.commit()
-                    loc_str = f"{row[2]} > {row[3]}" if row[3] else str(row[2])
-                    return f"Deleted '{row[1]}' from {loc_str}."
-                return f"Item '{nm}' not found."
+                db_path = get_db_path(hass)
+                async with aiosqlite.connect(db_path, timeout=10.0) as db:
+                    async with db.execute(
+                        "SELECT id, name, level_2, level_3 FROM items "
+                        "WHERE name LIKE ? ORDER BY id DESC LIMIT 1",
+                        (f"%{nm}%",),
+                    ) as cursor:
+                        row = await cursor.fetchone()
+                        if row:
+                            await db.execute("DELETE FROM items WHERE id = ?", (row[0],))
+                            await db.commit()
+                            loc_str = f"{row[2]} > {row[3]}" if row[3] else str(row[2])
+                            return f"Deleted '{row[1]}' from {loc_str}."
+                        return f"Item '{nm}' not found."
             except Exception as e:
                 return f"Error: {e}"
-            finally:
-                if conn:
-                    conn.close()
 
-        res = await hass.async_add_executor_job(db_remove)
+        res = await db_remove()
         hass.bus.async_fire("home_organizer_db_update")
         return f"Result: {res}."
 
     elif tool_name == "search_inventory":
         cat_filter = kwargs.get("category", "")
 
-        def db_search():
-            conn = None
+        async def db_search():
             try:
-                conn = get_db_connection(hass)
-                c = conn.cursor()
-                if cat_filter and cat_filter.lower() != "all":
-                    c.execute(
-                        "SELECT name, quantity, level_1, level_2, level_3 "
-                        "FROM items WHERE type='item' AND quantity > 0 "
-                        "AND (category LIKE ? OR name LIKE ?)",
-                        (f"%{cat_filter}%", f"%{cat_filter}%"),
-                    )
-                else:
-                    c.execute(
-                        "SELECT name, quantity, level_1, level_2, level_3 "
-                        "FROM items WHERE type='item' AND quantity > 0"
-                    )
-                return c.fetchall()
+                db_path = get_db_path(hass)
+                async with aiosqlite.connect(db_path, timeout=10.0) as db:
+                    if cat_filter and cat_filter.lower() != "all":
+                        async with db.execute(
+                            "SELECT name, quantity, level_1, level_2, level_3 "
+                            "FROM items WHERE type='item' AND quantity > 0 "
+                            "AND (category LIKE ? OR name LIKE ?)",
+                            (f"%{cat_filter}%", f"%{cat_filter}%"),
+                        ) as cursor:
+                            return await cursor.fetchall()
+                    else:
+                        async with db.execute(
+                            "SELECT name, quantity, level_1, level_2, level_3 "
+                            "FROM items WHERE type='item' AND quantity > 0"
+                        ) as cursor:
+                            return await cursor.fetchall()
             except Exception as e:
                 _LOGGER.error(f"Search tool error: {e}")
                 return []
-            finally:
-                if conn:
-                    conn.close()
 
-        items = await hass.async_add_executor_job(db_search)
+        items = await db_search()
         if not items:
             return f"No items found in inventory for category '{cat_filter}'."
         res_lines = [
@@ -414,39 +395,34 @@ async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map):
         nm = kwargs.get("item_name", "")
         qty = int(kwargs.get("new_qty", 0))
 
-        def db_update_qty():
-            conn = None
+        async def db_update_qty():
             try:
-                conn = get_db_connection(hass)
-                c = conn.cursor()
+                db_path = get_db_path(hass)
                 today = datetime.now().strftime("%Y-%m-%d")
+                async with aiosqlite.connect(db_path, timeout=10.0) as db:
+                    cursor = await db.execute(
+                        "UPDATE items SET quantity = ?, item_date = ? "
+                        "WHERE name = ? AND type='item'",
+                        (qty, today, nm),
+                    )
+                    if cursor.rowcount > 0:
+                        await db.commit()
+                        return f"Updated '{nm}' quantity to {qty}."
 
-                c.execute(
-                    "UPDATE items SET quantity = ?, item_date = ? "
-                    "WHERE name = ? AND type='item'",
-                    (qty, today, nm),
-                )
-                if c.rowcount > 0:
-                    conn.commit()
-                    return f"Updated '{nm}' quantity to {qty}."
+                    cursor = await db.execute(
+                        "UPDATE items SET quantity = ?, item_date = ? "
+                        "WHERE name LIKE ? AND type='item'",
+                        (qty, today, f"%{nm}%"),
+                    )
+                    if cursor.rowcount > 0:
+                        await db.commit()
+                        return f"Updated '{nm}' quantity to {qty}."
 
-                c.execute(
-                    "UPDATE items SET quantity = ?, item_date = ? "
-                    "WHERE name LIKE ? AND type='item'",
-                    (qty, today, f"%{nm}%"),
-                )
-                if c.rowcount > 0:
-                    conn.commit()
-                    return f"Updated '{nm}' quantity to {qty}."
-
-                return f"Item '{nm}' not found in database."
+                    return f"Item '{nm}' not found in database."
             except Exception as e:
                 return f"Error updating qty: {e}"
-            finally:
-                if conn:
-                    conn.close()
 
-        res = await hass.async_add_executor_job(db_update_qty)
+        res = await db_update_qty()
         hass.bus.async_fire("home_organizer_db_update")
         return res
 

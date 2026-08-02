@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# // [MODIFIED v9.3.1 | 2026-08-02] Purpose: Refactored database interactions to use aiosqlite for full asynchronous I/O. Replaced get_db_connection with get_db_path and removed async_add_executor_job wrappers to prevent Event Loop blocking.
 # // [MODIFIED v9.3.0 | 2026-04-16] Purpose: Added full routing support for all 4 major VTO providers (Fal.ai, Local ComfyUI, Hugging Face Spaces, and Fashn.ai).
 # // [MODIFIED v9.2.1 | 2026-04-15] Purpose: Added user_id parameter to _get_user_avatar and execute_tool for multi-user VTO support.
 # // [ADDED v9.2.0 | 2026-04-15] Purpose: Added actual VTO API implementations (Local ComfyUI & Cloud Fal.ai) with dynamic config routing.
@@ -10,18 +11,18 @@
 import asyncio
 import logging
 import os
-import sqlite3
+import aiosqlite
 import json
 import aiohttp
 
-from ..database import get_db_connection
+from ..database import get_db_path
 from ..ai_core.router import safe_smart_router
 from ..ai_core.json_utils import safe_parse_json, apply_voice_rules
 from ..ai_core.localized_strings import get_strings_for_language
 from ..const import (
     DOMAIN, CONF_VTO_PROVIDER, CONF_VTO_URL, CONF_VTO_KEY, 
     VTO_PROVIDER_FAL, VTO_PROVIDER_COMFYUI, 
-    VTO_PROVIDER_HUGGINGFACE, VTO_PROVIDER_FASHN # [ADDED v9.3.0] New Providers
+    VTO_PROVIDER_HUGGINGFACE, VTO_PROVIDER_FASHN
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -64,8 +65,7 @@ ASSISTANT JSON RESPONSE:
 # ==========================================
 # CONTEXT FETCHING
 # ==========================================
-def _get_weather_and_clothes(hass):
-    conn = None
+async def _async_get_weather_and_clothes(hass):
     weather_ctx = "Unknown weather."
     try:
         weather_state = hass.states.get("weather.home")
@@ -74,15 +74,16 @@ def _get_weather_and_clothes(hass):
             cond = weather_state.state
             weather_ctx = f"Condition: {cond}, Temperature: {temp} degrees."
 
-        conn = get_db_connection(hass)
-        conn.row_factory = sqlite3.Row
-        c = conn.cursor()
-        c.execute(
-            "SELECT name, level_1, level_2, level_3, category, sub_category "
-            "FROM items WHERE type='item' AND quantity > 0 "
-            "AND category IN ('Clothing', 'Footwear', 'Bags', 'Accessories')"
-        )
-        rows = c.fetchall()
+        db_path = get_db_path(hass)
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT name, level_1, level_2, level_3, category, sub_category "
+                "FROM items WHERE type='item' AND quantity > 0 "
+                "AND category IN ('Clothing', 'Footwear', 'Bags', 'Accessories')"
+            ) as cursor:
+                rows = await cursor.fetchall()
+                
         clothes_ctx = []
         for r in rows:
             loc = (
@@ -95,24 +96,18 @@ def _get_weather_and_clothes(hass):
         return weather_ctx, wardrobe_str
     except Exception:
         return "Error fetching weather", "Error fetching clothes"
-    finally:
-        if conn:
-            conn.close()
 
 
 # ==========================================
 # VTO API IMPLEMENTATIONS
 # ==========================================
-
 async def _get_user_avatar(hass, user_id):
-    # 1. Try to find the user-specific avatar first
     filename = f"user_avatar_{user_id}.jpg" if user_id else "user_avatar.jpg"
     avatar_path = hass.config.path("www", "home_organizer_images", filename)
     
     if os.path.exists(avatar_path):
         return avatar_path
         
-    # 2. Fallback to the generic 'user_avatar.jpg' if they haven't set a personal one yet
     generic_path = hass.config.path("www", "home_organizer_images", "user_avatar.jpg")
     if os.path.exists(generic_path):
         return generic_path
@@ -166,7 +161,6 @@ async def _render_local_comfyui(vto_url, avatar_path, top_garment, bottom_garmen
                 _LOGGER.error(f"ComfyUI Error: {await response.text()}")
     return False
 
-# // [ADDED v9.3.0 | 2026-04-16] Purpose: Executes Virtual Try-On using public Hugging Face spaces (e.g., yisol/IDM-VTON) via the Gradio API.
 async def _render_cloud_huggingface(vto_url, vto_key, avatar_path, top_garment, bottom_garment, result_path):
     headers = {"Content-Type": "application/json"}
     if vto_key:
@@ -174,8 +168,8 @@ async def _render_cloud_huggingface(vto_url, vto_key, avatar_path, top_garment, 
         
     payload = {
         "data": [
-            {"path": avatar_path}, # Avatar
-            {"path": top_garment}, # Garment
+            {"path": avatar_path},
+            {"path": top_garment},
             "Auto-mask", 
             True, 
             True,
@@ -189,13 +183,11 @@ async def _render_cloud_huggingface(vto_url, vto_key, avatar_path, top_garment, 
             if response.status == 200:
                 data = await response.json()
                 event_id = data.get("event_id")
-                # Wait for the HF Space generation queue
                 return True
             else:
                 _LOGGER.error(f"Hugging Face API Error: {await response.text()}")
     return False
 
-# // [ADDED v9.3.0 | 2026-04-16] Purpose: Executes Virtual Try-On using the dedicated Fashn.ai API.
 async def _render_cloud_fashn(vto_url, vto_key, avatar_path, top_garment, bottom_garment, result_path):
     headers = {
         "Authorization": f"Bearer {vto_key}",
@@ -207,7 +199,6 @@ async def _render_cloud_fashn(vto_url, vto_key, avatar_path, top_garment, bottom
         "category": "tops"
     }
     
-    # Use default endpoint if user just types 'fashn.ai'
     endpoint = vto_url if vto_url and "api" in vto_url else "https://api.fashn.ai/v1/run"
     
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=90)) as session:
@@ -253,7 +244,6 @@ async def execute_tool(hass, tool_name, kwargs, user_id):
                 return "Error: Home Organizer integration not configured."
             entry = entries[0]
             
-            # [MODIFIED v9.3.0] Support for all 4 providers
             vto_provider = entry.options.get(CONF_VTO_PROVIDER, entry.data.get(CONF_VTO_PROVIDER, VTO_PROVIDER_FAL))
             vto_url = entry.options.get(CONF_VTO_URL, entry.data.get(CONF_VTO_URL, ""))
             vto_key = entry.options.get(CONF_VTO_KEY, entry.data.get(CONF_VTO_KEY, ""))
@@ -266,7 +256,6 @@ async def execute_tool(hass, tool_name, kwargs, user_id):
             if not avatar_path:
                 return "Error: User avatar not found. Please upload a base image in the UI first."
 
-            # [MODIFIED v9.3.0] Route the request to the correct provider
             success = False
             if vto_provider == VTO_PROVIDER_COMFYUI and vto_url:
                 success = await _render_local_comfyui(vto_url, avatar_path, top_garment, bottom_garment, vto_result_path)
@@ -315,9 +304,7 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
               is_voice, device_id, user_id, lang_code="en"):
 
     strings = await get_strings_for_language(hass, entry, lang_code)
-    weather_str, wardrobe_str = await hass.async_add_executor_job(
-        _get_weather_and_clothes, hass
-    )
+    weather_str, wardrobe_str = await _async_get_weather_and_clothes(hass)
     prompt = get_stylist_prompt(target_lang, weather_str, wardrobe_str, history_text)
 
     for _ in range(10):
@@ -343,9 +330,7 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
             for m in messages:
                 history_text_new += f"{m['role'].upper()}: {m['content']}\n"
 
-            weather_str, wardrobe_str = await hass.async_add_executor_job(
-                _get_weather_and_clothes, hass
-            )
+            weather_str, wardrobe_str = await _async_get_weather_and_clothes(hass)
             prompt = get_stylist_prompt(
                 target_lang, weather_str, wardrobe_str, history_text_new
             )

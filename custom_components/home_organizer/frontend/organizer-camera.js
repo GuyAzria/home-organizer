@@ -1,4 +1,5 @@
 // organizer-camera.js — Camera, barcode scanning, file upload, image compression
+// [MODIFIED v10.0.11 | 2026-08-02] Purpose: Changed barcode polyfill CDN URL to local static path to satisfy offline HACS requirements.
 // [MODIFIED v10.0.10 | 2026-04-17] Purpose: Added robust stream destruction to fix intermittent camera loading blocks. Added toggleWhiteBG implementation to resolve undefined boolean properties breaking canvas extraction. Sanitized canvas width/height integer rounding to prevent NaN rendering loops.
 
 export const CameraMixin = (Base) => class extends Base {
@@ -410,7 +411,7 @@ export const CameraMixin = (Base) => class extends Base {
     try {
       await new Promise((resolve, reject) => {
         const script = document.createElement('script');
-        script.src = "https://cdn.jsdelivr.net/npm/barcode-detector@2.1.2/dist/barcode-detector.umd.js";
+        script.src = "/home_organizer_static/barcode-detector.umd.js";
         script.onload = resolve; script.onerror = reject;
         document.head.appendChild(script);
       });

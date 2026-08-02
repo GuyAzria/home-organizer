@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
+# // [MODIFIED v8.25.0 | 2026-08-02] Purpose: Refactored database interactions to use aiosqlite for full asynchronous I/O. Replaced get_db_connection with get_db_path and removed async_add_executor_job wrappers to prevent Event Loop blocking during voice interactions.
 # // [MODIFIED v8.24.0 | 2026-04-12] Purpose: Captured user_input.device_id and user_input.context.user_id to pass down to the AI. This allows the Time Reminder Agent to target the specific mobile device that initiated the voice request.
 # // [MODIFIED v8.23.0 | 2026-04-12] Purpose: Increased the aggressive TTS truncation limit to 2500 characters so the AI's questions are never cut off during voice playback. Updated the function call to use safe_universal_agent_loop with is_voice=True for perfect TTS routing.
 
 import logging
-import sqlite3
 import re
 import uuid
+import aiosqlite
 
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
@@ -16,7 +17,7 @@ from homeassistant.components import conversation
 
 from .const import DOMAIN, CONF_PROCESSING_MODE, MODE_HYBRID
 from .ai_logic import safe_universal_agent_loop
-from .database import get_db_connection, get_or_create_catalog_ids, to_alpha_id
+from .database import get_db_path, async_get_or_create_catalog_ids, to_alpha_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -40,7 +41,6 @@ class HomeOrganizerConversationAgent(conversation.ConversationEntity):
         self.hass = hass
         self.entry = entry
         self.history = {}
-        # Setting a clear, recognizable name for the Voice Assistant dropdown
         self._attr_name = "HO-AI Agent"
         self._attr_unique_id = f"{entry.entry_id}_ho_conversation"
 
@@ -55,7 +55,6 @@ class HomeOrganizerConversationAgent(conversation.ConversationEntity):
             user_text = user_input.text
             lang_code = user_input.language or self.hass.config.language
             
-            # [MODIFIED v8.24.0] Extract device and user IDs to route reminders correctly
             conv_id = getattr(user_input, "conversation_id", None)
             device_id = getattr(user_input, "device_id", None)
             user_id = user_input.context.user_id if user_input.context else None
@@ -71,14 +70,12 @@ class HomeOrganizerConversationAgent(conversation.ConversationEntity):
             existing_locs_str = ""
             loc_hierarchy_map = {}
 
-            def fetch_context():
+            # [MODIFIED v8.25.0] Fetch context asynchronously
+            async def async_fetch_context():
                 nonlocal existing_locs_str, loc_hierarchy_map
-                conn = None
                 try:
-                    conn = get_db_connection(self.hass)
-                    cc = conn.cursor()
-                    catalog_map = get_or_create_catalog_ids(self.hass)
-                    cc.execute("SELECT DISTINCT level_1, level_2, level_3 FROM items WHERE type != 'pending'")
+                    db_path = get_db_path(self.hass)
+                    catalog_map = await async_get_or_create_catalog_ids(self.hass)
                     
                     def local_quick_regex(s):
                         if not s: return s
@@ -86,57 +83,54 @@ class HomeOrganizerConversationAgent(conversation.ConversationEntity):
                         if m: return f"[{m.group(1)}] {m.group(2)}"
                         return str(s)
 
-                    loc_prompt_list = []
-                    for r in cc.fetchall():
-                        l1 = local_quick_regex(r[0]) if r[0] else None
-                        l2 = local_quick_regex(r[1]) if r[1] else None
-                        l3 = local_quick_regex(r[2]) if r[2] else None
-                        if l1:
-                            path_list = [l1]
-                            root_id_num = catalog_map.get('root', {}).get(l1)
-                            if not root_id_num: continue
-                            alpha_id = to_alpha_id(root_id_num)
-                            cat_id = alpha_id
+                    async with aiosqlite.connect(db_path, timeout=10.0) as db:
+                        async with db.execute("SELECT DISTINCT level_1, level_2, level_3 FROM items WHERE type != 'pending'") as cc:
+                            loc_prompt_list = []
+                            for r in await cc.fetchall():
+                                l1 = local_quick_regex(r[0]) if r[0] else None
+                                l2 = local_quick_regex(r[1]) if r[1] else None
+                                l3 = local_quick_regex(r[2]) if r[2] else None
+                                if l1:
+                                    path_list = [l1]
+                                    root_id_num = catalog_map.get('root', {}).get(l1)
+                                    if not root_id_num: continue
+                                    alpha_id = to_alpha_id(root_id_num)
+                                    cat_id = alpha_id
+                                    
+                                    if l2:
+                                        path_list.append(l2)
+                                        l2_id_num = catalog_map.get(l1, {}).get(l2)
+                                        if l2_id_num:
+                                            cat_id = f"{alpha_id}{l2_id_num}"
+                                        
+                                        if l3:
+                                            path_list.append(l3)
+                                            l3_id_num = catalog_map.get(f"{l1}_{l2}", {}).get(l3)
+                                            if l3_id_num:
+                                                cat_id = f"{alpha_id}{l2_id_num}.{l3_id_num}"
+                                    
+                                    if cat_id not in loc_hierarchy_map:
+                                        loc_hierarchy_map[cat_id] = path_list
+                                        loc_prompt_list.append(f"ID '{cat_id}': {' > '.join(path_list)}")
                             
-                            if l2:
-                                path_list.append(l2)
-                                l2_id_num = catalog_map.get(l1, {}).get(l2)
-                                if l2_id_num:
-                                    cat_id = f"{alpha_id}{l2_id_num}"
-                                
-                                if l3:
-                                    path_list.append(l3)
-                                    l3_id_num = catalog_map.get(f"{l1}_{l2}", {}).get(l3)
-                                    if l3_id_num:
-                                        cat_id = f"{alpha_id}{l2_id_num}.{l3_id_num}"
-                            
-                            if cat_id not in loc_hierarchy_map:
-                                loc_hierarchy_map[cat_id] = path_list
-                                loc_prompt_list.append(f"ID '{cat_id}': {' > '.join(path_list)}")
-                    
-                    existing_locs_str = "\n".join(loc_prompt_list)
+                            existing_locs_str = "\n".join(loc_prompt_list)
                 except Exception as ex:
                     _LOGGER.error(f"Context fetch error in conversation agent: {ex}")
-                finally:
-                    if conn: conn.close()
 
-            await self.hass.async_add_executor_job(fetch_context)
+            await async_fetch_context()
 
             lang_map = {"en": "English", "he": "Hebrew", "it": "Italian", "es": "Spanish", "fr": "French", "ar": "Arabic"}
             target_lang = lang_map.get(lang_code, "English")
 
             mode = self.entry.options.get(CONF_PROCESSING_MODE) or self.entry.data.get(CONF_PROCESSING_MODE) or MODE_HYBRID
 
-            # [MODIFIED v8.24.0] Passing the device_id and user_id down the chain
             final_reply = await safe_universal_agent_loop(
                 self.hass, self.entry, mode, self.history[conv_id], target_lang, existing_locs_str, loc_hierarchy_map, is_voice=True, device_id=device_id, user_id=user_id
             )
 
-            # Keep history manageable
             if len(self.history[conv_id]) > 10:
                 self.history[conv_id] = self.history[conv_id][-10:]
 
-            # Strip basic markdown but DO NOT arbitrarily truncate at 400 chars. Increased to 2500!
             safe_reply = re.sub(r'(\*\*|\*|__|_|#)', '', final_reply).strip()
             
             if len(safe_reply) > 2500:

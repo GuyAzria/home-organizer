@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 # Home Organizer Ultimate
-# [MODIFIED v8.56.0 | 2026-05-13] Purpose: Automatically copy HOCameraApp.apk to the public 'www' folder so the Android DownloadManager can fetch it unauthenticated via /local/ (bypassing WebView auth and .bin conversion issues).
-# [MODIFIED v8.52.1 | 2026-04-20] Purpose: Fixed order_qty fallback logic to handle SQLite None values properly in websocket_get_all_items by changing to 'or 1'.
-# [MODIFIED v8.52.0 | 2026-04-16] Purpose: Updated the WS_GET_ALL_ITEMS websocket endpoint to serialize and return the newly added Stylist database fields (owner, season, dress_code, clothing_status, measurements) so the frontend Wardrobe Grid can filter effectively.
+# [MODIFIED v8.58.0 | 2026-08-02] Purpose: Removed local APK sync logic (migrated to GitHub Releases) and updated app references to HO_Mind_AI. Converted to full async/await using aiosqlite.
 
 import logging
 import os
@@ -11,7 +9,7 @@ import json
 import re
 import asyncio
 import shutil
-import sqlite3
+import aiosqlite
 import voluptuous as vol
 
 from aiohttp import web, ClientTimeout
@@ -23,20 +21,18 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import entity_registry as er
 import homeassistant.helpers.config_validation as cv
 
-# Module Imports
 from .const import (
     DOMAIN, CONF_API_KEY, CONF_DEBUG, CONF_USE_AI, DB_FILE, IMG_DIR, VERSION, 
     CONF_STORAGE_METHOD, CONF_DELETE_ON_REMOVE, STORAGE_METHOD_WWW, STORAGE_METHOD_MEDIA,
     CONF_AI_PROVIDER, CONF_PROCESSING_MODE, MODE_LOCAL_ONLY, MODE_CLOUD_ONLY, MODE_HYBRID, PROVIDER_OPENAI, PROVIDER_GEMINI
 )
 from .database import (
-    init_db, get_db_connection, get_or_create_catalog_ids, to_alpha_id, get_view_data, add_item_db_safe
+    async_init_db, get_db_path, async_get_or_create_catalog_ids, to_alpha_id, async_get_view_data, async_add_item_db_safe
 )
 from .services import register_services
 from .ai_logic import async_universal_agent_loop, async_smart_router
 from .reminders_scheduler import async_register_startup_restore
 from . import recipes_db
-# Prompt Microservices
 from .prompt_core import get_intent_resolve_prompt, ICON_PROMPT_CONTEXT
 from .prompt_inventory import get_barcode_prompt, get_invoice_prompt
 
@@ -53,9 +49,6 @@ WS_SAVE_AVATAR = "home_organizer/save_avatar"
 STATIC_PATH_URL = "/home_organizer_static"
 ACTIVE_SESSIONS = {}
 
-# ==========================================
-# HYBRID FALLBACK WRAPPERS
-# ==========================================
 class FallbackMockEntry:
     def __init__(self, original):
         self.entry_id = getattr(original, "entry_id", "fallback_entry")
@@ -93,9 +86,6 @@ async def safe_universal_agent_loop(hass, entry, mode, *args, **kwargs):
             except Exception as fe: return f"Error: {fe}"
         return f"Error: {e}"
 
-# ==========================================
-# CUSTOM API ENDPOINTS
-# ==========================================
 class HOCameraUploadView(HomeAssistantView):
     url = "/api/home_organizer/ext_camera_upload"
     name = "api:home_organizer:ext_camera_upload"
@@ -126,93 +116,79 @@ class HOCameraUploadView(HomeAssistantView):
             _LOGGER.error(f"External camera upload failed: {e}")
             return self.json({"status": "error", "message": str(e)}, status_code=500)
 
-# ==========================================
-# WEBSOCKET ENDPOINTS
-# ==========================================
-
-@callback
-def websocket_get_data(hass, connection, msg):
+@websocket_api.async_response
+async def websocket_get_data(hass, connection, msg):
     path = msg.get("path", [])
     query = msg.get("search_query", "")
     date_filter = msg.get("date_filter", "All")
     is_shopping = msg.get("shopping_mode", False)
-    data = get_view_data(hass, path, query, date_filter, is_shopping)
+    data = await async_get_view_data(hass, path, query, date_filter, is_shopping)
     connection.send_result(msg["id"], data)
 
-@callback
-def websocket_get_all_items(hass, connection, msg):
-    conn = None
+@websocket_api.async_response
+async def websocket_get_all_items(hass, connection, msg):
     try:
-        conn = get_db_connection(hass)
-        c = conn.cursor()
+        db_path = get_db_path(hass)
         url_prefix = hass.data.get(DOMAIN, {}).get("config", {}).get("url_prefix", f"/local/{IMG_DIR}")
-
-        c.execute("SELECT * FROM items WHERE type='item'")
-        col_names = [description[0] for description in c.description]
         results = []
-        
-        for r in c.fetchall():
-            r_dict = dict(zip(col_names, r))
-            img = None
-            raw_path = r_dict.get('image_path')
-            if raw_path:
-                if raw_path.startswith("ICON_LIB"): 
-                    img = raw_path
-                else: 
-                    img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
 
-            fp = []
-            for i in range(1, 11):
-                if r_dict.get(f"level_{i}"): fp.append(r_dict.get(f"level_{i}"))
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            async with db.execute("SELECT * FROM items WHERE type='item'") as cursor:
+                col_names = [description[0] for description in cursor.description]
+                for r in await cursor.fetchall():
+                    r_dict = dict(zip(col_names, r))
+                    img = None
+                    raw_path = r_dict.get('image_path')
+                    if raw_path:
+                        if raw_path.startswith("ICON_LIB"): 
+                            img = raw_path
+                        else: 
+                            img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
 
-            results.append({
-                "id": r_dict['id'],
-                "name": r_dict['name'],
-                "qty": r_dict['quantity'],
-                "order_qty": r_dict.get('order_qty') or 1,
-                "date": r_dict.get('item_date', ''),
-                "img": img,
-                "location": " > ".join(fp),
-                "level_1": r_dict.get('level_1', ''),
-                "level_2": r_dict.get('level_2', ''),
-                "level_3": r_dict.get('level_3', ''),
-                "category": r_dict.get('category', ''),
-                "sub_category": r_dict.get('sub_category', ''),
-                "unit": r_dict.get('unit', ''),
-                "unit_value": r_dict.get('unit_value', ''),
-                "barcode": r_dict.get('barcode', '0'),
-                "owner": r_dict.get("owner", ""),
-                "season": r_dict.get("season", ""),
-                "dress_code": r_dict.get("dress_code", ""),
-                "clothing_status": r_dict.get("clothing_status", "Clean"),
-                "measurements": r_dict.get("measurements", "")
-            })
+                    fp = [r_dict.get(f"level_{i}") for i in range(1, 11) if r_dict.get(f"level_{i}")]
+
+                    results.append({
+                        "id": r_dict['id'],
+                        "name": r_dict['name'],
+                        "qty": r_dict['quantity'],
+                        "order_qty": r_dict.get('order_qty') or 1,
+                        "date": r_dict.get('item_date', ''),
+                        "img": img,
+                        "location": " > ".join(fp),
+                        "level_1": r_dict.get('level_1', ''),
+                        "level_2": r_dict.get('level_2', ''),
+                        "level_3": r_dict.get('level_3', ''),
+                        "category": r_dict.get('category', ''),
+                        "sub_category": r_dict.get('sub_category', ''),
+                        "unit": r_dict.get('unit', ''),
+                        "unit_value": r_dict.get('unit_value', ''),
+                        "barcode": r_dict.get('barcode', '0'),
+                        "owner": r_dict.get("owner", ""),
+                        "season": r_dict.get("season", ""),
+                        "dress_code": r_dict.get("dress_code", ""),
+                        "clothing_status": r_dict.get("clothing_status", "Clean"),
+                        "measurements": r_dict.get("measurements", "")
+                    })
         connection.send_result(msg["id"], results)
     except Exception as e:
         _LOGGER.error(f"websocket_get_all_items error: {e}")
-    finally:
-        if conn: conn.close()
 
 @websocket_api.async_response
 async def websocket_lookup_barcode(hass, connection, msg):
     try:
         barcode = str(msg.get("barcode", ""))
         lang_code = msg.get("language", hass.config.language)
+        db_path = get_db_path(hass)
+        history_row = None
         
-        def check_hist():
-            conn = None
-            try:
-                conn = get_db_connection(hass)
-                conn.row_factory = sqlite3.Row
-                c = conn.cursor()
-                c.execute("SELECT * FROM barcode_history WHERE barcode=?", (barcode,))
-                return c.fetchone()
-            except:
-                return None
-            finally:
-                if conn: conn.close()
+        try:
+            async with aiosqlite.connect(db_path, timeout=10.0) as db:
+                db.row_factory = aiosqlite.Row
+                async with db.execute("SELECT * FROM barcode_history WHERE barcode=?", (barcode,)) as cursor:
+                    history_row = await cursor.fetchone()
+        except Exception:
+            pass
         
-        history_row = await hass.async_add_executor_job(check_hist)
         if history_row:
             h_dict = dict(history_row)
             raw_path = [h_dict.get("level_1", ""), h_dict.get("level_2", ""), h_dict.get("level_3", "")]
@@ -337,16 +313,11 @@ async def websocket_ai_chat(hass, connection, msg):
         existing_cats_str = ""
         loc_hierarchy_map = {}
         
-        def fetch_context():
+        async def async_fetch_context():
             nonlocal existing_locs_str, existing_cats_str, loc_hierarchy_map
-            conn = None
             try:
-                conn = get_db_connection(hass)
-                cc = conn.cursor()
-                
-                catalog_map = get_or_create_catalog_ids(hass)
-                
-                cc.execute("SELECT DISTINCT level_1, level_2, level_3 FROM items WHERE type != 'pending'")
+                db_path = get_db_path(hass)
+                catalog_map = await async_get_or_create_catalog_ids(hass)
                 
                 def local_quick_regex(s):
                     if not s: return s
@@ -354,55 +325,52 @@ async def websocket_ai_chat(hass, connection, msg):
                     if m: return f"[{m.group(1)}] {m.group(2)}"
                     return str(s)
 
-                loc_prompt_list = []
-                for r in cc.fetchall():
-                    l1_raw, l2_raw, l3_raw = r[0], r[1], r[2]
-                    
-                    l1_clean = local_quick_regex(l1_raw) if l1_raw else None
-                    l2_clean = local_quick_regex(l2_raw) if l2_raw else None
-                    l3_clean = local_quick_regex(l3_raw) if l3_raw else None
-                    
-                    if l1_raw:
-                        raw_path = [l1_raw]
-                        clean_path = [l1_clean]
-                        root_id_num = catalog_map.get('root', {}).get(l1_clean)
-                        if not root_id_num: continue
-                        alpha_id = to_alpha_id(root_id_num)
-                        cat_id = alpha_id
-
-                        if l2_raw:
-                            raw_path.append(l2_raw)
-                            clean_path.append(l2_clean)
-                            l2_id_num = catalog_map.get(l1_clean, {}).get(l2_clean)
-                            if l2_id_num:
-                                cat_id = f"{alpha_id}{l2_id_num}"
+                async with aiosqlite.connect(db_path, timeout=10.0) as db:
+                    async with db.execute("SELECT DISTINCT level_1, level_2, level_3 FROM items WHERE type != 'pending'") as cc:
+                        loc_prompt_list = []
+                        for r in await cc.fetchall():
+                            l1_raw, l2_raw, l3_raw = r[0], r[1], r[2]
                             
-                            if l3_raw:
-                                raw_path.append(l3_raw)
-                                clean_path.append(l3_clean)
-                                l3_id_num = catalog_map.get(f"{l1_clean}_{l2_clean}", {}).get(l3_clean)
-                                if l3_id_num:
-                                    cat_id = f"{alpha_id}{l2_id_num}.{l3_id_num}"
+                            l1_clean = local_quick_regex(l1_raw) if l1_raw else None
+                            l2_clean = local_quick_regex(l2_raw) if l2_raw else None
+                            l3_clean = local_quick_regex(l3_raw) if l3_raw else None
+                            
+                            if l1_raw:
+                                raw_path = [l1_raw]
+                                clean_path = [l1_clean]
+                                root_id_num = catalog_map.get('root', {}).get(l1_clean)
+                                if not root_id_num: continue
+                                alpha_id = to_alpha_id(root_id_num)
+                                cat_id = alpha_id
+
+                                if l2_raw:
+                                    raw_path.append(l2_raw)
+                                    clean_path.append(l2_clean)
+                                    l2_id_num = catalog_map.get(l1_clean, {}).get(l2_clean)
+                                    if l2_id_num:
+                                        cat_id = f"{alpha_id}{l2_id_num}"
+                                    
+                                    if l3_raw:
+                                        raw_path.append(l3_raw)
+                                        clean_path.append(l3_clean)
+                                        l3_id_num = catalog_map.get(f"{l1_clean}_{l2_clean}", {}).get(l3_clean)
+                                        if l3_id_num:
+                                            cat_id = f"{alpha_id}{l2_id_num}.{l3_id_num}"
+                                
+                                if cat_id not in loc_hierarchy_map:
+                                    loc_hierarchy_map[cat_id] = raw_path
+                                    loc_prompt_list.append(f"ID '{cat_id}': {' > '.join(clean_path)}")
                         
-                        if cat_id not in loc_hierarchy_map:
-                            loc_hierarchy_map[cat_id] = raw_path
-                            loc_prompt_list.append(f"ID '{cat_id}': {' > '.join(clean_path)}")
-                
-                existing_locs_str = "\n".join(loc_prompt_list)
-                
-                cc.execute("SELECT DISTINCT category FROM items WHERE category IS NOT NULL AND category != ''")
-                cats = [r[0] for r in cc.fetchall()]
-                existing_cats_str = ", ".join(sorted(cats))
+                        existing_locs_str = "\n".join(loc_prompt_list)
+                    
+                    async with db.execute("SELECT DISTINCT category FROM items WHERE category IS NOT NULL AND category != ''") as cc:
+                        cats = [r[0] for r in await cc.fetchall()]
+                        existing_cats_str = ", ".join(sorted(cats))
             except Exception as ex:
                 _LOGGER.error(f"Context fetch error: {ex}")
-            finally:
-                if conn: conn.close()
         
-        await hass.async_add_executor_job(fetch_context)
+        await async_fetch_context()
 
-        # ----------------------------------------
-        # Document/Invoice/Garment Scanning Interceptor
-        # ----------------------------------------
         if image_data:
             if user_message.lower().startswith("stylist"):
                 hass.bus.async_fire("home_organizer_chat_progress", {
@@ -433,8 +401,8 @@ async def websocket_ai_chat(hass, connection, msg):
                         cat = "Clothing"
                         scat = parsed.get("sub_category", "Accessories")
                         
-                        await hass.async_add_executor_job(
-                            add_item_db_safe, hass, nm, 1, ["General"], cat, scat, "pending", None, "0"
+                        await async_add_item_db_safe(
+                            hass, nm, 1, ["General"], cat, scat, "pending", None, "0"
                         )
                         hass.bus.async_fire("home_organizer_db_update")
                         
@@ -479,26 +447,20 @@ async def websocket_ai_chat(hass, connection, msg):
                         return
 
                     if parsed.get("intent") == "add_invoice" and "items" in parsed:
+                        db_path = get_db_path(hass)
                         for item in parsed["items"]:
                             bcode = str(item.get("barcode", "0")).strip()
                             
                             hist_data = None
                             if bcode and bcode != "0":
-                                def check_bcode_hist(b):
-                                    conn = None
-                                    try:
-                                        conn = get_db_connection(hass)
-                                        conn.row_factory = sqlite3.Row
-                                        cc = conn.cursor()
-                                        cc.execute("SELECT * FROM barcode_history WHERE barcode=?", (b,))
-                                        return cc.fetchone()
-                                    except: return None
-                                    finally:
-                                        if conn: conn.close()
-                            
-                                hist_row = await hass.async_add_executor_job(check_bcode_hist, bcode)
-                                if hist_row:
-                                    hist_data = dict(hist_row)
+                                try:
+                                    async with aiosqlite.connect(db_path, timeout=10.0) as db:
+                                        db.row_factory = aiosqlite.Row
+                                        async with db.execute("SELECT * FROM barcode_history WHERE barcode=?", (bcode,)) as cc:
+                                            hist_row = await cc.fetchone()
+                                            if hist_row:
+                                                hist_data = dict(hist_row)
+                                except Exception: pass
 
                             if hist_data:
                                 nm = hist_data.get("name", item.get("name", "Unknown"))
@@ -523,8 +485,7 @@ async def websocket_ai_chat(hass, connection, msg):
                                             break
                                 if not raw_path: raw_path = ["General"]
                             
-                            await hass.async_add_executor_job(
-                                add_item_db_safe, 
+                            await async_add_item_db_safe(
                                 hass, nm, int(item.get("qty", 1)), raw_path, cat, scat, "pending", icon, bcode
                             )
                             added_count += 1
@@ -559,9 +520,6 @@ async def websocket_ai_chat(hass, connection, msg):
                     connection.send_result(msg["id"], {"response": f"❌ Could not parse invoice data. Error: {str(e)}", "debug": {"raw": clean_txt}})
                     return
 
-        # ----------------------------------------
-        # Barcode Manual Resolution Interceptor
-        # ----------------------------------------
         if user_message.startswith("RESOLVE_BARCODE:"):
             barcode_parts = user_message.replace('RESOLVE_BARCODE:', '').split('-', 1)
             barcode_id = barcode_parts[0].strip()
@@ -573,7 +531,7 @@ async def websocket_ai_chat(hass, connection, msg):
             
             raw_analysis, err = await safe_smart_router(hass, entry, mode, step1_prompt)
             if not err and raw_analysis:
-                clean_txt = re.sub(r'```json\s*|ِمض```\s*', '', raw_analysis).strip()
+                clean_txt = re.sub(r'```json\s*|```\s*', '', raw_analysis).strip()
                 try:
                     analysis_json = json.loads(clean_txt)
                     if analysis_json.get("intent") == "add" and analysis_json.get("items"):
@@ -595,20 +553,17 @@ async def websocket_ai_chat(hass, connection, msg):
                         sub_cat = item.get("sub_category", "")
                         icon_key = item.get("icon_key", None)
                         
-                        await hass.async_add_executor_job(add_item_db_safe, hass, nm, qt, pt, cat, sub_cat, "pending", icon_key, barcode_id)
+                        await async_add_item_db_safe(hass, nm, qt, pt, cat, sub_cat, "pending", icon_key, barcode_id)
                         hass.bus.async_fire("home_organizer_db_update")
                         
                         resp_text = f"✅ Added {nm} to the Review tab."
                         connection.send_result(msg["id"], {"response": resp_text})
                         return
-                except: pass
+                except Exception: pass
             
             connection.send_result(msg["id"], {"error": "Failed to resolve barcode."})
             return
 
-        # ----------------------------------------
-        # Standard Text Chat -> Unified Agent Loop
-        # ----------------------------------------
         if "web_session" not in ACTIVE_SESSIONS:
             ACTIVE_SESSIONS["web_session"] = []
             
@@ -653,10 +608,6 @@ async def websocket_save_avatar(hass, connection, msg):
     except Exception as e:
         connection.send_result(msg["id"], {"error": str(e)})
 
-# ==========================================
-# SETUP & REGISTRATION
-# ==========================================
-
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     return True
 
@@ -674,20 +625,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     ])
     
     hass.http.register_view(HOCameraUploadView(hass))
-
-    # [ADDED v8.56.0] Copy APK to public WWW folder so DownloadManager doesn't get 401 Unauthorized
-    def sync_public_apk():
-        try:
-            apk_src = hass.config.path("custom_components/home_organizer/frontend/HOCameraApp.apk")
-            www_dir = hass.config.path("www")
-            apk_dest = os.path.join(www_dir, "HOCameraApp.apk")
-            if os.path.exists(apk_src):
-                os.makedirs(www_dir, exist_ok=True)
-                shutil.copy2(apk_src, apk_dest)
-        except Exception as e:
-            _LOGGER.error(f"Failed to copy APK to public folder: {e}")
-            
-    await hass.async_add_executor_job(sync_public_apk)
 
     hass.data.setdefault(DOMAIN, {})
     
@@ -743,18 +680,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as e:
         _LOGGER.warning(f"Panel registration warning: {e}")
 
-    await hass.async_add_executor_job(init_db, hass)
+    await async_init_db(hass)
 
-    # [ADDED v9.4.0] Persistent reminders + calendar: rebuild every pending
-    # row on boot so reminders survive restarts and power outages. Safe to
-    # call unconditionally -- the function no-ops when there is nothing to
-    # restore, and hooks into EVENT_HOMEASSISTANT_STARTED so notify is ready
-    # before any missed reminders fire.
     async_register_startup_restore(hass)
-
-    # [ADDED v9.9.0] Separate SQLite store for saved recipes
-    # (home_organizer_recipes.db in /config). Idempotent -- creates
-    # the table if missing, does nothing if already present.
     await recipes_db.async_init(hass)
 
     registry = er.async_get(hass)
@@ -790,14 +718,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         existing_locs_str = ""
         loc_hierarchy_map = {}
         
-        def fetch_context():
+        async def async_fetch_context():
             nonlocal existing_locs_str, loc_hierarchy_map
-            conn = None
             try:
-                conn = get_db_connection(hass)
-                cc = conn.cursor()
-                catalog_map = get_or_create_catalog_ids(hass)
-                cc.execute("SELECT DISTINCT level_1, level_2, level_3 FROM items WHERE type != 'pending'")
+                db_path = get_db_path(hass)
+                catalog_map = await async_get_or_create_catalog_ids(hass)
                 
                 def local_quick_regex(s):
                     if not s: return s
@@ -805,46 +730,46 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     if m: return f"[{m.group(1)}] {m.group(2)}"
                     return str(s)
 
-                loc_prompt_list = []
-                for r in cc.fetchall():
-                    l1_raw, l2_raw, l3_raw = r[0], r[1], r[2]
-                    
-                    l1_clean = local_quick_regex(l1_raw) if l1_raw else None
-                    l2_clean = local_quick_regex(l2_raw) if l2_raw else None
-                    l3_clean = local_quick_regex(l3_raw) if l3_raw else None
-                    
-                    if l1_raw:
-                        raw_path = [l1_raw]
-                        clean_path = [l1_clean]
-                        root_id_num = catalog_map.get('root', {}).get(l1_clean)
-                        if not root_id_num: continue
-                        alpha_id = to_alpha_id(root_id_num)
-                        cat_id = alpha_id
-
-                        if l2_raw:
-                            raw_path.append(l2_raw)
-                            clean_path.append(l2_clean)
-                            l2_id_num = catalog_map.get(l1_clean, {}).get(l2_clean)
-                            if l2_id_num:
-                                cat_id = f"{alpha_id}{l2_id_num}"
+                async with aiosqlite.connect(db_path, timeout=10.0) as db:
+                    async with db.execute("SELECT DISTINCT level_1, level_2, level_3 FROM items WHERE type != 'pending'") as cc:
+                        loc_prompt_list = []
+                        for r in await cc.fetchall():
+                            l1_raw, l2_raw, l3_raw = r[0], r[1], r[2]
                             
-                            if l3_raw:
-                                raw_path.append(l3_raw)
-                                clean_path.append(l3_clean)
-                                l3_id_num = catalog_map.get(f"{l1_clean}_{l2_clean}", {}).get(l3_clean)
-                                if l3_id_num:
-                                    cat_id = f"{alpha_id}{l2_id_num}.{l3_id_num}"
-                        
-                        if cat_id not in loc_hierarchy_map:
-                            loc_hierarchy_map[cat_id] = raw_path
-                            loc_prompt_list.append(f"ID '{cat_id}': {' > '.join(clean_path)}")
+                            l1_clean = local_quick_regex(l1_raw) if l1_raw else None
+                            l2_clean = local_quick_regex(l2_raw) if l2_raw else None
+                            l3_clean = local_quick_regex(l3_raw) if l3_raw else None
+                            
+                            if l1_raw:
+                                raw_path = [l1_raw]
+                                clean_path = [l1_clean]
+                                root_id_num = catalog_map.get('root', {}).get(l1_clean)
+                                if not root_id_num: continue
+                                alpha_id = to_alpha_id(root_id_num)
+                                cat_id = alpha_id
 
-                existing_locs_str = "\n".join(loc_prompt_list)
+                                if l2_raw:
+                                    raw_path.append(l2_raw)
+                                    clean_path.append(l2_clean)
+                                    l2_id_num = catalog_map.get(l1_clean, {}).get(l2_clean)
+                                    if l2_id_num:
+                                        cat_id = f"{alpha_id}{l2_id_num}"
+                                    
+                                    if l3_raw:
+                                        raw_path.append(l3_raw)
+                                        clean_path.append(l3_clean)
+                                        l3_id_num = catalog_map.get(f"{l1_clean}_{l2_clean}", {}).get(l3_clean)
+                                        if l3_id_num:
+                                            cat_id = f"{alpha_id}{l2_id_num}.{l3_id_num}"
+                                
+                                if cat_id not in loc_hierarchy_map:
+                                    loc_hierarchy_map[cat_id] = raw_path
+                                    loc_prompt_list.append(f"ID '{cat_id}': {' > '.join(clean_path)}")
+
+                        existing_locs_str = "\n".join(loc_prompt_list)
             except Exception: pass
-            finally:
-                if conn: conn.close()
         
-        await hass.async_add_executor_job(fetch_context)
+        await async_fetch_context()
 
         lang_map = {"en": "English", "he": "Hebrew", "it": "Italian", "es": "Spanish", "fr": "French", "ar": "Arabic"}
         target_lang = lang_map.get(lang_code, "English")

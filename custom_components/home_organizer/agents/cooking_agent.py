@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# // [MODIFIED v9.9.8 | 2026-08-02] Purpose: Refactored database interactions to use aiosqlite for full asynchronous I/O. Replaced get_db_connection with get_db_path and removed async_add_executor_job wrappers to prevent Event Loop blocking.
 # // [v9.9.7 | 2026-04-19] Purpose: Unified first-turn presentation + free-form
 # //   questions. Major UX changes requested by the user:
 # //
@@ -74,12 +75,12 @@
 import json
 import logging
 import re
-import sqlite3
+import aiosqlite
 from datetime import datetime, timedelta
 
 import homeassistant.util.dt as dt_util
 
-from ..database import get_db_connection
+from ..database import get_db_path
 from ..ai_core.router import safe_smart_router, async_smart_router
 from ..ai_core.json_utils import safe_parse_json, apply_voice_rules
 from ..ai_core.localized_strings import get_strings_for_language
@@ -378,9 +379,6 @@ JSON ONLY:"""
 # ==========================================
 # CONSTANTS & HELPERS
 # ==========================================
-# Localized continuation hint shown at the end of every step reply.
-# Uses \u escapes so the file stays ASCII-safe; the rendered output is
-# natural script text in the target language.
 HINT_MAP = {
     "Hebrew":  "\n\n(\u05d0\u05de\u05e8\u05d9 '\u05d4\u05de\u05e9\u05da' \u05db\u05d3\u05d9 \u05dc\u05d4\u05ea\u05e7\u05d3\u05dd)",
     "English": "\n\n(Say 'next' to continue)",
@@ -394,8 +392,6 @@ HINT_MAP = {
     "Dutch":   "\n\n(Zeg 'volgende' om door te gaan)",
 }
 
-# Localized "Step" label for step prefixes built in code (dictation mode).
-# The LLM handles its own localization for AI-generated steps via the prompt.
 STEP_LABEL_MAP = {
     "Hebrew":  "\u05e9\u05dc\u05d1",
     "English": "Step",
@@ -463,14 +459,8 @@ def _timer_for_step(timers, step_idx):
     return None
 
 
-# Words in several languages that indicate a "jump to step N" intent.
-# Matching is case-insensitive and substring-based, so mild typos like
-# "kfotz" or "salta" are tolerated. We require at least one of these
-# words AND a standalone integer to trigger the fast-lane.
 JUMP_VERBS = [
-    # English
     "jump", "skip", "go to", "goto", "navigate", "step",
-    # Hebrew: קפוץ / קפצי / לך / לכי / עבור / עברי / חזור / חזרי / שלב
     "\u05e7\u05e4\u05d5\u05e5",
     "\u05e7\u05e4\u05e6\u05d9",
     "\u05dc\u05da",
@@ -481,7 +471,6 @@ JUMP_VERBS = [
     "\u05d7\u05d6\u05e8\u05d9",
     "\u05ea\u05e2\u05d1\u05d5\u05e8",
     "\u05e9\u05dc\u05d1",
-    # Spanish / French / Italian / Russian / Arabic / German
     "salta", "saltar", "paso", "pasar", "al paso",
     "passer", "aller", "etape", "a l'etape",
     "passa", "passo", "al passo",
@@ -494,12 +483,6 @@ JUMP_VERBS = [
 
 
 def _detect_jump_step(msg):
-    """Return the 1-based step number the user wants to jump to, or None.
-
-    Requires BOTH a jump verb (in any supported language) AND a standalone
-    integer in the message. Very conservative: if either is missing we
-    return None and let the normal flow handle it.
-    """
     if not msg:
         return None
     low = msg.strip().lower()
@@ -508,7 +491,6 @@ def _detect_jump_step(msg):
     if not has_verb:
         return None
 
-    # First standalone integer (1-3 digits to avoid picking up phone numbers)
     m = re.search(r"\b(\d{1,3})\b", low)
     if not m:
         return None
@@ -523,16 +505,12 @@ def _detect_jump_step(msg):
 
 
 def _render_recipe_overview(parsed, target_lang):
-    """Render the full recipe: title, have/missing ingredients, and
-    the full preparation steps. Used by STATE 1 (recipe_full).
-    """
     title = parsed.get("recipe_title") or "the recipe"
     have = parsed.get("have") or []
     missing = parsed.get("missing") or []
     steps = parsed.get("steps") or []
     question = parsed.get("follow_up_question") or ""
 
-    # Localized section headers. ASCII-clean via \u escapes.
     headers = {
         "Hebrew":  ("\u05d9\u05e9 \u05dc\u05da:",
                     "\u05d7\u05e1\u05e8 \u05dc\u05da:",
@@ -557,7 +535,6 @@ def _render_recipe_overview(parsed, target_lang):
 
     parts = [f"🍰 {title}"]
 
-    # --- HAVE section ---
     if have:
         parts.append(f"\n{have_header}")
         for it in have:
@@ -569,7 +546,6 @@ def _render_recipe_overview(parsed, target_lang):
     else:
         parts.append(f"\n{have_header} -")
 
-    # --- MISSING section ---
     if missing:
         parts.append(f"\n{miss_header}")
         for it in missing:
@@ -579,7 +555,6 @@ def _render_recipe_overview(parsed, target_lang):
     else:
         parts.append(f"\n{miss_header} -")
 
-    # --- PREPARATION STEPS ---
     if steps:
         parts.append(f"\n{prep_header}")
         for s in steps:
@@ -591,10 +566,6 @@ def _render_recipe_overview(parsed, target_lang):
 
 
 async def _schedule_auto_timer(hass, timer, device_id, user_id, now):
-    """Persist + schedule a timer that fires N minutes from now.
-
-    Returns a banner string that is prepended to the step reply.
-    """
     try:
         minutes = int(timer.get("minutes") or 0)
     except (ValueError, TypeError):
@@ -629,30 +600,12 @@ async def _schedule_auto_timer(hass, timer, device_id, user_id, now):
 
 
 async def _push_to_shopping_list(hass, items_to_add, loc_hierarchy_map):
-    """Add recipe ingredients to the shopping list in one shot.
-
-    We call shopping_agent.execute_tool twice if necessary:
-      Pass 1: manage_shopping_list  -- adds brand-new items + out-of-stock
-              items correctly. Items that ALREADY exist in inventory with
-              quantity > 0 come back with an 'ASK_USER' marker telling the
-              LLM it should confirm a quantity increase.
-      Pass 2: For any ASK_USER items we DO NOT ask -- we just call
-              update_shopping_order_qty directly with the quantity the
-              recipe needs. This honours the user's request: "if I ask to
-              add, add by the recipe's quantity, don't ask me."
-
-    Belt-and-suspenders: if the LLM misbehaves and sends requested_qty=1
-    while ALSO sending a qty_needed / qty string like "200 gram", we
-    parse the first integer out of that string and use it instead.
-    """
     from . import shopping_agent
 
     default_loc_id = ""
     if loc_hierarchy_map:
         default_loc_id = next(iter(loc_hierarchy_map.keys()))
 
-    # Keep a map of name -> requested_qty so we can resolve ASK_USER items
-    # without losing the quantity we originally computed.
     qty_map = {}
     items_payload = []
     for it in items_to_add or []:
@@ -660,15 +613,11 @@ async def _push_to_shopping_list(hass, items_to_add, loc_hierarchy_map):
         if not nm:
             continue
 
-        # Primary: take requested_qty as-is
         try:
             qty = int(it.get("requested_qty") or it.get("qty") or 0)
         except (ValueError, TypeError):
             qty = 0
 
-        # Belt-and-suspenders #1: if LLM used 0/1 but sent a qty_needed
-        # string, extract the first integer from it. This catches
-        # cases where the model forgot to parse "200 grams" -> 200.
         if qty <= 1:
             qty_hint = str(
                 it.get("qty_needed")
@@ -690,8 +639,6 @@ async def _push_to_shopping_list(hass, items_to_add, loc_hierarchy_map):
 
         unit = (it.get("unit") or "").strip()
 
-        # Belt-and-suspenders #2: if no explicit unit, derive it from
-        # whatever came after the first number in qty_needed.
         if not unit:
             qty_hint = str(it.get("qty_needed") or it.get("qty") or "")
             m = re.search(r"\d+\s*(.*)", qty_hint)
@@ -723,7 +670,6 @@ async def _push_to_shopping_list(hass, items_to_add, loc_hierarchy_map):
         f"{[(p['item_name'], p['requested_qty'], p.get('sub_category', '')) for p in items_payload]}"
     )
 
-    # Pass 1 -- try to add everything
     try:
         first_pass = await shopping_agent.execute_tool(
             hass, "manage_shopping_list",
@@ -734,7 +680,6 @@ async def _push_to_shopping_list(hass, items_to_add, loc_hierarchy_map):
         _LOGGER.error(f"[HO-COOKING] shopping push failed: {e}", exc_info=True)
         return f"Error adding items: {e}"
 
-    # Pass 2 -- resolve any ASK_USER items by directly setting their order_qty
     first_pass_str = str(first_pass or "")
     ask_user_names = []
     if "ALREADY out of stock" in first_pass_str or "ASK_USER" in first_pass_str:
@@ -802,7 +747,6 @@ def _looks_affirmative(msg):
 
 async def _load_saved_into_state(hass, saved, messages, next_hint, now,
                                 device_id, user_id):
-    """Promote a saved recipe into the active step-by-step state."""
     state = {
         "steps": saved.get("steps") or [],
         "current_idx": 0,
@@ -815,7 +759,6 @@ async def _load_saved_into_state(hass, saved, messages, next_hint, now,
     }
     write_state(messages, COOKING_STATE_KEY, state)
 
-    # Consume the HO_SAVED_SUGGEST marker so it does not re-fire
     messages[:] = [
         m for m in messages
         if not (m.get("role") == "system"
@@ -837,7 +780,6 @@ async def _load_saved_into_state(hass, saved, messages, next_hint, now,
 
 
 async def _auto_save_completed_recipe(hass, recipe_state, lang_code):
-    """Save the recipe to DB when step-by-step mode finishes."""
     if not recipe_state:
         return
     if recipe_state.get("source_type") == "loaded_from_db":
@@ -983,19 +925,12 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
         f"last_user_msg={last_user_msg!r}"
     )
 
-    # === DICTATION FAST-LANE ===
     if dictation_state:
         return await _handle_dictation_turn(
             hass, entry, messages, target_lang, history_text,
             last_user_msg, dictation_state, lang_code, strings
         )
 
-    # === JUMP FAST-LANE ===
-    # Recognize "jump/skip/go to step N" patterns in any language BEFORE we
-    # hit the LLM. This is the most reliable path because it bypasses the
-    # classifier entirely and works even on a flaky connection. We check
-    # for any integer in last_user_msg combined with one of a handful of
-    # well-known jump verbs across languages.
     jump_target = _detect_jump_step(last_user_msg)
     if jump_target is not None and recipe_state and recipe_state.get("steps"):
         steps = recipe_state.get("steps") or []
@@ -1031,10 +966,6 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
                 f"Recipe has {len(steps)} steps."
             )
 
-    # === FAST PATH: continuation during ACTIVE step-by-step only ===
-    # The overview pre-state (set by STATE 1) has no steps yet, so we must
-    # skip the fast path in that case and let the LLM classify what the
-    # user really wants (save, start step-by-step, shopping_sync, etc).
     has_active_steps = bool(
         recipe_state and (recipe_state.get("steps") or [])
     )
@@ -1070,7 +1001,6 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
 
             return f"{banner}{steps[current_idx]}{next_hint}"
 
-        # Recipe done -- auto-save then clear
         finished_msg = f"🎉 {strings['cooking_finished']}"
         await _auto_save_completed_recipe(hass, recipe_state, lang_code)
         write_state(
@@ -1078,7 +1008,6 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
         )
         return finished_msg
 
-    # === SLOW PATH: DB lookup FIRST, then LLM ===
     saved_matches = []
     if not recipe_state and last_user_msg:
         dish_query = _detect_dish_query(last_user_msg) or recipe_name
@@ -1086,7 +1015,6 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
             hass, dish_query, language=lang_code, limit=3
         )
 
-    # Shortcut: user accepted a previously suggested saved recipe
     suggested_id = _extract_suggested_saved_id(messages)
     if suggested_id and _looks_affirmative(last_user_msg):
         loaded = await recipes_db.async_get_by_id(hass, suggested_id)
@@ -1096,21 +1024,18 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
                 hass, loaded, messages, next_hint, now, device_id, user_id
             )
 
-    def _get_all_inventory():
-        conn = None
+    async def _async_get_all_inventory(hass):
         try:
-            conn = get_db_connection(hass)
-            conn.row_factory = sqlite3.Row
-            c = conn.cursor()
-            c.execute("SELECT * FROM items WHERE type='item' AND quantity > 0")
-            return [dict(row) for row in c.fetchall()]
+            db_path = get_db_path(hass)
+            async with aiosqlite.connect(db_path, timeout=10.0) as db:
+                db.row_factory = aiosqlite.Row
+                async with db.execute("SELECT * FROM items WHERE type='item' AND quantity > 0") as cursor:
+                    rows = await cursor.fetchall()
+                    return [dict(row) for row in rows]
         except Exception:
             return []
-        finally:
-            if conn:
-                conn.close()
 
-    rows = await hass.async_add_executor_job(_get_all_inventory)
+    rows = await _async_get_all_inventory(hass)
     inventory_context = _build_inventory_context(rows)
 
     state_str = "None"
@@ -1120,10 +1045,6 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
         ings = recipe_state.get("ingredients", [])
         tims = recipe_state.get("timers", [])
         title = recipe_state.get("recipe_title", "")
-        # Send the FULL recipe so the model can reason about save_recipe
-        # (STATE 6) and jump_to_step (STATE 8) correctly. Also expose the
-        # current pointer and remaining subset so STATE 4 (fix_recipe)
-        # can still target the right slice.
         state_str = json.dumps(
             {
                 "recipe_title": title,
@@ -1157,7 +1078,6 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
     intent_str = str(parsed.get("intent", "")).replace("-", "_").lower()
     _LOGGER.info(f"[HO-COOKING] Parsed intent={intent_str!r}")
 
-    # --- STATE S0: suggest saved ---
     if intent_str in ("suggest_saved", "suggestsaved"):
         saved_id = parsed.get("saved_id")
         saved_name = parsed.get("saved_name") or "the saved recipe"
@@ -1169,19 +1089,6 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
         })
         return spoken
 
-    # ---------------------------------------------------------------
-    # SAFETY CHECK — "FIX FIRST" during active cooking
-    # ---------------------------------------------------------------
-    # If the user is mid-recipe (has_active_steps = True) and the LLM
-    # came back with recipe_overview or init_recipe despite the prompt
-    # instructions, treat that as an implicit quantity/content tweak to
-    # the CURRENT recipe instead of starting a new dish. This preserves
-    # recipe identity (sushi stays sushi) when the user says things
-    # like "make it with 1 cup of rice instead".
-    #
-    # The ONLY exception is the explicit HO_SWITCH_PENDING path — if
-    # the previous turn asked the user to confirm a switch and they
-    # affirmed, we let the new recipe flow through.
     switch_pending = any(
         m.get("role") == "system"
         and isinstance(m.get("content"), str)
@@ -1193,8 +1100,6 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
     )
 
     if user_confirmed_switch:
-        # Clear the active recipe + the switch marker so the new dish
-        # is built from scratch.
         clear_state(messages, COOKING_STATE_KEY)
         messages[:] = [
             m for m in messages
@@ -1220,9 +1125,6 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
             f"active cooking. Coercing to fix_recipe to preserve the "
             f"original recipe identity."
         )
-        # Fabricate a fix_recipe-shaped parsed result from whatever the
-        # LLM already produced. We keep the existing recipe's title and
-        # ingredients, and re-use whatever new steps/timers came back.
         coerced = {
             "intent": "fix_recipe",
             "reply_message": (
@@ -1239,12 +1141,8 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
         parsed = coerced
         intent_str = "fix_recipe"
 
-    # --- STATE 1: full recipe presentation (title + have/missing + steps) ---
     if intent_str in ("recipe_full", "recipefull",
                       "recipe_overview", "recipeoverview"):
-        # Save the FULL recipe including steps and timers so that a later
-        # "step by step" uses these exact steps. This is the single source
-        # of truth from the first turn onward.
         full_steps = parsed.get("steps") or []
         full_timers = parsed.get("timers") or []
         full_have = parsed.get("have") or []
@@ -1277,11 +1175,7 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
         )
         return _render_recipe_overview(parsed, target_lang)
 
-    # --- STATE 3: init step-by-step ---
     if intent_str in ("init_recipe", "initrecipe"):
-        # Prefer steps already in state (from STATE 1). That guarantees
-        # step-by-step replays the EXACT recipe the user saw, not a new
-        # one that the LLM might have regenerated.
         llm_steps = parsed.get("steps") or []
         llm_timers = parsed.get("timers") or []
         llm_ingredients = parsed.get("ingredients") or []
@@ -1290,7 +1184,6 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
         state_timers = (recipe_state or {}).get("timers") or []
         state_ingredients = (recipe_state or {}).get("ingredients") or []
 
-        # Use whichever source has MORE content (longer list wins).
         steps = state_steps if len(state_steps) >= len(llm_steps) else llm_steps
         timers = (state_timers
                   if len(state_timers) >= len(llm_timers) else llm_timers)
@@ -1328,7 +1221,6 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
             )
         return f"{banner}{steps[0]}{next_hint}"
 
-    # --- STATE 4: fix during cooking ---
     if intent_str in ("fix_recipe", "fixrecipe"):
         reply_msg = parsed.get("reply_message", "")
         updated_steps = parsed.get("updated_remaining_steps") or []
@@ -1350,7 +1242,6 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
             )
         return f"💡 {reply_msg}\n\n{banner}{updated_steps[0]}{next_hint}"
 
-    # --- STATE 5: shopping sync ---
     if intent_str in ("shopping_sync", "shoppingsync", "add_to_shopping"):
         items_to_add = parsed.get("items_to_add") or []
         spoken_conf = (parsed.get("spoken_confirmation") or "").strip()
@@ -1361,15 +1252,7 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
         )
         return spoken_conf or f"✅ {db_result}"
 
-    # --- STATE 6: save recipe ---
     if intent_str in ("save_recipe", "saverecipe"):
-        # CRITICAL: recipe_state is the SOURCE OF TRUTH for steps,
-        # ingredients and timers. The LLM only gets a summary/preview of
-        # the recipe in the prompt (remaining_planned_steps) and often
-        # hallucinates a shortened or partial list when asked to save.
-        # We therefore ALWAYS prefer whatever is in the active cooking
-        # state, and only fall back to the LLM payload for brand-new
-        # recipes that never went through init_recipe (unusual path).
         llm_rname = (parsed.get("recipe_name") or "").strip()
         llm_ingredients = parsed.get("ingredients") or []
         llm_steps = parsed.get("steps") or []
@@ -1387,8 +1270,6 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
             state_timers = recipe_state.get("timers") or []
             state_name = (recipe_state.get("recipe_title") or "").strip()
 
-        # Pick the fuller list. A saved recipe with MORE steps is always
-        # the correct choice; a partial save is useless.
         if len(state_steps) >= len(llm_steps):
             final_steps = state_steps
             steps_src = "state"
@@ -1401,8 +1282,6 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
         else:
             final_ingredients = llm_ingredients
 
-        # Timers: merge both — if either has entries, prefer the non-empty.
-        # Prefer the one aligned with the final_steps source.
         if steps_src == "state" and state_timers:
             final_timers = state_timers
         elif llm_timers:
@@ -1410,8 +1289,6 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
         else:
             final_timers = state_timers or llm_timers
 
-        # Name: user-supplied name (LLM extracted it from the request)
-        # wins over the auto-state title.
         final_name = llm_rname or state_name or recipe_name or "Saved recipe"
 
         if not final_steps:
@@ -1441,7 +1318,6 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
         )
         return spoken_conf or f"✅ Recipe '{final_name}' saved ({action})."
 
-    # --- STATE 8: jump to a specific step ---
     if intent_str in ("jump_to_step", "jumptostep", "goto_step"):
         if not recipe_state:
             return "❌ No active recipe to jump within."
@@ -1459,7 +1335,7 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
                 f"(1-{len(steps)})."
             )
 
-        new_idx = step_number - 1  # convert 1-based to 0-based
+        new_idx = step_number - 1 
         recipe_state["current_idx"] = new_idx
         write_state(messages, COOKING_STATE_KEY, recipe_state)
 
@@ -1478,7 +1354,6 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
         prefix = f"{spoken_conf}\n\n" if spoken_conf else ""
         return f"{prefix}{banner}{steps[new_idx]}{next_hint}"
 
-    # --- STATE 7: enter manual dictation ---
     if intent_str in ("manual_start", "manualstart"):
         rname = (parsed.get("recipe_name") or "New recipe").strip()
         prompt_msg = (
@@ -1494,13 +1369,10 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
         })
         return prompt_msg
 
-    # --- STATE 9: confirm switching recipes ---
     if intent_str in ("confirm_switch_recipe", "confirmswitchrecipe",
                       "switch_recipe"):
         spoken_q = (parsed.get("spoken_question") or "").strip()
         hint = (parsed.get("new_recipe_hint") or "").strip()
-        # Park a system marker so the NEXT affirmative turn clears state
-        # and lets the LLM build the new recipe cleanly.
         messages.append({
             "role": "system",
             "content": f"HO_SWITCH_PENDING:{hint}",
@@ -1511,7 +1383,6 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
             return f"We're in the middle of the current recipe. Switch to {hint} and lose progress?"
         return "We're in the middle of a recipe. Do you want to cancel it and start something new?"
 
-    # --- STATE 2: generic reply / full recipe ---
     if intent_str == "reply":
         return parsed.get("message", raw_res)
 

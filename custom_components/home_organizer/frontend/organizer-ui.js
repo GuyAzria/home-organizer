@@ -1,4 +1,5 @@
-// organizer-ui.js — Home Organizer Ultimate v10.4.3
+// organizer-ui.js — Home Organizer Ultimate v10.4.4
+// [MODIFIED v10.4.4 | 2026-08-02] Purpose: Changed the Android App download button to point to the GitHub Releases page. Updated labels and UI strings from HOCameraApp to HO_Mind_AI to reflect the new repository and application name.
 // [MODIFIED v10.4.3 | 2026-05-13] Purpose: Enhanced translation strings for the Android setup modal. Replaced long paragraphs with bulleted, multi-line instructions, specifically isolating English LTR terms (URLs, IDs, Navigation paths) into their own lines using <br> and <span dir="ltr"> to prevent RTL layout breakage in Hebrew. Clarified the precise method for extracting the HA Notify Device ID from the browser URL bar.
 // [MODIFIED v10.4.2 | 2026-05-13] Purpose: Integrated translation keys for the new interactive camera setup modal, improved font sizes and light/dark theme contrast for better readability.
 // [MODIFIED v10.4.1 | 2026-05-13] Purpose: Updated settings instructions to clarify the Agent ID is the default and should not be changed, and added a pro-tip to send the Token and Device ID to oneself via WhatsApp for easy pasting.
@@ -174,7 +175,7 @@ export const UIMixin = (Base) => class extends Base {
                   <div class="dropdown-item" onclick="event.stopPropagation();this.getRootNode().host.showMenu('theme')">${ICONS.theme} <span id="lbl-theme">Theme</span></div>
                   <div class="dropdown-item" onclick="event.stopPropagation();this.getRootNode().host.showAbout()">${INFO_SVG} <span id="lbl-about">About</span></div>
                   <div style="height:1px;background:var(--border-light);margin:8px 0;width:100%;"></div>
-                  <div class="dropdown-item" id="btn-setup-ext-app"><span id="lbl-ext-menu">📱 HO Camera App</span></div>
+                  <div class="dropdown-item" id="btn-setup-ext-app"><span id="lbl-ext-menu">📱 HO_Mind_AI</span></div>
                 </div>
                 <div id="menu-lang" style="display:none">
                   <div class="dropdown-item back-btn" onclick="event.stopPropagation();this.getRootNode().host.showMenu('main')">${ICONS.back} <span id="lbl-back1">Back</span></div>
@@ -267,14 +268,14 @@ export const UIMixin = (Base) => class extends Base {
           <div style="margin-bottom:20px;font-size:20px;font-weight:bold;color:var(--primary);">Home Organizer Ultimate</div>
           <div style="margin-bottom:20px;font-style:italic;font-size:16px;color:#e91e63;">"Written by Guy Azria for my dear Yulia"</div>
           <div style="margin-bottom:20px;font-size:14px;color:var(--text-sub);line-height:1.5;">A comprehensive inventory management system for Home Assistant.<br>Organize, track, and manage your home with ease.</div>
-          <div style="margin-top:20px;font-size:12px;color:#666;border-top:1px solid var(--border-light);padding-top:10px;">Licensed under MIT License.<br>Version 10.4.3</div>
+          <div style="margin-top:20px;font-size:12px;color:#666;border-top:1px solid var(--border-light);padding-top:10px;">Licensed under GPL-3.0 License.<br></div>
           <button class="action-btn" style="width:100%;margin-top:20px;" onclick="this.closest('#about-modal').style.display='none'" id="lbl-close">Close</button>
         </div>
       </div>
 
       <div id="ext-app-modal" onclick="this.style.display='none'" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.85);z-index:3500;align-items:center;justify-content:center;padding:15px;box-sizing:border-box;">
         <div class="modal-content" onclick="event.stopPropagation()" style="text-align:start;max-width:500px;width:100%;max-height:90vh;display:flex;flex-direction:column;">
-          <div style="margin-bottom:15px;font-size:20px;font-weight:bold;color:var(--primary);text-align:center;flex-shrink:0;" id="lbl-ext-title">📱 HO Camera App</div>
+          <div style="margin-bottom:15px;font-size:20px;font-weight:bold;color:var(--primary);text-align:center;flex-shrink:0;" id="lbl-ext-title">📱 HO_Mind_AI</div>
           
           <div style="overflow-y:auto;flex-grow:1;padding-right:10px;" id="ext-app-scroll-area">
               <div style="background:var(--bg-input-edit);padding:15px;border-radius:8px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;border:1px solid var(--border-light);">
@@ -354,8 +355,8 @@ export const UIMixin = (Base) => class extends Base {
                 </div>
                 </div>
               <div style="flex-shrink:0;margin-top:15px;direction:ltr;">
-                  <button class="action-btn" id="btn-ext-download" style="width:100%;margin-bottom:10px;background:var(--accent);color:white;font-weight:bold;display:flex;align-items:center;justify-content:center;gap:10px;height:45px;" onclick="window.location.href='/local/HOCameraApp.apk';">
-                    📥 Download Android APK
+                  <button class="action-btn" id="btn-ext-download" style="width:100%;margin-bottom:10px;background:var(--accent);color:white;font-weight:bold;display:flex;align-items:center;justify-content:center;gap:10px;height:45px;" onclick="window.open('https://github.com/GuyAzria/HO_Mind_AI/releases/latest', '_blank');">
+                    📥 Download HO_Mind_AI App
                   </button>
                   <button class="action-btn" id="btn-ext-close" style="width:100%;height:45px;" onclick="this.closest('#ext-app-modal').style.display='none'">Close</button>
               </div>
@@ -465,8 +466,8 @@ export const UIMixin = (Base) => class extends Base {
     setPh('icon-url-input','paste_url', 'Paste URL...');
 
     // Camera App Setup Translations
-    set('lbl-ext-menu',         'ext_app_title', '📱 HO Camera App');
-    set('lbl-ext-title',        'ext_app_title', '📱 HO Camera App');
+    set('lbl-ext-menu',         'ext_app_title', '📱 HO_Mind_AI');
+    set('lbl-ext-title',        'ext_app_title', '📱 HO_Mind_AI');
     set('lbl-ext-enable',       'ext_app_enable', 'Enable Android App Integration');
     set('lbl-ext-guide-title',  'ext_app_guide_title', '🚀 Setup Guide (Easy enough for a 12-year-old!)');
     set('lbl-ext-guide-intro',  'ext_app_guide_intro', 'To access the settings in the Android app:<br>Click the camera button (📸) on the main chat screen.<br>Then click the gear icon (⚙️).<br><b>This is exactly what you will see there, and what to fill out:</b>');
@@ -493,7 +494,7 @@ export const UIMixin = (Base) => class extends Base {
     set('lbl-ext-test-hint',    'ext_app_test_hint', '☝️ <b>Testing:</b><br>Click to see that it hears you and speaks back.<br>(Leave logs turned off).');
     set('lbl-ext-save',         'ext_app_save_btn', 'Save and Close');
     set('lbl-ext-save-hint',    'ext_app_save_hint', '☝️ <b>All Done:</b><br>Click here to save everything, and you\'re ready to go!');
-    set('btn-ext-download',     'ext_app_download_btn', '📥 Download Android APK');
+    set('btn-ext-download',     'ext_app_download_btn', '📥 Download HO_Mind_AI App');
     set('btn-ext-close',        'ext_app_close_btn', 'Close');
 
     const extScrollArea = el('ext-app-scroll-area');

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# // [MODIFIED v9.3.3 | 2026-08-02] Purpose: Refactored database interactions to use aiosqlite for full asynchronous I/O. Replaced get_db_connection with get_db_path and removed async_add_executor_job wrappers to prevent Event Loop blocking.
 # // [MODIFIED v9.3.2 | 2026-04-21] Purpose: Bug fix — translations.csv was not being found because the loader searched in www/ and static/, but the file actually lives at <integration_dir>/frontend/translations.csv (as registered in __init__.py StaticPathConfig). Added frontend/ as the first path candidate. Category and sub-category labels now translate to the target language as intended.
 # // [MODIFIED v9.3.1 | 2026-04-21] Purpose: Three fixes for the share flow. (1) Robust language resolution via cascade: kwargs.target_lang -> Hebrew/Arabic/Cyrillic heuristic on last user message -> hass.config.language -> 'en'. No more English output when the user clearly wrote in Hebrew. (2) Category and sub-category labels are now translated to the target language by loading translations.csv at runtime (cached) and looking up cat_<slug>/sub_<slug> keys. Covers both legacy ('Food', 'Cleaning') and refactored ('Food & Groceries', 'Cleaning Supplies') DB values. (3) HA persistent_notification markdown now uses two-space hard breaks so line breaks aren't collapsed when rendered in the HA notification panel.
 # // [MODIFIED v9.3.0 | 2026-04-21] Purpose: Replaced share_shopping_list_whatsapp with generic share_shopping_list. Supports three channels (WhatsApp, Telegram, Email) via a 'channel' kwarg. Adds category and sub-category emojis for readability. Creates a native HA persistent_notification with one tappable button per channel chosen (or all three if the user didn't specify), in the active UI language.
@@ -20,8 +21,9 @@ import logging
 import os
 import re
 import csv
+import aiosqlite
 
-from ..database import get_db_connection, add_item_db_safe
+from ..database import get_db_path, async_add_item_db_safe
 from ..ai_core.router import safe_smart_router
 from ..ai_core.json_utils import safe_parse_json, apply_voice_rules
 from ..ai_core.localized_strings import get_strings_for_language
@@ -33,9 +35,6 @@ _LOGGER = logging.getLogger(__name__)
 # ==========================================
 # TRANSLATION HELPERS
 # ==========================================
-# Loads translations.csv once per process so we can localize category names
-# and sub-category names in generated messages (WhatsApp / Telegram / Email body).
-# Falls back to the raw DB string if a key isn't found.
 _TRANSLATIONS_CACHE = None
 _KNOWN_LANGS = {"he", "en", "ru", "it", "es", "fr", "ar"}
 
@@ -45,9 +44,6 @@ def _load_translations():
     if _TRANSLATIONS_CACHE is not None:
         return _TRANSLATIONS_CACHE
 
-    # shopping_agent.py lives at <integration_dir>/agents/shopping_agent.py
-    # translations.csv is served as a static path from <integration_dir>/frontend/
-    # (see __init__.py: StaticPathConfig(url_path="/home_organizer_static", path=frontend_folder))
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     candidates = [
         os.path.join(base_dir, "frontend", "translations.csv"),
@@ -96,7 +92,6 @@ def _load_translations():
 
 
 def _slug(s):
-    """Convert a DB category/sub-category value into the translation key slug."""
     return re.sub(r"[^a-zA-Z0-9]+", "_", str(s or "")).strip("_")
 
 
@@ -107,14 +102,9 @@ def _translate(key, lang, default=None):
 
 
 def _detect_lang(kwargs, hass, last_user_msg):
-    """Resolve the target language using a cascade of signals. This makes the
-    share tool robust when the AI forgets to fill target_lang or fills it with
-    'en' even though the user is clearly writing in another language."""
-    # 1) Explicit kwarg from the AI
     t = str(kwargs.get("target_lang", "")).strip().lower()
     if t in _KNOWN_LANGS:
         return t
-    # 2) Heuristic from the last user message (strong signal for RTL languages)
     if last_user_msg:
         if re.search(r"[\u0590-\u05FF]", last_user_msg):
             return "he"
@@ -122,14 +112,12 @@ def _detect_lang(kwargs, hass, last_user_msg):
             return "ar"
         if re.search(r"[\u0400-\u04FF]", last_user_msg):
             return "ru"
-    # 3) Home Assistant system language
     try:
         h = str(hass.config.language or "").lower().split("-")[0]
         if h in _KNOWN_LANGS:
             return h
     except Exception:
         pass
-    # 4) Last resort
     return "en"
 
 
@@ -225,65 +213,42 @@ JSON ONLY:"""
 async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map, last_user_msg=""):
     _LOGGER.info(f"Shopping tool: {tool_name} args={kwargs}")
 
-    # [ADDED v9.3.0 | 2026-04-21] Generic share_shopping_list tool.
-    # Builds a pretty list with category emojis, in the UI language, and emits
-    # tap-to-send URLs for three channels: WhatsApp, Telegram, Email.
-    # If the user specifies channel="whatsapp" / "telegram" / "email", only that
-    # URL is returned. Otherwise all three are offered so the user picks from a
-    # native HA notification with three tappable buttons. No extension needed.
     if tool_name == "share_shopping_list":
         from urllib.parse import quote
 
-        # Resolve target language via cascade: kwargs -> heuristic -> hass.config -> en
         target_lang = _detect_lang(kwargs, hass, last_user_msg)
         channel = str(kwargs.get("channel", "any")).strip().lower() or "any"
         phone = str(kwargs.get("phone", "")).strip().lstrip("+").replace(" ", "").replace("-", "")
         email_to = str(kwargs.get("email", "")).strip()
 
-        def db_get_grouped():
-            conn = None
+        async def db_get_grouped():
             try:
-                conn = get_db_connection(hass)
-                c = conn.cursor()
-                c.execute(
-                    "SELECT name, order_qty, category, sub_category, unit, unit_value "
-                    "FROM items WHERE type='item' AND quantity = 0 "
-                    "ORDER BY category ASC, sub_category ASC, name ASC"
-                )
-                return c.fetchall()
+                db_path = get_db_path(hass)
+                async with aiosqlite.connect(db_path, timeout=10.0) as db:
+                    async with db.execute(
+                        "SELECT name, order_qty, category, sub_category, unit, unit_value "
+                        "FROM items WHERE type='item' AND quantity = 0 "
+                        "ORDER BY category ASC, sub_category ASC, name ASC"
+                    ) as cursor:
+                        return await cursor.fetchall()
             except Exception as e:
                 _LOGGER.error(f"share_shopping_list DB error: {e}")
                 return []
-            finally:
-                if conn:
-                    conn.close()
 
-        rows = await hass.async_add_executor_job(db_get_grouped)
+        rows = await db_get_grouped()
         if not rows:
             return "The shopping list is currently empty. Nothing to share."
 
-        # Emoji per category. Covers v10.4.0 names AND legacy names still in DB.
         CAT_EMOJI = {
-            "Food & Groceries": "🍎",
-            "Personal Care & Pharmacy": "💊",
-            "Cleaning Supplies": "🧽",
-            "Home Maintenance": "🔧",
-            "Textiles & Bedding": "🛏️",
-            "Clothing": "👕",
-            "Footwear": "👟",
-            "Bags & Accessories": "👜",
-            "Electronics & Tech": "📱",
-            "Baby & Kids": "👶",
-            "Pet Supplies": "🐾",
-            "Outdoor & Garden": "🌳",
-            "Sports & Hobbies": "⚽",
-            "Office & Stationery": "✏️",
-            # Legacy
-            "Food": "🍎", "Cleaning": "🧽", "Tools": "🔧",
-            "Electronics": "📱", "Kitchenware": "🍳", "Home Textiles": "🛏️",
-            "Baby Supplies": "👶", "Toys": "🧸", "Outdoor": "🌳",
-            "Fitness Gear": "⚽", "Toiletries": "🧴", "Pharmacy": "💊",
-            "General Supplies": "📦", "Home Office Supplies": "✏️",
+            "Food & Groceries": "🍎", "Personal Care & Pharmacy": "💊", "Cleaning Supplies": "🧽",
+            "Home Maintenance": "🔧", "Textiles & Bedding": "🛏️", "Clothing": "👕",
+            "Footwear": "👟", "Bags & Accessories": "👜", "Electronics & Tech": "📱",
+            "Baby & Kids": "👶", "Pet Supplies": "🐾", "Outdoor & Garden": "🌳",
+            "Sports & Hobbies": "⚽", "Office & Stationery": "✏️",
+            "Food": "🍎", "Cleaning": "🧽", "Tools": "🔧", "Electronics": "📱",
+            "Kitchenware": "🍳", "Home Textiles": "🛏️", "Baby Supplies": "👶",
+            "Toys": "🧸", "Outdoor": "🌳", "Fitness Gear": "⚽", "Toiletries": "🧴",
+            "Pharmacy": "💊", "General Supplies": "📦", "Home Office Supplies": "✏️",
             "Entertainment": "🎮", "First Aid": "🩹",
         }
         SUB_EMOJI = {
@@ -304,47 +269,30 @@ async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map, last_user_msg
         for name, oq, cat, scat, unit, uval in rows:
             cat_raw = (cat or "Other").strip() or "Other"
             scat_raw = (scat or "General").strip() or "General"
-            # Translate the category labels for the display. We key the groups
-            # by the *translated* display name, falling back to the raw DB value,
-            # so items with either legacy ("Food") or new ("Food & Groceries")
-            # category strings end up grouped under the same translated heading
-            # when their translation resolves to the same label.
             cat_display = _translate(f"cat_{_slug(cat_raw)}", target_lang, default=cat_raw)
             scat_display = _translate(f"sub_{_slug(scat_raw)}", target_lang, default=scat_raw)
             qty = oq if oq and oq > 0 else 1
             val_part = f" ({uval}{unit})" if (uval and unit) else (f" ({uval})" if uval else "")
             line = f"  • {name} ×{qty}{val_part}"
-            # Keep the raw cat name alongside the display name so emoji lookup
-            # works for both legacy and refactored values.
+            
             bucket = grouped.setdefault((cat_raw, cat_display), {})
             bucket.setdefault((scat_raw, scat_display), []).append(line)
             total += 1
 
         header_map = {
-            "he": "🛒 רשימת קניות",
-            "en": "🛒 Shopping List",
-            "ru": "🛒 Список покупок",
-            "it": "🛒 Lista della spesa",
-            "es": "🛒 Lista de compras",
-            "fr": "🛒 Liste de courses",
+            "he": "🛒 רשימת קניות", "en": "🛒 Shopping List", "ru": "🛒 Список покупок",
+            "it": "🛒 Lista della spesa", "es": "🛒 Lista de compras", "fr": "🛒 Liste de courses",
             "ar": "🛒 قائمة التسوق",
         }
         footer_map = {
-            "he": f"סה״כ {total} פריטים",
-            "en": f"Total: {total} items",
-            "ru": f"Всего: {total} товаров",
-            "it": f"Totale: {total} articoli",
-            "es": f"Total: {total} artículos",
-            "fr": f"Total : {total} articles",
+            "he": f"סה״כ {total} פריטים", "en": f"Total: {total} items", "ru": f"Всего: {total} товаров",
+            "it": f"Totale: {total} articoli", "es": f"Total: {total} artículos", "fr": f"Total : {total} articles",
             "ar": f"المجموع: {total} عنصرًا",
         }
         header = header_map.get(target_lang, header_map["en"])
         footer = footer_map.get(target_lang, footer_map["en"])
 
-        # Pretty text
         lines = [header, ""]
-        # grouped is keyed by (raw_cat, display_cat) tuples so we can look up
-        # the emoji by the raw DB name but show the translated label.
         for (cat_raw, cat_display) in sorted(grouped.keys(), key=lambda k: k[1]):
             sub_map = grouped[(cat_raw, cat_display)]
             lines.append(f"{cat_emoji(cat_raw)} *{cat_display}*")
@@ -360,7 +308,6 @@ async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map, last_user_msg
         text = "\n".join(lines).strip()
         encoded = quote(text)
 
-        # URLs per channel
         urls = {
             "whatsapp": (f"https://wa.me/{phone}?text={encoded}" if phone
                          else f"https://wa.me/?text={encoded}"),
@@ -385,10 +332,6 @@ async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map, last_user_msg
             chosen = ["whatsapp", "telegram", "email"]
 
         button_lines = [f"### [{L[ch]}]({urls[ch]})" for ch in chosen]
-        # For the HA notification body, ensure markdown preserves our single
-        # newlines: each line gets a trailing two-space marker (GitHub-flavored
-        # markdown hard break) so the notification renders line breaks instead
-        # of collapsing the list into one paragraph.
         md_text = "  \n".join(text.split("\n"))
         notification_body = "\n\n".join(button_lines) + "\n\n---\n\n" + md_text
 
@@ -429,23 +372,16 @@ async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map, last_user_msg
             )
 
     if tool_name == "get_shopping_list":
-        def db_get_shopping():
-            conn = None
+        async def db_get_shopping():
             try:
-                conn = get_db_connection(hass)
-                c = conn.cursor()
-                c.execute(
-                    "SELECT name, order_qty FROM items "
-                    "WHERE type='item' AND quantity = 0"
-                )
-                return c.fetchall()
+                db_path = get_db_path(hass)
+                async with aiosqlite.connect(db_path, timeout=10.0) as db:
+                    async with db.execute("SELECT name, order_qty FROM items WHERE type='item' AND quantity = 0") as cursor:
+                        return await cursor.fetchall()
             except Exception:
                 return []
-            finally:
-                if conn:
-                    conn.close()
 
-        items = await hass.async_add_executor_job(db_get_shopping)
+        items = await db_get_shopping()
         if not items:
             return "The list is currently empty."
         res = "\n".join([f"- {r[0]} (Qty to buy: {r[1] if r[1] and r[1] > 0 else 1})" for r in items])
@@ -474,40 +410,29 @@ async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map, last_user_msg
             scat = itm.get("sub_category", "")
             icon = itm.get("icon_key", None)
 
-            def db_process_item():
-                conn = None
+            async def db_process_item():
                 try:
-                    conn = get_db_connection(hass)
-                    c = conn.cursor()
-                    # EXACT match first to avoid hijacking partial names
-                    c.execute(
-                        "SELECT id, quantity, name FROM items WHERE name = ? AND type='item'",
-                        (nm,),
-                    )
-                    row = c.fetchone()
-                    if row:
-                        item_id, current_qty, matched_name = row
-                        if current_qty > 0:
-                            c.execute(
-                                "UPDATE items SET quantity = 0, order_qty = ? WHERE id = ?",
-                                (req_qty, item_id),
-                            )
-                            # Update sub-location if one was provided during the addition
-                            if sl:
-                                c.execute("UPDATE items SET level_3 = ? WHERE id = ?", (sl, item_id))
-                            conn.commit()
-                            return f"Successfully added existing '{matched_name}' to the shopping list with quantity to buy: {req_qty}."
+                    db_path = get_db_path(hass)
+                    async with aiosqlite.connect(db_path, timeout=10.0) as db:
+                        async with db.execute("SELECT id, quantity, name FROM items WHERE name = ? AND type='item'", (nm,)) as cursor:
+                            row = await cursor.fetchone()
+                        
+                        if row:
+                            item_id, current_qty, matched_name = row
+                            if current_qty > 0:
+                                await db.execute("UPDATE items SET quantity = 0, order_qty = ? WHERE id = ?", (req_qty, item_id))
+                                if sl:
+                                    await db.execute("UPDATE items SET level_3 = ? WHERE id = ?", (sl, item_id))
+                                await db.commit()
+                                return f"Successfully added existing '{matched_name}' to the shopping list with quantity to buy: {req_qty}."
+                            else:
+                                return f"ASK_USER:{matched_name}"
                         else:
-                            return f"ASK_USER:{matched_name}"
-                    else:
-                        return "CREATE_NEW"
+                            return "CREATE_NEW"
                 except Exception as e:
                     return f"Error: {e}"
-                finally:
-                    if conn:
-                        conn.close()
 
-            res = await hass.async_add_executor_job(db_process_item)
+            res = await db_process_item()
 
             if res == "CREATE_NEW":
                 base_path = loc_hierarchy_map.get(loc_id)
@@ -527,28 +452,19 @@ async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map, last_user_msg
                 if sl:
                     full_path.append(sl)
 
-                await hass.async_add_executor_job(
-                    add_item_db_safe, hass, nm, 0, full_path, cat, scat, "item", icon, "0"
+                await async_add_item_db_safe(
+                    hass, nm, 0, full_path, cat, scat, "item", icon, "0"
                 )
 
-                def set_new_order_qty():
-                    conn = None
+                async def set_new_order_qty():
                     try:
-                        conn = get_db_connection(hass)
-                        c = conn.cursor()
-                        # EXACT match here to prevent spaces/capitalization errors from failing the update
-                        c.execute(
-                            "UPDATE items SET order_qty = ? WHERE name = ? AND type='item' AND quantity = 0",
-                            (req_qty, nm),
-                        )
-                        conn.commit()
-                    except Exception:
-                        pass
-                    finally:
-                        if conn:
-                            conn.close()
+                        db_path = get_db_path(hass)
+                        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+                            await db.execute("UPDATE items SET order_qty = ? WHERE name = ? AND type='item' AND quantity = 0", (req_qty, nm))
+                            await db.commit()
+                    except Exception: pass
 
-                await hass.async_add_executor_job(set_new_order_qty)
+                await set_new_order_qty()
                 results.append(
                     f"Successfully created '{nm}' on the shopping list with quantity to buy: {req_qty}."
                 )
@@ -596,12 +512,10 @@ async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map, last_user_msg
         full_path = list(base_path)
         full_path.append(new_sub)
 
-        # In Home Organizer DB, empty folders are created as type 'folder_marker'
-        # with the name prefixed by '[Folder] '
         folder_name = f"[Folder] {new_sub}"
         
-        await hass.async_add_executor_job(
-            add_item_db_safe, hass, folder_name, 0, full_path, "Folder", "", "folder_marker", None, "0"
+        await async_add_item_db_safe(
+            hass, folder_name, 0, full_path, "Folder", "", "folder_marker", None, "0"
         )
         hass.bus.async_fire("home_organizer_db_update")
         loc_str = " > ".join(base_path)
@@ -617,126 +531,91 @@ async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map, last_user_msg
         except (ValueError, TypeError):
             qty = 1
 
-        def db_update_order():
-            conn = None
+        async def db_update_order():
             try:
-                conn = get_db_connection(hass)
-                c = conn.cursor()
-                
-                # Exact match first
-                c.execute(
-                    "UPDATE items SET order_qty = ? "
-                    "WHERE name = ? AND type='item' AND quantity = 0",
-                    (qty, nm),
-                )
-                if c.rowcount > 0:
-                    conn.commit()
-                    return f"Successfully updated '{nm}' order quantity to {qty}."
-                
-                # Safe fallback to closest partial match if exact fails
-                c.execute(
-                    "SELECT id, name FROM items WHERE name LIKE ? AND type='item' AND quantity = 0 ORDER BY LENGTH(name) ASC LIMIT 1",
-                    (f"%{nm}%",),
-                )
-                row = c.fetchone()
-                if row:
-                    item_id, matched_name = row
-                    c.execute("UPDATE items SET order_qty = ? WHERE id = ?", (qty, item_id))
-                    conn.commit()
-                    return f"Successfully updated '{matched_name}' order quantity to {qty}."
+                db_path = get_db_path(hass)
+                async with aiosqlite.connect(db_path, timeout=10.0) as db:
+                    cursor = await db.execute("UPDATE items SET order_qty = ? WHERE name = ? AND type='item' AND quantity = 0", (qty, nm))
+                    if cursor.rowcount > 0:
+                        await db.commit()
+                        return f"Successfully updated '{nm}' order quantity to {qty}."
+                    
+                    async with db.execute("SELECT id, name FROM items WHERE name LIKE ? AND type='item' AND quantity = 0 ORDER BY LENGTH(name) ASC LIMIT 1", (f"%{nm}%",)) as sel_cursor:
+                        row = await sel_cursor.fetchone()
+                    if row:
+                        item_id, matched_name = row
+                        await db.execute("UPDATE items SET order_qty = ? WHERE id = ?", (qty, item_id))
+                        await db.commit()
+                        return f"Successfully updated '{matched_name}' order quantity to {qty}."
 
-                return f"Item '{nm}' not found on shopping list."
+                    return f"Item '{nm}' not found on shopping list."
             except Exception as e:
                 return f"Error updating order qty: {e}"
-            finally:
-                if conn:
-                    conn.close()
 
-        res = await hass.async_add_executor_job(db_update_order)
+        res = await db_update_order()
         hass.bus.async_fire("home_organizer_db_update")
         return res
 
     elif tool_name == "remove_from_shopping_list":
         nm = kwargs.get("item_name", "")
 
-        def db_remove_shop():
-            conn = None
+        async def db_remove_shop():
             try:
-                conn = get_db_connection(hass)
-                c = conn.cursor()
-                
-                # Exact match first
-                c.execute(
-                    "DELETE FROM items WHERE name = ? AND quantity = 0 AND type='item'",
-                    (nm,),
-                )
-                if c.rowcount > 0:
-                    conn.commit()
-                    return f"Removed '{nm}' from the shopping list."
-                
-                # Safe fallback
-                c.execute(
-                    "SELECT id, name FROM items WHERE name LIKE ? AND quantity = 0 AND type='item' ORDER BY LENGTH(name) ASC LIMIT 1",
-                    (f"%{nm}%",),
-                )
-                row = c.fetchone()
-                if row:
-                    c.execute("DELETE FROM items WHERE id = ?", (row[0],))
-                    conn.commit()
-                    return f"Removed '{row[1]}' from the shopping list."
+                db_path = get_db_path(hass)
+                async with aiosqlite.connect(db_path, timeout=10.0) as db:
+                    cursor = await db.execute("DELETE FROM items WHERE name = ? AND quantity = 0 AND type='item'", (nm,))
+                    if cursor.rowcount > 0:
+                        await db.commit()
+                        return f"Removed '{nm}' from the shopping list."
                     
-                return f"Item '{nm}' not found on the shopping list."
+                    async with db.execute("SELECT id, name FROM items WHERE name LIKE ? AND quantity = 0 AND type='item' ORDER BY LENGTH(name) ASC LIMIT 1", (f"%{nm}%",)) as sel_cursor:
+                        row = await sel_cursor.fetchone()
+                    if row:
+                        await db.execute("DELETE FROM items WHERE id = ?", (row[0],))
+                        await db.commit()
+                        return f"Removed '{row[1]}' from the shopping list."
+                        
+                    return f"Item '{nm}' not found on the shopping list."
             except Exception as e:
                 return f"Error: {e}"
-            finally:
-                if conn:
-                    conn.close()
 
-        res = await hass.async_add_executor_job(db_remove_shop)
+        res = await db_remove_shop()
         hass.bus.async_fire("home_organizer_db_update")
         return res
 
     elif tool_name == "clear_shopping_list":
-        def db_clear_shop():
-            conn = None
+        async def db_clear_shop():
             try:
-                conn = get_db_connection(hass)
-                c = conn.cursor()
-                c.execute("DELETE FROM items WHERE quantity = 0 AND type='item'")
-                count = c.rowcount
-                conn.commit()
-                return f"Cleared {count} items from the shopping list."
+                db_path = get_db_path(hass)
+                async with aiosqlite.connect(db_path, timeout=10.0) as db:
+                    cursor = await db.execute("DELETE FROM items WHERE quantity = 0 AND type='item'")
+                    count = cursor.rowcount
+                    await db.commit()
+                    return f"Cleared {count} items from the shopping list."
             except Exception as e:
                 return f"Error: {e}"
-            finally:
-                if conn:
-                    conn.close()
 
-        res = await hass.async_add_executor_job(db_clear_shop)
+        res = await db_clear_shop()
         hass.bus.async_fire("home_organizer_db_update")
         return res
 
     elif tool_name == "complete_shopping_list":
-        def db_complete_shop():
-            conn = None
+        async def db_complete_shop():
             try:
-                conn = get_db_connection(hass)
-                c = conn.cursor()
-                c.execute(
-                    "UPDATE items SET quantity = "
-                    "CASE WHEN order_qty > 0 THEN order_qty ELSE 1 END "
-                    "WHERE quantity = 0 AND type='item'"
-                )
-                count = c.rowcount
-                conn.commit()
-                return f"Successfully marked {count} items as purchased and restocked them."
+                db_path = get_db_path(hass)
+                async with aiosqlite.connect(db_path, timeout=10.0) as db:
+                    cursor = await db.execute(
+                        "UPDATE items SET quantity = "
+                        "CASE WHEN order_qty > 0 THEN order_qty ELSE 1 END "
+                        "WHERE quantity = 0 AND type='item'"
+                    )
+                    count = cursor.rowcount
+                    await db.commit()
+                    return f"Successfully marked {count} items as purchased and restocked them."
             except Exception as e:
                 return f"Error: {e}"
-            finally:
-                if conn:
-                    conn.close()
 
-        res = await hass.async_add_executor_job(db_complete_shop)
+        res = await db_complete_shop()
         hass.bus.async_fire("home_organizer_db_update")
         return res
 
