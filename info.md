@@ -8,7 +8,7 @@ Home Organizer is a dedicated full-screen sidebar application that allows you to
 * **Smart Inventory Management:** Track stock levels, organize by rooms/sublocations, and auto-sync out-of-stock items to your Shopping List.
 * **Visual AI Receipt Scanning:** Snap a photo of a grocery receipt, and the AI will extract, auto-categorize, and map items to your storage locations with beautiful 3D icons.
 * **Ultimate Voice Assistant:** Set HO as your official HA Conversation Agent. Speak naturally to manage inventory, add calendar events, get recipes (with auto-timers!), and control your smart home.
-* **📱 Native Android Companion App (HOCameraApp):** Included native app that bypasses HTTP mic/camera blocks. Features "Ghost Screen" (Shake-to-Speak) and universal Bluetooth headset control (including AirPods) to trigger your voice assistant from anywhere!
+* **📱 Native Android Companion App (HO-Mind AI):** Included native app that bypasses HTTP mic/camera blocks. Features "Ghost Screen" (Shake-to-Speak) and universal Bluetooth headset control (including AirPods) to trigger your voice assistant from anywhere!
 
 ## ⚙️ Requirements
 * Home Assistant 2024.1.0 or newer
