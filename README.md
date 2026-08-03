@@ -269,6 +269,8 @@ Configure the voice keywords that will trigger specific AI actions.
 ### Step 8: Welcome to Home Organizer!
 Once the setup is complete, a new **HO-AI** icon will appear in your Home Assistant sidebar. 
 
+**No Hidden Menus:** There are no complicated settings screens or hidden menus to learn! The entire interface is designed to be completely intuitive. Simply click the **Pencil icon (✏️)** in the top right corner to enter Edit Mode, and all your management options (adding, renaming, deleting, and changing icons) will instantly appear exactly where you need them. 
+
 <p align="center">
   <img src="images/inst9.png" width="30%" alt="HO-AI Sidebar Icon">
   <img src="images/inst10.png" width="60%" alt="Empty Home Organizer Dashboard">
