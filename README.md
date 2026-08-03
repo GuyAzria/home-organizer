@@ -275,7 +275,32 @@ Once the setup is complete, a new **HO-AI** icon will appear in your Home Assist
 </p>
 <p align="center"><i>Click the new HO-AI sidebar icon. On your first launch, the screen will be empty. Click the <b>Pencil icon (✏️)</b> in the top right corner to start creating your rooms and adding items!</i></p>
 
- 
+ ### 2. Setting up Zones and Rooms
+To start building your home layout, click the **Pencil Icon (✏️)** in the top right corner of the navigation bar to enter **Edit Mode**.
+
+**Creating a Zone:**
+Click the **Add Zone** button at the bottom of the screen to create a broad area. Then, click the small pencil icon next to the zone's title to rename it (for example, "FIRST FLOOR").
+
+<p align="center">
+  <img src="images/inst12.png" width="60%" alt="Adding a new Zone and Renaming">
+</p>
+<p align="center"><i>Click "Add Zone" (1), then use the pencil icon (2) to give your zone a custom name.</i></p>
+
+**Adding a Room:**
+Once your zone is ready, click the large green **+ Add Room** button inside it to create a specific room (like a Kitchen or a Garage).
+
+<p align="center">
+  <img src="images/inst11.png" width="60%" alt="Adding a Room">
+</p>
+<p align="center"><i>A new "kitchen" room has been added to the FIRST FLOOR zone. The blue and red icons indicate you are still in Edit Mode.</i></p>
+
+### 3. Customizing Icons
+While still in **Edit Mode (✏️)**, you can personalize the look of your rooms to make them easily recognizable. Click the small **picture icon** on the corner of any room folder to open the Icon Picker.
+
+<p align="center">
+  <img src="images/inst13.png" width="45%" alt="Change Icon Modal">
+</p>
+<p align="center"><i>Click the picture icon (highlighted in red) to open the menu. You can select a beautiful built-in 3D icon, paste a direct image URL, or upload your own custom image!</i></p>
  
 
 
