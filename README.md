@@ -196,23 +196,89 @@ Click the **Robot Icon (🤖)** in the top bar to open your personal AI Chat Ass
 * Home Assistant 2024.1.0 or newer
 * **AI Provider API Key or Local URL**: Required for AI chat, receipt scanning, and smart categorization (Gemini, OpenAI, Claude, Ollama, or LM Studio).
 
-## 📥 Installation
+## 📥 Installation (Zero YAML Required! 🎉)
+There is absolutely no need to write a single line of code or touch your `configuration.yaml` file. The entire installation and setup process is handled seamlessly through the Home Assistant UI!
 
-### Option 1: HACS (Recommended)
-1. In Home Assistant, go to **HACS** > **Integrations**.
-2. Open the menu (top right) and select **Custom repositories**.
-3. Add `https://github.com/GuyAzria/home-organizer` as an **Integration**.
-4. Click **Add**, find **Home Organizer**, select **Download**, and **Restart Home Assistant**.
+### Step 1: Add Custom Repository in HACS
+1. In Home Assistant, go to **HACS**.
+2. Open the top right menu (⋮) and select **Custom repositories**.
+3. Paste `https://github.com/GuyAzria/home-organizer` into the Repository field, select **Integration** as the category, and click **ADD**.
 
-### Option 2: Manual
-1. Download the `custom_components/home_organizer` folder.
-2. Copy it to your `config/custom_components/` directory and Restart Home Assistant.
+<p align="center">
+  <img src="images/inst1.png" width="45%" alt="Adding Custom Repository URL">
+  <img src="images/inst2.png" width="45%" alt="Home Organizer in Custom Repositories">
+</p>
+<p align="center"><i>Paste the GitHub URL and verify that Home Organizer is added to your custom repositories list.</i></p>
 
-## ⚙️ Setup
-1. Navigate to **Settings** > **Devices & Services**.
-2. Click **Add Integration** and search for **Home Organizer**.
-3. Select your preferred **AI Provider** (Cloud or Local) and enter the relevant API Key or local URL when prompted. The Organizer icon will appear in your sidebar.
+### Step 2: Download the Integration
+Search for **Home Organizer** in the HACS search bar, click on it, and select **Download**.
 
+<p align="center">
+  <img src="images/inst3.png" width="80%" alt="Searching for Home Organizer in HACS">
+</p>
+<p align="center"><i>Locate the HO-AI Home Organizer integration and download it to your system.</i></p>
+
+### Step 3: Restart Home Assistant
+Go to **Settings** > **System** (or click the repair notification) and **Restart** Home Assistant to load the new files.
+
+<p align="center">
+  <img src="images/inst4.png" width="80%" alt="Restart Home Assistant">
+</p>
+<p align="center"><i>A restart is required before Home Assistant can recognize the new integration.</i></p>
+
+---
+
+## ⚙️ Setup & Configuration
+
+### Step 4: Add the Integration
+Navigate to **Settings** > **Devices & Services**. Click the **+ Add Integration** button in the bottom right corner and search for **Home Organizer**.
+
+<p align="center">
+  <img src="images/inst5.png" width="60%" alt="Add Integration Menu">
+</p>
+<p align="center"><i>Find Home Organizer in the official integrations list.</i></p>
+
+### Step 5: Choose Your Architecture & Storage
+The setup wizard will guide you through the initial configuration:
+* **Processing Mode & AI Provider:** Choose how you want the AI to process your data—Local Only (for maximum privacy), Cloud Only, or a Hybrid approach.
+* **Storage Method:** Choose where to store your database. **Highly Recommended:** Select `media` if your main Home Assistant drive is low on storage space. Because all item photos (and potentially future scanned invoices) are saved directly into the SQLite DB, the file size can grow significantly over time.
+
+<p align="center">
+  <img src="images/inst6.png" width="60%" alt="Processing Mode and Storage Selection">
+</p>
+<p align="center"><i>Select your processing mode, primary AI provider, and preferred storage location.</i></p>
+
+### Step 6: Enter API Keys & Connections
+Depending on the AI provider you selected, you need to provide the correct connection details so Home Organizer can communicate with the AI:
+* **Cloud Providers (Gemini/OpenAI/Claude):** Paste your secure API Key and the specific Model Name you want to use (e.g., `gemini-1.5-flash-latest`).
+* **Local Providers (Ollama/LM Studio):** Enter the exact local URL of your AI server (ensure it ends with `/v1`), the local API Key (type `ollama` or `local`), and the exact local model name (e.g., `llama3:8b`).
+
+<p align="center">
+  <img src="images/inst7.png" width="60%" alt="API Keys Configuration">
+</p>
+<p align="center"><i>Carefully input your respective API keys and model names. Ensure local URLs include the port and end with /v1.</i></p>
+
+### Step 7: Customize Trigger Words & Advanced Settings
+Configure the voice keywords that will trigger specific AI actions. 
+* **Multilingual Support:** You don't have to use English! You can write these trigger words in your native language (Hebrew, Spanish, etc.) so the assistant perfectly understands your natural speech.
+* **⚠️ Danger Zone (`delete_on_remove`):** If you check this box, uninstalling the integration will **permanently delete** your entire Home Organizer database (including all your saved items, rooms, and images). It is highly recommended to leave this unchecked to keep your data safe in case you ever need to reinstall the integration!
+
+<p align="center">
+  <img src="images/inst8.png" width="60%" alt="Trigger Words and Advanced Settings">
+</p>
+<p align="center"><i>Set your custom wake words and carefully review the delete_on_remove checkbox.</i></p>
+
+### Step 8: Welcome to Home Organizer!
+Once the setup is complete, a new **HO-AI** icon will appear in your Home Assistant sidebar. 
+
+<p align="center">
+  <img src="images/inst9.png" width="30%" alt="HO-AI Sidebar Icon">
+  <img src="images/inst10.png" width="60%" alt="Empty Home Organizer Dashboard">
+</p>
+<p align="center"><i>Click the new HO-AI sidebar icon. On your first launch, the screen will be empty. Click the <b>Pencil icon (✏️)</b> in the top right corner to start creating your rooms and adding items!</i></p>
+
+ 
+ 
 
 
 ---
