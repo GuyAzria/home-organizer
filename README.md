@@ -42,17 +42,15 @@ HO can now be configured as your official **Home Assistant Conversation Agent**!
 * **Calendar Secretary:** Seamlessly manage your schedule. Just say, *"Add a meeting tomorrow morning with Mr. Bean,"* and it's booked.
 * **Free-Speech HA Control:** Control your lights, switches, and devices using completely natural language, or ask for the time, weather, and daily news.
 
-### 📱 `HO-Mind AI` (Native Android Companion App) - Version: "2026.6.16"
-Modern browsers often block camera and microphone access over local HTTP connections. We built **HO-Mind AI**—a native Android companion app that fixes this and adds serious magic:
-* **"Ghost Screen" & Shake-to-Speak:** Run the app silently in the background as a transparent overlay. Enable "Shake to Speak" to wake the assistant with a simple shake—no need to say *"Hey Google"* or press any buttons!
-* **🎧 Universal Bluetooth Control (AirPods Supported):** Full hardware button interception allows you to trigger the voice assistant using any Bluetooth headset (single/double clicks), even when the screen is locked or external music apps (like Spotify) are installed.
+### 📱 `HO_Mind_AI` (Native Android Companion App) - Version: "2026.6.16"
+Modern browsers often block camera and microphone access over local HTTP connections. We built **HO_Mind_AI**—a native Android companion app that fixes this and adds serious magic:
+* **🎧 True Hands-Free Wireless Control (AirPods Supported):** The ultimate smart home experience! Simply click the button on your Bluetooth headset, hear an instant activation beep, speak your command, and get the AI's verbal response directly in your ear. This completely eliminates the need to shout *"Hey Google"* or use any other wake words. Full hardware button interception works seamlessly even when the screen is locked or external music apps (like Spotify) are running.
+* **"Ghost Screen" & Shake-to-Speak:** Run the app silently in the background as a transparent overlay. Enable "Shake to Speak" to wake the assistant with a simple physical shake—no need to press any buttons!
 * **📺 Live Teleprompter Notification:** The Android Media Player widget (on the lock screen and quick settings) has been repurposed. Instead of showing static song details, it dynamically updates in real-time to display the exact words you are dictating to the Speech-To-Text engine.
 * **🔋 Dynamic BT Toggle (Battery Saver):** A realtime `BT: ON/OFF` toggle button on the Ghost Screen. When ON, the app asserts absolute media dominance. When OFF, it completely destroys the internal media session and releases `AudioFocus`, returning full hardware control to your default music players to save battery.
-* **🖖 Star Trek-Style Audio Cues:** Replaced standard system beeps with precise, generative `ToneGenerator` sequences. Opening the mic triggers a fast "Double-Chirp" (mimicking a Star Trek Combadge), and closing it plays a single acknowledgment blip.
 * **🎙️ Continuous Smart Transcription:** The STT engine now operates in a continuous loop, automatically handling silence timeouts and seamlessly restarting itself to allow for long, uninterrupted dictation sessions.
 * **Native Google STT:** Uses Google's highly accurate native Speech-to-Text engine, drastically outperforming local Whisper models.
 * **Unblocked Camera:** Flawless, instant camera access for visual tasks (like barcode and invoice scanning) on local networks. *(Note: Invoice and barcode scanning are visual features performed via the camera button, not via voice commands).*
-
 ---
 
 ## 🛠️ Under the Hood: The Android Audio Architecture Hacks
@@ -77,6 +75,11 @@ If you are using Apple AirPods with this app on an Android device, please note t
 ### 🧠 Processing Flexibility
 Choose how your AI runs: **Local Only** (for ultimate privacy), **Cloud**, or a **Hybrid API** mode that utilizes the cloud but gracefully falls back to local processing if your connection drops.
 
+**Privacy & External Services:**
+While the core inventory database (SQLite) is 100% local and private, please note that the **Barcode Scanner** feature requires an active internet connection to identify scanned retail products. To fetch product names and details, the integration queries the following external public servers:
+* **OpenFoodFacts** (`world.openfoodfacts.org`)
+* **UPCItemDB** (`api.upcitemdb.com`)
+* **DuckDuckGo** (`html.duckduckgo.com` - used strictly as a fallback search if the product is not found in the main databases).
 ---
 
 ## ✨ Core Features
