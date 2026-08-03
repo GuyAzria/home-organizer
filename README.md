@@ -28,10 +28,116 @@ Home Organizer is a dedicated full-screen application for your Home Assistant si
 **Developed by Guy Azria.**
 
 ---
+ ## 📥 Installation (Zero YAML Required! 🎉)
+There is absolutely no need to write a single line of code or touch your `configuration.yaml` file. The entire installation and setup process is handled seamlessly through the Home Assistant UI!
 
-## 🚀 What's New in the Latest Update
+### Step 1: Add Custom Repository in HACS
+1. In Home Assistant, go to **HACS**.
+2. Open the top right menu (⋮) and select **Custom repositories**.
+3. Paste `https://github.com/GuyAzria/home-organizer` into the Repository field, select **Integration** as the category, and click **ADD**.
 
-Our latest update transforms Home Organizer from a smart inventory manager into a fully interactive **Personal Home Assistant**.
+<p align="center">
+  <img src="images/inst1.png" width="45%" alt="Adding Custom Repository URL">
+  <img src="images/inst2.png" width="45%" alt="Home Organizer in Custom Repositories">
+</p>
+<p align="center"><i>Paste the GitHub URL and verify that Home Organizer is added to your custom repositories list.</i></p>
+
+### Step 2: Download the Integration
+Search for **Home Organizer** in the HACS search bar, click on it, and select **Download**.
+
+<p align="center">
+  <img src="images/inst3.png" width="80%" alt="Searching for Home Organizer in HACS">
+</p>
+<p align="center"><i>Locate the HO-AI Home Organizer integration and download it to your system.</i></p>
+
+### Step 3: Restart Home Assistant
+Go to **Settings** > **System** (or click the repair notification) and **Restart** Home Assistant to load the new files.
+
+<p align="center">
+  <img src="images/inst4.png" width="80%" alt="Restart Home Assistant">
+</p>
+<p align="center"><i>A restart is required before Home Assistant can recognize the new integration.</i></p>
+
+---
+
+## ⚙️ Setup & Configuration
+
+### Step 4: Add the Integration
+Navigate to **Settings** > **Devices & Services**. Click the **+ Add Integration** button in the bottom right corner and search for **Home Organizer**.
+
+<p align="center">
+  <img src="images/inst5.png" width="60%" alt="Add Integration Menu">
+</p>
+<p align="center"><i>Find Home Organizer in the official integrations list.</i></p>
+
+### Step 5: Choose Your Architecture & Storage
+The setup wizard will guide you through the initial configuration:
+* **Processing Mode & AI Provider:** Choose how you want the AI to process your data—Local Only (for maximum privacy), Cloud Only, or a Hybrid approach.
+* **Storage Method:** Choose where to store your database. **Highly Recommended:** Select `media` if your main Home Assistant drive is low on storage space. Because all item photos (and potentially future scanned invoices) are saved directly into the SQLite DB, the file size can grow significantly over time.
+
+<p align="center">
+  <img src="images/inst6.png" width="60%" alt="Processing Mode and Storage Selection">
+</p>
+<p align="center"><i>Select your processing mode, primary AI provider, and preferred storage location.</i></p>
+
+### Step 6: Enter API Keys & Connections
+Depending on the AI provider you selected, you need to provide the correct connection details so Home Organizer can communicate with the AI:
+* **Cloud Providers (Gemini/OpenAI/Claude):** Paste your secure API Key and the specific Model Name you want to use (e.g., `gemini-1.5-flash-latest`).
+* **Local Providers (Ollama/LM Studio):** Enter the exact local URL of your AI server (ensure it ends with `/v1`), the local API Key (type `ollama` or `local`), and the exact local model name (e.g., `llama3:8b`).
+
+<p align="center">
+  <img src="images/inst7.png" width="60%" alt="API Keys Configuration">
+</p>
+<p align="center"><i>Carefully input your respective API keys and model names. Ensure local URLs include the port and end with /v1.</i></p>
+
+### Step 7: Customize Trigger Words & Advanced Settings
+Configure the voice keywords that will trigger specific AI actions. 
+* **Multilingual Support:** You don't have to use English! You can write these trigger words in your native language (Hebrew, Spanish, etc.) so the assistant perfectly understands your natural speech.
+* **⚠️ Danger Zone (`delete_on_remove`):** If you check this box, uninstalling the integration will **permanently delete** your entire Home Organizer database (including all your saved items, rooms, and images). It is highly recommended to leave this unchecked to keep your data safe in case you ever need to reinstall the integration!
+
+<p align="center">
+  <img src="images/inst8.png" width="60%" alt="Trigger Words and Advanced Settings">
+</p>
+<p align="center"><i>Set your custom wake words and carefully review the delete_on_remove checkbox.</i></p>
+
+### Step 8: Welcome to Home Organizer!
+Once the setup is complete, a new **HO-AI** icon will appear in your Home Assistant sidebar. 
+
+**No Hidden Menus:** There are no complicated settings screens or hidden menus to learn! The entire interface is designed to be completely intuitive. Simply click the **Pencil icon (✏️)** in the top right corner to enter Edit Mode, and all your management options (adding, renaming, deleting, and changing icons) will instantly appear exactly where you need them. 
+
+<p align="center">
+  <img src="images/inst9.png" width="30%" alt="HO-AI Sidebar Icon">
+  <img src="images/inst10.png" width="60%" alt="Empty Home Organizer Dashboard">
+</p>
+<p align="center"><i>Click the new HO-AI sidebar icon. On your first launch, the screen will be empty. Click the <b>Pencil icon (✏️)</b> in the top right corner to start creating your rooms and adding items!</i></p>
+
+ ### 2. Setting up Zones and Rooms
+To start building your home layout, click the **Pencil Icon (✏️)** in the top right corner of the navigation bar to enter **Edit Mode**.
+
+**Creating a Zone:**
+Click the **Add Zone** button at the bottom of the screen to create a broad area. Then, click the small pencil icon next to the zone's title to rename it (for example, "FIRST FLOOR").
+
+<p align="center">
+  <img src="images/inst12.png" width="60%" alt="Adding a new Zone and Renaming">
+</p>
+<p align="center"><i>Click "Add Zone" (1), then use the pencil icon (2) to give your zone a custom name.</i></p>
+
+**Adding a Room:**
+Once your zone is ready, click the large green **+ Add Room** button inside it to create a specific room (like a Kitchen or a Garage).
+
+<p align="center">
+  <img src="images/inst11.png" width="60%" alt="Adding a Room">
+</p>
+<p align="center"><i>A new "kitchen" room has been added to the FIRST FLOOR zone. The blue and red icons indicate you are still in Edit Mode.</i></p>
+
+### 3. Customizing Icons
+While still in **Edit Mode (✏️)**, you can personalize the look of your rooms to make them easily recognizable. Click the small **picture icon** on the corner of any room folder to open the Icon Picker.
+
+<p align="center">
+  <img src="images/inst13.png" width="45%" alt="Change Icon Modal">
+</p>
+<p align="center"><i>Click the picture icon (highlighted in red) to open the menu. You can select a beautiful built-in 3D icon, paste a direct image URL, or upload your own custom image!</i></p>
+ 
 
 ### 🎙️ The Ultimate Voice Assistant Capabilities
 HO can now be configured as your official **Home Assistant Conversation Agent**! You can speak naturally and ask for almost anything:
@@ -194,116 +300,7 @@ Click the **Robot Icon (🤖)** in the top bar to open your personal AI Chat Ass
 * Home Assistant 2024.1.0 or newer
 * **AI Provider API Key or Local URL**: Required for AI chat, receipt scanning, and smart categorization (Gemini, OpenAI, Claude, Ollama, or LM Studio).
 
-## 📥 Installation (Zero YAML Required! 🎉)
-There is absolutely no need to write a single line of code or touch your `configuration.yaml` file. The entire installation and setup process is handled seamlessly through the Home Assistant UI!
 
-### Step 1: Add Custom Repository in HACS
-1. In Home Assistant, go to **HACS**.
-2. Open the top right menu (⋮) and select **Custom repositories**.
-3. Paste `https://github.com/GuyAzria/home-organizer` into the Repository field, select **Integration** as the category, and click **ADD**.
-
-<p align="center">
-  <img src="images/inst1.png" width="45%" alt="Adding Custom Repository URL">
-  <img src="images/inst2.png" width="45%" alt="Home Organizer in Custom Repositories">
-</p>
-<p align="center"><i>Paste the GitHub URL and verify that Home Organizer is added to your custom repositories list.</i></p>
-
-### Step 2: Download the Integration
-Search for **Home Organizer** in the HACS search bar, click on it, and select **Download**.
-
-<p align="center">
-  <img src="images/inst3.png" width="80%" alt="Searching for Home Organizer in HACS">
-</p>
-<p align="center"><i>Locate the HO-AI Home Organizer integration and download it to your system.</i></p>
-
-### Step 3: Restart Home Assistant
-Go to **Settings** > **System** (or click the repair notification) and **Restart** Home Assistant to load the new files.
-
-<p align="center">
-  <img src="images/inst4.png" width="80%" alt="Restart Home Assistant">
-</p>
-<p align="center"><i>A restart is required before Home Assistant can recognize the new integration.</i></p>
-
----
-
-## ⚙️ Setup & Configuration
-
-### Step 4: Add the Integration
-Navigate to **Settings** > **Devices & Services**. Click the **+ Add Integration** button in the bottom right corner and search for **Home Organizer**.
-
-<p align="center">
-  <img src="images/inst5.png" width="60%" alt="Add Integration Menu">
-</p>
-<p align="center"><i>Find Home Organizer in the official integrations list.</i></p>
-
-### Step 5: Choose Your Architecture & Storage
-The setup wizard will guide you through the initial configuration:
-* **Processing Mode & AI Provider:** Choose how you want the AI to process your data—Local Only (for maximum privacy), Cloud Only, or a Hybrid approach.
-* **Storage Method:** Choose where to store your database. **Highly Recommended:** Select `media` if your main Home Assistant drive is low on storage space. Because all item photos (and potentially future scanned invoices) are saved directly into the SQLite DB, the file size can grow significantly over time.
-
-<p align="center">
-  <img src="images/inst6.png" width="60%" alt="Processing Mode and Storage Selection">
-</p>
-<p align="center"><i>Select your processing mode, primary AI provider, and preferred storage location.</i></p>
-
-### Step 6: Enter API Keys & Connections
-Depending on the AI provider you selected, you need to provide the correct connection details so Home Organizer can communicate with the AI:
-* **Cloud Providers (Gemini/OpenAI/Claude):** Paste your secure API Key and the specific Model Name you want to use (e.g., `gemini-1.5-flash-latest`).
-* **Local Providers (Ollama/LM Studio):** Enter the exact local URL of your AI server (ensure it ends with `/v1`), the local API Key (type `ollama` or `local`), and the exact local model name (e.g., `llama3:8b`).
-
-<p align="center">
-  <img src="images/inst7.png" width="60%" alt="API Keys Configuration">
-</p>
-<p align="center"><i>Carefully input your respective API keys and model names. Ensure local URLs include the port and end with /v1.</i></p>
-
-### Step 7: Customize Trigger Words & Advanced Settings
-Configure the voice keywords that will trigger specific AI actions. 
-* **Multilingual Support:** You don't have to use English! You can write these trigger words in your native language (Hebrew, Spanish, etc.) so the assistant perfectly understands your natural speech.
-* **⚠️ Danger Zone (`delete_on_remove`):** If you check this box, uninstalling the integration will **permanently delete** your entire Home Organizer database (including all your saved items, rooms, and images). It is highly recommended to leave this unchecked to keep your data safe in case you ever need to reinstall the integration!
-
-<p align="center">
-  <img src="images/inst8.png" width="60%" alt="Trigger Words and Advanced Settings">
-</p>
-<p align="center"><i>Set your custom wake words and carefully review the delete_on_remove checkbox.</i></p>
-
-### Step 8: Welcome to Home Organizer!
-Once the setup is complete, a new **HO-AI** icon will appear in your Home Assistant sidebar. 
-
-**No Hidden Menus:** There are no complicated settings screens or hidden menus to learn! The entire interface is designed to be completely intuitive. Simply click the **Pencil icon (✏️)** in the top right corner to enter Edit Mode, and all your management options (adding, renaming, deleting, and changing icons) will instantly appear exactly where you need them. 
-
-<p align="center">
-  <img src="images/inst9.png" width="30%" alt="HO-AI Sidebar Icon">
-  <img src="images/inst10.png" width="60%" alt="Empty Home Organizer Dashboard">
-</p>
-<p align="center"><i>Click the new HO-AI sidebar icon. On your first launch, the screen will be empty. Click the <b>Pencil icon (✏️)</b> in the top right corner to start creating your rooms and adding items!</i></p>
-
- ### 2. Setting up Zones and Rooms
-To start building your home layout, click the **Pencil Icon (✏️)** in the top right corner of the navigation bar to enter **Edit Mode**.
-
-**Creating a Zone:**
-Click the **Add Zone** button at the bottom of the screen to create a broad area. Then, click the small pencil icon next to the zone's title to rename it (for example, "FIRST FLOOR").
-
-<p align="center">
-  <img src="images/inst12.png" width="60%" alt="Adding a new Zone and Renaming">
-</p>
-<p align="center"><i>Click "Add Zone" (1), then use the pencil icon (2) to give your zone a custom name.</i></p>
-
-**Adding a Room:**
-Once your zone is ready, click the large green **+ Add Room** button inside it to create a specific room (like a Kitchen or a Garage).
-
-<p align="center">
-  <img src="images/inst11.png" width="60%" alt="Adding a Room">
-</p>
-<p align="center"><i>A new "kitchen" room has been added to the FIRST FLOOR zone. The blue and red icons indicate you are still in Edit Mode.</i></p>
-
-### 3. Customizing Icons
-While still in **Edit Mode (✏️)**, you can personalize the look of your rooms to make them easily recognizable. Click the small **picture icon** on the corner of any room folder to open the Icon Picker.
-
-<p align="center">
-  <img src="images/inst13.png" width="45%" alt="Change Icon Modal">
-</p>
-<p align="center"><i>Click the picture icon (highlighted in red) to open the menu. You can select a beautiful built-in 3D icon, paste a direct image URL, or upload your own custom image!</i></p>
- 
 
 
 ---
