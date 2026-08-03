@@ -138,6 +138,26 @@ While still in **Edit Mode (✏️)**, you can personalize the look of your room
 </p>
 <p align="center"><i>Click the picture icon (highlighted in red) to open the menu. You can select a beautiful built-in 3D icon, paste a direct image URL, or upload your own custom image!</i></p>
  
+### 8. Setting up the Voice Assistant & HO_Mind_AI
+
+**Part A: Set HO-AI as Your HA Conversation Agent**
+To make Home Organizer the default "brain" for voice commands across your entire smart home:
+1. In your main Home Assistant menu, navigate to **Settings** > **Voice assistants**.
+2. Click on the default **Home Assistant** assistant (or click **+ Add Assistant** to create a new one).
+3. In the window that opens, scroll down to the **Conversation agent** section and select **HO-AI Agent** from the dropdown menu. Save your changes.
+
+<p align="center">
+  <img src="images/inst14.png" width="60%" alt="Selecting HO-AI Agent in Voice Assistants">
+</p>
+<p align="center"><i>Change the Conversation agent to HO-AI Agent so your new AI can process all incoming voice and text commands.</i></p>
+
+**Part B: Install & Configure HO_Mind_AI (Android Users Only)**
+1. Open the HO dashboard on your phone. Go to the Chat screen, tap the Camera icon (📸), then the Gear icon (⚙️). Click **Download Android APK** and install.
+2. Open the app and tap the Gear icon (⚙️) to open Settings.
+3. **URL:** Enter your exact internal HA IP (e.g., `http://192.168.1.100:8123`).
+4. **Token:** Generate a Long-Lived Access Token in your HA profile.
+5. **Device ID:** Find your phone under HA Settings ➔ Devices. Look at your browser's address bar and copy the long string of characters at the very end of the URL. *(Pro-tip: Do this on a PC and WhatsApp the Token and ID to yourself!)*
+6. Enable **Shake to Speak** to activate the Ghost Screen, choose your **Language**, and adjust the **Volume Override** so the assistant speaks aloud even if your phone is on silent!
 
 ### 🎙️ The Ultimate Voice Assistant Capabilities
 HO can now be configured as your official **Home Assistant Conversation Agent**! You can speak naturally and ask for almost anything:
