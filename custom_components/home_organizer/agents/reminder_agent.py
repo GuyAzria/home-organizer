@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# // [MODIFIED v10.0.3 | 2026-08-09] Purpose: Fixed TTS payload structure so reminders are spoken aloud using alarm_stream_max instead of text popups.
 # // [ADDED v10.0.2 | 2026-08-09] Purpose: Removed legacy ho_reminder_triggered event bus firing to ensure a true Zero-YAML installation. Automatically creates a calendar event for every scheduled reminder, prefixed with a clock icon (⏰) to distinguish them from standard events.
 # // [ADDED v10.0.1 | 2026-06-11] Purpose: Added high priority and ttl data fields to push notifications to bypass mobile OS battery-saving sleep modes (Doze Mode / Samsung deep sleep pooling) and prevent delayed reminders.
 # // [ADDED v10.0.0 | 2026-06-11] Purpose: Multi-language broadcast support. The prompt instruction was updated to evaluate the broadcast intent ("notify_all") dynamically based on the active target UI language, catching "everyone" or "כולם". Added broadcast routing logic to trigger_reminder.
@@ -202,6 +203,7 @@ def _resolve_notify_service_for_device(hass, device_id):
 # ==========================================
 # RUN LOOP
 # ==========================================
+# // [MODIFIED v10.0.3 | 2026-08-09] Purpose: Switched payload to send TTS message using alarm_stream_max.
 # // [MODIFIED v10.0.2 | 2026-08-09] Purpose: Automatically push new reminders into the local calendar with a clock icon.
 # // [MODIFIED v10.0.1 | 2026-06-11] Purpose: Integrated high priority and ttl data keys inside async_call parameters to force real-time delivery on Android/Samsung device sleep modes.
 # // [MODIFIED v10.0.0 | 2026-06-11] Purpose: Extracted 'notify_all' from JSON and applied it in the notification routing.
@@ -299,7 +301,7 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
                 f"notify_target={notify_service!r} | notify_all={notify_all}"
             )
 
-            # 1. Push notification delivery with real-time FCM overrides
+            # 1. Push notification delivery with real-time FCM overrides (TTS Audio)
             if notify_all:
                 _LOGGER.info(f"[HO-REMINDER] Broadcasting to ALL users for message: {remind_msg!r}")
                 hass.async_create_task(
@@ -307,9 +309,11 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
                         "notify",
                         "notify",
                         {
-                            "message": remind_msg, 
+                            "message": "TTS", 
                             "title": "\u23f0",
                             "data": {
+                                "tts_text": remind_msg,
+                                "media_stream": "alarm_stream_max",
                                 "ttl": 0,
                                 "priority": "high"
                             }
@@ -322,9 +326,11 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
                         "notify",
                         notify_service,
                         {
-                            "message": remind_msg, 
+                            "message": "TTS", 
                             "title": "\u23f0",
                             "data": {
+                                "tts_text": remind_msg,
+                                "media_stream": "alarm_stream_max",
                                 "ttl": 0,
                                 "priority": "high"
                             }
