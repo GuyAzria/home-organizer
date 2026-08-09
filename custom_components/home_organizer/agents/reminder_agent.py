@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# // [ADDED v10.0.2 | 2026-08-09] Purpose: Removed legacy ho_reminder_triggered event bus firing to ensure a true Zero-YAML installation. Automatically creates a calendar event for every scheduled reminder, prefixed with a clock icon (⏰) to distinguish them from standard events.
 # // [ADDED v10.0.1 | 2026-06-11] Purpose: Added high priority and ttl data fields to push notifications to bypass mobile OS battery-saving sleep modes (Doze Mode / Samsung deep sleep pooling) and prevent delayed reminders.
 # // [ADDED v10.0.0 | 2026-06-11] Purpose: Multi-language broadcast support. The prompt instruction was updated to evaluate the broadcast intent ("notify_all") dynamically based on the active target UI language, catching "everyone" or "כולם". Added broadcast routing logic to trigger_reminder.
 # // [v9.9.8 | 2026-05-12] Purpose: Added ambiguity resolution for AM/PM, reminder listing, and deletion capability. Uses hass.data memory registry to hold and cancel callbacks.
@@ -28,7 +29,7 @@
 import logging
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from homeassistant.core import callback
 from homeassistant.helpers import device_registry as dr
@@ -68,6 +69,20 @@ def cancel_active_reminder(hass, reminder_id):
         del registry[reminder_id]
         return True
     return False
+
+# ==========================================
+# CALENDAR HELPER
+# ==========================================
+# // [ADDED v10.0.2 | 2026-08-09] Purpose: Utility to find the default calendar for creating reminder events.
+def _find_calendar_entity(hass):
+    """Return the entity_id of the best available calendar, or None."""
+    states = hass.states.async_all("calendar")
+    if not states:
+        return None
+    for s in states:
+        if "local" in s.entity_id.lower():
+            return s.entity_id
+    return states[0].entity_id
 
 # ==========================================
 # PROMPT
@@ -187,6 +202,7 @@ def _resolve_notify_service_for_device(hass, device_id):
 # ==========================================
 # RUN LOOP
 # ==========================================
+# // [MODIFIED v10.0.2 | 2026-08-09] Purpose: Automatically push new reminders into the local calendar with a clock icon.
 # // [MODIFIED v10.0.1 | 2026-06-11] Purpose: Integrated high priority and ttl data keys inside async_call parameters to force real-time delivery on Android/Samsung device sleep modes.
 # // [MODIFIED v10.0.0 | 2026-06-11] Purpose: Extracted 'notify_all' from JSON and applied it in the notification routing.
 # // [MODIFIED v9.9.8 | 2026-05-12] Purpose: Pass active reminders to the AI, and intercept new intents for clarification, listing, and deletion.
@@ -255,6 +271,26 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
         # not silently break the reminder. Captured by closure.
         notify_service = _resolve_notify_service_for_device(hass, device_id)
 
+        # // [ADDED v10.0.2 | 2026-08-09] Create a 15-minute block event in the calendar for the reminder
+        cal_entity = _find_calendar_entity(hass)
+        if cal_entity:
+            end_dt = target_dt + timedelta(minutes=15)
+            cal_title = f"⏰ {remind_msg}"
+            hass.async_create_task(
+                hass.services.async_call(
+                    "calendar",
+                    "create_event",
+                    {
+                        "entity_id": cal_entity,
+                        "summary": cal_title,
+                        "description": "HO-AI Automated Reminder",
+                        "start_date_time": target_dt.strftime("%Y-%m-%d %H:%M:%S"),
+                        "end_date_time": end_dt.strftime("%Y-%m-%d %H:%M:%S"),
+                    },
+                    blocking=False
+                )
+            )
+
         @callback
         def trigger_reminder(now):
             _LOGGER.info(
@@ -263,15 +299,7 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
                 f"notify_target={notify_service!r} | notify_all={notify_all}"
             )
 
-            # 1. Fire the event regardless -- automations can listen.
-            event_data = {"message": remind_msg}
-            if device_id:
-                event_data["device_id"] = device_id
-            if user_id:
-                event_data["user_id"] = user_id
-            hass.bus.async_fire("ho_reminder_triggered", event_data)
-
-            # 2. Push notification delivery with real-time FCM overrides
+            # 1. Push notification delivery with real-time FCM overrides
             if notify_all:
                 _LOGGER.info(f"[HO-REMINDER] Broadcasting to ALL users for message: {remind_msg!r}")
                 hass.async_create_task(
@@ -306,11 +334,10 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
             else:
                 _LOGGER.warning(
                     f"[HO-REMINDER] No mobile_app service for "
-                    f"device_id={device_id!r}; reminder fired via event "
-                    f"only, no push sent."
+                    f"device_id={device_id!r}; reminder could not be sent."
                 )
             
-            # 3. Clean up registry once fired
+            # 2. Clean up registry once fired
             cancel_active_reminder(hass, reminder_id)
 
         unsub = async_track_point_in_time(hass, trigger_reminder, target_dt)

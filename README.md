@@ -319,7 +319,7 @@ Click the **Robot Icon (🤖)** in the top bar to open your personal AI Chat Ass
 ## 📋 Requirements
 * Home Assistant 2024.1.0 or newer
 * **AI Provider API Key or Local URL**: Required for AI chat, receipt scanning, and smart categorization (Gemini, OpenAI, Claude, Ollama, or LM Studio).
-
+* **Local Calendar Integration:** Highly recommended! Enable the built-in Home Assistant "Local Calendar" (Settings ➔ Devices & Services ➔ Add Integration ➔ Local Calendar) to use the Calendar Secretary features and to see your voice reminders visually mapped out on your schedule with a ⏰ icon.
 
 
 
