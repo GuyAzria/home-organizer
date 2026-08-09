@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# // [MODIFIED v10.0.4 | 2026-08-09] Purpose: Removed 'title' from TTS payload. The HA Android app drops TTS playback and defaults to standard visual notifications if extra UI parameters like title are present.
 # // [MODIFIED v10.0.3 | 2026-08-09] Purpose: Fixed TTS payload structure so reminders are spoken aloud using alarm_stream_max instead of text popups.
 # // [ADDED v10.0.2 | 2026-08-09] Purpose: Removed legacy ho_reminder_triggered event bus firing to ensure a true Zero-YAML installation. Automatically creates a calendar event for every scheduled reminder, prefixed with a clock icon (⏰) to distinguish them from standard events.
 # // [ADDED v10.0.1 | 2026-06-11] Purpose: Added high priority and ttl data fields to push notifications to bypass mobile OS battery-saving sleep modes (Doze Mode / Samsung deep sleep pooling) and prevent delayed reminders.
@@ -46,13 +47,11 @@ _LOGGER = logging.getLogger(__name__)
 # ==========================================
 # REGISTRY MANAGEMENT
 # ==========================================
-# // [ADDED v9.9.8 | 2026-05-12] Purpose: Fetch the global registry of active reminders.
 def get_active_reminders_registry(hass):
     if "ho_active_reminders" not in hass.data:
         hass.data["ho_active_reminders"] = {}
     return hass.data["ho_active_reminders"]
 
-# // [ADDED v9.9.8 | 2026-05-12] Purpose: Register a new scheduled reminder so it can be listed or deleted later.
 def register_active_reminder(hass, reminder_id, target_dt, remind_msg, unsub_func):
     registry = get_active_reminders_registry(hass)
     registry[reminder_id] = {
@@ -61,11 +60,9 @@ def register_active_reminder(hass, reminder_id, target_dt, remind_msg, unsub_fun
         "unsub": unsub_func
     }
 
-# // [ADDED v9.9.8 | 2026-05-12] Purpose: Unregister and cancel a scheduled reminder.
 def cancel_active_reminder(hass, reminder_id):
     registry = get_active_reminders_registry(hass)
     if reminder_id in registry:
-        # Call the unsub function returned by async_track_point_in_time
         registry[reminder_id]["unsub"]()
         del registry[reminder_id]
         return True
@@ -74,7 +71,6 @@ def cancel_active_reminder(hass, reminder_id):
 # ==========================================
 # CALENDAR HELPER
 # ==========================================
-# // [ADDED v10.0.2 | 2026-08-09] Purpose: Utility to find the default calendar for creating reminder events.
 def _find_calendar_entity(hass):
     """Return the entity_id of the best available calendar, or None."""
     states = hass.states.async_all("calendar")
@@ -88,8 +84,6 @@ def _find_calendar_entity(hass):
 # ==========================================
 # PROMPT
 # ==========================================
-# // [MODIFIED v10.0.0 | 2026-06-11] Purpose: Abstracted broadcast detection into a language-agnostic conceptual rule for the LLM.
-# // [MODIFIED v9.9.8 | 2026-05-12] Purpose: Passed active_reminders_str to the prompt and added instructions for clarification, listing, and deleting.
 def get_reminder_prompt(target_lang, current_time_str, history_text, active_reminders_str=""):
     return f"""You are a strict, precise Time Reminder Assistant for a Smart Home.
 
@@ -130,12 +124,7 @@ JSON ONLY:"""
 # NOTIFY SERVICE RESOLVER
 # ==========================================
 def _slugify(name):
-    """Convert a human-readable device name to a mobile_app service slug.
-
-    Mirrors the slugify logic the mobile_app integration uses when it
-    registers its per-device notify service. Example:
-      "Yulia's iPhone" -> "yulia_s_iphone"
-    """
+    """Convert a human-readable device name to a mobile_app service slug."""
     if not name:
         return ""
     s = name.lower().strip()
@@ -143,7 +132,6 @@ def _slugify(name):
     s = re.sub(r"[\s-]+", "_", s)
     s = re.sub(r"_+", "_", s).strip("_")
     return s
-
 
 def _resolve_notify_service_for_device(hass, device_id):
     """Return the notify service slug for a device_id, or None."""
@@ -160,7 +148,6 @@ def _resolve_notify_service_for_device(hass, device_id):
             return None
 
         entries = hass.config_entries
-
         for entry_id in device.config_entries:
             entry = entries.async_get_entry(entry_id)
             if not entry:
@@ -203,11 +190,6 @@ def _resolve_notify_service_for_device(hass, device_id):
 # ==========================================
 # RUN LOOP
 # ==========================================
-# // [MODIFIED v10.0.3 | 2026-08-09] Purpose: Switched payload to send TTS message using alarm_stream_max.
-# // [MODIFIED v10.0.2 | 2026-08-09] Purpose: Automatically push new reminders into the local calendar with a clock icon.
-# // [MODIFIED v10.0.1 | 2026-06-11] Purpose: Integrated high priority and ttl data keys inside async_call parameters to force real-time delivery on Android/Samsung device sleep modes.
-# // [MODIFIED v10.0.0 | 2026-06-11] Purpose: Extracted 'notify_all' from JSON and applied it in the notification routing.
-# // [MODIFIED v9.9.8 | 2026-05-12] Purpose: Pass active reminders to the AI, and intercept new intents for clarification, listing, and deletion.
 async def run(hass, entry, messages, target_lang, existing_locs_str,
               loc_hierarchy_map, history_text, last_user_msg, recipe_name,
               is_voice, device_id, user_id, lang_code="en"):
@@ -216,7 +198,6 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
     current_time = dt_util.now()
     current_time_str = current_time.strftime("%A, %Y-%B-%d %H:%M:%S %Z")
 
-    # Fetch and format active reminders for the AI context
     active_registry = get_active_reminders_registry(hass)
     active_reminders_str = ""
     for rid, rdata in active_registry.items():
@@ -241,7 +222,6 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
     intent = parsed.get("intent")
     spoken_conf = parsed.get("spoken_confirmation")
 
-    # Handle the new intents gracefully
     if intent in ["clarify_time", "list_reminders"]:
         return spoken_conf
 
@@ -266,14 +246,9 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
         if target_dt <= current_time:
             return f"\u274c {strings['reminder_in_past']} ({target_time_str})"
 
-        # Generate a unique short ID for this reminder
         reminder_id = str(uuid.uuid4())[:8]
-
-        # Resolve ONCE at scheduling time so a later registry change does
-        # not silently break the reminder. Captured by closure.
         notify_service = _resolve_notify_service_for_device(hass, device_id)
 
-        # // [ADDED v10.0.2 | 2026-08-09] Create a 15-minute block event in the calendar for the reminder
         cal_entity = _find_calendar_entity(hass)
         if cal_entity:
             end_dt = target_dt + timedelta(minutes=15)
@@ -301,41 +276,25 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
                 f"notify_target={notify_service!r} | notify_all={notify_all}"
             )
 
-            # 1. Push notification delivery with real-time FCM overrides (TTS Audio)
+            # Clean payload - exactly mirroring the legacy YAML automation structure for TTS
+            tts_payload = {
+                "message": "TTS", 
+                "data": {
+                    "tts_text": remind_msg,
+                    "media_stream": "alarm_stream_max",
+                    "ttl": 0,
+                    "priority": "high"
+                }
+            }
+
             if notify_all:
                 _LOGGER.info(f"[HO-REMINDER] Broadcasting to ALL users for message: {remind_msg!r}")
                 hass.async_create_task(
-                    hass.services.async_call(
-                        "notify",
-                        "notify",
-                        {
-                            "message": "TTS", 
-                            "title": "\u23f0",
-                            "data": {
-                                "tts_text": remind_msg,
-                                "media_stream": "alarm_stream_max",
-                                "ttl": 0,
-                                "priority": "high"
-                            }
-                        },
-                    )
+                    hass.services.async_call("notify", "notify", tts_payload)
                 )
             elif notify_service:
                 hass.async_create_task(
-                    hass.services.async_call(
-                        "notify",
-                        notify_service,
-                        {
-                            "message": "TTS", 
-                            "title": "\u23f0",
-                            "data": {
-                                "tts_text": remind_msg,
-                                "media_stream": "alarm_stream_max",
-                                "ttl": 0,
-                                "priority": "high"
-                            }
-                        },
-                    )
+                    hass.services.async_call("notify", notify_service, tts_payload)
                 )
             else:
                 _LOGGER.warning(
@@ -343,7 +302,6 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
                     f"device_id={device_id!r}; reminder could not be sent."
                 )
             
-            # 2. Clean up registry once fired
             cancel_active_reminder(hass, reminder_id)
 
         unsub = async_track_point_in_time(hass, trigger_reminder, target_dt)
