@@ -4,6 +4,7 @@
 import logging
 import aiosqlite
 import os
+from functools import partial
 import re
 import time
 from datetime import datetime, timedelta
@@ -24,7 +25,11 @@ async def async_init_db(hass):
     # [MODIFIED v10.0.0] os.path.exists and os.makedirs are blocking disk
     # operations and were running directly on the event loop inside this
     # async function. Same class of issue as the ones raised in review.
-    await hass.async_add_executor_job(os.makedirs, img_path, True)
+    # NOTE: exist_ok MUST be passed by keyword. The second positional
+    # parameter of os.makedirs is `mode`, not `exist_ok`.
+    await hass.async_add_executor_job(
+        partial(os.makedirs, img_path, exist_ok=True)
+    )
     
     db_path = get_db_path(hass)
     try:

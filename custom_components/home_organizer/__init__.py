@@ -13,6 +13,7 @@
 
 import logging
 import os
+from functools import partial
 import time
 import json
 import re
@@ -616,7 +617,12 @@ async def websocket_save_avatar(hass, connection, msg):
             img_b64 = img_b64.split(",")[1]
         
         www_dir = hass.config.path("www", "home_organizer_images")
-        await hass.async_add_executor_job(os.makedirs, www_dir, True)
+        # [MODIFIED v10.0.0] exist_ok must be a keyword: the second positional
+        # parameter of os.makedirs is `mode`, not `exist_ok`, so this raised
+        # FileExistsError on every call after the first.
+        await hass.async_add_executor_job(
+            partial(os.makedirs, www_dir, exist_ok=True)
+        )
         
         avatar_path = os.path.join(www_dir, f"user_avatar_{user_id}.jpg")
         

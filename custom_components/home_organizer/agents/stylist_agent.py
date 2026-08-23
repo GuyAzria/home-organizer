@@ -22,6 +22,7 @@
 import asyncio
 import logging
 import os
+from functools import partial
 import aiosqlite
 import json
 import aiohttp
@@ -284,7 +285,11 @@ async def execute_tool(hass, tool_name, kwargs, user_id):
             vto_key = entry.options.get(CONF_VTO_KEY, entry.data.get(CONF_VTO_KEY, ""))
 
             www_dir = hass.config.path("www", "home_organizer_images")
-            await hass.async_add_executor_job(os.makedirs, www_dir, True)
+            # [MODIFIED v10.0.0] exist_ok must be a keyword: the second
+            # positional parameter of os.makedirs is `mode`, not `exist_ok`.
+            await hass.async_add_executor_job(
+                partial(os.makedirs, www_dir, exist_ok=True)
+            )
             vto_result_path = os.path.join(www_dir, "vto_result.jpg")
             
             avatar_path = await _get_user_avatar(hass, user_id)
