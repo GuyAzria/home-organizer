@@ -3,10 +3,80 @@
     "step": {
       "user": {
         "title": "Home Organizer Setup",
-        "description": "Configure the Home Organizer.",
+        "description": "Choose how Home Organizer should process AI requests.",
         "data": {
-          "api_key": "Google API Key (Optional)",
-          "use_ai": "Enable AI Features (Gemini)"
+          "processing_mode": "AI Processing Mode",
+          "ai_provider": "Cloud AI Provider",
+          "use_stylist": "Enable Virtual Try-On Stylist",
+          "storage_method": "Image storage location"
+        },
+        "data_description": {
+          "processing_mode": "Hybrid uses your local AI for text and a cloud model for images.",
+          "ai_provider": "Only used in Cloud or Hybrid mode. Gemini has a generous free tier.",
+          "use_stylist": "Requires additional setup on the next screen.",
+          "storage_method": "'www' is recommended for compatibility."
+        }
+      },
+      "api_keys": {
+        "title": "API Keys and Models",
+        "description": "Credentials are stored in your Home Assistant configuration and are never written to the log.",
+        "data": {
+          "api_key": "Cloud API Key",
+          "cloud_model": "Cloud model name",
+          "custom_cloud_url": "Custom cloud endpoint URL",
+          "local_api_url": "Local AI URL",
+          "local_api_key": "Local API Key",
+          "local_model": "Local model name"
+        },
+        "data_description": {
+          "api_key": "Gemini: aistudio.google.com. OpenAI: platform.openai.com.",
+          "cloud_model": "For example gemini-1.5-flash-latest or gpt-4o.",
+          "custom_cloud_url": "Optional. Typically only used for enterprise proxies.",
+          "local_api_url": "Ollama: http://<IP>:11434/v1. LM Studio: http://<IP>:1234/v1. Must end in /v1.",
+          "local_api_key": "Local servers usually ignore this, but do not leave it blank. Type 'ollama' or 'local'.",
+          "local_model": "Run 'ollama list' and copy the name exactly, for example llama3:8b."
+        }
+      },
+      "stylist": {
+        "title": "Virtual Try-On",
+        "description": "Configure the image generation provider used by the Stylist agent.",
+        "data": {
+          "vto_provider": "VTO provider",
+          "vto_url": "VTO endpoint URL",
+          "vto_key": "VTO API Key",
+          "vto_model": "VTO model identifier"
+        },
+        "data_description": {
+          "vto_url": "Required for local ComfyUI instances.",
+          "vto_key": "Required for Fal.ai and Fashn.ai.",
+          "vto_model": "Only needed if you use a custom workflow."
+        }
+      },
+      "triggers": {
+        "title": "Trigger Words and Permissions",
+        "description": "Trigger words are translated into your interface language automatically. You can override any of them here in any language.",
+        "data": {
+          "trigger_inventory": "Inventory triggers",
+          "trigger_shopping": "Shopping list triggers",
+          "trigger_cooking": "Cooking and recipe triggers",
+          "trigger_smart_home": "Smart home triggers",
+          "trigger_stylist": "Stylist triggers",
+          "trigger_reminder": "Reminder and timer triggers",
+          "trigger_calendar": "Calendar triggers",
+          "allow_scripts": "Allow the assistant to run scripts and scenes",
+          "debug_mode": "Enable debug logging",
+          "delete_on_remove": "Delete all data when the integration is removed"
+        },
+        "data_description": {
+          "trigger_inventory": "Comma-separated words.",
+          "trigger_shopping": "Comma-separated words.",
+          "trigger_cooking": "Comma-separated words.",
+          "trigger_smart_home": "Comma-separated words.",
+          "trigger_stylist": "Comma-separated words.",
+          "trigger_reminder": "Comma-separated words.",
+          "trigger_calendar": "Comma-separated words.",
+          "allow_scripts": "Off by default. A script can perform any action you wrote into it, including operating a lock, so enable this only if you want the assistant to start your scripts. Locks, covers and alarm panels are never controlled by the assistant directly; those requests are handled by Home Assistant's own voice assistant.",
+          "delete_on_remove": "Caution: this permanently wipes the database and all stored images."
         }
       }
     },
@@ -16,17 +86,105 @@
       "unknown": "Unexpected error"
     },
     "abort": {
-      "already_configured": "Service is already configured"
+      "already_configured": "Service is already configured",
+      "single_instance_allowed": "Only a single instance of Home Organizer is supported"
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Settings",
+        "title": "Home Organizer Settings",
+        "description": "Change how Home Organizer processes AI requests.",
         "data": {
-          "api_key": "Google API Key",
-          "use_ai": "Enable AI Features (Gemini)",
-          "debug_mode": "Enable Debug Logging"
+          "processing_mode": "AI Processing Mode",
+          "ai_provider": "Cloud AI Provider",
+          "use_stylist": "Enable Virtual Try-On Stylist"
+        },
+        "data_description": {
+          "processing_mode": "Hybrid uses your local AI for text and a cloud model for images.",
+          "ai_provider": "Only used in Cloud or Hybrid mode."
+        }
+      },
+      "api_keys": {
+        "title": "API Keys and Models",
+        "description": "Credentials are stored in your Home Assistant configuration and are never written to the log.",
+        "data": {
+          "api_key": "Cloud API Key",
+          "cloud_model": "Cloud model name",
+          "custom_cloud_url": "Custom cloud endpoint URL",
+          "local_api_url": "Local AI URL",
+          "local_api_key": "Local API Key",
+          "local_model": "Local model name"
+        },
+        "data_description": {
+          "api_key": "Gemini: aistudio.google.com. OpenAI: platform.openai.com.",
+          "cloud_model": "For example gemini-3.1-flash-lite or gpt-4o.",
+          "custom_cloud_url": "Optional. Typically only used for enterprise proxies.",
+          "local_api_url": "Ollama: http://<IP>:11434/v1. LM Studio: http://<IP>:1234/v1. Must end in /v1.",
+          "local_api_key": "Local servers usually ignore this, but do not leave it blank.",
+          "local_model": "Run 'ollama list' and copy the name exactly."
+        }
+      },
+      "stylist": {
+        "title": "Virtual Try-On",
+        "description": "Configure the image generation provider used by the Stylist agent.",
+        "data": {
+          "vto_provider": "VTO provider",
+          "vto_url": "VTO endpoint URL",
+          "vto_key": "VTO API Key",
+          "vto_model": "VTO model identifier"
+        },
+        "data_description": {
+          "vto_url": "Required for local ComfyUI instances.",
+          "vto_key": "Required for Fal.ai and Fashn.ai.",
+          "vto_model": "Only needed if you use a custom workflow."
+        }
+      },
+      "triggers": {
+        "title": "Trigger Words and Permissions",
+        "description": "Trigger words are translated into your interface language automatically. You can override any of them here in any language.",
+        "data": {
+          "trigger_inventory": "Inventory triggers",
+          "trigger_shopping": "Shopping list triggers",
+          "trigger_cooking": "Cooking and recipe triggers",
+          "trigger_smart_home": "Smart home triggers",
+          "trigger_stylist": "Stylist triggers",
+          "trigger_reminder": "Reminder and timer triggers",
+          "trigger_calendar": "Calendar triggers",
+          "allow_scripts": "Allow the assistant to run scripts and scenes",
+          "debug_mode": "Enable debug logging",
+          "delete_on_remove": "Delete all data when the integration is removed"
+        },
+        "data_description": {
+          "trigger_inventory": "Comma-separated words.",
+          "trigger_shopping": "Comma-separated words.",
+          "trigger_cooking": "Comma-separated words.",
+          "trigger_smart_home": "Comma-separated words.",
+          "trigger_stylist": "Comma-separated words.",
+          "trigger_reminder": "Comma-separated words.",
+          "trigger_calendar": "Comma-separated words.",
+          "allow_scripts": "Off by default. A script can perform any action you wrote into it, including operating a lock, so enable this only if you want the assistant to start your scripts. Locks, covers and alarm panels are never controlled by the assistant directly; those requests are handled by Home Assistant's own voice assistant.",
+          "delete_on_remove": "Caution: this permanently wipes the database and all stored images."
+        }
+      }
+    }
+  },
+  "services": {
+    "voice_command": {
+      "name": "Voice command",
+      "description": "Send a text command to the Home Organizer AI assistant.",
+      "fields": {
+        "text": {
+          "name": "Text",
+          "description": "The command or question to send to the assistant."
+        },
+        "language": {
+          "name": "Language",
+          "description": "Two-letter language code for the reply, for example en or he."
+        },
+        "conversation_id": {
+          "name": "Conversation ID",
+          "description": "Optional identifier used to keep conversation history separate."
         }
       }
     }

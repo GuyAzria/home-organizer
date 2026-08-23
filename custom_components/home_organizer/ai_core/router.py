@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+# // [MODIFIED v10.0.0 | 2026-08-23] Purpose: SECURITY HARDENING (HACS review).
+# // The Gemini API key no longer travels in the request URL; it is sent in
+# // the x-goog-api-key header instead. In addition every error string that
+# // leaves this module is scrubbed of the key. That second part matters
+# // because the aiohttp exception path here did not only reach
+# // home-assistant.log: the string is returned up the stack and rendered to
+# // the user inside the chat panel via smarthome_engine_error, so the key
+# // could appear on screen as well.
 # // [v9.0.0 | 2026-04-13] Purpose: Provider-level AI router. Talks to Gemini,
 # // OpenAI/Local, and Claude. Implements Local/Cloud/Hybrid selection logic
 # // and the safe-wrapper that falls back to local AI when the cloud fails in
@@ -6,6 +14,7 @@
 
 import asyncio
 import logging
+import re
 import aiohttp
 from aiohttp import ClientTimeout
 
@@ -36,6 +45,29 @@ class FallbackMockEntry:
 
 
 # ==========================================
+# [ADDED v10.0.0] SECRET SCRUBBING
+# ==========================================
+def _scrub_secrets(text, *secrets):
+    """Remove credentials from any string before it is logged or returned.
+
+    aiohttp exceptions stringify with the full request URL, and several
+    providers echo request details back in their error bodies. Every error
+    string produced by this module passes through here so a key can never
+    reach home-assistant.log or the chat panel.
+    """
+    if not text:
+        return text
+    cleaned = str(text)
+    for secret in secrets:
+        if secret and len(str(secret)) >= 8:
+            cleaned = cleaned.replace(str(secret), "***REDACTED***")
+    # Belt and braces: strip any remaining key=... query parameter.
+    cleaned = re.sub(r"(?i)([?&](?:key|api_key|access_token)=)[^&\s\"']+",
+                     r"\1***REDACTED***", cleaned)
+    return cleaned
+
+
+# ==========================================
 # RAW PROVIDER CALL
 # ==========================================
 async def async_universal_ai_router(hass, provider, base_url, api_key, model,
@@ -50,20 +82,29 @@ async def async_universal_ai_router(hass, provider, base_url, api_key, model,
             b64_data = image_data.split("base64,")[1]
 
         if provider == PROVIDER_GEMINI:
+            # [MODIFIED v10.0.0] The key used to be appended to the URL as
+            # ?key=... Any aiohttp error stringifies with the full URL, which
+            # leaked the key into the log AND into the chat reply. It now
+            # travels in a header, so no exception or log line can contain it.
             url = (
                 f"https://generativelanguage.googleapis.com/v1beta/models/"
-                f"{model}:generateContent?key={api_key}"
+                f"{model}:generateContent"
             )
+            headers = {
+                "Content-Type": "application/json",
+                "x-goog-api-key": api_key,
+            }
             payload = {"contents": [{"parts": [{"text": prompt}]}]}
             if image_data:
                 payload["contents"][0]["parts"].insert(
                     0,
                     {"inline_data": {"mime_type": mime_type, "data": b64_data}},
                 )
-            async with session.post(url, json=payload,
+            async with session.post(url, headers=headers, json=payload,
                                     timeout=ClientTimeout(total=90)) as resp:
                 if resp.status != 200:
-                    return None, f"Gemini API Error {resp.status}: {await resp.text()}"
+                    body = _scrub_secrets(await resp.text(), api_key)
+                    return None, f"Gemini API Error {resp.status}: {body}"
                 res = await resp.json()
                 text = (
                     res.get("candidates", [{}])[0]
@@ -98,7 +139,8 @@ async def async_universal_ai_router(hass, provider, base_url, api_key, model,
             async with session.post(endpoint, headers=headers, json=payload,
                                     timeout=ClientTimeout(total=90)) as resp:
                 if resp.status != 200:
-                    return None, f"OpenAI/Local API Error {resp.status}: {await resp.text()}"
+                    body = _scrub_secrets(await resp.text(), api_key)
+                    return None, f"OpenAI/Local API Error {resp.status}: {body}"
                 res = await resp.json()
                 text = (
                     res.get("choices", [{}])[0]
@@ -136,7 +178,8 @@ async def async_universal_ai_router(hass, provider, base_url, api_key, model,
             async with session.post(url, headers=headers, json=payload,
                                     timeout=ClientTimeout(total=90)) as resp:
                 if resp.status != 200:
-                    return None, f"Claude API Error {resp.status}: {await resp.text()}"
+                    body = _scrub_secrets(await resp.text(), api_key)
+                    return None, f"Claude API Error {resp.status}: {body}"
                 res = await resp.json()
                 text = res.get("content", [{}])[0].get("text", "")
                 return text, None
@@ -146,9 +189,15 @@ async def async_universal_ai_router(hass, provider, base_url, api_key, model,
     except asyncio.TimeoutError:
         return None, "Request timed out. The local AI took too long to answer."
     except aiohttp.ClientError as ce:
-        return None, f"Connection Failed: {str(ce)}. Check your local API URL."
+        # [MODIFIED v10.0.0] aiohttp stringifies with the full request URL.
+        # This string is returned up the stack and shown to the user in the
+        # chat panel, so it must be scrubbed even though the key now lives in
+        # a header rather than the URL.
+        return None, _scrub_secrets(
+            f"Connection Failed: {str(ce)}. Check your local API URL.", api_key
+        )
     except Exception as e:
-        return None, f"Router Exception: {str(e)}"
+        return None, _scrub_secrets(f"Router Exception: {str(e)}", api_key)
 
 
 # ==========================================
@@ -261,6 +310,14 @@ async def safe_smart_router(hass, entry: ConfigEntry, prompt: str,
         or entry.data.get(CONF_PROCESSING_MODE)
         or MODE_HYBRID
     )
+    # [ADDED v10.0.0] Read the configured keys so any exception raised below
+    # can be scrubbed before it is logged or returned to the caller.
+    cloud_key_for_scrub = (
+        entry.options.get("api_key") or entry.data.get("api_key") or ""
+    )
+    local_key_for_scrub = (
+        entry.options.get("local_api_key") or entry.data.get("local_api_key") or ""
+    )
     try:
         res, err = await async_smart_router(hass, entry, prompt, image_data, mime_type)
         if (
@@ -272,9 +329,12 @@ async def safe_smart_router(hass, entry: ConfigEntry, prompt: str,
             return await async_smart_router(
                 hass, FallbackMockEntry(entry), prompt, image_data, mime_type
             )
-        return res, err
+        return res, _scrub_secrets(err, cloud_key_for_scrub, local_key_for_scrub)
     except Exception as e:
-        err_str = str(e)
+        # [MODIFIED v10.0.0] frenck flagged this exact log line: an aiohttp
+        # ClientResponseError stringifies with the request URL. Scrubbed here
+        # as well, so neither the log nor the returned message can carry a key.
+        err_str = _scrub_secrets(str(e), cloud_key_for_scrub)
         if mode == MODE_HYBRID and any(
             kw in err_str.lower() for kw in ["connection", "timeout", "router", "failed"]
         ):
@@ -284,5 +344,5 @@ async def safe_smart_router(hass, entry: ConfigEntry, prompt: str,
                     hass, FallbackMockEntry(entry), prompt, image_data, mime_type
                 )
             except Exception as fe:
-                return None, str(fe)
+                return None, _scrub_secrets(str(fe), local_key_for_scrub)
         return None, err_str

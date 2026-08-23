@@ -1,4 +1,15 @@
 # -*- coding: utf-8 -*-
+# // [MODIFIED v10.0.0 | 2026-08-23] Purpose: Event-loop and session fixes
+# // raised in the HACS review.
+# //   1. The two `with open(result_path, "wb")` calls inside async render
+# //      helpers were blocking disk writes on the event loop. Those helpers
+# //      had no `hass` in scope, so rather than threading hass through only
+# //      to wrap the write, they now RETURN the image bytes and the single
+# //      write happens once in execute_tool via async_add_executor_job.
+# //   2. All four render helpers used to create their own
+# //      aiohttp.ClientSession. They now use Home Assistant's shared
+# //      session via async_get_clientsession(hass), which is why `hass` is
+# //      now their first argument.
 # // [MODIFIED v9.3.1 | 2026-08-02] Purpose: Refactored database interactions to use aiosqlite for full asynchronous I/O. Replaced get_db_connection with get_db_path and removed async_add_executor_job wrappers to prevent Event Loop blocking.
 # // [MODIFIED v9.3.0 | 2026-04-16] Purpose: Added full routing support for all 4 major VTO providers (Fal.ai, Local ComfyUI, Hugging Face Spaces, and Fashn.ai).
 # // [MODIFIED v9.2.1 | 2026-04-15] Purpose: Added user_id parameter to _get_user_avatar and execute_tool for multi-user VTO support.
@@ -14,6 +25,8 @@ import os
 import aiosqlite
 import json
 import aiohttp
+
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from ..database import get_db_path
 from ..ai_core.router import safe_smart_router
@@ -114,7 +127,13 @@ async def _get_user_avatar(hass, user_id):
         
     return None
 
-async def _render_cloud_fal(vto_url, vto_key, avatar_path, top_garment, bottom_garment, result_path):
+async def _render_cloud_fal(hass, vto_url, vto_key, avatar_path, top_garment, bottom_garment):
+    """[MODIFIED v10.0.0] Returns image bytes, or None.
+
+    Previously wrote to disk with a synchronous open() inside this async
+    function, blocking the event loop. The caller now owns the write and
+    performs it in the executor.
+    """
     headers = {
         "Authorization": f"Key {vto_key}",
         "Content-Type": "application/json"
@@ -124,24 +143,29 @@ async def _render_cloud_fal(vto_url, vto_key, avatar_path, top_garment, bottom_g
         "garment_top_url": top_garment,
         "garment_bottom_url": bottom_garment
     }
-    
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=90)) as session:
-        async with session.post(vto_url, json=payload, headers=headers) as response:
-            if response.status == 200:
-                data = await response.json()
-                image_url = data.get("image", {}).get("url")
-                if image_url:
-                    async with session.get(image_url) as img_resp:
-                        if img_resp.status == 200:
-                            img_data = await img_resp.read()
-                            with open(result_path, "wb") as f:
-                                f.write(img_data)
-                            return True
-            else:
-                _LOGGER.error(f"Fal.ai Error: {await response.text()}")
-    return False
 
-async def _render_local_comfyui(vto_url, avatar_path, top_garment, bottom_garment, result_path):
+    session = async_get_clientsession(hass)
+    async with session.post(vto_url, json=payload, headers=headers,
+                            timeout=aiohttp.ClientTimeout(total=90)) as response:
+        if response.status == 200:
+            data = await response.json()
+            image_url = data.get("image", {}).get("url")
+            if image_url:
+                async with session.get(image_url) as img_resp:
+                    if img_resp.status == 200:
+                        return await img_resp.read()
+        else:
+            _LOGGER.error(f"Fal.ai Error: {await response.text()}")
+    return None
+
+async def _render_local_comfyui(hass, vto_url, avatar_path, top_garment, bottom_garment):
+    """[MODIFIED v10.0.0] Uses Home Assistant's shared aiohttp session.
+
+    NOTE: this provider queues a job and returns a prompt_id; it does not
+    return the finished image, so there are no bytes to hand back. It returns
+    an empty bytes object to signal "queued, nothing to write", preserving
+    the previous behaviour rather than changing it in a security PR.
+    """
     comfy_prompt = {
         "prompt": {
             "3": {"class_type": "LoadImage", "inputs": {"image": avatar_path}},
@@ -151,17 +175,23 @@ async def _render_local_comfyui(vto_url, avatar_path, top_garment, bottom_garmen
         }
     }
     
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=180)) as session:
-        async with session.post(f"{vto_url}/prompt", json=comfy_prompt) as response:
-            if response.status == 200:
-                data = await response.json()
-                prompt_id = data.get("prompt_id")
-                return True
-            else:
-                _LOGGER.error(f"ComfyUI Error: {await response.text()}")
-    return False
+    session = async_get_clientsession(hass)
+    async with session.post(f"{vto_url}/prompt", json=comfy_prompt,
+                            timeout=aiohttp.ClientTimeout(total=180)) as response:
+        if response.status == 200:
+            data = await response.json()
+            prompt_id = data.get("prompt_id")
+            _LOGGER.debug("ComfyUI queued VTO job %s", prompt_id)
+            return b""
+        _LOGGER.error(f"ComfyUI Error: {await response.text()}")
+    return None
 
-async def _render_cloud_huggingface(vto_url, vto_key, avatar_path, top_garment, bottom_garment, result_path):
+async def _render_cloud_huggingface(hass, vto_url, vto_key, avatar_path, top_garment, bottom_garment):
+    """[MODIFIED v10.0.0] Uses Home Assistant's shared aiohttp session.
+
+    Like ComfyUI this endpoint returns an event_id rather than the image, so
+    it hands back empty bytes meaning "queued, nothing to write".
+    """
     headers = {"Content-Type": "application/json"}
     if vto_key:
         headers["Authorization"] = f"Bearer {vto_key}"
@@ -178,17 +208,24 @@ async def _render_cloud_huggingface(vto_url, vto_key, avatar_path, top_garment, 
         ]
     }
     
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=180)) as session:
-        async with session.post(f"{vto_url.rstrip('/')}/call/tryon", json=payload, headers=headers) as response:
-            if response.status == 200:
-                data = await response.json()
-                event_id = data.get("event_id")
-                return True
-            else:
-                _LOGGER.error(f"Hugging Face API Error: {await response.text()}")
-    return False
+    session = async_get_clientsession(hass)
+    async with session.post(f"{vto_url.rstrip('/')}/call/tryon", json=payload,
+                            headers=headers,
+                            timeout=aiohttp.ClientTimeout(total=180)) as response:
+        if response.status == 200:
+            data = await response.json()
+            event_id = data.get("event_id")
+            _LOGGER.debug("Hugging Face queued VTO job %s", event_id)
+            return b""
+        _LOGGER.error(f"Hugging Face API Error: {await response.text()}")
+    return None
 
-async def _render_cloud_fashn(vto_url, vto_key, avatar_path, top_garment, bottom_garment, result_path):
+async def _render_cloud_fashn(hass, vto_url, vto_key, avatar_path, top_garment, bottom_garment):
+    """[MODIFIED v10.0.0] Returns image bytes, or None.
+
+    Same fix as _render_cloud_fal: the synchronous open() that ran on the
+    event loop is gone; the caller writes the bytes in the executor.
+    """
     headers = {
         "Authorization": f"Bearer {vto_key}",
         "Content-Type": "application/json"
@@ -201,21 +238,19 @@ async def _render_cloud_fashn(vto_url, vto_key, avatar_path, top_garment, bottom
     
     endpoint = vto_url if vto_url and "api" in vto_url else "https://api.fashn.ai/v1/run"
     
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=90)) as session:
-        async with session.post(endpoint, json=payload, headers=headers) as response:
-            if response.status == 200 or response.status == 201:
-                data = await response.json()
-                img_url = data.get("image_url") or (data.get("images") and data["images"][0])
-                if img_url:
-                    async with session.get(img_url) as img_resp:
-                        if img_resp.status == 200:
-                            img_data = await img_resp.read()
-                            with open(result_path, "wb") as f:
-                                f.write(img_data)
-                            return True
-            else:
-                _LOGGER.error(f"Fashn.ai Error: {await response.text()}")
-    return False
+    session = async_get_clientsession(hass)
+    async with session.post(endpoint, json=payload, headers=headers,
+                            timeout=aiohttp.ClientTimeout(total=90)) as response:
+        if response.status == 200 or response.status == 201:
+            data = await response.json()
+            img_url = data.get("image_url") or (data.get("images") and data["images"][0])
+            if img_url:
+                async with session.get(img_url) as img_resp:
+                    if img_resp.status == 200:
+                        return await img_resp.read()
+        else:
+            _LOGGER.error(f"Fashn.ai Error: {await response.text()}")
+    return None
 
 
 # ==========================================
@@ -256,20 +291,31 @@ async def execute_tool(hass, tool_name, kwargs, user_id):
             if not avatar_path:
                 return "Error: User avatar not found. Please upload a base image in the UI first."
 
-            success = False
+            # [MODIFIED v10.0.0] The render helpers now return image bytes
+            # (or b"" when the provider only queues a job) instead of writing
+            # to disk themselves. `image_bytes is None` means failure.
+            image_bytes = None
             if vto_provider == VTO_PROVIDER_COMFYUI and vto_url:
-                success = await _render_local_comfyui(vto_url, avatar_path, top_garment, bottom_garment, vto_result_path)
+                image_bytes = await _render_local_comfyui(hass, vto_url, avatar_path, top_garment, bottom_garment)
             elif vto_provider == VTO_PROVIDER_FAL and vto_url and vto_key:
-                success = await _render_cloud_fal(vto_url, vto_key, avatar_path, top_garment, bottom_garment, vto_result_path)
+                image_bytes = await _render_cloud_fal(hass, vto_url, vto_key, avatar_path, top_garment, bottom_garment)
             elif vto_provider == VTO_PROVIDER_HUGGINGFACE and vto_url:
-                success = await _render_cloud_huggingface(vto_url, vto_key, avatar_path, top_garment, bottom_garment, vto_result_path)
+                image_bytes = await _render_cloud_huggingface(hass, vto_url, vto_key, avatar_path, top_garment, bottom_garment)
             elif vto_provider == VTO_PROVIDER_FASHN and vto_key:
-                success = await _render_cloud_fashn(vto_url, vto_key, avatar_path, top_garment, bottom_garment, vto_result_path)
+                image_bytes = await _render_cloud_fashn(hass, vto_url, vto_key, avatar_path, top_garment, bottom_garment)
             else:
                 return f"Error: Invalid VTO configuration for {vto_provider}."
 
-            if not success:
+            if image_bytes is None:
                 return "Error: VTO Image Generation failed."
+
+            # The single disk write for the whole VTO flow, off the loop.
+            if image_bytes:
+                def _write_result():
+                    with open(vto_result_path, "wb") as f:
+                        f.write(image_bytes)
+
+                await hass.async_add_executor_job(_write_result)
 
             service_data = {
                 "message": whatsapp_message,

@@ -1,4 +1,13 @@
 # -*- coding: utf-8 -*-
+# // [MODIFIED v10.0.0 | 2026-08-23] Purpose: SECURITY HARDENING (HACS review).
+# // The traffic cop now gives Home Assistant's own built-in conversation
+# // agent the first attempt at every device-control request. Locks and covers
+# // are therefore executed by HA core under the user's existing exposure
+# // settings and permission model, and never by an LLM. Only when the
+# // built-in agent replies NO_INTENT_MATCH does the request continue to the
+# // HO-AI smart home agent, where a fixed allow-list applies.
+# // Also fixes the trailing-message pop so it only happens when we actually
+# // continue to our own agent.
 # // [MODIFIED v9.8.1 | 2026-05-14] Purpose: Offloaded dynamic agent module imports to a background thread using hass.async_add_executor_job to resolve asyncio blocking I/O loop errors.
 # // [MODIFIED v9.8.0 | 2026-05-12] Purpose: Refined the LLM classifier prompt to explicitly include examples for deleting specific time-based reminders and clearing daily reminders. Expanded the English fallback triggers to catch direct cancellation phrases faster.
 # // [MODIFIED v9.7.0 | 2026-05-04] Purpose: Added a 'GENERAL' agent catch-all domain for jokes, stories, trivia, and open-ended conversation. Updated the LLM classifier to route unmatched general queries to this new agent.
@@ -22,10 +31,13 @@ import re
 import importlib
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import Context
+from homeassistant.helpers import intent as intent_helper
 
 from ..const import (
     CONF_PROCESSING_MODE, MODE_HYBRID,
     CONF_TRIGGER_REMINDER, CONF_TRIGGER_CALENDAR,
+    HA_BUILTIN_CONVERSATION_AGENT,
 )
 from .router import async_smart_router, safe_smart_router, FallbackMockEntry
 from .json_utils import safe_parse_json
@@ -75,6 +87,94 @@ REMINDER_FALLBACK_TRIGGERS_EN = [
     "clear reminders",
     "remove reminder",
 ]
+
+
+# ==========================================
+# [ADDED v10.0.0] DELEGATION TO HOME ASSISTANT'S BUILT-IN AGENT
+# ==========================================
+async def async_try_home_assistant_agent(hass, text, language, user_id=None,
+                                         device_id=None, conversation_id=None):
+    """Give Home Assistant's own conversation agent the first attempt.
+
+    Why this exists
+    ---------------
+    Locks, covers and any other sensitive device are no longer executed by
+    this integration. Instead the raw sentence is handed to HA core's
+    built-in intent engine, which:
+      * only touches entities the user has exposed to Assist,
+      * applies Home Assistant's own permission model,
+      * never involves a cloud model, so a prompt injection has nothing to
+        act on, and
+      * costs zero tokens for ordinary commands like "turn on the lights".
+
+    Return value
+    ------------
+    A string when HA handled the request (that string is the final answer),
+    or None when HA did not understand it and the caller should continue to
+    the HO-AI agent.
+
+    Important details
+    -----------------
+    * agent_id is pinned to the built-in agent. Passing None would resolve to
+      the user's DEFAULT agent, which may well be HO-AI itself, producing
+      infinite recursion.
+    * Only NO_INTENT_MATCH means "not understood". Any other error (entity
+      not exposed, no valid target, and so on) is a real answer from HA and
+      is returned to the user as-is, otherwise the user would get a confusing
+      "device not found" from our agent instead of HA's accurate explanation.
+    """
+    try:
+        # Imported lazily: the conversation component may not be loaded in
+        # every installation, and a hard import at module level would break
+        # the whole dispatcher.
+        from homeassistant.components import conversation
+    except ImportError:  # pragma: no cover
+        return None
+
+    ha_context = Context(user_id=user_id) if user_id else Context()
+
+    try:
+        result = await conversation.async_converse(
+            hass=hass,
+            text=text,
+            conversation_id=conversation_id,
+            context=ha_context,
+            language=language,
+            agent_id=HA_BUILTIN_CONVERSATION_AGENT,
+            device_id=device_id,
+        )
+    except Exception as err:
+        # Older cores, a missing built-in agent entity, or an unexpected
+        # signature change must never take the whole chat down. Fall through
+        # to our own agent instead.
+        _LOGGER.debug("HA built-in agent delegation unavailable: %s", err)
+        return None
+
+    try:
+        response = result.response
+
+        is_no_match = (
+            response.response_type == intent_helper.IntentResponseType.ERROR
+            and response.error_code
+            == intent_helper.IntentResponseErrorCode.NO_INTENT_MATCH
+        )
+        if is_no_match:
+            return None
+
+        speech = response.speech.get("plain", {}).get("speech", "")
+        if speech:
+            _LOGGER.info("Routing: handled natively by Home Assistant Assist.")
+            return speech
+
+        # Understood and executed, but with no spoken text configured.
+        if response.response_type != intent_helper.IntentResponseType.ERROR:
+            _LOGGER.info("Routing: handled natively by Home Assistant Assist.")
+            return "🏠"
+
+        return None
+    except Exception as err:  # pragma: no cover - defensive
+        _LOGGER.debug("Could not interpret HA agent response: %s", err)
+        return None
 
 
 # ==========================================
@@ -207,7 +307,7 @@ Return ONLY a JSON object in one of these exact formats:
 3. If searching for an item: {{"intent": "search"}}
 4. If CONTINUING an active cooking session, asking for a recipe, SAVING a recipe to the database, LOADING a saved recipe, or navigating WITHIN a recipe in progress (e.g. "save this recipe", "keep this recipe", "save it to your DB", "load my saved cheesecake recipe", "jump to step 4", "go back to step 2", as well as the standard "give me a recipe for..."): {{"intent": "cook", "recipe_name": "Name of dish or 'current'"}}
 5. If explicitly ending the recipe or clearing history (e.g., "End session", "Clear history"): {{"intent": "end_session", "message": "Confirm in {target_lang} that the session history is cleared"}}
-6. If asking to control smart home devices, executing home routines (e.g., "good night", "good morning"), OR asking for the time, date, weather, or news/headlines: {{"intent": "smart_home"}}
+6. If asking to control ANY physical device in the house - lights, switches, fans, air conditioning, media players, and ALSO doors, locks, gates, shutters, blinds, curtains or garage doors - or executing home routines (e.g., "good night", "good morning"), OR asking for the time, date, weather, or news/headlines: {{"intent": "smart_home"}}
 7. If asking for fashion/stylist advice or what to wear: {{"intent": "stylist"}}
 8. If asking ANYTHING about time-based reminders/alarms/timers — SETTING a new one, LISTING existing ones, or CANCELLING/DELETING them (e.g., "remind me in 10 minutes", "what are my active reminders", "cancel the 3 AM reminder", "delete the mail reminder", "clear all reminders today"): {{"intent": "reminder"}}
 9. If asking ANYTHING about calendar events, meetings, or appointments — ADDING a new one, LISTING existing ones, CANCELLING/DELETING one, or RESCHEDULING (moving) one to a different date/time (e.g., "add meeting with X next Monday", "what meetings do I have this week", "cancel my appointment on Friday", "move the meeting to next Tuesday"): {{"intent": "calendar"}}
@@ -370,21 +470,53 @@ async def async_universal_agent_loop(hass, entry, messages, target_lang,
 
     # 5. Final routing decision.
     domain_to_run = "INVENTORY"
+    matched_any_domain = False
 
     if explicit_domain in (
         "SMART_HOME", "STYLIST", "SHOPPING",
         "REMINDER", "CALENDAR", "COOKING", "GENERAL"
     ):
         domain_to_run = explicit_domain
+        matched_any_domain = True
     elif i_type in (
         "smart_home", "stylist", "shopping",
         "reminder", "calendar", "search", "general"
     ):
         domain_to_run = "INVENTORY" if i_type == "search" else i_type.upper()
+        matched_any_domain = True
     elif is_cooking:
         domain_to_run = "COOKING"
+        matched_any_domain = True
 
-    # Smarthome agent expects the trailing user message to NOT be in messages.
+    # [ADDED v10.0.0] Delegation point 1: device control.
+    # Every smart home request gets handed to Home Assistant's built-in agent
+    # before any model is involved. If HA understood it, we are done, and a
+    # lock or cover was just executed by HA core rather than by an LLM.
+    if domain_to_run == "SMART_HOME":
+        ha_reply = await async_try_home_assistant_agent(
+            hass, last_user_msg, lang_code, user_id=user_id, device_id=device_id
+        )
+        if ha_reply is not None:
+            messages.append({"role": "assistant", "content": ha_reply})
+            return ha_reply
+
+    # [ADDED v10.0.0] Delegation point 2: safety net.
+    # Nothing matched and we are about to default to INVENTORY. Local intent
+    # matching costs milliseconds, so try HA once more here: this catches
+    # device commands that the (translated) trigger words missed in a given
+    # language, and keeps them out of the model entirely.
+    if not matched_any_domain and not is_cooking:
+        ha_reply = await async_try_home_assistant_agent(
+            hass, last_user_msg, lang_code, user_id=user_id, device_id=device_id
+        )
+        if ha_reply is not None:
+            messages.append({"role": "assistant", "content": ha_reply})
+            return ha_reply
+
+    # [MODIFIED v10.0.0] The smarthome agent expects the trailing user message
+    # to NOT be in `messages`. This pop used to run unconditionally, which
+    # would corrupt the history whenever we returned early above. It now runs
+    # only on the path that actually reaches our own smart home agent.
     if domain_to_run == "SMART_HOME":
         if messages and messages[-1].get("role", "").lower() == "user":
             messages.pop()

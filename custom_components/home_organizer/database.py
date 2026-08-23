@@ -21,8 +21,10 @@ def get_db_path(hass):
 
 async def async_init_db(hass):
     img_path = hass.data.get(DOMAIN, {}).get("config", {}).get("img_path", hass.config.path("www", IMG_DIR))
-    if not os.path.exists(img_path):
-        os.makedirs(img_path)
+    # [MODIFIED v10.0.0] os.path.exists and os.makedirs are blocking disk
+    # operations and were running directly on the event loop inside this
+    # async function. Same class of issue as the ones raised in review.
+    await hass.async_add_executor_job(os.makedirs, img_path, True)
     
     db_path = get_db_path(hass)
     try:

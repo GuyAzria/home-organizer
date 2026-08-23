@@ -1,5 +1,14 @@
 # -*- coding: utf-8 -*-
 # Home Organizer Ultimate
+# [MODIFIED v10.0.0 | 2026-08-23] Purpose: SECURITY HARDENING (HACS review).
+#   1. websocket_ai_chat now forwards the authenticated user's id to the
+#      agent loop. Without it the smart home agent has no identity to run
+#      a permission check against, which is the exact path frenck flagged.
+#   2. The chat session is now keyed per user instead of a single shared
+#      "web_session", so one user's conversation history can no longer be
+#      read by, or injected into, another user's turn.
+#   3. async_remove_entry no longer calls os.remove / shutil.rmtree on the
+#      event loop.
 # [MODIFIED v8.58.0 | 2026-08-02] Purpose: Removed local APK sync logic (migrated to GitHub Releases) and updated app references to HO_Mind_AI. Converted to full async/await using aiosqlite.
 
 import logging
@@ -564,15 +573,27 @@ async def websocket_ai_chat(hass, connection, msg):
             connection.send_result(msg["id"], {"error": "Failed to resolve barcode."})
             return
 
-        if "web_session" not in ACTIVE_SESSIONS:
-            ACTIVE_SESSIONS["web_session"] = []
-            
-        ACTIVE_SESSIONS["web_session"].append({"role": "user", "content": user_message})
-        
-        final_reply = await safe_universal_agent_loop(hass, entry, mode, ACTIVE_SESSIONS["web_session"], target_lang, existing_locs_str, loc_hierarchy_map)
-        
-        if len(ACTIVE_SESSIONS["web_session"]) > 10:
-            ACTIVE_SESSIONS["web_session"] = ACTIVE_SESSIONS["web_session"][-10:]
+        # [MODIFIED v10.0.0] Identify the caller. connection.user is the
+        # authenticated Home Assistant user behind this websocket command.
+        # It is forwarded to the agent loop so the smart home agent can run a
+        # real permission check before any service call, and it keys the
+        # session so histories are never shared between users.
+        ws_user = getattr(connection, "user", None)
+        ws_user_id = getattr(ws_user, "id", None)
+        session_key = f"web_session_{ws_user_id or 'anonymous'}"
+
+        if session_key not in ACTIVE_SESSIONS:
+            ACTIVE_SESSIONS[session_key] = []
+
+        ACTIVE_SESSIONS[session_key].append({"role": "user", "content": user_message})
+
+        final_reply = await safe_universal_agent_loop(
+            hass, entry, mode, ACTIVE_SESSIONS[session_key], target_lang,
+            existing_locs_str, loc_hierarchy_map, user_id=ws_user_id
+        )
+
+        if len(ACTIVE_SESSIONS[session_key]) > 10:
+            ACTIVE_SESSIONS[session_key] = ACTIVE_SESSIONS[session_key][-10:]
 
         connection.send_result(msg["id"], {"response": final_reply})
         return
@@ -892,10 +913,16 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
                     db_path = os.path.join("/media", DB_FILE)
                     img_path = os.path.join("/media", IMG_DIR)
 
-            if os.path.exists(db_path):
-                os.remove(db_path)
-            
-            if os.path.exists(img_path):
-                shutil.rmtree(img_path)
+            # [MODIFIED v10.0.0] os.remove / shutil.rmtree are blocking disk
+            # operations and were running directly on the event loop inside
+            # this async function. Both the existence checks and the deletes
+            # are now performed in the executor.
+            def _remove_data():
+                if os.path.exists(db_path):
+                    os.remove(db_path)
+                if os.path.exists(img_path):
+                    shutil.rmtree(img_path)
+
+            await hass.async_add_executor_job(_remove_data)
         except Exception as e:
             _LOGGER.error(f"Error deleting Home Organizer data: {e}")

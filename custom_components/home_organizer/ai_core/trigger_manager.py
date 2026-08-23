@@ -45,11 +45,20 @@ MASTER_TRIGGERS_EN = {
         "kitchen", "food", "cuisine", "fry", "boil", "roast",
         "step by step",
     ],
+    # [MODIFIED v10.0.0] Added lock/cover vocabulary. These are the most
+    # sensitive words in the whole system, and until now "lock" appeared in
+    # no list at all, so a lock request depended entirely on the LLM
+    # classifier. They must land in SMART_HOME reliably, because that is the
+    # branch that delegates to Home Assistant's own agent before any model
+    # sees the request.
     "SMART_HOME": [
         "homie", "smart home", "home", "turn on", "turn off",
         "switch on", "switch off", "light", "lights", "lamp",
         "ac", "air conditioner", "air conditioning", "blinds",
         "curtain", "thermostat", "temperature", "fan",
+        "lock", "unlock", "door", "front door", "gate",
+        "shutter", "shutters", "garage", "roller shutter",
+        "open the", "close the",
     ],
     "STYLIST": [
         "stylist", "clothes", "outfit", "wear", "what to wear",
@@ -78,8 +87,15 @@ DOMAIN_TO_CONF_KEY = {
 # ==========================================
 def _cache_path(hass):
     """Cache lives in /config (NOT inside the integration folder) so that
-    integration upgrades cannot accidentally delete it."""
-    return hass.config.path("home_organizer_triggers_cache.json")
+    integration upgrades cannot accidentally delete it.
+
+    [MODIFIED v10.0.0] Version suffix added. MASTER_TRIGGERS_EN gained the
+    lock/cover vocabulary, and an existing cache would be treated as complete
+    and never retranslated, so upgrading users would silently keep the old
+    word list. Bumping the filename forces exactly one retranslation per
+    language with no manual file deletion.
+    """
+    return hass.config.path("home_organizer_triggers_cache_v2.json")
 
 
 # In-memory mirror of the on-disk cache. Avoids re-reading the file on every

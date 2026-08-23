@@ -41,6 +41,28 @@ MASTER_STRINGS_EN = {
     "smarthome_unknown_device": "I couldn't identify the exact device or action.",
     "smarthome_parse_error": "Failed to parse the Smart Home command.",
     "smarthome_unsure":      "I wasn't sure how to proceed with that smart home request.",
+    # [ADDED v10.0.0] Security-related smart home messages.
+    # smarthome_not_allowed is deliberately explicit: without it a blocked
+    # lock/cover request would return "device not found", which is misleading.
+    "smarthome_not_allowed": (
+        "I'm not allowed to run that action. Locks and covers are handled by "
+        "Home Assistant's own voice assistant, so try phrasing it the way "
+        "Assist expects, or add an alias to that entity. Alarm panels can't "
+        "be controlled by chat at all."
+    ),
+    "smarthome_no_permission": "You don't have permission to control that device.",
+    "smarthome_execution_failed": "The command was accepted but Home Assistant could not complete it.",
+    "smarthome_scripts_disabled": (
+        "Running scripts and scenes is turned off. You can enable it in the "
+        "Home Organizer options if you want me to start them."
+    ),
+
+    # [ADDED v10.0.0] News keys. These were already being looked up with
+    # .get() and a hardcoded English default, which meant non-English users
+    # always saw English on the error paths.
+    "news_fetch_error":      "Sorry, I could not fetch the news right now.",
+    "news_engine_error":     "Error formulating the news.",
+    "news_parse_error":      "Error formulating the news.",
 
     # Reminder
     "reminder_in_past":       "The requested time is in the past!",
@@ -55,8 +77,15 @@ MASTER_STRINGS_EN = {
 # CACHE FILE
 # ==========================================
 def _cache_path(hass):
-    """Cache lives in /config so integration upgrades cannot delete it."""
-    return hass.config.path("home_organizer_strings_cache.json")
+    """Cache lives in /config so integration upgrades cannot delete it.
+
+    [MODIFIED v10.0.0] The filename carries a version suffix. New keys were
+    added to MASTER_STRINGS_EN, and an existing cache would otherwise be
+    considered complete, leaving the new security messages permanently in
+    English. Bumping the filename retranslates once, automatically, with no
+    manual cleanup by the user.
+    """
+    return hass.config.path("home_organizer_strings_cache_v2.json")
 
 
 _MEMORY_CACHE = None

@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
 # Home Organizer Ultimate
+# // [MODIFIED v10.0.0 | 2026-08-23] Purpose: SECURITY HARDENING (HACS review).
+# //   1. Every credential field (cloud key, local key, VTO key) is now a
+# //      password TextSelector instead of a bare `str`, so keys are masked
+# //      in the UI rather than typed and displayed in clear.
+# //   2. Added CONF_ALLOW_SCRIPTS to BOTH the config flow and the options
+# //      flow. It is OFF by default: the AI agent cannot start user-written
+# //      scripts or scenes unless the owner explicitly opts in.
 # // [MODIFIED v9.5.0 | 2026-04-18] Purpose: Added CONF_TRIGGER_REMINDER and
 # // CONF_TRIGGER_CALENDAR fields to BOTH the initial config flow and the
 # // options flow triggers step. Cleaned up every hardcoded non-English
@@ -16,6 +23,11 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers.selector import (
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
+)
 
 from .const import (
     DOMAIN, CONF_API_KEY, CONF_DEBUG, CONF_USE_AI,
@@ -31,6 +43,7 @@ from .const import (
     CONF_USE_STYLIST, CONF_VTO_PROVIDER, CONF_VTO_URL, CONF_VTO_KEY, CONF_VTO_MODEL,
     VTO_PROVIDER_FAL, VTO_PROVIDER_COMFYUI,
     VTO_PROVIDER_HUGGINGFACE, VTO_PROVIDER_FASHN,
+    CONF_ALLOW_SCRIPTS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -46,6 +59,13 @@ DEFAULT_TRIGGER_SMART_HOME = "homie, smart home, home"
 DEFAULT_TRIGGER_STYLIST = "stylist, clothes, outfit, fashion"
 DEFAULT_TRIGGER_REMINDER = "remind, reminder, timer, alert"
 DEFAULT_TRIGGER_CALENDAR = "calendar, schedule, meeting, appointment"
+
+
+# [ADDED v10.0.0] Shared password selector. Credentials must never be
+# declared as a bare `str`, which renders as a plain, fully visible text box.
+PASSWORD_SELECTOR = TextSelector(
+    TextSelectorConfig(type=TextSelectorType.PASSWORD)
+)
 
 
 class HomeOrganizerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -106,7 +126,7 @@ class HomeOrganizerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_API_KEY, 
                 default="",
                 description="Cloud API Key. For Gemini: Get it free at aistudio.google.com. For OpenAI: platform.openai.com."
-            )] = str
+            )] = PASSWORD_SELECTOR
             schema[vol.Optional(
                 "cloud_model", 
                 default="",
@@ -130,7 +150,7 @@ class HomeOrganizerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 "local_api_key", 
                 default="",
                 description="Local API Key. Local servers don't require keys, but DO NOT leave this blank. Type 'ollama' or 'local'."
-            )] = str
+            )] = PASSWORD_SELECTOR
             schema[vol.Optional(
                 "local_model", 
                 default="gpt-oss:120b",
@@ -172,7 +192,7 @@ class HomeOrganizerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_VTO_KEY, 
                     default="",
                     description="VTO API Key (Required for Fal.ai or Fashn.ai cloud providers)."
-                ): str,
+                ): PASSWORD_SELECTOR,
                 vol.Optional(
                     CONF_VTO_MODEL, 
                     default="",
@@ -225,6 +245,14 @@ class HomeOrganizerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     default=DEFAULT_TRIGGER_CALENDAR,
                     description="Comma-separated words to trigger Calendar events."
                 ): str,
+                # [ADDED v10.0.0] Secure by default. A user-written script can
+                # do anything, including unlocking a door, so letting the AI
+                # start scripts and scenes is an explicit, informed opt-in.
+                vol.Optional(
+                    CONF_ALLOW_SCRIPTS,
+                    default=False,
+                    description="Allow the AI assistant to run your scripts and scenes. Off by default: a script can perform any action you wrote into it, including operating locks."
+                ): bool,
                 vol.Optional(
                     CONF_DEBUG,            
                     default=False,
@@ -293,7 +321,7 @@ class HomeOrganizerOptionsFlowHandler(config_entries.OptionsFlow):
                 CONF_API_KEY,
                 default=self.data.get(CONF_API_KEY, ""),
                 description="Cloud API Key. For Gemini: Get it free at aistudio.google.com. For OpenAI: platform.openai.com."
-            )] = str
+            )] = PASSWORD_SELECTOR
             schema[vol.Optional(
                 "cloud_model",
                 default=self.data.get("cloud_model", ""),
@@ -317,7 +345,7 @@ class HomeOrganizerOptionsFlowHandler(config_entries.OptionsFlow):
                 "local_api_key",
                 default=self.data.get("local_api_key", ""),
                 description="Local API Key. Local servers don't require keys, but DO NOT leave this blank. Type 'ollama' or 'local'."
-            )] = str
+            )] = PASSWORD_SELECTOR
             schema[vol.Optional(
                 "local_model",
                 default=self.data.get("local_model", "gpt-oss:120b"),
@@ -358,7 +386,7 @@ class HomeOrganizerOptionsFlowHandler(config_entries.OptionsFlow):
                     CONF_VTO_KEY,
                     default=self.data.get(CONF_VTO_KEY, ""),
                     description="VTO API Key (Required for Fal.ai or Fashn.ai cloud providers)."
-                ): str,
+                ): PASSWORD_SELECTOR,
                 vol.Optional(
                     CONF_VTO_MODEL,
                     default=self.data.get(CONF_VTO_MODEL, ""),
@@ -410,6 +438,13 @@ class HomeOrganizerOptionsFlowHandler(config_entries.OptionsFlow):
                     default=self.data.get(CONF_TRIGGER_CALENDAR, DEFAULT_TRIGGER_CALENDAR),
                     description="Comma-separated words to trigger Calendar events."
                 ): str,
+                # [ADDED v10.0.0] Mirrored here so the toggle remains editable
+                # after installation. Present in both flows on purpose.
+                vol.Optional(
+                    CONF_ALLOW_SCRIPTS,
+                    default=self.data.get(CONF_ALLOW_SCRIPTS, False),
+                    description="Allow the AI assistant to run your scripts and scenes. Off by default: a script can perform any action you wrote into it, including operating locks."
+                ): bool,
                 vol.Optional(
                     CONF_DEBUG,
                     default=self.data.get(CONF_DEBUG, False),
