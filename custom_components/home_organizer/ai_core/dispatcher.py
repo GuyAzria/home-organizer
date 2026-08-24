@@ -1,30 +1,36 @@
 # -*- coding: utf-8 -*-
+#
+# Home Organizer for Home Assistant
+# Copyright (C) 2026 Guy Azria
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+# more details. <https://www.gnu.org/licenses/>.
+#
+# [FIXED v2026.8.24] Any error returned by Home Assistant's built-in
+# conversation agent now counts as "not handled", and the request continues to
+# the Home Organizer agent. Previously only NO_INTENT_MATCH fell through, so a
+# command HA parsed but could not target - "turn on the hallway light" for an
+# entity not exposed to Assist - was answered with HA's own error text and our
+# agent never got to run. Covers and locks are unaffected: they are stopped
+# separately by async_is_delegated_request.
+#
 # // [MODIFIED v10.0.0 | 2026-08-23] Purpose: SECURITY HARDENING (HACS review).
 # // The traffic cop now gives Home Assistant's own built-in conversation
 # // agent the first attempt at every device-control request. Locks and covers
 # // are therefore executed by HA core under the user's existing exposure
 # // settings and permission model, and never by an LLM. Only when the
-# // built-in agent replies NO_INTENT_MATCH does the request continue to the
-# // HO-AI smart home agent, where a fixed allow-list applies.
+# // built-in agent fails to handle the request does it continue to the HO-AI
+# // smart home agent, where a fixed allow-list applies.
 # // Also fixes the trailing-message pop so it only happens when we actually
 # // continue to our own agent.
 # // [MODIFIED v9.8.1 | 2026-05-14] Purpose: Offloaded dynamic agent module imports to a background thread using hass.async_add_executor_job to resolve asyncio blocking I/O loop errors.
-# // [MODIFIED v9.8.0 | 2026-05-12] Purpose: Refined the LLM classifier prompt to explicitly include examples for deleting specific time-based reminders and clearing daily reminders. Expanded the English fallback triggers to catch direct cancellation phrases faster.
-# // [MODIFIED v9.7.0 | 2026-05-04] Purpose: Added a 'GENERAL' agent catch-all domain for jokes, stories, trivia, and open-ended conversation. Updated the LLM classifier to route unmatched general queries to this new agent.
-# // [MODIFIED v9.6.0 | 2026-05-04] Purpose: Updated the LLM classifier prompt to route time, date, weather, news directly to the smart home agent.
-# // [MODIFIED v9.5.0 | 2026-04-18] Purpose: PURGED every hardcoded non-English
-# // token from this module. All language-dependent text (continuation words,
-# // recipe indicators, LLM classifier examples, CALENDAR fallback triggers)
-# // now either lives in an English-only master list that gets lazily
-# // translated per UI language, or is pulled from user-configured trigger
-# // strings on the config entry (CONF_TRIGGER_REMINDER / CONF_TRIGGER_CALENDAR
-# // / existing CONF_TRIGGER_*). The dispatcher itself is now 100% English.
-# // [MODIFIED v9.4.0 | 2026-04-18] Purpose: Added CALENDAR domain routing.
-# // [v9.1.1 | 2026-04-14] Purpose: Pass lang_code through to every agent.
-# // [v9.1.0 | 2026-04-14] Purpose: Replaced hard-coded localized triggers
-# // with trigger_manager.
-# // [v9.0.1 | 2026-04-14] Purpose: Fixed ModuleNotFoundError on Python 3.13+.
-# // [v9.0.0 | 2026-04-13] Purpose: THE TRAFFIC COP.
 
 import logging
 import re
