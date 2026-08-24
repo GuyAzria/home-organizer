@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import asyncio
+import time
 
 from .router import safe_smart_router
 from .json_utils import safe_parse_json
@@ -56,6 +57,30 @@ def _cache_path(hass):
 _MEMORY_CACHE = None
 _MEMORY_CACHE_LOCK = asyncio.Lock()
 _PENDING_TRANSLATIONS = set()
+
+# [ADDED v10.0.5] Failure back-off.
+#
+# When a translation call failed or returned malformed JSON, nothing was
+# cached - so the next request retried the whole translation, and so did the
+# one after that. Every user message silently paid for an extra LLM
+# round-trip before the agent even started. Failures are now remembered.
+_FAILED_TRANSLATIONS = {}
+TRANSLATION_RETRY_SECONDS = 900  # 15 minutes
+
+
+def _in_backoff(key):
+    until = _FAILED_TRANSLATIONS.get(key)
+    if until is None:
+        return False
+    if time.monotonic() >= until:
+        _FAILED_TRANSLATIONS.pop(key, None)
+        return False
+    return True
+
+
+def _mark_failed(key):
+    _FAILED_TRANSLATIONS[key] = time.monotonic() + TRANSLATION_RETRY_SECONDS
+
 
 
 LANG_NAME_MAP = {
@@ -183,27 +208,58 @@ async def _translate(hass, entry, lang_code):
 
 
 async def _ensure_language_cached(hass, entry, lang_code):
+    """Make sure a translation exists, WITHOUT blocking the user's reply.
+
+    [MODIFIED v10.0.6] This used to await the translation inline. On a cold
+    cache that put a full LLM round-trip in front of every answer - which on a
+    local model is many seconds, and is exactly why a simple reminder went
+    from ~3s to ~20s after upgrading.
+
+    A translation is now started in the background and this returns
+    immediately. The current request answers using the English master list,
+    which is always available, and the translated list is picked up by the
+    following requests. No user message ever waits for a translation again.
+    """
     await _ensure_memory_cache_loaded(hass)
     languages = _MEMORY_CACHE.setdefault("languages", {})
 
     if lang_code in languages:
         return
-
-    if lang_code in _PENDING_TRANSLATIONS:
-        for _ in range(20):
-            await asyncio.sleep(0.25)
-            if lang_code in languages:
-                return
+    if _in_backoff("continuation:" + lang_code):
         return
+    if lang_code in _PENDING_TRANSLATIONS:
+        return  # already running in the background
 
     _PENDING_TRANSLATIONS.add(lang_code)
+
+    async def _background_translate():
+        try:
+            translated = await _translate(hass, entry, lang_code)
+            if translated:
+                languages[lang_code] = translated
+                await _persist_cache(hass)
+                _LOGGER.info(
+                    "Continuation words cached for '%s' (background).", lang_code
+                )
+            else:
+                _mark_failed("continuation:" + lang_code)
+                _LOGGER.warning(
+                    "Could not translate Continuation words to '%s'. Using the English "
+                    "fallback; will retry in %s minutes.",
+                    lang_code, TRANSLATION_RETRY_SECONDS // 60,
+                )
+        except Exception as err:
+            _mark_failed("continuation:" + lang_code)
+            _LOGGER.warning(
+                "Background translation of Continuation words for '%s' failed: %s",
+                lang_code, err,
+            )
+        finally:
+            _PENDING_TRANSLATIONS.discard(lang_code)
+
     try:
-        translated = await _translate(hass, entry, lang_code)
-        if translated:
-            languages[lang_code] = translated
-            await _persist_cache(hass)
-            _LOGGER.info(f"Continuation cache updated with language '{lang_code}'.")
-    finally:
+        hass.async_create_task(_background_translate())
+    except Exception:  # pragma: no cover - no task API available
         _PENDING_TRANSLATIONS.discard(lang_code)
 
 

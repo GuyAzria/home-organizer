@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import asyncio
+import time
 
 from .router import safe_smart_router
 from .json_utils import safe_parse_json
@@ -70,6 +71,60 @@ MASTER_TRIGGERS_EN = {
     ],
 }
 
+ROUTING_DOMAINS = list(MASTER_TRIGGERS_EN)
+
+
+# ==========================================
+# [MODIFIED v10.0.4] DELEGATION VOCABULARY - SEPARATE TRANSLATION UNIT
+# ==========================================
+# These three groups were briefly part of MASTER_TRIGGERS_EN, which was a
+# mistake: it grew the routing translation prompt by half, made that one call
+# slower and more likely to return malformed JSON, and made EVERY request pay
+# for vocabulary that only cover/lock requests ever need.
+#
+# They now live in their own dict with their own cache section and their own
+# translation call, performed lazily and only when the delegation detector
+# actually runs. A reminder or shopping request never pays for them.
+#
+# A sentence is treated as a delegated CONTROL request only when it contains
+# an ACTION *and* a TARGET, and contains no CONTEXT word. That three-part rule
+# separates "open the living room shutter" from "remind me to clean the
+# shutter" and "add a door lock to the shopping list".
+MASTER_DELEGATION_EN = {
+    # Physical operations. Deliberately narrow: turn on/off is NOT here,
+    # because those belong to lights and switches, not covers and locks.
+    "DELEGATED_ACTIONS": [
+        "open", "close", "shut", "lock", "unlock", "raise", "lower",
+        "pull up", "pull down", "roll up", "roll down", "draw",
+        "secure", "unsecure", "latch", "unlatch",
+    ],
+
+    # The things being operated.
+    "DELEGATED_TARGETS": [
+        "shutter", "shutters", "blind", "blinds", "curtain", "curtains",
+        "roller shutter", "awning", "cover", "covers", "shade", "shades",
+        "lock", "locks", "deadbolt", "door", "front door", "back door",
+        "gate", "garage", "garage door",
+    ],
+
+    # Veto vocabulary. If any of these appears the sentence is about
+    # remembering, buying, cooking, cleaning or scheduling something - not
+    # about operating it - and must never be blocked.
+    "DELEGATED_CONTEXT_VETO": [
+        "remind", "reminder", "remember", "note", "task", "todo",
+        "shopping", "shopping list", "buy", "purchase", "order", "cart",
+        "add to list", "price", "cost", "how much",
+        "clean", "cleaning", "wash", "wipe", "dust", "polish",
+        "fix", "repair", "replace", "install", "broken", "service",
+        "calendar", "schedule", "appointment", "meeting", "tomorrow",
+        "inventory", "stock", "pantry", "fridge", "where is", "how many",
+        "recipe", "cook", "cooking", "chef", "sous chef", "bake", "meal",
+        "ingredients", "outfit", "wear", "wardrobe",
+    ],
+}
+
+DELEGATION_GROUPS = tuple(MASTER_DELEGATION_EN)
+
 
 # Map a domain name to its corresponding config_flow field key (if any)
 DOMAIN_TO_CONF_KEY = {
@@ -95,7 +150,7 @@ def _cache_path(hass):
     word list. Bumping the filename forces exactly one retranslation per
     language with no manual file deletion.
     """
-    return hass.config.path("home_organizer_triggers_cache_v2.json")
+    return hass.config.path("home_organizer_triggers_cache_v6.json")
 
 
 # In-memory mirror of the on-disk cache. Avoids re-reading the file on every
@@ -106,6 +161,70 @@ _MEMORY_CACHE_LOCK = asyncio.Lock()
 # Track which languages are currently being translated to avoid duplicate
 # parallel translation calls if many requests arrive at once.
 _PENDING_TRANSLATIONS = set()
+
+# [ADDED v10.0.4] Failure back-off.
+#
+# Previously, when a translation call failed or returned malformed JSON,
+# NOTHING was cached - so the next request tried the whole translation again,
+# and so did the one after that. Every single user message silently paid for
+# an extra LLM round-trip before the actual agent even started, which roughly
+# doubled response time. Failures are now remembered and retried at most once
+# every TRANSLATION_RETRY_SECONDS.
+_FAILED_TRANSLATIONS = {}
+TRANSLATION_RETRY_SECONDS = 900  # 15 minutes
+
+
+def _in_backoff(key):
+    until = _FAILED_TRANSLATIONS.get(key)
+    if until is None:
+        return False
+    if time.monotonic() >= until:
+        _FAILED_TRANSLATIONS.pop(key, None)
+        return False
+    return True
+
+
+def _mark_failed(key):
+    _FAILED_TRANSLATIONS[key] = time.monotonic() + TRANSLATION_RETRY_SECONDS
+
+
+
+# [ADDED v10.0.6] Cache migration.
+#
+# Earlier releases bumped this filename to force a re-translation whenever the
+# master word list changed. That was a bad trade: it threw away a perfectly
+# good cache that the user had already paid to build, and the next request had
+# to rebuild it from scratch - on a local model that can take many seconds.
+# We now ADOPT the newest previous cache we can find and top it up in the
+# background instead.
+LEGACY_CACHE_NAMES = [
+    "home_organizer_triggers_cache_v6.json",
+    "home_organizer_triggers_cache_v5.json",
+    "home_organizer_triggers_cache_v4.json",
+    "home_organizer_triggers_cache_v3.json",
+    "home_organizer_triggers_cache_v2.json",
+    "home_organizer_triggers_cache.json",
+]
+
+
+def _load_legacy_cache_sync(hass_config_path, current_name):
+    for name in LEGACY_CACHE_NAMES:
+        if name == current_name:
+            continue
+        path = hass_config_path(name)
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if isinstance(data, dict) and data.get("languages"):
+                    _LOGGER.info(
+                        "Adopting existing translation cache '%s'. No "
+                        "re-translation needed.", name
+                    )
+                    return data
+            except Exception as e:
+                _LOGGER.debug("Could not read legacy cache %s: %s", name, e)
+    return None
 
 
 def _load_cache_from_disk_sync(path):
@@ -143,6 +262,15 @@ async def _ensure_memory_cache_loaded(hass):
         _MEMORY_CACHE = await hass.async_add_executor_job(
             _load_cache_from_disk_sync, path
         )
+        # If the current file is empty, adopt the newest previous cache
+        # rather than making the user pay to rebuild it.
+        if not _MEMORY_CACHE.get("languages"):
+            legacy = await hass.async_add_executor_job(
+                _load_legacy_cache_sync, hass.config.path,
+                os.path.basename(path),
+            )
+            if legacy:
+                _MEMORY_CACHE = legacy
         _LOGGER.info(
             f"Trigger cache loaded. Cached languages: "
             f"{list(_MEMORY_CACHE.get('languages', {}).keys())}"
@@ -250,39 +378,58 @@ async def _translate_master_list(hass, entry, lang_code):
 
 
 async def _ensure_language_cached(hass, entry, lang_code):
-    """If lang_code is missing from the cache, translate it now and persist.
+    """Make sure a translation exists, WITHOUT blocking the user's reply.
 
-    Uses a per-language pending set to coalesce concurrent calls so we never
-    fire the same translation twice in parallel.
+    [MODIFIED v10.0.6] This used to await the translation inline. On a cold
+    cache that put a full LLM round-trip in front of every answer - which on a
+    local model is many seconds, and is exactly why a simple reminder went
+    from ~3s to ~20s after upgrading.
+
+    A translation is now started in the background and this returns
+    immediately. The current request answers using the English master list,
+    which is always available, and the translated list is picked up by the
+    following requests. No user message ever waits for a translation again.
     """
     await _ensure_memory_cache_loaded(hass)
-
     languages = _MEMORY_CACHE.setdefault("languages", {})
-    if lang_code in languages:
-        return  # already cached
 
-    if lang_code in _PENDING_TRANSLATIONS:
-        # Another coroutine is already translating this language. Wait briefly
-        # and then proceed with whatever is available (English fallback if not yet ready).
-        for _ in range(20):
-            await asyncio.sleep(0.25)
-            if lang_code in languages:
-                return
+    if lang_code in languages:
         return
+    if _in_backoff("triggers:" + lang_code):
+        return
+    if lang_code in _PENDING_TRANSLATIONS:
+        return  # already running in the background
 
     _PENDING_TRANSLATIONS.add(lang_code)
-    try:
-        translated = await _translate_master_list(hass, entry, lang_code)
-        if translated:
-            languages[lang_code] = translated
-            await _persist_cache(hass)
-            _LOGGER.info(f"Trigger cache updated with language '{lang_code}'.")
-        else:
+
+    async def _background_translate():
+        try:
+            translated = await _translate_master_list(hass, entry, lang_code)
+            if translated:
+                languages[lang_code] = translated
+                await _persist_cache(hass)
+                _LOGGER.info(
+                    "Trigger vocabulary cached for '%s' (background).", lang_code
+                )
+            else:
+                _mark_failed("triggers:" + lang_code)
+                _LOGGER.warning(
+                    "Could not translate Trigger vocabulary to '%s'. Using the English "
+                    "fallback; will retry in %s minutes.",
+                    lang_code, TRANSLATION_RETRY_SECONDS // 60,
+                )
+        except Exception as err:
+            _mark_failed("triggers:" + lang_code)
             _LOGGER.warning(
-                f"Could not translate triggers to '{lang_code}'. "
-                f"Will use English fallback for this session."
+                "Background translation of Trigger vocabulary for '%s' failed: %s",
+                lang_code, err,
             )
-    finally:
+        finally:
+            _PENDING_TRANSLATIONS.discard(lang_code)
+
+    try:
+        hass.async_create_task(_background_translate())
+    except Exception:  # pragma: no cover - no task API available
         _PENDING_TRANSLATIONS.discard(lang_code)
 
 
@@ -359,3 +506,138 @@ async def get_triggers_for_language(hass, entry, lang_code):
         merged[domain] = sorted(deduped, key=len, reverse=True)
 
     return merged
+
+
+async def _translate_delegation(hass, entry, lang_code):
+    """Translate only the delegation vocabulary. Small, isolated call."""
+    lang_name = LANG_NAME_MAP.get(lang_code, lang_code)
+    master = json.dumps(MASTER_DELEGATION_EN, ensure_ascii=False, indent=2)
+    prompt = f"""You are a multilingual translator for a smart home assistant.
+
+Translate every word below into natural spoken {lang_name}.
+
+DELEGATED_ACTIONS are verbs for physically operating a shutter or a lock
+(open, close, lock, unlock, raise, lower). Include imperative forms.
+DELEGATED_TARGETS are the objects operated (shutter, blind, curtain, lock,
+door, gate, garage).
+DELEGATED_CONTEXT_VETO are words showing the sentence is about remembering,
+buying, cooking, cleaning or scheduling something rather than operating it.
+
+CRITICAL OUTPUT RULES:
+1. Return ONLY a valid JSON object. No markdown, no explanation.
+2. Use the EXACT same three keys as the input.
+3. Each value is a flat array of lowercase {lang_name} strings.
+4. Give 2 to 5 natural variants per English word.
+5. Never output English if the target language is not English.
+
+INPUT (English master):
+{master}
+
+OUTPUT (JSON only, in {lang_name}):"""
+
+    raw, err = await safe_smart_router(hass, entry, prompt)
+    if err or not raw:
+        _LOGGER.warning(f"Delegation translation failed for '{lang_code}': {err}")
+        return None
+
+    parsed = safe_parse_json(raw)
+    if not isinstance(parsed, dict):
+        return None
+
+    cleaned = {}
+    for group, en_words in MASTER_DELEGATION_EN.items():
+        value = parsed.get(group)
+        if not isinstance(value, list) or not value:
+            cleaned[group] = list(en_words)
+            continue
+        cleaned[group] = [
+            str(v).strip().lower() for v in value
+            if isinstance(v, (str, int, float)) and str(v).strip()
+        ] or list(en_words)
+    return cleaned
+
+
+async def _ensure_delegation_cached(hass, entry, lang_code):
+    """Same non-blocking policy as the routing vocabulary.
+
+    [MODIFIED v10.0.6] Started in the background; the caller falls back to the
+    English lists for this request. A refusal that guards a lock must never be
+    the thing that makes the user wait.
+    """
+    await _ensure_memory_cache_loaded(hass)
+    store = _MEMORY_CACHE.setdefault("delegation", {})
+
+    if lang_code in store:
+        return
+    if _in_backoff(f"delegation:{lang_code}"):
+        return
+
+    key = f"__delegation__{lang_code}"
+    if key in _PENDING_TRANSLATIONS:
+        return
+
+    _PENDING_TRANSLATIONS.add(key)
+
+    async def _background_translate():
+        try:
+            translated = await _translate_delegation(hass, entry, lang_code)
+            if translated:
+                store[lang_code] = translated
+                await _persist_cache(hass)
+                _LOGGER.info(
+                    "Delegation vocabulary cached for '%s' (background).",
+                    lang_code,
+                )
+            else:
+                _mark_failed(f"delegation:{lang_code}")
+        except Exception as err:
+            _mark_failed(f"delegation:{lang_code}")
+            _LOGGER.warning(
+                "Background delegation translation for '%s' failed: %s",
+                lang_code, err,
+            )
+        finally:
+            _PENDING_TRANSLATIONS.discard(key)
+
+    try:
+        hass.async_create_task(_background_translate())
+    except Exception:  # pragma: no cover
+        _PENDING_TRANSLATIONS.discard(key)
+
+
+async def get_delegation_vocabulary(hass, entry, lang_code):
+    """Return the localized action / target / veto vocabulary as a dict.
+
+    [MODIFIED v10.0.4] Translated lazily and independently of the routing
+    triggers, so only cover/lock-shaped requests ever pay for it. The English
+    master lists are ALWAYS included, even when translation is unavailable:
+    this vocabulary guards a safety-relevant refusal, so it must degrade to
+    "fewer languages", never to "no words at all".
+    """
+    if not lang_code:
+        lang_code = "en"
+    lang_code = lang_code.lower().split("-")[0]
+
+    translated = {}
+    if lang_code != "en":
+        try:
+            await _ensure_delegation_cached(hass, entry, lang_code)
+            store = _MEMORY_CACHE.get("delegation", {}) if _MEMORY_CACHE else {}
+            translated = store.get(lang_code) or {}
+        except Exception as err:  # pragma: no cover - defensive
+            _LOGGER.warning(
+                "Delegation vocabulary unavailable for '%s' (%s). "
+                "Falling back to the English lists.", lang_code, err
+            )
+
+    out = {}
+    for group, en_words in MASTER_DELEGATION_EN.items():
+        combined = list(translated.get(group) or []) + list(en_words)
+        seen, words = set(), []
+        for w in combined:
+            w = str(w).strip().lower()
+            if w and w not in seen:
+                seen.add(w)
+                words.append(w)
+        out[group] = sorted(words, key=len, reverse=True)
+    return out

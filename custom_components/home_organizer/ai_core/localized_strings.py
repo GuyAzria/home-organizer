@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import asyncio
+import time
 
 from .router import safe_smart_router
 from .json_utils import safe_parse_json
@@ -45,10 +46,12 @@ MASTER_STRINGS_EN = {
     # smarthome_not_allowed is deliberately explicit: without it a blocked
     # lock/cover request would return "device not found", which is misleading.
     "smarthome_not_allowed": (
-        "I'm not allowed to run that action. Locks and covers are handled by "
-        "Home Assistant's own voice assistant, so try phrasing it the way "
-        "Assist expects, or add an alias to that entity. Alarm panels can't "
-        "be controlled by chat at all."
+        "I'm not allowed to operate covers, shutters or locks. Those are "
+        "handled by Home Assistant itself, not by me, and Home Assistant did "
+        "not recognise that sentence. Please set it up in Home Assistant: "
+        "expose the entity under Settings, Voice assistants, Expose, and add "
+        "an alias to it under the entity's Voice assistants tab. Alarm panels "
+        "cannot be controlled by chat at all."
     ),
     "smarthome_no_permission": "You don't have permission to control that device.",
     "smarthome_execution_failed": "The command was accepted but Home Assistant could not complete it.",
@@ -85,12 +88,72 @@ def _cache_path(hass):
     English. Bumping the filename retranslates once, automatically, with no
     manual cleanup by the user.
     """
-    return hass.config.path("home_organizer_strings_cache_v2.json")
+    return hass.config.path("home_organizer_strings_cache_v3.json")
 
 
 _MEMORY_CACHE = None
 _MEMORY_CACHE_LOCK = asyncio.Lock()
 _PENDING_TRANSLATIONS = set()
+
+# [ADDED v10.0.5] Failure back-off.
+#
+# When a translation call failed or returned malformed JSON, nothing was
+# cached - so the next request retried the whole translation, and so did the
+# one after that. Every user message silently paid for an extra LLM
+# round-trip before the agent even started. Failures are now remembered.
+_FAILED_TRANSLATIONS = {}
+TRANSLATION_RETRY_SECONDS = 900  # 15 minutes
+
+
+def _in_backoff(key):
+    until = _FAILED_TRANSLATIONS.get(key)
+    if until is None:
+        return False
+    if time.monotonic() >= until:
+        _FAILED_TRANSLATIONS.pop(key, None)
+        return False
+    return True
+
+
+def _mark_failed(key):
+    _FAILED_TRANSLATIONS[key] = time.monotonic() + TRANSLATION_RETRY_SECONDS
+
+
+
+
+# [ADDED v10.0.6] Cache migration.
+#
+# Earlier releases bumped this filename to force a re-translation whenever the
+# master word list changed. That was a bad trade: it threw away a perfectly
+# good cache that the user had already paid to build, and the next request had
+# to rebuild it from scratch - on a local model that can take many seconds.
+# We now ADOPT the newest previous cache we can find and top it up in the
+# background instead.
+LEGACY_CACHE_NAMES = [
+    "home_organizer_strings_cache_v3.json",
+    "home_organizer_strings_cache_v2.json",
+    "home_organizer_strings_cache.json",
+]
+
+
+def _load_legacy_cache_sync(hass_config_path, current_name):
+    for name in LEGACY_CACHE_NAMES:
+        if name == current_name:
+            continue
+        path = hass_config_path(name)
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if isinstance(data, dict) and data.get("languages"):
+                    _LOGGER.info(
+                        "Adopting existing translation cache '%s'. No "
+                        "re-translation needed.", name
+                    )
+                    return data
+            except Exception as e:
+                _LOGGER.debug("Could not read legacy cache %s: %s", name, e)
+    return None
 
 
 def _load_cache_from_disk_sync(path):
@@ -128,6 +191,15 @@ async def _ensure_memory_cache_loaded(hass):
         _MEMORY_CACHE = await hass.async_add_executor_job(
             _load_cache_from_disk_sync, path
         )
+        # If the current file is empty, adopt the newest previous cache
+        # rather than making the user pay to rebuild it.
+        if not _MEMORY_CACHE.get("languages"):
+            legacy = await hass.async_add_executor_job(
+                _load_legacy_cache_sync, hass.config.path,
+                os.path.basename(path),
+            )
+            if legacy:
+                _MEMORY_CACHE = legacy
         _LOGGER.info(
             f"Strings cache loaded. Cached languages: "
             f"{list(_MEMORY_CACHE.get('languages', {}).keys())}"
@@ -203,32 +275,58 @@ async def _translate_master_strings(hass, entry, lang_code):
 
 
 async def _ensure_language_cached(hass, entry, lang_code):
+    """Make sure a translation exists, WITHOUT blocking the user's reply.
+
+    [MODIFIED v10.0.6] This used to await the translation inline. On a cold
+    cache that put a full LLM round-trip in front of every answer - which on a
+    local model is many seconds, and is exactly why a simple reminder went
+    from ~3s to ~20s after upgrading.
+
+    A translation is now started in the background and this returns
+    immediately. The current request answers using the English master list,
+    which is always available, and the translated list is picked up by the
+    following requests. No user message ever waits for a translation again.
+    """
     await _ensure_memory_cache_loaded(hass)
     languages = _MEMORY_CACHE.setdefault("languages", {})
 
     if lang_code in languages:
         return
-
-    if lang_code in _PENDING_TRANSLATIONS:
-        for _ in range(20):
-            await asyncio.sleep(0.25)
-            if lang_code in languages:
-                return
+    if _in_backoff("strings:" + lang_code):
         return
+    if lang_code in _PENDING_TRANSLATIONS:
+        return  # already running in the background
 
     _PENDING_TRANSLATIONS.add(lang_code)
-    try:
-        translated = await _translate_master_strings(hass, entry, lang_code)
-        if translated:
-            languages[lang_code] = translated
-            await _persist_cache(hass)
-            _LOGGER.info(f"Strings cache updated with language '{lang_code}'.")
-        else:
+
+    async def _background_translate():
+        try:
+            translated = await _translate_master_strings(hass, entry, lang_code)
+            if translated:
+                languages[lang_code] = translated
+                await _persist_cache(hass)
+                _LOGGER.info(
+                    "UI strings cached for '%s' (background).", lang_code
+                )
+            else:
+                _mark_failed("strings:" + lang_code)
+                _LOGGER.warning(
+                    "Could not translate UI strings to '%s'. Using the English "
+                    "fallback; will retry in %s minutes.",
+                    lang_code, TRANSLATION_RETRY_SECONDS // 60,
+                )
+        except Exception as err:
+            _mark_failed("strings:" + lang_code)
             _LOGGER.warning(
-                f"Could not translate strings to '{lang_code}'. "
-                f"English fallback will be used for this session."
+                "Background translation of UI strings for '%s' failed: %s",
+                lang_code, err,
             )
-    finally:
+        finally:
+            _PENDING_TRANSLATIONS.discard(lang_code)
+
+    try:
+        hass.async_create_task(_background_translate())
+    except Exception:  # pragma: no cover - no task API available
         _PENDING_TRANSLATIONS.discard(lang_code)
 
 

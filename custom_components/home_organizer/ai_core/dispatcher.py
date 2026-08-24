@@ -33,16 +33,19 @@ import importlib
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Context
 from homeassistant.helpers import intent as intent_helper
+from homeassistant.helpers import entity_registry as er
 
 from ..const import (
     CONF_PROCESSING_MODE, MODE_HYBRID,
     CONF_TRIGGER_REMINDER, CONF_TRIGGER_CALENDAR,
     HA_BUILTIN_CONVERSATION_AGENT,
+    SMARTHOME_DELEGATED_DOMAINS,
 )
 from .router import async_smart_router, safe_smart_router, FallbackMockEntry
 from .json_utils import safe_parse_json
 from .state_manager import has_state, COOKING_STATE_KEY
-from .trigger_manager import get_triggers_for_language
+from .trigger_manager import get_triggers_for_language, get_delegation_vocabulary
+from .localized_strings import get_strings_for_language
 from .continuation_manager import (
     get_continuation_words,
     get_recipe_indicators,
@@ -175,6 +178,133 @@ async def async_try_home_assistant_agent(hass, text, language, user_id=None,
     except Exception as err:  # pragma: no cover - defensive
         _LOGGER.debug("Could not interpret HA agent response: %s", err)
         return None
+
+
+# ==========================================
+# [ADDED v10.0.1] DELEGATED-DOMAIN DETECTION
+# ==========================================
+def _phrase_in_text(phrase, text):
+    """Match a vocabulary phrase inside a sentence, per-script.
+
+    Latin-script phrases are matched on word boundaries, because substring
+    matching produces false positives that matter here: "lock" occurs inside
+    "block" and "clock", and a false positive on a lock is exactly what this
+    detector must not produce.
+
+    Non-Latin scripts are matched as substrings. Hebrew, Arabic and others
+    attach prefixes directly to the word, so "תריס" must still match inside
+    "התריס", where a word-boundary match would fail.
+    """
+    if not phrase:
+        return False
+    if all(ord(c) < 128 for c in phrase):
+        return re.search(r"\b" + re.escape(phrase) + r"\b", text) is not None
+    return phrase in text
+
+
+def _collect_delegated_target_names(hass):
+    """Friendly names and aliases of the user's own cover and lock entities.
+
+    These count as TARGET evidence. They are inherently language-correct:
+    an entity the user called "תריס סלון" matches a Hebrew sentence with no
+    translation step at all.
+    """
+    names = []
+    try:
+        registry = er.async_get(hass)
+        for state in hass.states.async_all():
+            if state.domain not in SMARTHOME_DELEGATED_DOMAINS:
+                continue
+            friendly = state.attributes.get("friendly_name")
+            if friendly:
+                names.append(str(friendly))
+            entry_obj = registry.async_get(state.entity_id)
+            if entry_obj and getattr(entry_obj, "aliases", None):
+                names.extend(str(a) for a in entry_obj.aliases if a)
+    except Exception as err:  # pragma: no cover - never block on detection
+        _LOGGER.debug("Delegated entity-name scan failed: %s", err)
+    # Require a reasonably distinctive name, so a cover simply called
+    # "Salon" cannot swallow "turn on the salon light".
+    return [n.strip().lower() for n in names if len(n.strip()) >= 4]
+
+
+async def async_is_delegated_request(hass, entry, text, lang_code):
+    """Return True only for a CONTROL request aimed at a cover or a lock.
+
+    Why this exists
+    ---------------
+    cover and lock are executed by Home Assistant, never by this integration.
+    When HA's built-in agent cannot parse the sentence, the request used to
+    continue to the LLM agent. The agent could not act - those domains are not
+    on the allow-list and their entities are filtered out of the prompt - but
+    nothing stopped the model from replying with a fabricated confirmation
+    such as "opening the shutter". A false success on a lock is worse than a
+    refusal, so such requests are stopped before the model sees them.
+
+    Why it needs three signals rather than one keyword
+    --------------------------------------------------
+    Blocking on the noun alone was too blunt. These must all still work:
+        "remind me to clean the shutter"  -> reminder agent
+        "add a door lock to the shopping list" -> shopping agent
+        "how much does a shutter motor cost" -> normal answer
+    So a sentence is refused only when it contains an ACTION *and* a TARGET
+    and no CONTEXT veto word. Everything else continues to its normal agent.
+    """
+    if not text:
+        return False
+
+    lowered = text.lower()
+
+    try:
+        vocab = await get_delegation_vocabulary(hass, entry, lang_code)
+    except Exception as err:  # pragma: no cover
+        _LOGGER.debug("Delegation vocabulary lookup failed: %s", err)
+        return False
+
+    # Gate 1: veto. Reminders, shopping, cleaning, repairs, scheduling and
+    # price questions are never control requests, whatever nouns they use.
+    for word in vocab.get("DELEGATED_CONTEXT_VETO", []):
+        if _phrase_in_text(word, lowered):
+            _LOGGER.debug(
+                "Not a delegated control request: context word '%s'.", word
+            )
+            return False
+
+    # Gate 2: an actual physical operation must be requested.
+    action = next(
+        (w for w in vocab.get("DELEGATED_ACTIONS", [])
+         if _phrase_in_text(w, lowered)),
+        None,
+    )
+    if action is None:
+        return False
+
+    # Gate 3: the target must be a cover or a lock - either by vocabulary,
+    # or by matching one of the user's own entity names.
+    target = next(
+        (w for w in vocab.get("DELEGATED_TARGETS", [])
+         if _phrase_in_text(w, lowered)),
+        None,
+    )
+    if target is None:
+        target = next(
+            (n for n in _collect_delegated_target_names(hass) if n in lowered),
+            None,
+        )
+    if target is None:
+        return False
+
+    _LOGGER.debug(
+        "Delegated control request detected (action='%s', target='%s').",
+        action, target,
+    )
+    return True
+
+
+async def async_delegated_refusal(hass, entry, lang_code):
+    """The honest answer for a cover/lock request HA could not handle."""
+    strings = await get_strings_for_language(hass, entry, lang_code)
+    return strings["smarthome_not_allowed"]
 
 
 # ==========================================
@@ -408,8 +538,13 @@ async def async_universal_agent_loop(hass, entry, messages, target_lang,
     i_type = "unknown"
 
     # Language-aware continuation words / recipe indicators (lazy-translated).
-    continuation_words = await get_continuation_words(hass, entry, lang_code)
-    recipe_indicators = await get_recipe_indicators(hass, entry, lang_code)
+    # [MODIFIED v10.0.5] These two were fetched on EVERY request, but they are
+    # only ever read by the continuation heuristic in step 3, which runs only
+    # when no trigger matched and no cooking session is active. On a language
+    # whose cache is not warm yet, fetching them here meant a translation
+    # round-trip before every single message - including a reminder that had
+    # already been routed by its trigger word in step 1. They are now fetched
+    # lazily, at the point of use.
 
     # 1. Strict trigger detection (start of message).
     explicit_domain, matched_trigger = await determine_explicit_domain(
@@ -444,6 +579,8 @@ async def async_universal_agent_loop(hass, entry, messages, target_lang,
     # 3. Continuation heuristic: bare "next"/"go"/etc. while the last
     #    assistant message mentions a recipe.
     if explicit_domain == "UNKNOWN" and not is_cooking:
+        continuation_words = await get_continuation_words(hass, entry, lang_code)
+        recipe_indicators = await get_recipe_indicators(hass, entry, lang_code)
         if (
             _looks_like_continuation(last_user_msg, continuation_words)
             and _last_assistant_mentions_recipe(messages, recipe_indicators)
@@ -500,18 +637,70 @@ async def async_universal_agent_loop(hass, entry, messages, target_lang,
             messages.append({"role": "assistant", "content": ha_reply})
             return ha_reply
 
+        # [ADDED v10.0.1] HA declined. Before the model is involved at all,
+        # stop cover/lock requests here. The agent cannot execute them, and
+        # letting it reply freely produced fabricated confirmations such as
+        # "opening the shutter" when nothing had happened.
+        if await async_is_delegated_request(hass, entry, last_user_msg, lang_code):
+            refusal = await async_delegated_refusal(hass, entry, lang_code)
+            _LOGGER.info(
+                "Routing: cover/lock request not handled by HA. "
+                "Refusing rather than passing it to the model."
+            )
+            messages.append({"role": "assistant", "content": refusal})
+            return refusal
+
     # [ADDED v10.0.0] Delegation point 2: safety net.
     # Nothing matched and we are about to default to INVENTORY. Local intent
     # matching costs milliseconds, so try HA once more here: this catches
     # device commands that the (translated) trigger words missed in a given
     # language, and keeps them out of the model entirely.
     if not matched_any_domain and not is_cooking:
+        # [ADDED v10.0.3] Guard the safety net.
+        #
+        # Home Assistant ships built-in intents for shopping lists, to-do
+        # lists and timers. If a sentence that really belongs to one of our
+        # own agents reached HA here, HA would answer it successfully and our
+        # agent would never run - the item would land in HA's shopping list
+        # instead of the Home Organizer database, silently.
+        #
+        # The strict trigger pass only matches at the START of a sentence, so
+        # a phrasing like "please add milk to the shopping list" falls through
+        # to here. A second, loose pass catches it. Anything that belongs to
+        # one of our agents is kept away from HA; only SMART_HOME (or no
+        # match at all) is allowed through, which is the case this safety net
+        # was built for.
+        loose_domain, _loose_trigger = await determine_explicit_domain(
+            hass, last_user_msg, entry, lang_code, strict=False
+        )
+        if loose_domain and loose_domain not in ("SMART_HOME", "UNKNOWN"):
+            _LOGGER.debug(
+                "Safety net skipped: '%s' belongs to the %s agent.",
+                last_user_msg, loose_domain,
+            )
+            return await _dispatch(
+                hass, entry, messages, target_lang, existing_locs_str,
+                loc_hierarchy_map, history_text, domain_to_run,
+                last_user_msg, recipe_name, is_voice, device_id, user_id,
+                lang_code,
+            )
+
         ha_reply = await async_try_home_assistant_agent(
             hass, last_user_msg, lang_code, user_id=user_id, device_id=device_id
         )
         if ha_reply is not None:
             messages.append({"role": "assistant", "content": ha_reply})
             return ha_reply
+
+        # [ADDED v10.0.1] Same gate on the safety-net path.
+        if await async_is_delegated_request(hass, entry, last_user_msg, lang_code):
+            refusal = await async_delegated_refusal(hass, entry, lang_code)
+            _LOGGER.info(
+                "Routing: unmatched cover/lock request. Refusing rather than "
+                "passing it to the model."
+            )
+            messages.append({"role": "assistant", "content": refusal})
+            return refusal
 
     # [MODIFIED v10.0.0] The smarthome agent expects the trailing user message
     # to NOT be in `messages`. This pop used to run unconditionally, which
