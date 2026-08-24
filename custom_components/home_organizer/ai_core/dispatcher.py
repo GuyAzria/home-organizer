@@ -156,12 +156,27 @@ async def async_try_home_assistant_agent(hass, text, language, user_id=None,
     try:
         response = result.response
 
-        is_no_match = (
-            response.response_type == intent_helper.IntentResponseType.ERROR
-            and response.error_code
-            == intent_helper.IntentResponseErrorCode.NO_INTENT_MATCH
-        )
-        if is_no_match:
+        # [MODIFIED v10.0.7] ANY error from the built-in agent means "not
+        # handled", and the request continues to our own agent.
+        #
+        # This previously fell through only on NO_INTENT_MATCH, and returned
+        # HA's own error text for every other failure. That broke ordinary
+        # commands: HA parses "turn on the hallway light" fine, but if the
+        # entity is not exposed to Assist it answers "Sorry, I am not aware of
+        # a device called light" - and that reply was handed straight back to
+        # the user, even though our agent could have found the light by name
+        # and switched it on, as it always used to.
+        #
+        # Covers and locks are NOT affected: they are stopped separately by
+        # async_is_delegated_request, which returns a refusal explaining how to
+        # set them up. That message is more useful than HA's generic error, so
+        # nothing is lost by falling through here.
+        if response.response_type == intent_helper.IntentResponseType.ERROR:
+            _LOGGER.debug(
+                "HA built-in agent did not handle the request (%s). "
+                "Continuing to the Home Organizer agent.",
+                getattr(response, "error_code", "unknown"),
+            )
             return None
 
         speech = response.speech.get("plain", {}).get("speech", "")
@@ -170,11 +185,8 @@ async def async_try_home_assistant_agent(hass, text, language, user_id=None,
             return speech
 
         # Understood and executed, but with no spoken text configured.
-        if response.response_type != intent_helper.IntentResponseType.ERROR:
-            _LOGGER.info("Routing: handled natively by Home Assistant Assist.")
-            return "🏠"
-
-        return None
+        _LOGGER.info("Routing: handled natively by Home Assistant Assist.")
+        return "🏠"
     except Exception as err:  # pragma: no cover - defensive
         _LOGGER.debug("Could not interpret HA agent response: %s", err)
         return None
