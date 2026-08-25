@@ -1,7 +1,19 @@
 # -*- coding: utf-8 -*-
+# Home Organizer for Home Assistant
+# Copyright (C) 2026 Guy Azria
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+# more details. <https://www.gnu.org/licenses/>.
+#
 # [MODIFIED v8.57.0 | 2026-08-02] Purpose: Refactored database interactions to use aiosqlite for full asynchronous I/O. Replaced get_db_connection with get_db_path and removed async_add_executor_job wrappers.
 # [MODIFIED v7.18.2 | 2026-04-20] Purpose: Added handle_update_order_qty service and order_qty extraction to handle_update_item_details so shopping list amounts save permanently to the database.
-# [MODIFIED v7.17.0 | 2026-04-16] Purpose: Added extraction and DB routing for Stylist item fields (owner, season, dress_code, clothing_status, measurements) during add_item and update_item_details.
 
 import logging
 import os

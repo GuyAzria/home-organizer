@@ -1,4 +1,16 @@
-// organizer-panel.js — Home Organizer Ultimate v10.4.1
+// Home Organizer for Home Assistant
+// Copyright (C) 2026 Guy Azria
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details. <https://www.gnu.org/licenses/>.
+//
 // [MODIFIED v10.4.1 | 2026-04-17] Purpose: Version bump to bypass cache for the new Interactive Unit Select Dropdown in the Inventory View.
 
 import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=10.7.1';

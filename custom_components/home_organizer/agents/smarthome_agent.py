@@ -1,4 +1,17 @@
 # -*- coding: utf-8 -*-
+# Home Organizer for Home Assistant
+# Copyright (C) 2026 Guy Azria
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+# more details. <https://www.gnu.org/licenses/>.
+#
 # // [MODIFIED v10.0.0 | 2026-08-23] Purpose: SECURITY HARDENING (HACS review).
 # // The LLM no longer decides which Home Assistant service is executed.
 # //   1. Every call is validated at the call site against the explicit
@@ -20,15 +33,6 @@
 # // was removed from the actionable set because automation.trigger bypasses
 # // the automation's own conditions.
 # // [MODIFIED v9.8.0 | 2026-05-04] Purpose: Purged all remaining Hebrew text from the news fetch error messages and LLM prompt hints. Fully implemented dynamic localization for news errors using get_strings_for_language.
-# // [MODIFIED v9.7.1 | 2026-05-04] Purpose: Added a User-Agent header to the HTTP request to prevent Google News from blocking the script. Also added better error logging.
-# // [MODIFIED v9.7.0 | 2026-05-04] Purpose: Fortified the news summary prompt to strictly enforce JSON formatting and added raw-text fallback parsing.
-# // [MODIFIED v9.6.0 | 2026-05-04] Purpose: Updated the LLM classifier prompt.
-# // [MODIFIED v9.5.0 | 2026-05-04] Purpose: Replaced hardcoded Israel Hayom RSS with global Google News.
-# // [MODIFIED v9.4.0 | 2026-05-04] Purpose: Integrated RSS news fetching directly.
-# // [MODIFIED v9.3.0 | 2026-05-04] Purpose: Added 'weather' to LIVE_SENSOR_DOMAINS and extracted temperature.
-# // [MODIFIED v9.2.0 | 2026-04-30] Purpose: Added 'automation' to ACTIONABLE_DOMAINS.
-# // [v9.1.1 | 2026-04-14] Purpose: Localized fallback strings.
-# // [v9.0.0 | 2026-04-13] Purpose: Self-contained Smart Home agent.
 
 import logging
 import homeassistant.util.dt as dt_util

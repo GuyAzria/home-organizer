@@ -1,4 +1,17 @@
 # -*- coding: utf-8 -*-
+# Home Organizer for Home Assistant
+# Copyright (C) 2026 Guy Azria
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+# more details. <https://www.gnu.org/licenses/>.
+#
 # // [MODIFIED v10.0.0 | 2026-08-23] Purpose: Event-loop and session fixes
 # // raised in the HACS review.
 # //   1. The two `with open(result_path, "wb")` calls inside async render
@@ -11,13 +24,6 @@
 # //      session via async_get_clientsession(hass), which is why `hass` is
 # //      now their first argument.
 # // [MODIFIED v9.3.1 | 2026-08-02] Purpose: Refactored database interactions to use aiosqlite for full asynchronous I/O. Replaced get_db_connection with get_db_path and removed async_add_executor_job wrappers to prevent Event Loop blocking.
-# // [MODIFIED v9.3.0 | 2026-04-16] Purpose: Added full routing support for all 4 major VTO providers (Fal.ai, Local ComfyUI, Hugging Face Spaces, and Fashn.ai).
-# // [MODIFIED v9.2.1 | 2026-04-15] Purpose: Added user_id parameter to _get_user_avatar and execute_tool for multi-user VTO support.
-# // [ADDED v9.2.0 | 2026-04-15] Purpose: Added actual VTO API implementations (Local ComfyUI & Cloud Fal.ai) with dynamic config routing.
-# // [v9.1.1 | 2026-04-14] Purpose: Localized fallback strings.
-# // [v9.0.0 | 2026-04-13] Purpose: Self-contained Stylist (VTO) agent. Owns
-# // weather + wardrobe context fetching, the prompt, the conversational loop,
-# // and the two stylist-only tools (suggest_outfit, render_and_share_vto).
 
 import asyncio
 import logging
@@ -119,14 +125,18 @@ async def _get_user_avatar(hass, user_id):
     filename = f"user_avatar_{user_id}.jpg" if user_id else "user_avatar.jpg"
     avatar_path = hass.config.path("www", "home_organizer_images", filename)
     
-    if os.path.exists(avatar_path):
-        return avatar_path
-        
     generic_path = hass.config.path("www", "home_organizer_images", "user_avatar.jpg")
-    if os.path.exists(generic_path):
-        return generic_path
-        
-    return None
+
+    # [MODIFIED v2026.8.26] Both existence checks are filesystem calls and were
+    # running directly on the event loop. One executor hop covers both.
+    def _pick_existing():
+        if os.path.exists(avatar_path):
+            return avatar_path
+        if os.path.exists(generic_path):
+            return generic_path
+        return None
+
+    return await hass.async_add_executor_job(_pick_existing)
 
 async def _render_cloud_fal(hass, vto_url, vto_key, avatar_path, top_garment, bottom_garment):
     """[MODIFIED v10.0.0] Returns image bytes, or None.

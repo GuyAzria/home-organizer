@@ -1,5 +1,17 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate
+# Home Organizer for Home Assistant
+# Copyright (C) 2026 Guy Azria
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+# more details. <https://www.gnu.org/licenses/>.
+#
 # [MODIFIED v10.0.0 | 2026-08-23] Purpose: SECURITY HARDENING (HACS review).
 #   1. websocket_ai_chat now forwards the authenticated user's id to the
 #      agent loop. Without it the smart home agent has no identity to run
@@ -12,6 +24,7 @@
 # [MODIFIED v8.58.0 | 2026-08-02] Purpose: Removed local APK sync logic (migrated to GitHub Releases) and updated app references to HO_Mind_AI. Converted to full async/await using aiosqlite.
 
 import logging
+from homeassistant.components import frontend
 import os
 from functools import partial
 import time
@@ -662,7 +675,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     if storage_method == STORAGE_METHOD_MEDIA:
         media_root = "/media"
-        if os.path.exists(media_root):
+        # [MODIFIED v2026.8.26] os.path.exists touches the filesystem and was
+        # running on the event loop inside this async function.
+        if await hass.async_add_executor_job(os.path.exists, media_root):
              db_path = os.path.join(media_root, DB_FILE)
              img_folder_path = os.path.join(media_root, IMG_DIR)
              await hass.http.async_register_static_paths([
@@ -900,7 +915,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         if entry.entry_id in hass.data.get(DOMAIN, {}):
             hass.data[DOMAIN].pop(entry.entry_id)
-        hass.components.frontend.async_remove_panel("organizer")
+        # [MODIFIED v2026.8.26] hass.components.<x> is a deprecated accessor
+        # that logs a warning on modern cores and is slated for removal.
+        # Import the component module directly instead.
+        frontend.async_remove_panel("organizer")
     except Exception: pass
     
     await hass.config_entries.async_unload_platforms(entry, ["conversation"])
@@ -915,7 +933,8 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
             img_path = hass.config.path("www", IMG_DIR)
             
             if storage_method == STORAGE_METHOD_MEDIA:
-                if os.path.exists("/media"):
+                # [MODIFIED v2026.8.26] Executor-wrapped, as above.
+                if await hass.async_add_executor_job(os.path.exists, "/media"):
                     db_path = os.path.join("/media", DB_FILE)
                     img_path = os.path.join("/media", IMG_DIR)
 

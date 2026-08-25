@@ -1,24 +1,19 @@
 # -*- coding: utf-8 -*-
+# Home Organizer for Home Assistant
+# Copyright (C) 2026 Guy Azria
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+# more details. <https://www.gnu.org/licenses/>.
+#
 # // [MODIFIED v9.1.12 | 2026-08-02] Purpose: Refactored database interactions to use aiosqlite for full asynchronous I/O. Replaced get_db_connection with get_db_path and removed async_add_executor_job wrappers to prevent Event Loop blocking.
 # // [ADDED v9.1.11 | 2026-04-14] Purpose: Fixed sub-location logic where AI created new sub-locations instead of using existing ones. Rewrote Rule 3 to explicitly enforce 'USER LOCATION MATCHING', requiring the AI to match user input to an existing location_id first, and forbidding the use of the sub_location parameter unless explicit permission for a NEW location was granted.
-# // [ADDED v9.1.10 | 2026-04-14] Purpose: Fixed 'Invalid Format' crash caused by the AI using double quotes inside JSON string values. Added JSON FORMATTING SAFETY rule. Also fixed the 'Unsure how to proceed' error by restoring the 'intent: reply' Example 5 and adding the SYSTEM TOOL RESPONSES rule so the AI knows how to acknowledge tool successes.
-# // [ADDED v9.1.9 | 2026-04-14] Purpose: Fixed continuation failure where the AI returned an invalid intent after the user agreed to create a new sub-location. Added Rule 3 explicit instructions to retrieve item context from history, and added Example 4 to explicitly show how to resume the 'tool' intent.
-# // [ADDED v9.1.8 | 2026-04-14] Purpose: Added explicit JSON example for the MISSING SUB-LOCATION PROPOSAL and made the rule more aggressive so the AI doesn't bypass it. AI models heavily rely on few-shot examples, lacking a "clarify" example caused it to force a tool execution.
-# // [ADDED v9.1.7 | 2026-04-14] Purpose: Enforced SILENT CATEGORIZATION rule to strictly forbid the AI from asking the user about internal JSON fields like category, sub_category, or icon. It must now guess the closest match silently.
-# // [ADDED v9.1.6 | 2026-04-14] Purpose: Added 'MISSING SUB-LOCATION PROPOSAL' and 'EXPLICIT NEW SUB-LOCATION' rules. The AI will now proactively ask to create a new sub-location if an item doesn't logically fit into any existing sub-locations, and will seamlessly use the `sub_location` parameter when the user agrees and names it.
-# // [ADDED v9.1.5 | 2026-04-14] Purpose: Added 'create_sub_location' tool to explicitly create empty sub-locations (folders) using 'folder_marker' item_type. Also exposed the 'sub_location' kwarg in 'add_item_to_ho' prompt so the AI can add items into newly created sub-locations on the fly.
-# // [ADDED v9.1.4 | 2026-04-14] Purpose: Refined SUB-LOCATION CLARIFICATION rule to suggest the most logical sub-location (e.g., "Vegetable drawer" for carrots) instead of asking a generic "where to place it" question.
-# // [ADDED v9.1.3 | 2026-04-14] Purpose: Added CRITICAL RULES block to get_agent_prompt to enforce sub-location clarification (asking the user before placing in a broad location) and strict icon/category usage.
-# // [ADDED v9.1.2 | 2026-04-14] Purpose: Injected ICON_PROMPT_CONTEXT into get_agent_prompt and strictly enforced category, sub_category, and icon_key extraction for add_item_to_ho tool to match the reliability of the shopping agent.
-# // [v9.1.1 | 2026-04-14] Purpose: Replaced hard-coded English fallback
-# // strings with lazy-localized lookups via ai_core.localized_strings.
-# // The agent now accepts lang_code and emits every user-facing message
-# // in the user's actual language, even on error/clarify paths where the
-# // LLM didn't provide a translated reply.
-# // [v9.0.0 | 2026-04-13] Purpose: Self-contained Inventory agent. Owns
-# // EVERYTHING related to physical home inventory: prompts (agent, search,
-# // barcode, invoice), the conversational run loop, and the tool
-# // implementations. Nothing outside this file may modify inventory tools.
 
 import logging
 import aiosqlite

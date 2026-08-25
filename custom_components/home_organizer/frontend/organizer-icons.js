@@ -1,5 +1,16 @@
-// organizer-icons.js — Icon picker, library grid, URL and upload icon handlers
-// Part of Home Organizer Ultimate (Guy Azria) | v7.7.48
+// Home Organizer for Home Assistant
+// Copyright (C) 2026 Guy Azria
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details. <https://www.gnu.org/licenses/>.
+//
 
 import { ICONS, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.10';
 import { ITEM_CATEGORIES } from './organizer-data.js?v=6.6.10';

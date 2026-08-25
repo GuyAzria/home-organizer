@@ -1,7 +1,20 @@
-// pages/view-chat.js
+// Home Organizer for Home Assistant
+// Copyright (C) 2026 Guy Azria
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details. <https://www.gnu.org/licenses/>.
+//
 // [MODIFIED v10.0.10 | 2026-04-17] Purpose: Stripped ?v= backend timestamps from pending review card renders to prevent caching loops.
 
 import { ICONS } from '../organizer-icon.js?v=10.0.10';
+import { escapeHtml, formatAiText } from '../organizer-utils.js?v=2026.8.26';
 const UPLOAD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>';
 const miniBarcodeSvg = '<svg style="width:12px;height:12px" viewBox="0 0 24 24"><path fill="currentColor" d="M3,6H5V18H3V6M7,6H8V18H7V6M9,6H12V18H9V6M13,6H14V18H13V6M16,6H18V18H16V6M19,6H21V18H19V6Z"/></svg>';
 
@@ -43,15 +56,15 @@ export const ChatMixin = (Base) => class extends Base {
               <div class="pending-top">
                 ${iconHtml}
                 <div style="display:flex;flex-direction:column;flex:1;margin-inline-end:10px;">
-                  <input type="text" id="pending-name-${item.id}" class="pending-name-input" value="${item.name}" style="width:100%;">
-                  ${item.barcode && item.barcode!=='0' ? `<div style="font-size:10px;color:var(--text-sub);margin-top:4px;display:inline-flex;align-items:center;gap:4px;opacity:.8;direction:ltr;align-self:flex-start;">${miniBarcodeSvg} ${item.barcode}</div>` : ''}
+                  <input type="text" id="pending-name-${escapeHtml(item.id)}" class="pending-name-input" value="${escapeHtml(item.name)}" style="width:100%;">
+                  ${item.barcode && item.barcode!=='0' ? `<div style="font-size:10px;color:var(--text-sub);margin-top:4px;display:inline-flex;align-items:center;gap:4px;opacity:.8;direction:ltr;align-self:flex-start;">${miniBarcodeSvg} ${escapeHtml(item.barcode)}</div>` : ''}
                 </div>
-                <input type="number" id="pending-qty-${item.id}" class="pending-qty-input" value="${item.qty}" min="1">
+                <input type="number" id="pending-qty-${escapeHtml(item.id)}" class="pending-qty-input" value="${escapeHtml(item.qty)}" min="1">
               </div>
-              <div class="pending-mid" style="display:flex;flex-direction:column;gap:8px;">${hierarchyHtml}<div style="display:flex;gap:5px;"><select class="move-select" id="pending-cat-main-${item.id}" style="flex:1;" onchange="this.getRootNode().host.updatePendingCategory('${item.id}',this.value,'main')">${mainCatOptions}</select><select class="move-select" id="pending-cat-sub-${item.id}" style="flex:1;" onchange="this.getRootNode().host.updatePendingCategory('${item.id}',this.value,'sub')">${subCatOptions}</select></div></div>
+              <div class="pending-mid" style="display:flex;flex-direction:column;gap:8px;">${hierarchyHtml}<div style="display:flex;gap:5px;"><select class="move-select" id="pending-cat-main-${escapeHtml(item.id)}" style="flex:1;" onchange="this.getRootNode().host.updatePendingCategory('${escapeHtml(item.id)}',this.value,'main')">${mainCatOptions}</select><select class="move-select" id="pending-cat-sub-${escapeHtml(item.id)}" style="flex:1;" onchange="this.getRootNode().host.updatePendingCategory('${escapeHtml(item.id)}',this.value,'sub')">${subCatOptions}</select></div></div>
               <div class="pending-actions" style="justify-content:space-between;align-items:center;margin-top:12px;">
-                <div style="display:flex;gap:10px;"><button class="action-btn" title="${this._t('take_photo', 'Take Photo')}" onclick="this.getRootNode().host.triggerCameraEdit('${item.id}','${this.escapeJSArg(item.name)}')">${ICONS.camera}</button><button class="action-btn" title="${this._t('upload_file', 'Upload File')}" onclick="this.getRootNode().host.triggerFileUploadEdit('${item.id}','${this.escapeJSArg(item.name)}')">${UPLOAD_SVG}</button><button class="action-btn" title="${this._t('change_img', 'Change Icon')}" onclick="this.getRootNode().host.openIconPicker('${item.id}','item')">${ICONS.image}</button></div>
-                <div style="display:flex;gap:10px;"><button class="action-btn btn-danger" title="${this._t('reject', 'Reject')}" onclick="this.getRootNode().host.deletePending('${item.id}')" style="display:flex;align-items:center;justify-content:center;">${ICONS.delete}</button><button class="action-btn" title="${this._t('confirm', 'Confirm')}" style="background:var(--success);color:white;display:flex;align-items:center;justify-content:center;" onclick="this.getRootNode().host.confirmPending('${item.id}')">${ICONS.check}</button></div>
+                <div style="display:flex;gap:10px;"><button class="action-btn" title="${this._t('take_photo', 'Take Photo')}" onclick="this.getRootNode().host.triggerCameraEdit('${escapeHtml(item.id)}','${escapeHtml(this.escapeJSArg(item.name))}')">${ICONS.camera}</button><button class="action-btn" title="${this._t('upload_file', 'Upload File')}" onclick="this.getRootNode().host.triggerFileUploadEdit('${escapeHtml(item.id)}','${escapeHtml(this.escapeJSArg(item.name))}')">${UPLOAD_SVG}</button><button class="action-btn" title="${this._t('change_img', 'Change Icon')}" onclick="this.getRootNode().host.openIconPicker('${escapeHtml(item.id)}','item')">${ICONS.image}</button></div>
+                <div style="display:flex;gap:10px;"><button class="action-btn btn-danger" title="${this._t('reject', 'Reject')}" onclick="this.getRootNode().host.deletePending('${escapeHtml(item.id)}')" style="display:flex;align-items:center;justify-content:center;">${ICONS.delete}</button><button class="action-btn" title="${this._t('confirm', 'Confirm')}" style="background:var(--success);color:white;display:flex;align-items:center;justify-content:center;" onclick="this.getRootNode().host.confirmPending('${escapeHtml(item.id)}')">${ICONS.check}</button></div>
               </div>`;
             listContainer.appendChild(card);
           });
@@ -75,7 +88,7 @@ export const ChatMixin = (Base) => class extends Base {
       const div = document.createElement('div'); div.className = `message ${msg.role}`;
       if (msg.isBarcodeConfirm) {
         div.innerHTML = `
-          <div style="margin-bottom:8px;color:var(--primary);"><b>Barcode Scanned: ${msg.barcode}</b></div><div style="margin-bottom:8px;font-size:13px;">Confirm or edit the AI suggested name:</div>
+          <div style="margin-bottom:8px;color:var(--primary);"><b>Barcode Scanned: ${escapeHtml(msg.barcode)}</b></div><div style="margin-bottom:8px;font-size:13px;">Confirm or edit the AI suggested name:</div>
           <input type="text" id="chat-bcode-input-${idx}" style="width:100%;padding:8px;margin-bottom:10px;border-radius:6px;border:1px solid var(--border-light);background:var(--bg-input-edit,#333);color:var(--text-main,#fff);font-size:14px;box-sizing:border-box;">
           <button class="action-btn" id="chat-bcode-btn-${idx}" style="width:100%;background:var(--success,#4caf50);color:white;padding:8px;border-radius:6px;">Confirm &amp; Add</button>`;
         setTimeout(() => {
@@ -86,14 +99,14 @@ export const ChatMixin = (Base) => class extends Base {
               const finalName = inp.value.trim() || msg.suggestion?.name;
               msg.isBarcodeConfirm = false; msg.text = `Categorizing <b>${finalName}</b>...`; this.render();
               try {
-                const result = await this._hass.callWS({ type:'home_organizer/ai_chat', message:`RESOLVE_BARCODE: ${msg.barcode} - ${finalName}`, image_data:null, mime_type:'image/jpeg', language:this.currentLang });
+                const result = await this._hass.callWS({ type:'home_organizer/ai_chat', message:`RESOLVE_BARCODE: ${escapeHtml(msg.barcode)} - ${finalName}`, image_data:null, mime_type:'image/jpeg', language:this.currentLang });
                 if (result) {
                   let debugHTML = "";
                   if (result.debug?.raw_json) debugHTML = `<details class="debug-details"><summary class="debug-summary">📄 Raw Data</summary><div class="debug-content">${result.debug.raw_json.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}</div></details>`;
-                  if (result.error) msg.text = `❌ Error: ${result.error}`;
-                  else if (result.response) msg.text = result.response.replace(/\*\*(.*?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>') + debugHTML;
+                  if (result.error) msg.text = `❌ Error: ${escapeHtml(result.error)}`;
+                  else if (result.response) msg.text = formatAiText(result.response) + debugHTML;
                 }
-              } catch (e) { msg.text = `❌ Failed to categorize: ${e.message}`; }
+              } catch (e) { msg.text = `❌ Failed to categorize: ${escapeHtml(e.message)}`; }
               this.render();
             };
             btn.onclick = confirmAction; inp.onkeydown = e => { if (e.key === 'Enter') confirmAction(); };
@@ -152,8 +165,8 @@ export const ChatMixin = (Base) => class extends Base {
             if (d.sql_query) debugHTML += `<details class="debug-details"><summary class="debug-summary">🔍 SQL Query</summary><div class="debug-content">${esc(d.sql_query)}</div></details>`;
           }
           statusMsg.text = "✔ " + this._t('complete', 'Complete') + debugHTML;
-          if (result.error) this.chatHistory.push({ role:'ai', text:`<b>${this._t('error', 'Error')}:</b> ${result.error}`, isError:true, retryText:text, retryImage:imgData, retryMime:currentMime });
-          else if (result.response) this.chatHistory.push({ role:'ai', text:result.response.replace(/\*\*(.*?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>') });
+          if (result.error) this.chatHistory.push({ role:'ai', text:`<b>${this._t('error', 'Error')}:</b> ${escapeHtml(result.error)}`, isError:true, retryText:text, retryImage:imgData, retryMime:currentMime });
+          else if (result.response) this.chatHistory.push({ role:'ai', text:formatAiText(result.response) });
         }
       } catch (e) {
         statusMsg.text += "<br>❌ " + this._t('failed', 'Failed');

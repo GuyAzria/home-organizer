@@ -1,19 +1,21 @@
-// organizer-api.js — Home Assistant API calls, data fetching, item CRUD
-// Part of Home Organizer Ultimate (Guy Azria) | v7.7.60
+// Home Organizer for Home Assistant
+// Copyright (C) 2026 Guy Azria
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details. <https://www.gnu.org/licenses/>.
+//
 // [MODIFIED v7.7.60 | 2026-05-03] Purpose: Removed complex blur/input event tracking. autoSaveItem now cleanly responds to explicit save actions (like the new Save button in the UI).
 // [MODIFIED v7.7.59 | 2026-05-03] Purpose: Completely solved the mobile Companion App "reverting name" bug. Replaced unreliable DOM visibility checks during keyboard blur with a memory-based state tracker (_lastEditedValues) powered by the 'input' event, ensuring the exact text typed by the user is always the one saved.
-// [MODIFIED v7.7.58 | 2026-05-03] Purpose: Added a global event delegation listener for the 'change' event to catch mobile keyboard actions like "Next" or "Done". This fixes the issue where mobile inputs wouldn't trigger the explicit 'Enter' key listeners, causing name edits to revert.
-// [MODIFIED v7.7.57 | 2026-05-03] Purpose: Fixed mobile app bug (Home Assistant Companion App) where getBoundingClientRect fails during keyboard dismiss/blur event. _getActiveEl now uses offsetWidth and getComputedStyle. autoSaveItem now uses a value-based heuristic to guarantee the edited input is selected.
-// [MODIFIED v7.7.56 | 2026-05-03] Purpose: Improved _getActiveEl visibility detection using getBoundingClientRect() instead of offsetParent, fixing an issue in Shadow DOM where Shopping List name edits were grabbing the old hidden value.
-// [MODIFIED v7.7.55 | 2026-05-03] Purpose: Added _getActiveEl helper to bypass duplicate DOM IDs when identical item rows exist in both Inventory (hidden) and Shopping List (visible). Functions like autoSaveItem now properly read from the active/visible input instead of reverting to the old hidden value.
-// [MODIFIED v7.7.54 | 2026-05-03] Purpose: Fixed autoSaveItem to gracefully handle missing date elements (e.g., in Shopping List view), ensuring item name edits are saved and immediately refreshed.
-// [ADDED v7.7.53 | 2026-04-20] Purpose: Added dedicated updateUnitValue method for the unit_value input, independent of the category tree. Fixes the Shopping List edit mode where typing a unit value silently failed for items with legacy categories.
-// [MODIFIED v7.7.52 | 2026-04-20] Purpose: updateItemCategory no longer includes the `unit` key in the payload when it cannot be derived from the current ITEM_CATEGORIES tree. This prevents legacy items (saved under older category names) from having their stored unit wiped when the user edits unit_value or changes sub_category.
-// [MODIFIED v7.7.51 | 2026-04-20] Purpose: Simplified submitShopStock after state cleanup. shopQuantities was removed in state v7.7.56 so the fallback branch is no longer needed.
-// [MODIFIED v7.7.50 | 2026-04-20] Purpose: submitShopStock now reads the quantity from the persisted item.order_qty in the shopping list, so the value survives browser refresh instead of resetting to the empty shopQuantities object.
-// [ADDED v7.7.49 | 2026-04-20] Purpose: Added updateOrderQty function to send shopping list amount changes to the new update_order_qty backend service.
 
 import { ITEM_CATEGORIES } from './organizer-data.js?v=6.6.10';
+import { escapeHtml } from './organizer-utils.js?v=2026.8.26';
 
 export const APIMixin = (Base) => class extends Base {
 
@@ -158,7 +160,7 @@ export const APIMixin = (Base) => class extends Base {
       let html = `<option value="">${this.t('select_sub')}</option>`;
       if (mainCat && ITEM_CATEGORIES[mainCat])
         Object.keys(ITEM_CATEGORIES[mainCat]).forEach(s => {
-          html += `<option value="${s}">${this.t('sub_' + s.replace(/[^a-zA-Z0-9]+/g,'_')) || s}</option>`;
+          html += `<option value="${escapeHtml(s)}">${escapeHtml(this.t('sub_' + s.replace(/[^a-zA-Z0-9]+/g,'_')) || s)}</option>`;
         });
       if (subSel) subSel.innerHTML = html;
     }
@@ -177,7 +179,7 @@ export const APIMixin = (Base) => class extends Base {
       let html = `<option value="">${this.t('select_sub')}</option>`;
       if (mainCat && ITEM_CATEGORIES[mainCat])
         Object.keys(ITEM_CATEGORIES[mainCat]).forEach(s => {
-          html += `<option value="${s}">${this.t('sub_' + s.replace(/[^a-zA-Z0-9]+/g,'_')) || s}</option>`;
+          html += `<option value="${escapeHtml(s)}">${escapeHtml(this.t('sub_' + s.replace(/[^a-zA-Z0-9]+/g,'_')) || s)}</option>`;
         });
       if (subSel) subSel.innerHTML = html;
       subCat = "";
@@ -266,8 +268,8 @@ export const APIMixin = (Base) => class extends Base {
       const div = document.createElement('div');
       div.className = 'suggestion-item';
       div.innerHTML = match.image_path
-        ? `<img src="${match.image_path}" class="suggestion-img"><span>${match.name}</span>`
-        : `<span>${match.name}</span>`;
+        ? `<img src="${escapeHtml(match.image_path)}" class="suggestion-img"><span>${escapeHtml(match.name)}</span>`
+        : `<span>${escapeHtml(match.name)}</span>`;
       div.onmousedown = e => { e.preventDefault(); this.applySuggestion(itemId, match); box.remove(); };
       box.appendChild(div);
     });

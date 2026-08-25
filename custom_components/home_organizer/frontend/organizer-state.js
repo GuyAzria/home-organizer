@@ -1,5 +1,16 @@
-// organizer-state.js — App state initialization, translations, language, theme, toggles
-// Part of Home Organizer Ultimate (Guy Azria) | v7.7.56
+// Home Organizer for Home Assistant
+// Copyright (C) 2026 Guy Azria
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details. <https://www.gnu.org/licenses/>.
+//
 // [MODIFIED v7.7.56 | 2026-04-20] Purpose: Removed obsolete adjustShopQty method and shopQuantities state object. The shopping list qty is now persisted directly to DB via updateOrderQty (see organizer-api.js v7.7.50), so the transient client-side counter is no longer needed.
 // [ADDED v7.7.55 | 2026-04-07] Purpose: Added showExternalAppSetup method to display the new dedicated Android App setup modal.
 

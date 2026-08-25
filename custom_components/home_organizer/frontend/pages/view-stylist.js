@@ -1,7 +1,20 @@
-// pages/view-stylist.js
+// Home Organizer for Home Assistant
+// Copyright (C) 2026 Guy Azria
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details. <https://www.gnu.org/licenses/>.
+//
 // [MODIFIED v10.2.5 | 2026-04-17] Purpose: Replaced generic shoe icon with a highly detailed, clear Sneaker SVG. Connected all Wizard UI elements to the dynamic translation dictionary for all languages based on the new CSV structure.
 
 import { ICONS } from '../organizer-icon.js?v=10.2.5';
+import { formatAiText } from '../organizer-utils.js?v=2026.8.26';
 
 export const StylistMixin = (Base) => class extends Base {
 
@@ -165,7 +178,7 @@ export const StylistMixin = (Base) => class extends Base {
     }).then(result => {
         this.stylistHistory.splice(statusIdx, 1);
         if (result && result.response) {
-            this.stylistHistory.push({ role: 'ai', text: result.response.replace(/\n/g, '<br>') });
+            this.stylistHistory.push({ role: 'ai', text: formatAiText(result.response) });
         } else if (result && result.error) {
             this.stylistHistory.push({ role: 'ai', text: "❌ Error: " + result.error });
         }

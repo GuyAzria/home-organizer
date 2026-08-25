@@ -1,7 +1,18 @@
 # -*- coding: utf-8 -*-
-"""Constants for the Home Organizer integration."""
+# Home Organizer for Home Assistant
+# Copyright (C) 2026 Guy Azria
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+# more details. <https://www.gnu.org/licenses/>.
+#
 
-DOMAIN = "home_organizer"
 # // [MODIFIED v10.0.0 | 2026-08-23] Purpose: SECURITY HARDENING (HACS review).
 # // Introduced an explicit, code-side allow-list for every Home Assistant
 # // service the LLM agent is permitted to call, plus CONF_ALLOW_SCRIPTS so
@@ -13,8 +24,10 @@ DOMAIN = "home_organizer"
 # // CONF_TRIGGER_CALENDAR so that Reminder + Calendar domains are fully
 # // user-configurable from the config flow, matching the pattern of the
 # // existing inventory/shopping/cooking/smart_home/stylist triggers.
-# // [MODIFIED v9.3.0 | 2026-04-16] Purpose: Added Hugging Face and Fashn.ai
-# // to the Stylist VTO provider constants.
+
+"""Constants for the Home Organizer integration."""
+
+DOMAIN = "home_organizer"
 VERSION = "10.0.0"
 
 # Configuration Keys

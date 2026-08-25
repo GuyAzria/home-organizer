@@ -1,7 +1,51 @@
-// organizer-utils.js — Utility helpers: ID logic, icon lookup, display formatting
-// Part of Home Organizer Ultimate (Guy Azria) | v7.7.48
+// Home Organizer for Home Assistant
+// Copyright (C) 2026 Guy Azria
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details. <https://www.gnu.org/licenses/>.
+//
 
 import { ICONS, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.10';
+
+// [ADDED v2026.8.26] HTML escaping for any value that reaches innerHTML.
+//
+// Item names, dates and barcode-scan results are user-controlled and can also
+// come back from the AI agent, so interpolating them into a raw HTML string
+// lets a name like <img src=x onerror=...> execute for anyone viewing the
+// panel. Escaping the five significant characters covers both element-text
+// and quoted-attribute contexts.
+export function escapeHtml(value) {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// [ADDED v2026.8.26] Safe renderer for AI assistant replies.
+//
+// The model's reply used to be turned into HTML directly, so any markup it
+// produced executed in the dashboard. That is reachable without touching the
+// chat: the agents read calendar entries and shopping-list items as context,
+// so a prompt-injected item could make the model echo a payload back.
+//
+// The text is escaped FIRST, then the two intentional transforms (**bold**
+// and newline to <br>) are applied to the already-escaped string. Formatting
+// keeps working exactly as before; injected markup does not.
+export function formatAiText(text) {
+  return escapeHtml(text)
+    .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+    .replace(/\n/g, '<br>');
+}
 
 export const UtilsMixin = (Base) => class extends Base {
 

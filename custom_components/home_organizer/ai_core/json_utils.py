@@ -1,4 +1,17 @@
 # -*- coding: utf-8 -*-
+# Home Organizer for Home Assistant
+# Copyright (C) 2026 Guy Azria
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+# more details. <https://www.gnu.org/licenses/>.
+#
 # // [v9.0.0 | 2026-04-13] Purpose: Shared JSON utilities used by every agent.
 # // Extracted from the old ai_logic.py where extract_first_json was duplicated
 # // inside each run-function. Single source of truth so a fix here propagates

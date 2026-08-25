@@ -1,4 +1,17 @@
 # -*- coding: utf-8 -*-
+# Home Organizer for Home Assistant
+# Copyright (C) 2026 Guy Azria
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+# more details. <https://www.gnu.org/licenses/>.
+#
 # // [MODIFIED v9.5.0 | 2026-08-02] Purpose: Refactored database interactions to use aiosqlite for full asynchronous I/O.
 # // [NEW v9.4.0 | 2026-04-18] Purpose: Persistent storage layer for the
 # // Reminder + Calendar agents.

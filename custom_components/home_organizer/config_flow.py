@@ -1,5 +1,17 @@
 # -*- coding: utf-8 -*-
-# Home Organizer Ultimate
+# Home Organizer for Home Assistant
+# Copyright (C) 2026 Guy Azria
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+# more details. <https://www.gnu.org/licenses/>.
+#
 # // [MODIFIED v10.0.0 | 2026-08-23] Purpose: SECURITY HARDENING (HACS review).
 # //   1. Every credential field (cloud key, local key, VTO key) is now a
 # //      password TextSelector instead of a bare `str`, so keys are masked
@@ -13,10 +25,6 @@
 # // default in this file so ALL defaults are English-only; the trigger_manager
 # // now handles per-UI-language translation, and users can still override
 # // each trigger string from the Options UI in any language they want.
-# // [MODIFIED v9.3.0 | 2026-04-16] Purpose: Added Hugging Face and Fashn.ai
-# // into the Stylist VTO provider drop-down list.
-# // [MODIFIED v8.22.1 | 2026-04-02] Purpose: Fixed AttributeError in
-# // OptionsFlowHandler by renaming self.config_entry to self._config_entry.
 
 import logging
 import voluptuous as vol

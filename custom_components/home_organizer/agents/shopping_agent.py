@@ -1,21 +1,19 @@
 # -*- coding: utf-8 -*-
+# Home Organizer for Home Assistant
+# Copyright (C) 2026 Guy Azria
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+# more details. <https://www.gnu.org/licenses/>.
+#
 # // [MODIFIED v9.3.3 | 2026-08-02] Purpose: Refactored database interactions to use aiosqlite for full asynchronous I/O. Replaced get_db_connection with get_db_path and removed async_add_executor_job wrappers to prevent Event Loop blocking.
 # // [MODIFIED v9.3.2 | 2026-04-21] Purpose: Bug fix — translations.csv was not being found because the loader searched in www/ and static/, but the file actually lives at <integration_dir>/frontend/translations.csv (as registered in __init__.py StaticPathConfig). Added frontend/ as the first path candidate. Category and sub-category labels now translate to the target language as intended.
-# // [MODIFIED v9.3.1 | 2026-04-21] Purpose: Three fixes for the share flow. (1) Robust language resolution via cascade: kwargs.target_lang -> Hebrew/Arabic/Cyrillic heuristic on last user message -> hass.config.language -> 'en'. No more English output when the user clearly wrote in Hebrew. (2) Category and sub-category labels are now translated to the target language by loading translations.csv at runtime (cached) and looking up cat_<slug>/sub_<slug> keys. Covers both legacy ('Food', 'Cleaning') and refactored ('Food & Groceries', 'Cleaning Supplies') DB values. (3) HA persistent_notification markdown now uses two-space hard breaks so line breaks aren't collapsed when rendered in the HA notification panel.
-# // [MODIFIED v9.3.0 | 2026-04-21] Purpose: Replaced share_shopping_list_whatsapp with generic share_shopping_list. Supports three channels (WhatsApp, Telegram, Email) via a 'channel' kwarg. Adds category and sub-category emojis for readability. Creates a native HA persistent_notification with one tappable button per channel chosen (or all three if the user didn't specify), in the active UI language.
-# // [MODIFIED v9.2.1 | 2026-04-21] Purpose: share_shopping_list_whatsapp now creates an HA persistent_notification with a clickable link so the user sees a tappable link natively in HA (no extension needed). Also strengthened the prompt rule so the agent includes the wa.me URL verbatim in its chat reply.
-# // [ADDED v9.2.0 | 2026-04-20] Purpose: Added share_shopping_list_whatsapp tool. The agent now recognizes user intent to share/send the shopping list to WhatsApp, formats it grouped by category and sub-category in the target language, and returns a wa.me URL that opens the WhatsApp contact picker.
-# // [ADDED v9.1.7 | 2026-04-14] Purpose: Synchronized 'USER LOCATION MATCHING' logic with inventory_agent. The AI will now correctly map user-provided locations to existing location_ids instead of blindly creating new sub-locations when answering clarification questions.
-# // [ADDED v9.1.6 | 2026-04-14] Purpose: Added TARGET LANGUAGE ENFORCEMENT rule to strictly prevent the AI from translating Hebrew item names (like 'מלפפונים') into English ('Cucumbers') when interacting with the database tools.
-# // [ADDED v9.1.5 | 2026-04-14] Purpose: Fixed context loss during location clarification. Added 'SMART LOCATION GUESSING' rule so the AI defaults to the most logical location for obvious items (like cucumbers in a vegetable drawer) without asking. Expanded the continuation rule to explicitly force the AI to retrieve the item name and quantity from the chat history after the user answers a clarification question, preventing it from forgetting what was being added.
-# // [ADDED v9.1.4 | 2026-04-14] Purpose: Synchronized location management rules with inventory_agent. The shopping agent will now intelligently ask to create or clarify sub-locations (like "Vegetable Drawer" in "Fridge") before adding an item to the shopping list. Also reinforced the order_qty update by replacing LIKE with exact "=" operators to prevent case/spacing mismatches when saving the quantity.
-# // [ADDED v9.1.3 | 2026-04-14] Purpose: Fixed AI confusion over 'quantity 0' by removing DB internal states from tool output. Fixed broad SQL LIKE matching that caused 'Sugar' to hijack 'Vanilla Sugar' by prioritizing exact matches. Ensured order_qty updates correctly using exact row matching.
-# // [ADDED v9.1.2 | 2026-04-14] Purpose: Fixed order_qty bug where adding to shopping list or updating quantity remained at 0. Improved JSON parsing to catch alternate keys (qty vs requested_qty vs new_qty) and enforced minimum quantity of 1. Added explicit JSON examples to the prompt to prevent the AI from hallucinating formats.
-# // [v9.1.1 | 2026-04-14] Purpose: Replaced hard-coded English fallback
-# // strings with localized lookups via ai_core.localized_strings.
-# // [v9.0.0 | 2026-04-13] Purpose: Self-contained Shopping List agent. Owns
-# // its prompt, conversational run loop, and all six shopping tools.
-# // Completely isolated from inventory tooling.
 
 import logging
 import os
@@ -269,6 +267,11 @@ async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map, last_user_msg
         for name, oq, cat, scat, unit, uval in rows:
             cat_raw = (cat or "Other").strip() or "Other"
             scat_raw = (scat or "General").strip() or "General"
+            # [MODIFIED v2026.8.26] _translate() lazily reads a 137 KB CSV from
+            # disk on its first call. That read was happening on the event
+            # loop. Warm the cache in the executor once, before using it.
+            if _TRANSLATIONS_CACHE is None:
+                await hass.async_add_executor_job(_load_translations)
             cat_display = _translate(f"cat_{_slug(cat_raw)}", target_lang, default=cat_raw)
             scat_display = _translate(f"sub_{_slug(scat_raw)}", target_lang, default=scat_raw)
             qty = oq if oq and oq > 0 else 1

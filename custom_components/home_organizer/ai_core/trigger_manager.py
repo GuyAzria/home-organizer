@@ -1,4 +1,17 @@
 # -*- coding: utf-8 -*-
+# Home Organizer for Home Assistant
+# Copyright (C) 2026 Guy Azria
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+# more details. <https://www.gnu.org/licenses/>.
+#
 # // [v9.1.0 | 2026-04-14] Purpose: Language-aware trigger manager. Holds a
 # // master list of English trigger words for each agent domain, lazily
 # // translates them to the user's language on first use, caches the result
@@ -428,7 +441,11 @@ async def _ensure_language_cached(hass, entry, lang_code):
             _PENDING_TRANSLATIONS.discard(lang_code)
 
     try:
-        hass.async_create_task(_background_translate())
+        # [MODIFIED v2026.8.26] entry-scoped so Home Assistant cancels it on
+        # unload or reload. hass.async_create_task would outlive the entry.
+        entry.async_create_background_task(
+            hass, _background_translate(), "home_organizer_translate"
+        )
     except Exception:  # pragma: no cover - no task API available
         _PENDING_TRANSLATIONS.discard(lang_code)
 
@@ -600,7 +617,11 @@ async def _ensure_delegation_cached(hass, entry, lang_code):
             _PENDING_TRANSLATIONS.discard(key)
 
     try:
-        hass.async_create_task(_background_translate())
+        # [MODIFIED v2026.8.26] entry-scoped so Home Assistant cancels it on
+        # unload or reload. hass.async_create_task would outlive the entry.
+        entry.async_create_background_task(
+            hass, _background_translate(), "home_organizer_translate"
+        )
     except Exception:  # pragma: no cover
         _PENDING_TRANSLATIONS.discard(key)
 

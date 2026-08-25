@@ -1,4 +1,16 @@
-// pages/view-shopping.js
+// Home Organizer for Home Assistant
+// Copyright (C) 2026 Guy Azria
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details. <https://www.gnu.org/licenses/>.
+//
 // [MODIFIED v10.0.9 | 2026-05-03] Purpose: Removed all sharing logic from the shopping view. Share functionality has been completely abstracted into the UIMixin (organizer-ui.js) for proper routing and modal interaction.
 // [ADDED v10.0.4] Shopping View
 

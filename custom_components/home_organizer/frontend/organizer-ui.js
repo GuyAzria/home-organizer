@@ -1,20 +1,21 @@
-// organizer-ui.js — Home Organizer Ultimate v10.4.4
+// Home Organizer for Home Assistant
+// Copyright (C) 2026 Guy Azria
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details. <https://www.gnu.org/licenses/>.
+//
 // [MODIFIED v10.4.4 | 2026-08-02] Purpose: Changed the Android App download button to point to the GitHub Releases page. Updated labels and UI strings from HOCameraApp to HO_Mind_AI to reflect the new repository and application name.
 // [MODIFIED v10.4.3 | 2026-05-13] Purpose: Enhanced translation strings for the Android setup modal. Replaced long paragraphs with bulleted, multi-line instructions, specifically isolating English LTR terms (URLs, IDs, Navigation paths) into their own lines using <br> and <span dir="ltr"> to prevent RTL layout breakage in Hebrew. Clarified the precise method for extracting the HA Notify Device ID from the browser URL bar.
-// [MODIFIED v10.4.2 | 2026-05-13] Purpose: Integrated translation keys for the new interactive camera setup modal, improved font sizes and light/dark theme contrast for better readability.
-// [MODIFIED v10.4.1 | 2026-05-13] Purpose: Updated settings instructions to clarify the Agent ID is the default and should not be changed, and added a pro-tip to send the Token and Device ID to oneself via WhatsApp for easy pasting.
-// [MODIFIED v10.4.0 | 2026-05-13] Purpose: Redesigned the external camera setup modal. Replaced static instruction images with an interactive, scrollable HTML/CSS mockup of the MAUI XAML settings UI, embedding child-friendly Hebrew instructions directly into the simulated app interface.
-// [MODIFIED v10.3.9 | 2026-05-13] Purpose: Point download button directly to the public /local/HOCameraApp.apk bypassing HA authentication blockers for the Android DownloadManager.
-// [MODIFIED v10.3.8 | 2026-05-13] Purpose: Reverted to simple window.location.href. Android WebView blocks blob URI downloads, and aiohttp FileResponse was stripping our APK headers. The server now serves raw bytes correctly.
-// [MODIFIED v10.3.7 | 2026-05-13] Purpose: Implemented an asynchronous Blob fetch download method for the APK.
-// [MODIFIED v10.3.6 | 2026-05-13] Purpose: Changed the download API URL to explicitly end in .apk.
-// [MODIFIED v10.3.5 | 2026-05-13] Purpose: Updated the Android APK download button in the external camera setup modal to point to the new dedicated API route.
-// [MODIFIED v10.3.4 | 2026-05-03] Purpose: Built a custom Share Modal with dedicated buttons for WhatsApp, Telegram, Email, and Clipboard. Ported the exact AI text-generation logic (including emojis for categories/sub-categories) into the UI so formatting perfectly matches the python AI agent. Removed reliance on navigator.share which is buggy in the companion app.
-// [MODIFIED v10.3.3 | 2026-05-03] Purpose: Fixed a logical routing bug in updateUI where the share button visibility toggle was placed after the early 'return' for the Shopping View.
-// [MODIFIED v10.3.2 | 2026-05-03] Purpose: Replaced the Share button SVG with the requested specific networking icon.
-// [MODIFIED v10.3.1 | 2026-05-03] Purpose: Integrated the Share Shopping List button natively into the sub-bar next to the Toggle IDs button.
 
 import { ICONS } from './organizer-icon.js?v=10.3.0';
+import { escapeHtml } from './organizer-utils.js?v=2026.8.26';
 
 const UPLOAD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>';
 const MENU_SVG   = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z"/></svg>';
@@ -743,7 +744,7 @@ export const UIMixin = (Base) => class extends Base {
       const svgEl = iconBig.querySelector('svg'); if (svgEl) { svgEl.style.width='140px'; svgEl.style.height='140px'; }
       iconBig.style.display = 'block';
     }
-    det.innerHTML = `<div style="font-size:20px;font-weight:bold;margin-bottom:8px">${item.name}</div><div style="font-size:16px;color:#aaa;margin-bottom:15px">${item.date||this.t('no_date')}</div><div style="font-size:18px;font-weight:bold;color:var(--accent);background:#333;padding:8px 20px;border-radius:20px;display:inline-block">${this.t('quantity')}: ${item.qty}</div>`;
+    det.innerHTML = `<div style="font-size:20px;font-weight:bold;margin-bottom:8px">${escapeHtml(item.name)}</div><div style="font-size:16px;color:#aaa;margin-bottom:15px">${escapeHtml(item.date||this.t('no_date'))}</div><div style="font-size:18px;font-weight:bold;color:var(--accent);background:#333;padding:8px 20px;border-radius:20px;display:inline-block">${escapeHtml(this.t('quantity'))}: ${escapeHtml(item.qty)}</div>`;
   }
 
   showItemDetailsProxy(itemId) {

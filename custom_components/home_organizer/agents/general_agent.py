@@ -1,4 +1,17 @@
 # -*- coding: utf-8 -*-
+# Home Organizer for Home Assistant
+# Copyright (C) 2026 Guy Azria
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+# more details. <https://www.gnu.org/licenses/>.
+#
 # // [MODIFIED v1.1.0 | 2026-05-04] Purpose: Purged hardcoded Hebrew error messages. Implemented the dynamic localization system using get_strings_for_language to ensure the agent remains strictly English-coded and translates errors based on the user's UI language.
 # // [ADDED v1.0.0 | 2026-05-04] Purpose: A catch-all agent for general knowledge, jokes, stories, and open-ended conversational queries that do not belong to specific household management domains.
 

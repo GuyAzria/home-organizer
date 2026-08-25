@@ -1,32 +1,19 @@
 # -*- coding: utf-8 -*-
+# Home Organizer for Home Assistant
+# Copyright (C) 2026 Guy Azria
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+# more details. <https://www.gnu.org/licenses/>.
+#
 # // [MODIFIED v10.0.4 | 2026-08-09] Purpose: Removed 'title' from TTS payload. The HA Android app drops TTS playback and defaults to standard visual notifications if extra UI parameters like title are present.
 # // [MODIFIED v10.0.3 | 2026-08-09] Purpose: Fixed TTS payload structure so reminders are spoken aloud using alarm_stream_max instead of text popups.
-# // [ADDED v10.0.2 | 2026-08-09] Purpose: Removed legacy ho_reminder_triggered event bus firing to ensure a true Zero-YAML installation. Automatically creates a calendar event for every scheduled reminder, prefixed with a clock icon (⏰) to distinguish them from standard events.
-# // [ADDED v10.0.1 | 2026-06-11] Purpose: Added high priority and ttl data fields to push notifications to bypass mobile OS battery-saving sleep modes (Doze Mode / Samsung deep sleep pooling) and prevent delayed reminders.
-# // [ADDED v10.0.0 | 2026-06-11] Purpose: Multi-language broadcast support. The prompt instruction was updated to evaluate the broadcast intent ("notify_all") dynamically based on the active target UI language, catching "everyone" or "כולם". Added broadcast routing logic to trigger_reminder.
-# // [v9.9.8 | 2026-05-12] Purpose: Added ambiguity resolution for AM/PM, reminder listing, and deletion capability. Uses hass.data memory registry to hold and cancel callbacks.
-# // [v9.9.7 | 2026-04-19] Purpose: Personal reminders. A reminder now fires
-# // ONLY on the device that set it -- if Yulia asks from her phone, only
-# // her phone pings; Guy's phone stays quiet. We achieve this by resolving
-# // the device_id captured at conversation time into its matching
-# // mobile_app_<slug> notify service and calling JUST that service,
-# // instead of the broadcast "notify.notify" that hit every phone.
-# //
-# // Lookup sequence:
-# //   1. If device_id is set, walk the device registry to find the
-# //      mobile_app config entry for it and derive its notify service
-# //      slug (mobile_app_<slugified_device_name>).
-# //   2. If we cannot resolve a mobile_app service for that device (e.g.
-# //      the request came from a non-mobile source like a browser tab
-# //      or an Assist pipeline without a registered mobile_app), we fall
-# //      back to firing ONLY the "ho_reminder_triggered" event -- we do
-# //      NOT broadcast to notify.notify anymore. The user can wire a
-# //      listening automation if they want a fallback.
-# //
-# // Prompt, JSON parsing, time validation, fallback strings -- all
-# // unchanged from v9.1.1.
-# // [v9.1.1 | 2026-04-14] Purpose: Localized fallback strings.
-# // [v9.0.0 | 2026-04-13] Purpose: Self-contained Reminder agent.
 
 import logging
 import re

@@ -1,4 +1,17 @@
 # -*- coding: utf-8 -*-
+# Home Organizer for Home Assistant
+# Copyright (C) 2026 Guy Azria
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+# more details. <https://www.gnu.org/licenses/>.
+#
 # // [MODIFIED v9.9.8 | 2026-08-02] Purpose: Refactored database interactions to use aiosqlite for full asynchronous I/O. Replaced get_db_connection with get_db_path and removed async_add_executor_job wrappers to prevent Event Loop blocking.
 # // [v9.9.7 | 2026-04-19] Purpose: Unified first-turn presentation + free-form
 # //   questions. Major UX changes requested by the user:
@@ -29,48 +42,6 @@
 # //   SAVE_RECIPE unchanged — it already stores the three columns the
 # //   user asked for (name, ingredients, steps). Just confirmed it
 # //   picks up the full steps from the now-richer state.
-# // [v9.9.6 | 2026-04-19] Preserve recipe identity (fix-first + switch confirm).
-# // [v9.9.5 | 2026-04-18] CRITICAL fix for saved-recipe completeness.
-# // [v9.9.2 | 2026-04-18] Purpose: Fixes after live testing in Hebrew:
-# //   1. Continuation HINT is now localized per language (Hebrew, Arabic,
-# //      Russian, etc). Previously it always said "Say next to continue"
-# //      in English even inside a Hebrew conversation.
-# //   2. Localized STEP_LABEL_MAP for dictation mode so step prefixes
-# //      rendered by our own code use the correct word ("שלב" for
-# //      Hebrew, "Paso" for Spanish, etc) instead of hardcoded "Step".
-# //   3. STATE 5 (shopping_sync) prompt hardened with an ABSOLUTE
-# //      NO-QUESTION RULE and a full Hebrew WORKED EXAMPLE. The LLM no
-# //      longer asks "do you want to increase the quantity of X" during
-# //      shopping-sync turns.
-# //   4. _push_to_shopping_list gained a belt-and-suspenders number
-# //      extractor: if the LLM still returns requested_qty=1 while
-# //      sending a qty_needed string like "200 grams", the code itself
-# //      parses the first integer out of qty_needed and uses it. Same
-# //      for unit detection.
-# //   5. Cooking prompt's "Step 1:" placeholders replaced with neutral
-# //      "<step 1 in target_lang>" so the LLM stops leaking the English
-# //      label into Hebrew output.
-# // [v9.9.1 | 2026-04-18] Purpose: Initial quantity-extraction + no-ask
-# // hardening, HINT_MAP pass. Superseded by 9.9.2.
-# // [v9.9.0 | 2026-04-18] Purpose: Saved recipes + automatic timers +
-# // manual recipe dictation. Four new capabilities layered on top of the
-# // v9.8 multi-state agent:
-# //   A. DB-FIRST LOOKUP. When the user asks for "<dish>", we first query
-# //      recipes_db for a stored match and ask if they want to use it
-# //      before hitting the LLM. Saved recipes load instantly and skip
-# //      token cost entirely.
-# //   B. AUTO-SAVE. After the user finishes step-by-step mode we save
-# //      the whole recipe (ingredients + steps + timers) to the DB so
-# //      it's available next time.
-# //   C. AUTO TIMERS. In FAST PATH mode, if the step we are about to
-# //      deliver has a timer attached, we persist a reminder to
-# //      scheduled_reminders, announce it ("Timer set for 45 minutes"),
-# //      AND keep the step text so they still see what to do.
-# //   D. MANUAL DICTATION. A new dictation state lets the user build a
-# //      recipe step by step, with optional timers per step, without
-# //      the LLM inventing anything.
-# // [v9.8.0 | 2026-04-18] Previous multi-state rewrite (inventory diff,
-# // shopping_sync, step-by-step hardening, reminder handoff logging).
 
 import json
 import logging
@@ -1072,7 +1043,10 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
 
     parsed = safe_parse_json(raw_res)
     if not parsed:
-        _LOGGER.error(f"[HO-COOKING] JSON parse failed: {raw_res!r}")
+        _LOGGER.debug(
+            "[HO-COOKING] JSON parse failed (%d chars returned)",
+            len(raw_res or ""),
+        )
         return raw_res
 
     intent_str = str(parsed.get("intent", "")).replace("-", "_").lower()

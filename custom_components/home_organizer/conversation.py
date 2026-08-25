@@ -1,7 +1,19 @@
 # -*- coding: utf-8 -*-
+# Home Organizer for Home Assistant
+# Copyright (C) 2026 Guy Azria
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+# more details. <https://www.gnu.org/licenses/>.
+#
 # // [MODIFIED v8.25.0 | 2026-08-02] Purpose: Refactored database interactions to use aiosqlite for full asynchronous I/O. Replaced get_db_connection with get_db_path and removed async_add_executor_job wrappers to prevent Event Loop blocking during voice interactions.
 # // [MODIFIED v8.24.0 | 2026-04-12] Purpose: Captured user_input.device_id and user_input.context.user_id to pass down to the AI. This allows the Time Reminder Agent to target the specific mobile device that initiated the voice request.
-# // [MODIFIED v8.23.0 | 2026-04-12] Purpose: Increased the aggressive TTS truncation limit to 2500 characters so the AI's questions are never cut off during voice playback. Updated the function call to use safe_universal_agent_loop with is_voice=True for perfect TTS routing.
 
 import logging
 import re

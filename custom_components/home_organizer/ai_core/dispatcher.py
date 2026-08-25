@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-#
 # Home Organizer for Home Assistant
 # Copyright (C) 2026 Guy Azria
 #
@@ -13,14 +12,13 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
-# [FIXED v2026.8.24] Any error returned by Home Assistant's built-in
+# [FIXED v2026.8.25] Any error returned by Home Assistant's built-in
 # conversation agent now counts as "not handled", and the request continues to
 # the Home Organizer agent. Previously only NO_INTENT_MATCH fell through, so a
 # command HA parsed but could not target - "turn on the hallway light" for an
 # entity not exposed to Assist - was answered with HA's own error text and our
 # agent never got to run. Covers and locks are unaffected: they are stopped
 # separately by async_is_delegated_request.
-#
 # // [MODIFIED v10.0.0 | 2026-08-23] Purpose: SECURITY HARDENING (HACS review).
 # // The traffic cop now gives Home Assistant's own built-in conversation
 # // agent the first attempt at every device-control request. Locks and covers
@@ -30,7 +28,6 @@
 # // smart home agent, where a fixed allow-list applies.
 # // Also fixes the trailing-message pop so it only happens when we actually
 # // continue to our own agent.
-# // [MODIFIED v9.8.1 | 2026-05-14] Purpose: Offloaded dynamic agent module imports to a background thread using hass.async_add_executor_job to resolve asyncio blocking I/O loop errors.
 
 import logging
 import re
