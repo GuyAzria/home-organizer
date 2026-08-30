@@ -123,9 +123,9 @@ async def fetch_global_news(hass, lang_code):
                     _LOGGER.warning("News feed too large (%d bytes).", len(xml_data))
                     return None
 
-                # nosec B314 - the payload is rejected above if it declares
-                # a DTD or entities, and is size-bounded, so the entity
-                # expansion attack this rule warns about cannot apply.
+                # Justification: the payload is rejected above if it declares
+                # a DTD or entities, and it is size-bounded, so the entity
+                # expansion attack B314 warns about cannot apply here.
                 root = ET.fromstring(xml_data)  # nosec B314
                 
                 for item in root.findall(".//item")[:5]:

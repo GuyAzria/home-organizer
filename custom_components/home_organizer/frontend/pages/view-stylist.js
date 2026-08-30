@@ -156,7 +156,7 @@ export const StylistMixin = (Base) => class extends Base {
   executeStylistChat(text, imgData, currentMime) {
     if (!text && !imgData) return;
 
-    this.stylistHistory.push({ role:'user', text: text, image:imgData, mime_type:currentMime });
+    this.stylistHistory.push({ role:'user', text: escapeHtml(text), image:imgData, mime_type:currentMime });
     this.chatImage = null; this.chatMimeType = "image/jpeg";
     
     const chatInput = this.shadowRoot.querySelector('.chat-input');
@@ -180,12 +180,12 @@ export const StylistMixin = (Base) => class extends Base {
         if (result && result.response) {
             this.stylistHistory.push({ role: 'ai', text: formatAiText(result.response) });
         } else if (result && result.error) {
-            this.stylistHistory.push({ role: 'ai', text: "❌ Error: " + result.error });
+            this.stylistHistory.push({ role: 'ai', text: "❌ Error: " + escapeHtml(result.error) });
         }
         this.render();
     }).catch(e => {
         this.stylistHistory.splice(statusIdx, 1);
-        this.stylistHistory.push({ role: 'ai', text: "❌ Request failed: " + e.message });
+        this.stylistHistory.push({ role: 'ai', text: "❌ Request failed: " + escapeHtml(e.message) });
         this.render();
     });
   }
@@ -397,6 +397,9 @@ export const StylistMixin = (Base) => class extends Base {
          this.stylistHistory.forEach(msg => {
             const div = document.createElement('div');
             div.className = "message " + msg.role;
+            // xss-ok: msg.text is always assigned pre-escaped HTML - every
+            // writer goes through formatAiText() or escapeHtml(). It holds
+            // intentional <b> and <br> markup, so textContent cannot be used.
             div.innerHTML = msg.text;
             if (msg.image) {
                 div.innerHTML += '<br><img src="' + msg.image + '" style="max-width:100%; border-radius:8px; margin-top:8px;">';

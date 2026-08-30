@@ -413,7 +413,11 @@ async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map, last_user_msg
             scat = itm.get("sub_category", "")
             icon = itm.get("icon_key", None)
 
-            async def db_process_item():
+            # [MODIFIED v2026.8.31] Loop variables are bound as default
+            # arguments. The closure is awaited inside the same iteration
+            # today, so behaviour is unchanged, but binding makes it
+            # correct even if it is ever scheduled as a task instead.
+            async def db_process_item(nm=nm, req_qty=req_qty, sl=sl):
                 try:
                     db_path = get_db_path(hass)
                     async with aiosqlite.connect(db_path, timeout=10.0) as db:
@@ -459,7 +463,8 @@ async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map, last_user_msg
                     hass, nm, 0, full_path, cat, scat, "item", icon, "0"
                 )
 
-                async def set_new_order_qty():
+                # [MODIFIED v2026.8.31] Loop variables bound, as above.
+                async def set_new_order_qty(req_qty=req_qty, nm=nm):
                     try:
                         db_path = get_db_path(hass)
                         async with aiosqlite.connect(db_path, timeout=10.0) as db:

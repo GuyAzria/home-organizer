@@ -156,30 +156,13 @@ export const APIMixin = (Base) => class extends Base {
     const subSel  = this._getActiveEl(`pending-cat-sub-${itemId}`);
     let mainCat = type === 'main' ? value : (mainSel?.value || "");
     let subCat  = type === 'sub'  ? value : (type === 'main' ? "" : (subSel?.value || ""));
-    
-   
     if (type === 'main') {
-      if (subSel) {
-       
-        subSel.textContent = '';
-
-       
-        const defaultOpt = document.createElement('option');
-        defaultOpt.value = '';
-        defaultOpt.textContent = this.t('select_sub');
-        subSel.appendChild(defaultOpt);
-
-  
-        if (mainCat && ITEM_CATEGORIES[mainCat]) {
-          Object.keys(ITEM_CATEGORIES[mainCat]).forEach(s => {
-            const opt = document.createElement('option');
-            opt.value = s;
-          
-            opt.textContent = this.t('sub_' + s.replace(/[^a-zA-Z0-9]+/g,'_')) || s;
-            subSel.appendChild(opt);
-          });
-        }
-      }
+      let html = `<option value="">${this.t('select_sub')}</option>`;
+      if (mainCat && ITEM_CATEGORIES[mainCat])
+        Object.keys(ITEM_CATEGORIES[mainCat]).forEach(s => {
+          html += `<option value="${escapeHtml(s)}">${escapeHtml(this.t('sub_' + s.replace(/[^a-zA-Z0-9]+/g,'_')) || s)}</option>`;
+        });
+      if (subSel) subSel.innerHTML = html;
     }
     this.callHA('update_item_details', { item_id: itemId, category: mainCat, sub_category: subCat })
       .then(() => this.fetchData());

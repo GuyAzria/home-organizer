@@ -19,7 +19,7 @@ import logging
 import os
 import base64
 import time
-from datetime import datetime
+import homeassistant.util.dt as dt_util
 import aiosqlite
 import re
 import voluptuous as vol
@@ -127,7 +127,7 @@ async def register_services(hass, entry):
     async def handle_update_qty(call):
         item_id = call.data.get("item_id")
         change = int(call.data.get("change"))
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = dt_util.now().strftime("%Y-%m-%d")
         try:
             db_path = get_db_path(hass)
             async with aiosqlite.connect(db_path, timeout=10.0) as db:
@@ -154,7 +154,7 @@ async def register_services(hass, entry):
     async def handle_update_stock(call):
         item_id = call.data.get("item_id")
         qty = int(call.data.get("quantity"))
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = dt_util.now().strftime("%Y-%m-%d")
         try:
             db_path = get_db_path(hass)
             async with aiosqlite.connect(db_path, timeout=10.0) as db:

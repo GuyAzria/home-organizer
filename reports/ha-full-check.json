@@ -4,7 +4,7 @@
     "domain": "home_organizer",
     "python_files": 30,
     "javascript_files": 16,
-    "python_lines": 10722,
+    "python_lines": 10740,
     "integration_path": "custom_components\\home_organizer",
     "project_functions_indexed": 256
   },
@@ -46,8 +46,8 @@
     },
     {
       "check": "deprecated API scan",
-      "status": "WARN",
-      "detail": "6 findings"
+      "status": "PASS",
+      "detail": "0 findings"
     },
     {
       "check": "setup/unload/config-flow architecture",
@@ -71,8 +71,8 @@
     },
     {
       "check": "frontend security scan",
-      "status": "ERROR",
-      "detail": "16 JS files, 3 findings"
+      "status": "PASS",
+      "detail": "16 JS files, 0 findings"
     },
     {
       "check": "frontend asset isolation",
@@ -98,103 +98,25 @@
       "check": "runtime test presence",
       "status": "WARN",
       "detail": "no tests directory"
+    },
+    {
+      "check": "ruff check",
+      "status": "PASS",
+      "detail": "completed successfully"
+    },
+    {
+      "check": "bandit",
+      "status": "PASS",
+      "detail": "completed successfully"
     }
   ],
   "findings": [
-    {
-      "severity": "WARN",
-      "category": "Manifest / HACS",
-      "message": "Requirement 'aiosqlite>=0.19.0' is not pinned with ==.",
-      "location": "custom_components\\home_organizer\\manifest.json",
-      "fix": "Home Assistant expects exact pins so behaviour is reproducible.",
-      "evidence": ""
-    },
     {
       "severity": "INFO",
       "category": "Version floor / brand",
       "message": "brand/ is present, but HA reads it only from 2026.3; on the declared floor 2024.7.0 users see no icon. Raising the floor for an icon would exclude users, so this is informational.",
       "location": "custom_components\\home_organizer\\brand",
       "fix": "",
-      "evidence": ""
-    },
-    {
-      "severity": "HOT_WARN",
-      "category": "Deprecated / discouraged APIs",
-      "message": "naive datetime.now(); use homeassistant.util.dt.now()",
-      "location": "custom_components\\home_organizer\\agents\\inventory_agent.py:396",
-      "fix": "",
-      "evidence": ""
-    },
-    {
-      "severity": "HOT_WARN",
-      "category": "Deprecated / discouraged APIs",
-      "message": "naive datetime.now(); use homeassistant.util.dt.now()",
-      "location": "custom_components\\home_organizer\\database.py:266",
-      "fix": "",
-      "evidence": ""
-    },
-    {
-      "severity": "HOT_WARN",
-      "category": "Deprecated / discouraged APIs",
-      "message": "naive datetime.now(); use homeassistant.util.dt.now()",
-      "location": "custom_components\\home_organizer\\database.py:396",
-      "fix": "",
-      "evidence": ""
-    },
-    {
-      "severity": "HOT_WARN",
-      "category": "Deprecated / discouraged APIs",
-      "message": "naive datetime.now(); use homeassistant.util.dt.now()",
-      "location": "custom_components\\home_organizer\\database.py:398",
-      "fix": "",
-      "evidence": ""
-    },
-    {
-      "severity": "HOT_WARN",
-      "category": "Deprecated / discouraged APIs",
-      "message": "naive datetime.now(); use homeassistant.util.dt.now()",
-      "location": "custom_components\\home_organizer\\services.py:130",
-      "fix": "",
-      "evidence": ""
-    },
-    {
-      "severity": "HOT_WARN",
-      "category": "Deprecated / discouraged APIs",
-      "message": "naive datetime.now(); use homeassistant.util.dt.now()",
-      "location": "custom_components\\home_organizer\\services.py:157",
-      "fix": "",
-      "evidence": ""
-    },
-    {
-      "severity": "HOT_WARN",
-      "category": "Services",
-      "message": "Service registered without an explicit schema.",
-      "location": "custom_components\\home_organizer\\__init__.py:805",
-      "fix": "Unvalidated payloads reach the handler from any authenticated caller.",
-      "evidence": ""
-    },
-    {
-      "severity": "BLOCKER",
-      "category": "Frontend security / JS",
-      "message": "Unescaped `msg.text` assigned to an HTML sink.",
-      "location": "custom_components\\home_organizer\\frontend\\pages\\view-chat.js:116",
-      "fix": "Use textContent, or escape the value first.",
-      "evidence": ""
-    },
-    {
-      "severity": "BLOCKER",
-      "category": "Frontend security / JS",
-      "message": "Unescaped `translatedSub` reaches an HTML sink.",
-      "location": "custom_components\\home_organizer\\frontend\\pages\\view-shopping.js:58",
-      "fix": "Wrap in escapeHtml(). Inside an onclick attribute use escapeHtml(this.escapeJSArg(x)) in that order, because the browser decodes the attribute before running the JS.",
-      "evidence": ""
-    },
-    {
-      "severity": "BLOCKER",
-      "category": "Frontend security / JS",
-      "message": "Unescaped `msg.text` assigned to an HTML sink.",
-      "location": "custom_components\\home_organizer\\frontend\\pages\\view-stylist.js:400",
-      "fix": "Use textContent, or escape the value first.",
       "evidence": ""
     },
     {
@@ -220,13 +142,27 @@
       "location": "tests",
       "fix": "Tests are recommended, not required for HACS submission.",
       "evidence": ""
+    },
+    {
+      "severity": "WARN",
+      "category": "External tools",
+      "message": "node not installed; JavaScript is not parsed.",
+      "location": "",
+      "fix": "Install Node.js from nodejs.org to enable this check.",
+      "evidence": ""
+    },
+    {
+      "severity": "INFO",
+      "category": "External tools",
+      "message": "hassfest is not available locally; it runs in CI via the official GitHub Action. This is expected outside a Home Assistant core checkout.",
+      "location": "",
+      "fix": "",
+      "evidence": ""
     }
   ],
   "counts": {
-    "WARN": 2,
-    "INFO": 3,
-    "HOT_WARN": 7,
-    "BLOCKER": 3
+    "INFO": 4,
+    "WARN": 2
   },
-  "heuristic_risk_score": 0
+  "heuristic_risk_score": 90
 }

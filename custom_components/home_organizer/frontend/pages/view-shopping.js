@@ -15,6 +15,7 @@
 // [ADDED v10.0.4] Shopping View
 
 import { ICONS } from '../organizer-icon.js?v=10.4.2';
+import { escapeHtml } from '../organizer-utils.js?v=2026.8.30';
 
 export const ShoppingMixin = (Base) => class extends Base {
 
@@ -55,7 +56,7 @@ export const ShoppingMixin = (Base) => class extends Base {
                 subHeader.className = 'sub-group-separator';
                 Object.assign(subHeader.style, { padding:'8px 15px 4px 15px', fontSize:'14px', color:'var(--accent)', fontWeight:'bold', borderBottom:'1px solid var(--border-light)', cursor:'pointer' });
                 const translatedSub = this._t('sub_' + subName.replace(/[^a-zA-Z0-9]+/g,'_'), subName);
-                subHeader.innerHTML = `<div style="display:flex;align-items:center;"><span style="margin-inline-end:5px;display:flex;align-items:center;fill:currentColor;transform:scale(.8);">${subIcon}</span><span>${translatedSub}</span><span style="font-size:11px;background:var(--bg-badge,#555);color:var(--text-badge,#fff);padding:2px 6px;border-radius:10px;margin-inline-start:8px;">${subItems.length}</span></div>`;
+                subHeader.innerHTML = `<div style="display:flex;align-items:center;"><span style="margin-inline-end:5px;display:flex;align-items:center;fill:currentColor;transform:scale(.8);">${subIcon}</span><span>${escapeHtml(translatedSub)}</span><span style="font-size:11px;background:var(--bg-badge,#555);color:var(--text-badge,#fff);padding:2px 6px;border-radius:10px;margin-inline-start:8px;">${subItems.length}</span></div>`;
                 subHeader.onclick = () => { if (this.collapsedShopSubCats.has(subKey)) this.collapsedShopSubCats.delete(subKey); else this.collapsedShopSubCats.add(subKey); this.render(); };
                 listContainer.appendChild(subHeader);
               }

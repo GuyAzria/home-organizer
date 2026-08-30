@@ -97,7 +97,7 @@ export const ChatMixin = (Base) => class extends Base {
             inp.value = msg.suggestion?.name || ''; inp.focus();
             const confirmAction = async () => {
               const finalName = inp.value.trim() || msg.suggestion?.name;
-              msg.isBarcodeConfirm = false; msg.text = `Categorizing <b>${finalName}</b>...`; this.render();
+              msg.isBarcodeConfirm = false; msg.text = `Categorizing <b>${escapeHtml(finalName)}</b>...`; this.render();
               try {
                 const result = await this._hass.callWS({ type:'home_organizer/ai_chat', message:`RESOLVE_BARCODE: ${escapeHtml(msg.barcode)} - ${finalName}`, image_data:null, mime_type:'image/jpeg', language:this.currentLang });
                 if (result) {
@@ -113,6 +113,9 @@ export const ChatMixin = (Base) => class extends Base {
           }
         }, 0);
       } else {
+        // xss-ok: msg.text is always assigned pre-escaped HTML - every
+        // writer goes through formatAiText() or escapeHtml(). It holds
+        // intentional <b> and <br> markup, so textContent cannot be used.
         div.innerHTML = msg.text;
         if (msg.image) { const img = document.createElement('img'); img.src = msg.mime_type === 'application/pdf' ? 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 24 24"><path fill="gray" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h6v6h6v10H6z"/></svg>' : msg.image; img.style.cssText = "max-width:100%;border-radius:8px;margin-top:5px;"; div.appendChild(img); }
         if (msg.isStatus) div.id = 'chat-status-msg';
@@ -148,7 +151,7 @@ export const ChatMixin = (Base) => class extends Base {
     const sendMessage = async () => {
       const text = input.value.trim(); const imgData = this.chatImage; const currentMime = this.chatMimeType;
       if (!text && !imgData) return;
-      this.chatHistory.push({ role:'user', text: text||this._t('scanned_invoice', 'Scanned Invoice'), image:imgData, mime_type:currentMime });
+      this.chatHistory.push({ role:'user', text: escapeHtml(text||this._t('scanned_invoice', 'Scanned Invoice')), image:imgData, mime_type:currentMime });
       this.chatImage = null; this.chatMimeType = "image/jpeg"; input.value = ''; this.render();
 
       const statusMsg = { role:'system', text:`${this._t('starting_process', 'Starting process...')}<br>${imgData?this._t('scanning_invoice', 'Scanning invoice...'):this._t('analyzing', 'Analyzing...')}`, isStatus:true };
@@ -170,7 +173,7 @@ export const ChatMixin = (Base) => class extends Base {
         }
       } catch (e) {
         statusMsg.text += "<br>❌ " + this._t('failed', 'Failed');
-        this.chatHistory.push({ role:'ai', text:this._t('error', 'Error')+": "+e.message, isError:true, retryText:text, retryImage:imgData, retryMime:currentMime });
+        this.chatHistory.push({ role:'ai', text:escapeHtml(this._t('error', 'Error')+": "+e.message), isError:true, retryText:text, retryImage:imgData, retryMime:currentMime });
       }
       this.render(); setTimeout(() => { const m = this.shadowRoot.querySelector('.chat-messages'); if (m) m.scrollTop = m.scrollHeight; }, 100);
     };

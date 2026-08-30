@@ -802,10 +802,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         return {"response": final_reply}
 
+    # [ADDED v2026.8.30] Explicit schema. Previously the payload arrived
+    # unvalidated from any authenticated caller.
+    VOICE_COMMAND_SCHEMA = vol.Schema(
+        {
+            vol.Required("text"): cv.string,
+            vol.Optional("language"): cv.string,
+            vol.Optional("conversation_id"): cv.string,
+            vol.Optional("device_id"): cv.string,
+        }
+    )
+
     hass.services.async_register(
         DOMAIN, 
         "voice_command", 
         handle_voice_command,
+        schema=VOICE_COMMAND_SCHEMA,
         supports_response=SupportsResponse.OPTIONAL
     )
 

@@ -20,7 +20,8 @@ import os
 from functools import partial
 import re
 import time
-from datetime import datetime, timedelta
+from datetime import timedelta
+import homeassistant.util.dt as dt_util
 
 from .const import (
     DOMAIN, DB_FILE, IMG_DIR, CONF_API_KEY, CONF_USE_AI, 
@@ -263,7 +264,7 @@ async def async_add_item_db_safe(hass, name, qty, path_list, category="", sub_ca
     
     try:
         db_path = get_db_path(hass)
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = dt_util.now().strftime("%Y-%m-%d")
         cols = ["name", "type", "quantity", "item_date", "category", "sub_category", "barcode"]
         vals = [name, item_type, qty, today, category, sub_category, barcode]
         qs = ["?", "?", "?", "?", "?", "?", "?"]
@@ -393,9 +394,9 @@ async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping)
 
                 if query: sql += " AND name LIKE ?"; params.append(f"%{query}%")
                 if date_filter == "Week": 
-                    sql += " AND item_date >= ?"; params.append((datetime.now()-timedelta(days=7)).strftime("%Y-%m-%d"))
+                    sql += " AND item_date >= ?"; params.append((dt_util.now()-timedelta(days=7)).strftime("%Y-%m-%d"))
                 elif date_filter == "Month":
-                    sql += " AND item_date LIKE ?"; params.append(datetime.now().strftime("%Y-%m") + "%")
+                    sql += " AND item_date LIKE ?"; params.append(dt_util.now().strftime("%Y-%m") + "%")
                 
                 async with db.execute(sql, tuple(params)) as cursor:
                     for r_dict in await cursor.fetchall():

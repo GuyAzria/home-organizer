@@ -17,7 +17,7 @@
 
 import logging
 import aiosqlite
-from datetime import datetime
+import homeassistant.util.dt as dt_util
 
 from ..database import get_db_path, async_add_item_db_safe
 from ..ai_core.router import safe_smart_router
@@ -393,7 +393,7 @@ async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map):
         async def db_update_qty():
             try:
                 db_path = get_db_path(hass)
-                today = datetime.now().strftime("%Y-%m-%d")
+                today = dt_util.now().strftime("%Y-%m-%d")
                 async with aiosqlite.connect(db_path, timeout=10.0) as db:
                     cursor = await db.execute(
                         "UPDATE items SET quantity = ?, item_date = ? "

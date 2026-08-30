@@ -1,11 +1,12 @@
-// Version 1.1.0
+// Version 1.2.0
 {
   "version": "2.0.0",
   "tasks": [
+    // [MODIFIED v1.2.0 | 2026-08-30] Purpose: Chained a FOR /D /R loop to recursively remove any __pycache__ directories from the HA destination immediately after xcopy finishes.
     {
       "label": "Deploy to Home Assistant",
       "type": "shell",
-      "command": "xcopy /E /Y /I \"${workspaceFolder}\\custom_components\\home_organizer\\*\" \"H:\\custom_components\\home_organizer\\\"",
+      "command": "xcopy /E /Y /I \"${workspaceFolder}\\custom_components\\home_organizer\\*\" \"H:\\custom_components\\home_organizer\\\" & FOR /D /R \"H:\\custom_components\\home_organizer\\\" %X IN (__pycache__) DO @IF EXIST \"%X\" RMDIR /S /Q \"%X\"",
       "options": {
         "shell": {
           "executable": "cmd.exe",
