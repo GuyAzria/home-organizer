@@ -47,7 +47,7 @@ import json
 import logging
 import re
 import aiosqlite
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import homeassistant.util.dt as dt_util
 

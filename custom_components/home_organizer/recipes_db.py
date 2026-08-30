@@ -17,7 +17,6 @@
 
 import json
 import logging
-import os
 import aiosqlite
 import uuid
 

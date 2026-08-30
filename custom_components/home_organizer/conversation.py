@@ -27,7 +27,7 @@ from homeassistant.const import MATCH_ALL
 
 from homeassistant.components import conversation
 
-from .const import DOMAIN, CONF_PROCESSING_MODE, MODE_HYBRID
+from .const import CONF_PROCESSING_MODE, MODE_HYBRID
 from .ai_logic import safe_universal_agent_loop
 from .database import get_db_path, async_get_or_create_catalog_ids, to_alpha_id
 
@@ -84,7 +84,7 @@ class HomeOrganizerConversationAgent(conversation.ConversationEntity):
 
             # [MODIFIED v8.25.0] Fetch context asynchronously
             async def async_fetch_context():
-                nonlocal existing_locs_str, loc_hierarchy_map
+                nonlocal existing_locs_str
                 try:
                     db_path = get_db_path(self.hass)
                     catalog_map = await async_get_or_create_catalog_ids(self.hass)

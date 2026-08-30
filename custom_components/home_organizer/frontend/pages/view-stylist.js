@@ -14,7 +14,7 @@
 // [MODIFIED v10.2.5 | 2026-04-17] Purpose: Replaced generic shoe icon with a highly detailed, clear Sneaker SVG. Connected all Wizard UI elements to the dynamic translation dictionary for all languages based on the new CSV structure.
 
 import { ICONS } from '../organizer-icon.js?v=10.2.5';
-import { formatAiText } from '../organizer-utils.js?v=2026.8.26';
+import { escapeHtml, formatAiText } from '../organizer-utils.js?v=2026.8.28';
 
 export const StylistMixin = (Base) => class extends Base {
 
@@ -352,8 +352,8 @@ export const StylistMixin = (Base) => class extends Base {
             </div>
         </div>
         <div style="flex:1; display:flex; flex-direction:column; gap:4px; justify-content:center; cursor:pointer;" onclick="document.getElementById('btn-stylist-avatar').click()">
-            <div style="font-weight:bold; font-size:16px; color:var(--text-main);">${this.escapeJSArg(profileName)}</div>
-            <div style="font-size:12px; color:var(--text-sub);">${this.escapeJSArg(basicStatsStr)}</div>
+            <div style="font-weight:bold; font-size:16px; color:var(--text-main);">${escapeHtml(this.escapeJSArg(profileName))}</div>
+            <div style="font-size:12px; color:var(--text-sub);">${escapeHtml(this.escapeJSArg(basicStatsStr))}</div>
         </div>
       `;
       
@@ -564,7 +564,7 @@ export const StylistMixin = (Base) => class extends Base {
       const createCatBtn = (name, label, icon) => {
           const btn = document.createElement('div');
           btn.className = `stylist-cat-btn ${this.stylistCategory === name ? 'active' : ''}`;
-          btn.innerHTML = `<span style="font-size:24px;">${icon}</span><span style="font-size:10px;word-break:break-all;">${label}</span>`;
+          btn.innerHTML = `<span style="font-size:24px;">${icon}</span><span style="font-size:10px;word-break:break-all;">${escapeHtml(label)}</span>`;
           btn.onclick = () => { this.stylistCategory = name; this.render(); };
           return btn;
       };

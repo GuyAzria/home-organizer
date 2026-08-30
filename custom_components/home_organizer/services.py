@@ -21,9 +21,12 @@ import base64
 import time
 from datetime import datetime
 import aiosqlite
+import re
+import voluptuous as vol
+import homeassistant.helpers.config_validation as cv
 
 from .const import DOMAIN, IMG_DIR
-from .database import get_db_path, async_add_item_db_safe, async_normalize_zone_path, async_repair_path_against_db
+from .database import get_db_path, async_normalize_zone_path, async_repair_path_against_db
 from .ai_logic import async_smart_router
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,13 +53,20 @@ async def register_services(hass, entry):
         img_path_base = hass.data.get(DOMAIN, {}).get("config", {}).get("img_path", hass.config.path("www", IMG_DIR))
         
         if icon_key:
-            fname = icon_key
+            fname = _safe_filename_part(icon_key, fallback="icon")
         elif img_b64:
             try:
                 if "," in img_b64: img_b64 = img_b64.split(",")[1]
                 fname = f"img_{int(time.time())}.jpg"
-                await hass.async_add_executor_job(lambda: open(os.path.join(img_path_base, fname), "wb").write(base64.b64decode(img_b64)))
-            except: pass
+                target = os.path.join(img_path_base, fname)
+
+                def _write_image():
+                    with open(target, "wb") as f:
+                        f.write(base64.b64decode(img_b64))
+
+                await hass.async_add_executor_job(_write_image)
+            except Exception as img_err:
+                _LOGGER.warning("Could not store item image: %s", img_err)
 
         parts = call.data.get("current_path", [])
         parts = await async_normalize_zone_path(hass, parts)
@@ -344,6 +354,26 @@ async def register_services(hass, entry):
             
         broadcast_update()
 
+    def _safe_filename_part(value, fallback="item"):
+        """Reduce a caller-supplied name to a single safe filename segment.
+
+        [ADDED v2026.8.28] item_name reached os.path.join() verbatim, and
+        os.path.join does not neutralise "..", so a name like
+        "../../configuration" wrote attacker-controlled bytes outside the
+        image directory. Any authenticated user can call a domain service,
+        and the agents drive these same services, so this was reachable from
+        the model too.
+
+        basename() strips any directory component; the whitelist then keeps
+        only characters that cannot form a path or escape a segment.
+        """
+        text = os.path.basename(str(value or ""))
+        # \w keeps unicode letters, so Hebrew and other non-Latin item
+        # names stay readable; everything that could form or escape a
+        # path segment (/, \\, ., :, null) is replaced.
+        text = re.sub(r"[^\w\-]+", "_", text, flags=re.UNICODE).strip("._-")
+        return text[:80] or fallback
+
     async def handle_update_image(call):
         item_id = call.data.get("item_id")
         name = call.data.get("item_name")
@@ -358,12 +388,28 @@ async def register_services(hass, entry):
         img_path_base = hass.data.get(DOMAIN, {}).get("config", {}).get("img_path", hass.config.path("www", IMG_DIR))
 
         if icon_key:
-            fname = icon_key
+            # [MODIFIED v2026.8.28] icon_key is caller-supplied and is stored in
+            # image_path, where it is later resolved as a filename.
+            fname = _safe_filename_part(icon_key, fallback="icon")
         elif img_b64:
             if "," in img_b64: img_b64 = img_b64.split(",")[1]
             if not name and not item_id: name = "unknown_item" 
-            fname = f"{name}_{int(time.time())}{ext}"
-            await hass.async_add_executor_job(lambda: open(os.path.join(img_path_base, fname), "wb").write(base64.b64decode(img_b64)))
+            # [MODIFIED v2026.8.28] Sanitised: see _safe_filename_part.
+            fname = f"{_safe_filename_part(name)}_{int(time.time())}{ext}"
+            target = os.path.join(img_path_base, fname)
+            # [ADDED v2026.8.28] Independent second guard: never write outside
+            # the image directory, even if the sanitiser is later weakened.
+            if os.path.commonpath(
+                [os.path.abspath(img_path_base), os.path.abspath(target)]
+            ) != os.path.abspath(img_path_base):
+                _LOGGER.error("Refusing image write outside %s", img_path_base)
+                return
+
+            def _write_image():
+                with open(target, "wb") as f:
+                    f.write(base64.b64decode(img_b64))
+
+            await hass.async_add_executor_job(_write_image)
         
         try:
             db_path = get_db_path(hass)
@@ -489,6 +535,20 @@ async def register_services(hass, entry):
             _LOGGER.error(f"Error clearing database: {e}")
         broadcast_update()
 
+    # [ADDED v2026.8.28] Schema for the service that accepts a file payload.
+    # It was registered bare, so item_name arrived completely unvalidated.
+    SCHEMAS = {
+        "update_image": vol.Schema(
+            {
+                vol.Optional("item_id"): vol.Any(int, cv.string),
+                vol.Optional("item_name"): cv.string,
+                vol.Optional("image_data"): cv.string,
+                vol.Optional("icon_key"): cv.string,
+                vol.Optional("mime_type"): cv.string,
+            }
+        ),
+    }
+
     for n, h in [
         ("add_item", handle_add), ("update_image", handle_update_image),
         ("update_stock", handle_update_stock), ("update_qty", handle_update_qty), 
@@ -498,4 +558,4 @@ async def register_services(hass, entry):
         ("confirm_pending", handle_confirm_pending), ("clear_barcode_history", handle_clear_barcode_history),
         ("clear_all_items", handle_clear_all_items), ("clear_all_data", handle_clear_all_data)
     ]:
-        hass.services.async_register(DOMAIN, n, h)
+        hass.services.async_register(DOMAIN, n, h, schema=SCHEMAS.get(n))

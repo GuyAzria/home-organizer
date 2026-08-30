@@ -102,7 +102,31 @@ async def fetch_global_news(hass, lang_code):
         async with session.get(rss_url, headers=headers, timeout=10) as resp:
             if resp.status == 200:
                 xml_data = await resp.text()
-                root = ET.fromstring(xml_data)
+
+                # [ADDED v2026.8.29] xml.etree is documented as vulnerable to
+                # entity-expansion attacks ("billion laughs"), where a few
+                # hundred bytes of nested entity definitions expand to
+                # gigabytes and exhaust memory. This feed is remote, so the
+                # payload is not fully under our control. Rather than pull in
+                # defusedxml as a dependency for one RSS call, refuse any
+                # document that declares a DTD or entities at all - a news
+                # feed has no legitimate reason to contain either.
+                head = xml_data[:4096].upper()
+                if "<!DOCTYPE" in head or "<!ENTITY" in head:
+                    _LOGGER.warning(
+                        "News feed declared a DTD or entities; refusing to parse it."
+                    )
+                    return None
+
+                # Bound the payload as a second, independent limit.
+                if len(xml_data) > 2_000_000:
+                    _LOGGER.warning("News feed too large (%d bytes).", len(xml_data))
+                    return None
+
+                # nosec B314 - the payload is rejected above if it declares
+                # a DTD or entities, and is size-bounded, so the entity
+                # expansion attack this rule warns about cannot apply.
+                root = ET.fromstring(xml_data)  # nosec B314
                 
                 for item in root.findall(".//item")[:5]:
                     title = item.findtext("title", default="").strip()

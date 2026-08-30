@@ -441,7 +441,7 @@ async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map, last_user_msg
                 base_path = loc_hierarchy_map.get(loc_id)
                 if not base_path:
                     fallback_loc = loc_id
-                    for k, v in loc_hierarchy_map.items():
+                    for _k, v in loc_hierarchy_map.items():
                         v_str = " ".join(v).replace("ORDER_MARKER", "")
                         if fallback_loc.lower() in v_str.lower() or fallback_loc in v:
                             base_path = v
@@ -501,7 +501,7 @@ async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map, last_user_msg
         base_path = loc_hierarchy_map.get(loc_id)
         if not base_path:
             fallback_loc = kwargs.get("main_location", loc_id)
-            for k, v in loc_hierarchy_map.items():
+            for _k, v in loc_hierarchy_map.items():
                 v_str = " ".join(v).replace("ORDER_MARKER", "")
                 if fallback_loc.lower() in v_str.lower() or fallback_loc in v:
                     base_path = v

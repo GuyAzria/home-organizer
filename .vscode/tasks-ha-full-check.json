@@ -1,24 +1,6 @@
-// Version 1.1.0
 {
   "version": "2.0.0",
   "tasks": [
-    {
-      "label": "Deploy to Home Assistant",
-      "type": "shell",
-      "command": "xcopy /E /Y /I \"${workspaceFolder}\\custom_components\\home_organizer\\*\" \"H:\\custom_components\\home_organizer\\\"",
-      "options": {
-        "shell": {
-          "executable": "cmd.exe",
-          "args": ["/d", "/c"]
-        }
-      },
-      "problemMatcher": [],
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      }
-    },
-    // [ADDED v1.1.0 | 2026-08-30] Purpose: Runs the primary static and runtime code checks for Home Assistant compatibility
     {
       "label": "HA: Full Check",
       "type": "shell",
@@ -39,7 +21,6 @@
       },
       "problemMatcher": []
     },
-    // [ADDED v1.1.0 | 2026-08-30] Purpose: Executes HA full checks alongside external tools like Ruff, Bandit, and Node
     {
       "label": "HA: Full Check + External Tools",
       "type": "shell",
@@ -58,7 +39,6 @@
       "group": "test",
       "problemMatcher": []
     },
-    // [ADDED v1.1.0 | 2026-08-30] Purpose: Runs all code checks, external linters, and Pytest integration tests
     {
       "label": "HA: Full Check + Pytest",
       "type": "shell",
@@ -78,7 +58,6 @@
       "group": "test",
       "problemMatcher": []
     },
-    // [ADDED v1.1.0 | 2026-08-30] Purpose: Automatically triggers the HA checks whenever the workspace is opened
     {
       "label": "HA: Full Check (auto on workspace open)",
       "type": "shell",

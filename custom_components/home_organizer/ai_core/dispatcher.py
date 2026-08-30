@@ -39,12 +39,12 @@ from homeassistant.helpers import intent as intent_helper
 from homeassistant.helpers import entity_registry as er
 
 from ..const import (
-    CONF_PROCESSING_MODE, MODE_HYBRID,
+    MODE_HYBRID,
     CONF_TRIGGER_REMINDER, CONF_TRIGGER_CALENDAR,
     HA_BUILTIN_CONVERSATION_AGENT,
     SMARTHOME_DELEGATED_DOMAINS,
 )
-from .router import async_smart_router, safe_smart_router, FallbackMockEntry
+from .router import safe_smart_router, FallbackMockEntry
 from .json_utils import safe_parse_json
 from .state_manager import has_state, COOKING_STATE_KEY
 from .trigger_manager import get_triggers_for_language, get_delegation_vocabulary

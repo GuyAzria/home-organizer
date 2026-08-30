@@ -30,7 +30,6 @@ import logging
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
-import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.selector import (
     TextSelector,
     TextSelectorConfig,
@@ -38,13 +37,12 @@ from homeassistant.helpers.selector import (
 )
 
 from .const import (
-    DOMAIN, CONF_API_KEY, CONF_DEBUG, CONF_USE_AI,
+    DOMAIN, CONF_API_KEY, CONF_DEBUG,
     CONF_STORAGE_METHOD, CONF_DELETE_ON_REMOVE,
     STORAGE_METHOD_WWW, STORAGE_METHOD_MEDIA,
     CONF_AI_PROVIDER, CONF_PROCESSING_MODE,
     MODE_LOCAL_ONLY, MODE_CLOUD_ONLY, MODE_HYBRID,
     PROVIDER_OPENAI, PROVIDER_GEMINI, PROVIDER_CLAUDE,
-    CONF_SYNC_GOOGLE_TASKS,
     CONF_TRIGGER_INVENTORY, CONF_TRIGGER_SHOPPING, CONF_TRIGGER_COOKING,
     CONF_TRIGGER_SMART_HOME, CONF_TRIGGER_STYLIST,
     CONF_TRIGGER_REMINDER, CONF_TRIGGER_CALENDAR,

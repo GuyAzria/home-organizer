@@ -153,7 +153,7 @@ def _fire_reminder(hass, reminder_id, message, device_id, user_id):
 
     # 1. Fire the event so any user automation can react.
     hass.bus.async_fire("ho_reminder_triggered", event_data)
-    _LOGGER.info(f"[HO-REMINDER] Event 'ho_reminder_triggered' fired on bus.")
+    _LOGGER.info("[HO-REMINDER] Event 'ho_reminder_triggered' fired on bus.")
 
     delivered_via = []
 

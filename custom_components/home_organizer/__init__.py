@@ -35,9 +35,8 @@ import shutil
 import aiosqlite
 import voluptuous as vol
 
-from aiohttp import web, ClientTimeout
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall, callback, SupportsResponse
+from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.components import panel_custom, websocket_api
 from homeassistant.components.http import StaticPathConfig, HomeAssistantView
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -45,18 +44,21 @@ from homeassistant.helpers import entity_registry as er
 import homeassistant.helpers.config_validation as cv
 
 from .const import (
-    DOMAIN, CONF_API_KEY, CONF_DEBUG, CONF_USE_AI, DB_FILE, IMG_DIR, VERSION, 
+    DOMAIN, CONF_API_KEY, CONF_DEBUG, DB_FILE, IMG_DIR,
     CONF_STORAGE_METHOD, CONF_DELETE_ON_REMOVE, STORAGE_METHOD_WWW, STORAGE_METHOD_MEDIA,
-    CONF_AI_PROVIDER, CONF_PROCESSING_MODE, MODE_LOCAL_ONLY, MODE_CLOUD_ONLY, MODE_HYBRID, PROVIDER_OPENAI, PROVIDER_GEMINI
+    CONF_AI_PROVIDER, CONF_PROCESSING_MODE, MODE_LOCAL_ONLY, MODE_HYBRID, PROVIDER_OPENAI, PROVIDER_GEMINI
 )
 from .database import (
     async_init_db, get_db_path, async_get_or_create_catalog_ids, to_alpha_id, async_get_view_data, async_add_item_db_safe
 )
 from .services import register_services
-from .ai_logic import async_universal_agent_loop, async_smart_router
+from .ai_logic import (
+    safe_smart_router,
+    safe_universal_agent_loop,
+)
 from .reminders_scheduler import async_register_startup_restore
 from . import recipes_db
-from .prompt_core import get_intent_resolve_prompt, ICON_PROMPT_CONTEXT
+from .prompt_core import get_intent_resolve_prompt
 from .prompt_inventory import get_barcode_prompt, get_invoice_prompt
 
 _LOGGER = logging.getLogger(__name__)
@@ -72,43 +74,14 @@ WS_SAVE_AVATAR = "home_organizer/save_avatar"
 STATIC_PATH_URL = "/home_organizer_static"
 ACTIVE_SESSIONS = {}
 
-class FallbackMockEntry:
-    def __init__(self, original):
-        self.entry_id = getattr(original, "entry_id", "fallback_entry")
-        self.data = dict(original.data)
-        self.options = dict(original.options)
-        self.options[CONF_PROCESSING_MODE] = MODE_LOCAL_ONLY
-        self.data[CONF_PROCESSING_MODE] = MODE_LOCAL_ONLY
-
-async def safe_smart_router(hass, entry, mode, *args, **kwargs):
-    try:
-        res, err = await async_smart_router(hass, entry, *args, **kwargs)
-        if err and mode == MODE_HYBRID and any(kw in err.lower() for kw in ["connection", "timeout", "router", "failed"]):
-            _LOGGER.warning("Cloud router failed in Hybrid mode, forcing Local AI fallback.")
-            return await async_smart_router(hass, FallbackMockEntry(entry), *args, **kwargs)
-        return res, err
-    except Exception as e:
-        err_str = str(e)
-        if mode == MODE_HYBRID and any(kw in err_str.lower() for kw in ["connection", "timeout", "router", "failed"]):
-            _LOGGER.warning(f"Cloud router exception: {err_str}. Forcing Local fallback.")
-            try:
-                return await async_smart_router(hass, FallbackMockEntry(entry), *args, **kwargs)
-            except Exception as fe: return None, str(fe)
-        return None, err_str
-
-async def safe_universal_agent_loop(hass, entry, mode, *args, **kwargs):
-    try:
-        reply = await async_universal_agent_loop(hass, entry, *args, **kwargs)
-        if reply and mode == MODE_HYBRID and "error" in reply.lower() and any(kw in reply.lower() for kw in ["connection", "timeout", "router", "failed"]):
-            return await async_universal_agent_loop(hass, FallbackMockEntry(entry), *args, **kwargs)
-        return reply
-    except Exception as e:
-        if mode == MODE_HYBRID:
-            try:
-                return await async_universal_agent_loop(hass, FallbackMockEntry(entry), *args, **kwargs)
-            except Exception as fe: return f"Error: {fe}"
-        return f"Error: {e}"
-
+# [MODIFIED v2026.8.28] The local copies of FallbackMockEntry,
+# safe_smart_router and safe_universal_agent_loop that used to live here have
+# been removed and replaced with the canonical implementations from ai_core.
+# Keeping a second copy meant fixes applied to ai_core/router.py did not reach
+# this file: in particular the API-key scrubbing on the exception log line was
+# applied to the canonical router while this duplicate still logged the raw
+# exception string. The duplicate also took an extra leading `mode` argument
+# that the canonical version derives from the config entry itself.
 class HOCameraUploadView(HomeAssistantView):
     url = "/api/home_organizer/ext_camera_upload"
     name = "api:home_organizer:ext_camera_upload"
@@ -159,7 +132,7 @@ async def websocket_get_all_items(hass, connection, msg):
             async with db.execute("SELECT * FROM items WHERE type='item'") as cursor:
                 col_names = [description[0] for description in cursor.description]
                 for r in await cursor.fetchall():
-                    r_dict = dict(zip(col_names, r))
+                    r_dict = dict(zip(col_names, r, strict=False))
                     img = None
                     raw_path = r_dict.get('image_path')
                     if raw_path:
@@ -284,7 +257,7 @@ async def websocket_lookup_barcode(hass, connection, msg):
                 hint_prompt = "I could not find this barcode in external databases. Make your absolute best guess what this retail product is based on the manufacturer prefix. If unknown, just return 'Unknown Product'."
             
             prompt = get_barcode_prompt(barcode, hint_prompt, target_lang)
-            res_text, err = await safe_smart_router(hass, entry, mode, prompt)
+            res_text, err = await safe_smart_router(hass, entry, prompt)
             
             if not err and res_text:
                 clean_txt = re.sub(r'```json\s*|```\s*', '', res_text).strip()
@@ -337,7 +310,7 @@ async def websocket_ai_chat(hass, connection, msg):
         loc_hierarchy_map = {}
         
         async def async_fetch_context():
-            nonlocal existing_locs_str, existing_cats_str, loc_hierarchy_map
+            nonlocal existing_locs_str, existing_cats_str
             try:
                 db_path = get_db_path(hass)
                 catalog_map = await async_get_or_create_catalog_ids(hass)
@@ -411,7 +384,7 @@ async def websocket_ai_chat(hass, connection, msg):
                     "sub_category": "E.g., Shirts, Pants, Outerwear"
                 }"""
                 
-                res_text, err = await safe_smart_router(hass, entry, mode, vision_prompt, image_data, mime_val)
+                res_text, err = await safe_smart_router(hass, entry, vision_prompt, image_data, mime_val)
                 if err:
                     connection.send_result(msg["id"], {"error": f"AI Error: {err}"})
                     return
@@ -435,6 +408,7 @@ async def websocket_ai_chat(hass, connection, msg):
                         })
                         return
                 except Exception as e:
+                    _LOGGER.debug("Garment data parse failed: %s", e)
                     connection.send_result(msg["id"], {"error": "Failed to parse garment data."})
                     return
             else:
@@ -447,7 +421,7 @@ async def websocket_ai_chat(hass, connection, msg):
                     "debug_content": invoice_prompt
                 })
 
-                res_text, err = await safe_smart_router(hass, entry, mode, invoice_prompt, image_data, mime_val)
+                res_text, err = await safe_smart_router(hass, entry, invoice_prompt, image_data, mime_val)
                 if err:
                     connection.send_result(msg["id"], {"error": f"AI Error: {err}"})
                     return
@@ -501,7 +475,7 @@ async def websocket_ai_chat(hass, connection, msg):
                                 
                                 raw_path = loc_hierarchy_map.get(loc_id)
                                 if not raw_path:
-                                    for k, v in loc_hierarchy_map.items():
+                                    for _k, v in loc_hierarchy_map.items():
                                         v_str = " ".join(v).replace("ORDER_MARKER", "")
                                         if loc_id and loc_id.lower() in v_str.lower():
                                             raw_path = v
@@ -552,7 +526,7 @@ async def websocket_ai_chat(hass, connection, msg):
 
             step1_prompt = get_intent_resolve_prompt(hint_text, existing_locs_str, target_lang)
             
-            raw_analysis, err = await safe_smart_router(hass, entry, mode, step1_prompt)
+            raw_analysis, err = await safe_smart_router(hass, entry, step1_prompt)
             if not err and raw_analysis:
                 clean_txt = re.sub(r'```json\s*|```\s*', '', raw_analysis).strip()
                 try:
@@ -565,7 +539,7 @@ async def websocket_ai_chat(hass, connection, msg):
                         
                         pt = loc_hierarchy_map.get(loc_id)
                         if not pt:
-                            for k, v in loc_hierarchy_map.items():
+                            for _k, v in loc_hierarchy_map.items():
                                 v_str = " ".join(v).replace("ORDER_MARKER", "")
                                 if loc_id and loc_id.lower() in v_str.lower():
                                     pt = v
@@ -761,7 +735,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         loc_hierarchy_map = {}
         
         async def async_fetch_context():
-            nonlocal existing_locs_str, loc_hierarchy_map
+            nonlocal existing_locs_str
             try:
                 db_path = get_db_path(hass)
                 catalog_map = await async_get_or_create_catalog_ids(hass)

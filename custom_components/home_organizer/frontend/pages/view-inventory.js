@@ -114,11 +114,11 @@ export const InventoryMixin = (Base) => class extends Base {
         header.innerHTML = `
           <div style="display:flex;align-items:center;"><span class="subloc-title">${escapeHtml(translatedZone)}</span></div>
           <div style="display:flex;gap:5px;align-items:center">
-            <button class="arrow-btn" onclick="event.stopPropagation();this.getRootNode().host.moveZone('${this.escapeJSArg(zoneName)}',-1)">${ICONS.arrow_up}</button>
-            <button class="arrow-btn" onclick="event.stopPropagation();this.getRootNode().host.moveZone('${this.escapeJSArg(zoneName)}',1)" style="transform:rotate(180deg)">${ICONS.arrow_up}</button>
+            <button class="arrow-btn" onclick="event.stopPropagation();this.getRootNode().host.moveZone('${escapeHtml(this.escapeJSArg(zoneName))}',-1)">${ICONS.arrow_up}</button>
+            <button class="arrow-btn" onclick="event.stopPropagation();this.getRootNode().host.moveZone('${escapeHtml(this.escapeJSArg(zoneName))}',1)" style="transform:rotate(180deg)">${ICONS.arrow_up}</button>
             <div style="width:1px;height:15px;background:#444;margin:0 5px"></div>
-            <button class="edit-subloc-btn"   onclick="event.stopPropagation();this.getRootNode().host.enableZoneRename(this,'${this.escapeJSArg(zoneName)}')">${ICONS.edit}</button>
-            <button class="delete-subloc-btn" onclick="event.stopPropagation();this.getRootNode().host.deleteZone('${this.escapeJSArg(zoneName)}')">${ICONS.delete}</button>
+            <button class="edit-subloc-btn"   onclick="event.stopPropagation();this.getRootNode().host.enableZoneRename(this,'${escapeHtml(this.escapeJSArg(zoneName))}')">${ICONS.edit}</button>
+            <button class="delete-subloc-btn" onclick="event.stopPropagation();this.getRootNode().host.deleteZone('${escapeHtml(this.escapeJSArg(zoneName))}')">${ICONS.delete}</button>
           </div>`;
       } else {
         header.innerHTML = `<span>${escapeHtml(translatedZone)}</span>`;
@@ -283,18 +283,18 @@ export const InventoryMixin = (Base) => class extends Base {
 
       if (this.isEditMode && subName !== "General") {
         header.innerHTML = `
-          <div style="display:flex;align-items:center;"><span style="margin-inline-end:5px;display:flex;align-items:center;">${icon}</span><span class="subloc-title">${cleanSubName}</span>${countBadge}</div>
+          <div style="display:flex;align-items:center;"><span style="margin-inline-end:5px;display:flex;align-items:center;">${icon}</span><span class="subloc-title">${escapeHtml(cleanSubName)}</span>${countBadge}</div>
           <div style="display:flex;align-items:center;gap:10px;">${idHtml}
             <div style="display:flex;gap:5px;align-items:center;">
-              <button class="arrow-btn" onclick="event.stopPropagation();this.getRootNode().host.moveSubLoc('${this.escapeJSArg(subName)}',-1)">${ICONS.arrow_up}</button>
-              <button class="arrow-btn" onclick="event.stopPropagation();this.getRootNode().host.moveSubLoc('${this.escapeJSArg(subName)}',1)" style="transform:rotate(180deg)">${ICONS.arrow_up}</button>
+              <button class="arrow-btn" onclick="event.stopPropagation();this.getRootNode().host.moveSubLoc('${escapeHtml(this.escapeJSArg(subName))}',-1)">${ICONS.arrow_up}</button>
+              <button class="arrow-btn" onclick="event.stopPropagation();this.getRootNode().host.moveSubLoc('${escapeHtml(this.escapeJSArg(subName))}',1)" style="transform:rotate(180deg)">${ICONS.arrow_up}</button>
               <div style="width:1px;height:15px;background:#444;margin:0 5px"></div>
-              <button class="edit-subloc-btn"   onclick="event.stopPropagation();this.getRootNode().host.enableSublocRename(this,'${this.escapeJSArg(subName)}')">${ICONS.edit}</button>
-              <button class="delete-subloc-btn" onclick="event.stopPropagation();this.getRootNode().host.deleteSubloc('${this.escapeJSArg(subName)}')">${ICONS.delete}</button>
+              <button class="edit-subloc-btn"   onclick="event.stopPropagation();this.getRootNode().host.enableSublocRename(this,'${escapeHtml(this.escapeJSArg(subName))}')">${ICONS.edit}</button>
+              <button class="delete-subloc-btn" onclick="event.stopPropagation();this.getRootNode().host.deleteSubloc('${escapeHtml(this.escapeJSArg(subName))}')">${ICONS.delete}</button>
             </div>
           </div>`;
       } else {
-        header.innerHTML = `<div style="display:flex;align-items:center;"><span style="margin-inline-end:5px;display:flex;align-items:center;">${icon}</span><span>${cleanSubName}</span>${countBadge}</div>${idHtml}`;
+        header.innerHTML = `<div style="display:flex;align-items:center;"><span style="margin-inline-end:5px;display:flex;align-items:center;">${icon}</span><span>${escapeHtml(cleanSubName)}</span>${countBadge}</div>${idHtml}`;
       }
       listContainer.appendChild(header);
 
@@ -308,7 +308,7 @@ export const InventoryMixin = (Base) => class extends Base {
         }
         if (this.isEditMode) {
           const addRow = document.createElement('div'); addRow.className = "group-add-row";
-          addRow.innerHTML = `<button class="text-add-btn" onclick="this.getRootNode().host.addQuickItem('${this.escapeJSArg(subName)}')">${ICONS.plus} ${this._t('add', 'Add')}</button>`;
+          addRow.innerHTML = `<button class="text-add-btn" onclick="this.getRootNode().host.addQuickItem('${escapeHtml(this.escapeJSArg(subName))}')">${ICONS.plus} ${this._t('add', 'Add')}</button>`;
           listContainer.appendChild(addRow);
         }
       }
@@ -572,7 +572,7 @@ export const InventoryMixin = (Base) => class extends Base {
               <div style="font-size:14px; font-weight:bold; color:var(--primary); margin-bottom:12px; display:flex; align-items:center; gap:5px;">${this._t('item_stylist_details', '👗 Stylist & Fit Details')}</div>
               
               <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
-                  <input type="text" id="owner-${escapeHtml(item.id)}" placeholder="${sOwnerPh}" value="${this.escapeJSArg(ownerVal)}" style="flex:1; min-width:120px; padding:10px; background:var(--bg-input-edit); color:var(--text-main); border:1px solid var(--border-light); border-radius:6px; font-size:14px; box-sizing:border-box;" onblur="if(typeof this.getRootNode().host.saveStylistFields === 'function') this.getRootNode().host.saveStylistFields('${escapeHtml(item.id)}', '${escapeHtml(this.escapeJSArg(item.name))}')">
+                  <input type="text" id="owner-${escapeHtml(item.id)}" placeholder="${sOwnerPh}" value="${escapeHtml(this.escapeJSArg(ownerVal))}" style="flex:1; min-width:120px; padding:10px; background:var(--bg-input-edit); color:var(--text-main); border:1px solid var(--border-light); border-radius:6px; font-size:14px; box-sizing:border-box;" onblur="if(typeof this.getRootNode().host.saveStylistFields === 'function') this.getRootNode().host.saveStylistFields('${escapeHtml(item.id)}', '${escapeHtml(this.escapeJSArg(item.name))}')">
                   <select id="clothing_status-${escapeHtml(item.id)}" style="flex:1; min-width:120px; padding:10px; background:var(--bg-input-edit); color:var(--text-main); border:1px solid var(--border-light); border-radius:6px; font-size:14px; box-sizing:border-box;" onchange="if(typeof this.getRootNode().host.saveStylistFields === 'function') this.getRootNode().host.saveStylistFields('${escapeHtml(item.id)}', '${escapeHtml(this.escapeJSArg(item.name))}')">
                       <option value="Clean" ${sStat==='Clean'?'selected':''}>${sClean}</option>
                       <option value="In Laundry" ${sStat==='In Laundry'?'selected':''}>${sLaundry}</option>
@@ -583,18 +583,18 @@ export const InventoryMixin = (Base) => class extends Base {
               <div style="margin-bottom:12px;">
                   <div style="font-size:12px; color:var(--text-sub);">${this._t('item_seasons_multi', 'Seasons (Multi-Select)')}</div>
                   <div class="chip-group" id="season-chips-${escapeHtml(item.id)}">${seasonChips}</div>
-                  <input type="hidden" id="season-${escapeHtml(item.id)}" value="${this.escapeJSArg(sSea)}">
+                  <input type="hidden" id="season-${escapeHtml(item.id)}" value="${escapeHtml(this.escapeJSArg(sSea))}">
               </div>
 
               <div style="margin-bottom:12px;">
                   <div style="font-size:12px; color:var(--text-sub);">${this._t('item_occ_multi', 'Occasions (Multi-Select)')}</div>
                   <div class="chip-group" id="dress_code-chips-${escapeHtml(item.id)}">${occChips}</div>
-                  <input type="hidden" id="dress_code-${escapeHtml(item.id)}" value="${this.escapeJSArg(sDC)}">
+                  <input type="hidden" id="dress_code-${escapeHtml(item.id)}" value="${escapeHtml(this.escapeJSArg(sDC))}">
               </div>
 
               <div style="margin-top:12px;">
                   <div style="font-size:12px; color:var(--text-sub);">${this._t('item_meas_label', 'Garment Measurements (cm)')}</div>
-                  <input type="text" id="measurements-${escapeHtml(item.id)}" placeholder="${this.escapeJSArg(this._t('item_meas_placeholder', 'e.g. Chest: 40, Waist: 32'))}" value="${this.escapeJSArg(sMeas)}" style="width:100%; margin-top:4px; padding:10px; background:var(--bg-input-edit); color:var(--text-main); border:1px solid var(--border-light); border-radius:6px; font-size:14px; box-sizing:border-box;" onblur="if(typeof this.getRootNode().host.saveStylistFields === 'function') this.getRootNode().host.saveStylistFields('${escapeHtml(item.id)}', '${escapeHtml(this.escapeJSArg(item.name))}')">
+                  <input type="text" id="measurements-${escapeHtml(item.id)}" placeholder="${escapeHtml(this.escapeJSArg(this._t('item_meas_placeholder', 'e.g. Chest: 40, Waist: 32')))}" value="${escapeHtml(this.escapeJSArg(sMeas))}" style="width:100%; margin-top:4px; padding:10px; background:var(--bg-input-edit); color:var(--text-main); border:1px solid var(--border-light); border-radius:6px; font-size:14px; box-sizing:border-box;" onblur="if(typeof this.getRootNode().host.saveStylistFields === 'function') this.getRootNode().host.saveStylistFields('${escapeHtml(item.id)}', '${escapeHtml(this.escapeJSArg(item.name))}')">
                   ${fitBanner}
               </div>
           </div>

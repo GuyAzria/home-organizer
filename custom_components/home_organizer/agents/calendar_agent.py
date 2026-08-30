@@ -34,7 +34,6 @@ import homeassistant.util.dt as dt_util
 
 from ..ai_core.router import safe_smart_router
 from ..ai_core.json_utils import safe_parse_json, apply_voice_rules
-from ..ai_core.localized_strings import get_strings_for_language
 from .. import reminders_store, reminders_scheduler
 
 _LOGGER = logging.getLogger(__name__)
@@ -247,7 +246,6 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
               loc_hierarchy_map, history_text, last_user_msg, recipe_name,
               is_voice, device_id, user_id, lang_code="en"):
 
-    strings = await get_strings_for_language(hass, entry, lang_code)
     current_time = dt_util.now()
     current_time_str = current_time.strftime("%A, %Y-%B-%d %H:%M:%S %Z")
 

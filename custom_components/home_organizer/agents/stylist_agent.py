@@ -25,12 +25,10 @@
 # //      now their first argument.
 # // [MODIFIED v9.3.1 | 2026-08-02] Purpose: Refactored database interactions to use aiosqlite for full asynchronous I/O. Replaced get_db_connection with get_db_path and removed async_add_executor_job wrappers to prevent Event Loop blocking.
 
-import asyncio
 import logging
 import os
 from functools import partial
 import aiosqlite
-import json
 import aiohttp
 
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
