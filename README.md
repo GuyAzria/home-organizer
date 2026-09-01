@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/logo.png" alt="Home Organizer (HO) Logo" width="180">
+<img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/custom_components/home_organizer/brand/logo.png" alt="Home Organizer (HO) Logo" width="180">
 </p>
 
 <h1 align="center">Home Organizer (HO)</h1>
