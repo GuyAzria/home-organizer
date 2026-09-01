@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://github.com/GuyAzria/home-organizer/blob/main/logo.png" alt="Home Organizer (HO) Logo" width="180">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/logo.png" alt="Home Organizer (HO) Logo" width="180">
 </p>
 
 <h1 align="center">Home Organizer (HO)</h1>
@@ -37,8 +37,8 @@ There is absolutely no need to write a single line of code or touch your `config
 3. Paste `https://github.com/GuyAzria/home-organizer` into the Repository field, select **Integration** as the category, and click **ADD**.
 
 <p align="center">
-  <img src="images/inst1.png" width="45%" alt="Adding Custom Repository URL">
-  <img src="images/inst2.png" width="45%" alt="Home Organizer in Custom Repositories">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst1.png" width="45%" alt="Adding Custom Repository URL">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst2.png" width="45%" alt="Home Organizer in Custom Repositories">
 </p>
 <p align="center"><i>Paste the GitHub URL and verify that Home Organizer is added to your custom repositories list.</i></p>
 
@@ -46,7 +46,7 @@ There is absolutely no need to write a single line of code or touch your `config
 Search for **Home Organizer** in the HACS search bar, click on it, and select **Download**.
 
 <p align="center">
-  <img src="images/inst3.png" width="80%" alt="Searching for Home Organizer in HACS">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst3.png" width="80%" alt="Searching for Home Organizer in HACS">
 </p>
 <p align="center"><i>Locate the HO-AI Home Organizer integration and download it to your system.</i></p>
 
@@ -54,7 +54,7 @@ Search for **Home Organizer** in the HACS search bar, click on it, and select **
 Go to **Settings** > **System** (or click the repair notification) and **Restart** Home Assistant to load the new files.
 
 <p align="center">
-  <img src="images/inst4.png" width="80%" alt="Restart Home Assistant">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst4.png" width="80%" alt="Restart Home Assistant">
 </p>
 <p align="center"><i>A restart is required before Home Assistant can recognize the new integration.</i></p>
 
@@ -66,7 +66,7 @@ Go to **Settings** > **System** (or click the repair notification) and **Restart
 Navigate to **Settings** > **Devices & Services**. Click the **+ Add Integration** button in the bottom right corner and search for **Home Organizer**.
 
 <p align="center">
-  <img src="images/inst5.png" width="60%" alt="Add Integration Menu">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst5.png" width="60%" alt="Add Integration Menu">
 </p>
 <p align="center"><i>Find Home Organizer in the official integrations list.</i></p>
 
@@ -76,7 +76,7 @@ The setup wizard will guide you through the initial configuration:
 * **Storage Method:** Choose where to store your database. **Highly Recommended:** Select `media` if your main Home Assistant drive is low on storage space. Because all item photos (and potentially future scanned invoices) are saved directly into the SQLite DB, the file size can grow significantly over time.
 
 <p align="center">
-  <img src="images/inst6.png" width="60%" alt="Processing Mode and Storage Selection">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst6.png" width="60%" alt="Processing Mode and Storage Selection">
 </p>
 <p align="center"><i>Select your processing mode, primary AI provider, and preferred storage location.</i></p>
 
@@ -86,7 +86,7 @@ Depending on the AI provider you selected, you need to provide the correct conne
 * **Local Providers (Ollama/LM Studio):** Enter the exact local URL of your AI server (ensure it ends with `/v1`), the local API Key (type `ollama` or `local`), and the exact local model name (e.g., `llama3:8b`).
 
 <p align="center">
-  <img src="images/inst7.png" width="60%" alt="API Keys Configuration">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst7.png" width="60%" alt="API Keys Configuration">
 </p>
 <p align="center"><i>Carefully input your respective API keys and model names. Ensure local URLs include the port and end with /v1.</i></p>
 
@@ -96,7 +96,7 @@ Configure the voice keywords that will trigger specific AI actions.
 * **⚠️ Danger Zone (`delete_on_remove`):** If you check this box, uninstalling the integration will **permanently delete** your entire Home Organizer database (including all your saved items, rooms, and images). It is highly recommended to leave this unchecked to keep your data safe in case you ever need to reinstall the integration!
 
 <p align="center">
-  <img src="images/inst8.png" width="60%" alt="Trigger Words and Advanced Settings">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst8.png" width="60%" alt="Trigger Words and Advanced Settings">
 </p>
 <p align="center"><i>Set your custom wake words and carefully review the delete_on_remove checkbox.</i></p>
 
@@ -106,8 +106,8 @@ Once the setup is complete, a new **HO-AI** icon will appear in your Home Assist
 **No Hidden Menus:** There are no complicated settings screens or hidden menus to learn! The entire interface is designed to be completely intuitive. Simply click the **Pencil icon (✏️)** in the top right corner to enter Edit Mode, and all your management options (adding, renaming, deleting, and changing icons) will instantly appear exactly where you need them. 
 
 <p align="center">
-  <img src="images/inst9.png" width="30%" alt="HO-AI Sidebar Icon">
-  <img src="images/inst10.png" width="60%" alt="Empty Home Organizer Dashboard">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst9.png" width="30%" alt="HO-AI Sidebar Icon">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst10.png" width="60%" alt="Empty Home Organizer Dashboard">
 </p>
 <p align="center"><i>Click the new HO-AI sidebar icon. On your first launch, the screen will be empty. Click the <b>Pencil icon (✏️)</b> in the top right corner to start creating your rooms and adding items!</i></p>
 
@@ -118,7 +118,7 @@ To start building your home layout, click the **Pencil Icon (✏️)** in the to
 Click the **Add Zone** button at the bottom of the screen to create a broad area. Then, click the small pencil icon next to the zone's title to rename it (for example, "FIRST FLOOR").
 
 <p align="center">
-  <img src="images/inst12.png" width="60%" alt="Adding a new Zone and Renaming">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst12.png" width="60%" alt="Adding a new Zone and Renaming">
 </p>
 <p align="center"><i>Click "Add Zone" (1), then use the pencil icon (2) to give your zone a custom name.</i></p>
 
@@ -126,7 +126,7 @@ Click the **Add Zone** button at the bottom of the screen to create a broad area
 Once your zone is ready, click the large green **+ Add Room** button inside it to create a specific room (like a Kitchen or a Garage).
 
 <p align="center">
-  <img src="images/inst11.png" width="60%" alt="Adding a Room">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst11.png" width="60%" alt="Adding a Room">
 </p>
 <p align="center"><i>A new "kitchen" room has been added to the FIRST FLOOR zone. The blue and red icons indicate you are still in Edit Mode.</i></p>
 
@@ -134,7 +134,7 @@ Once your zone is ready, click the large green **+ Add Room** button inside it t
 While still in **Edit Mode (✏️)**, you can personalize the look of your rooms to make them easily recognizable. Click the small **picture icon** on the corner of any room folder to open the Icon Picker.
 
 <p align="center">
-  <img src="images/inst13.png" width="45%" alt="Change Icon Modal">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst13.png" width="45%" alt="Change Icon Modal">
 </p>
 <p align="center"><i>Click the picture icon (highlighted in red) to open the menu. You can select a beautiful built-in 3D icon, paste a direct image URL, or upload your own custom image!</i></p>
  
@@ -147,7 +147,7 @@ To make Home Organizer the default "brain" for voice commands across your entire
 3. In the window that opens, scroll down to the **Conversation agent** section and select **HO-AI Agent** from the dropdown menu. Save your changes.
 
 <p align="center">
-  <img src="images/inst14.png" width="60%" alt="Selecting HO-AI Agent in Voice Assistants">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst14.png" width="60%" alt="Selecting HO-AI Agent in Voice Assistants">
 </p>
 <p align="center"><i>Change the Conversation agent to HO-AI Agent so your new AI can process all incoming voice and text commands.</i></p>
 
@@ -237,8 +237,8 @@ Click the **Gear Icon (⚙️)** in the top right corner of the navigation bar.
 * **Theme:** Choose between a sleek **Dark Theme** or a clean **Light Theme**.
 
 <p align="center">
-  <img src="images/16.png" width="48%" alt="Dark Theme View">
-  <img src="images/23.png" width="48%" alt="Light Theme View">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/16.png" width="48%" alt="Dark Theme View">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/23.png" width="48%" alt="Light Theme View">
 </p>
 
 ### 2. Setting up Zones and Rooms
@@ -248,9 +248,9 @@ Click the **Pencil Icon (✏️)** in the top right to enter **Edit Mode**.
 * *Tip: You can use the up (↑) and down (↓) arrows to reorder your zones and rooms!*
 
 <p align="center">
-  <img src="images/1.png" width="32%" alt="Empty Root Screen">
-  <img src="images/2.png" width="32%" alt="Adding First Floor">
-  <img src="images/3.png" width="32%" alt="Multiple Zones Added">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/1.png" width="32%" alt="Empty Root Screen">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/2.png" width="32%" alt="Adding First Floor">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/3.png" width="32%" alt="Multiple Zones Added">
 </p>
 
 ### 3. Customizing Icons
@@ -258,16 +258,16 @@ While still in **Edit Mode (✏️)**, click the picture icon on the corner of y
 * Browse through hundreds of beautiful 3D icons, or use the **Upload File** button to paste an image URL directly!
 
 <p align="center">
-  <img src="images/4.png" width="48%" alt="Room Editing Options">
-  <img src="images/5.png" width="48%" alt="Room Icon Picker Library">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/4.png" width="48%" alt="Room Editing Options">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/5.png" width="48%" alt="Room Icon Picker Library">
 </p>
 
 ### 4. Storage Locations & Sublocations
 Click on a Room (e.g., Kitchen) to enter it. Add a **Storage Location** (like "Fridge"), click into it, and add a **Sublocation** (like "Top Shelf"). This hierarchy ensures you always know *exactly* where an item is.
 
 <p align="center">
-  <img src="images/6.png" width="48%" alt="Kitchen Storage Locations">
-  <img src="images/7.png" width="48%" alt="Fridge Sublocations">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/6.png" width="48%" alt="Kitchen Storage Locations">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/7.png" width="48%" alt="Fridge Sublocations">
 </p>
 
 ### 5. Adding and Managing Items manually
@@ -275,17 +275,17 @@ Turn off **Edit Mode**. Navigate to a sublocation and click **+ Add** to create 
 * Categorize it, assign expiration dates, and use the Camera icon to snap a real photo of the item using the built-in AI Background Removal tool!
 
 <p align="center">
-  <img src="images/8.png" width="32%" alt="Item inside Sublocation">
-  <img src="images/10.png" width="32%" alt="Expanded Item Details">
-  <img src="images/9.png" width="32%" alt="Item Icon Library">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/8.png" width="32%" alt="Item inside Sublocation">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/10.png" width="32%" alt="Expanded Item Details">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/9.png" width="32%" alt="Item Icon Library">
 </p>
 
 ### 6. Grid View & Live Tracking
 Use the **View Toggle** icon in the sub-bar to switch between a detailed List View and a beautiful visual **Grid View**. Hit the **+** or **-** buttons to update how much of an item you have left.
 
 <p align="center">
-  <img src="images/11.png" width="48%" alt="Sublocation Grid View">
-  <img src="images/16.png" width="48%" alt="Populated Fridge Grid View">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/11.png" width="48%" alt="Sublocation Grid View">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/16.png" width="48%" alt="Populated Fridge Grid View">
 </p>
 
 ### 7. Invoice Scanning & AI Chat
@@ -295,10 +295,10 @@ Click the **Robot Icon (🤖)** in the top bar to open your personal AI Chat Ass
 3. You can also chat naturally via text or voice to manage your inventory and HA devices.
 
 <p align="center">
-  <img src="images/22.png" width="24%" alt="Original Receipt/Invoice">
-  <img src="images/12.png" width="24%" alt="AI Chat Ready with Attached File">
-  <img src="images/13.png" width="24%" alt="Sending Prompt with File">
-  <img src="images/20.png" width="24%" alt="AI Processed Invoice">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/22.png" width="24%" alt="Original Receipt/Invoice">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/12.png" width="24%" alt="AI Chat Ready with Attached File">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/13.png" width="24%" alt="Sending Prompt with File">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/20.png" width="24%" alt="AI Processed Invoice">
 </p>
 
 ### 8. Setting up the Voice Assistant & HO-Mind AI

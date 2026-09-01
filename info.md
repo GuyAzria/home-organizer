@@ -12,7 +12,7 @@ Home Organizer is a dedicated full-screen sidebar application that allows you to
 
 ## ⚙️ Requirements
 * Home Assistant 2024.1.0 or newer
-* **Google Gemini API Key**
+* **AI Provider API Key or Local URL**: Required for AI chat, receipt scanning, and smart categorization (Gemini, OpenAI, Claude, Ollama, or LM Studio).
 
 ## 🚀 Installation & Setup
 1. Click **Download** below and **Restart** Home Assistant.
@@ -25,4 +25,3 @@ Home Organizer is a dedicated full-screen sidebar application that allows you to
 **[📚 Read the Full Documentation & Setup Guide on GitHub](https://github.com/GuyAzria/home-organizer)**
 
 *Made with ❤️ for the Home Assistant community by Guy Azria*
-
