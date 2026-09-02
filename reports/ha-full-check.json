@@ -98,16 +98,6 @@
       "check": "runtime test presence",
       "status": "WARN",
       "detail": "no tests directory"
-    },
-    {
-      "check": "ruff check",
-      "status": "PASS",
-      "detail": "completed successfully"
-    },
-    {
-      "check": "bandit",
-      "status": "PASS",
-      "detail": "completed successfully"
     }
   ],
   "findings": [
@@ -142,27 +132,11 @@
       "location": "tests",
       "fix": "Tests are recommended, not required for HACS submission.",
       "evidence": ""
-    },
-    {
-      "severity": "WARN",
-      "category": "External tools",
-      "message": "node not installed; JavaScript is not parsed.",
-      "location": "",
-      "fix": "Install Node.js from nodejs.org to enable this check.",
-      "evidence": ""
-    },
-    {
-      "severity": "INFO",
-      "category": "External tools",
-      "message": "hassfest is not available locally; it runs in CI via the official GitHub Action. This is expected outside a Home Assistant core checkout.",
-      "location": "",
-      "fix": "",
-      "evidence": ""
     }
   ],
   "counts": {
-    "INFO": 4,
-    "WARN": 2
+    "INFO": 3,
+    "WARN": 1
   },
-  "heuristic_risk_score": 90
+  "heuristic_risk_score": 93
 }
