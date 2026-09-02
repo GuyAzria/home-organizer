@@ -1,0 +1,123 @@
+{
+  "domain": "home_organizer",
+  "stats": {
+    "python files": 30,
+    "javascript files": 16,
+    "lines of python": 10722,
+    "functions_indexed": 251
+  },
+  "findings": [
+    {
+      "severity": "INFO",
+      "category": "Version floor",
+      "message": "brand/ is present but HA only reads it from 2026.3; on the declared floor 2024.7.0 users see no icon",
+      "location": "custom_components\\home_organizer\\brand",
+      "fix": ""
+    },
+    {
+      "severity": "ERROR",
+      "category": "Shipped content",
+      "message": "'__pycache__' is installed onto every user's system",
+      "location": "custom_components\\home_organizer\\__pycache__",
+      "fix": "Move it to the repository root or delete it."
+    },
+    {
+      "severity": "ERROR",
+      "category": "Shipped content",
+      "message": "'__pycache__' is installed onto every user's system",
+      "location": "custom_components\\home_organizer\\agents\\__pycache__",
+      "fix": "Move it to the repository root or delete it."
+    },
+    {
+      "severity": "ERROR",
+      "category": "Shipped content",
+      "message": "'__pycache__' is installed onto every user's system",
+      "location": "custom_components\\home_organizer\\ai_core\\__pycache__",
+      "fix": "Move it to the repository root or delete it."
+    },
+    {
+      "severity": "WARN",
+      "category": "Config entry lifecycle",
+      "message": "config flow never calls async_set_unique_id",
+      "location": "custom_components\\home_organizer\\config_flow.py",
+      "fix": "Without a unique id the same device can be added twice."
+    },
+    {
+      "severity": "WARN",
+      "category": "Deprecated APIs",
+      "message": "naive datetime.now() - Home Assistant expects timezone-aware times",
+      "location": "custom_components\\home_organizer\\agents\\inventory_agent.py:396",
+      "fix": "Use homeassistant.util.dt.now()."
+    },
+    {
+      "severity": "WARN",
+      "category": "Deprecated APIs",
+      "message": "naive datetime.now() - Home Assistant expects timezone-aware times",
+      "location": "custom_components\\home_organizer\\database.py:266",
+      "fix": "Use homeassistant.util.dt.now()."
+    },
+    {
+      "severity": "WARN",
+      "category": "Deprecated APIs",
+      "message": "naive datetime.now() - Home Assistant expects timezone-aware times",
+      "location": "custom_components\\home_organizer\\database.py:396",
+      "fix": "Use homeassistant.util.dt.now()."
+    },
+    {
+      "severity": "WARN",
+      "category": "Deprecated APIs",
+      "message": "naive datetime.now() - Home Assistant expects timezone-aware times",
+      "location": "custom_components\\home_organizer\\database.py:398",
+      "fix": "Use homeassistant.util.dt.now()."
+    },
+    {
+      "severity": "WARN",
+      "category": "Deprecated APIs",
+      "message": "naive datetime.now() - Home Assistant expects timezone-aware times",
+      "location": "custom_components\\home_organizer\\services.py:130",
+      "fix": "Use homeassistant.util.dt.now()."
+    },
+    {
+      "severity": "WARN",
+      "category": "Deprecated APIs",
+      "message": "naive datetime.now() - Home Assistant expects timezone-aware times",
+      "location": "custom_components\\home_organizer\\services.py:157",
+      "fix": "Use homeassistant.util.dt.now()."
+    },
+    {
+      "severity": "WARN",
+      "category": "Services",
+      "message": "service registered without a voluptuous schema",
+      "location": "custom_components\\home_organizer\\__init__.py:805",
+      "fix": "Unvalidated payloads reach the handler from any authenticated caller."
+    },
+    {
+      "severity": "WARN",
+      "category": "Services",
+      "message": "service registered without a voluptuous schema",
+      "location": "custom_components\\home_organizer\\__init__.py:633",
+      "fix": "Unvalidated payloads reach the handler from any authenticated caller."
+    },
+    {
+      "severity": "WARN",
+      "category": "Services",
+      "message": "service registered without a voluptuous schema",
+      "location": "custom_components\\home_organizer\\__init__.py:687",
+      "fix": "Unvalidated payloads reach the handler from any authenticated caller."
+    },
+    {
+      "severity": "WARN",
+      "category": "Services",
+      "message": "service registered without a voluptuous schema",
+      "location": "custom_components\\home_organizer\\__init__.py:657",
+      "fix": "Unvalidated payloads reach the handler from any authenticated caller."
+    },
+    {
+      "severity": "WARN",
+      "category": "Secrets and logging",
+      "message": "a full response or payload may be written to the log",
+      "location": "custom_components\\home_organizer\\agents\\smarthome_agent.py:136",
+      "fix": "Log a length or a status code instead of the object."
+    }
+  ]
+}
