@@ -89,10 +89,34 @@ async def async_universal_ai_router(hass, provider, base_url, api_key, model,
     """Single low-level call to whichever AI provider is selected."""
     session = async_get_clientsession(hass)
     try:
-        b64_data = image_data
-        if image_data and "base64," in image_data:
-            mime_type = image_data.split(";")[0].split(":")[1]
-            b64_data = image_data.split("base64,")[1]
+        # [MODIFIED v2026.9.8] image_data may now be a list.
+        #
+        # A long till receipt does not fit in one photograph, so the user is
+        # asked for further pages and every page is sent in ONE request. The
+        # model then sees all of them together, which is what lets it read the
+        # header from page 1, take the lines from every page, and recognise
+        # the deliberate overlap between consecutive photos as the same lines
+        # rather than new ones.
+        #
+        # A bare string is still accepted so every existing caller - barcode
+        # scans, garment photos - keeps working untouched.
+        raw_images = []
+        if isinstance(image_data, (list, tuple)):
+            raw_images = [x for x in image_data if x]
+        elif image_data:
+            raw_images = [image_data]
+
+        images = []
+        for raw in raw_images:
+            item_mime = mime_type
+            payload_b64 = raw
+            if isinstance(raw, str) and "base64," in raw:
+                item_mime = raw.split(";")[0].split(":")[1]
+                payload_b64 = raw.split("base64,")[1]
+            images.append((item_mime, payload_b64))
+
+        # Every provider branch below iterates `images`, so no single-image
+        # variable is needed any more.
 
         if provider == PROVIDER_GEMINI:
             # [MODIFIED v10.0.0] The key used to be appended to the URL as
@@ -108,10 +132,12 @@ async def async_universal_ai_router(hass, provider, base_url, api_key, model,
                 "x-goog-api-key": api_key,
             }
             payload = {"contents": [{"parts": [{"text": prompt}]}]}
-            if image_data:
+            # Pages are inserted in order before the prompt text, so page 1 -
+            # the one carrying the header - is the first thing the model sees.
+            for idx, (img_mime, img_b64) in enumerate(images):
                 payload["contents"][0]["parts"].insert(
-                    0,
-                    {"inline_data": {"mime_type": mime_type, "data": b64_data}},
+                    idx,
+                    {"inline_data": {"mime_type": img_mime, "data": img_b64}},
                 )
             async with session.post(url, headers=headers, json=payload,
                                     timeout=ClientTimeout(total=90)) as resp:
@@ -133,16 +159,15 @@ async def async_universal_ai_router(hass, provider, base_url, api_key, model,
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {api_key}",
             }
-            if image_data:
-                content = [
-                    {"type": "text", "text": prompt},
-                    {
+            if images:
+                content = [{"type": "text", "text": prompt}]
+                for img_mime, img_b64 in images:
+                    content.append({
                         "type": "image_url",
                         "image_url": {
-                            "url": f"data:{mime_type};base64,{b64_data}"
+                            "url": f"data:{img_mime};base64,{img_b64}"
                         },
-                    },
-                ]
+                    })
             else:
                 content = prompt
             payload = {
@@ -169,18 +194,19 @@ async def async_universal_ai_router(hass, provider, base_url, api_key, model,
                 "anthropic-version": "2023-06-01",
                 "content-type": "application/json",
             }
-            if image_data:
+            if images:
                 content = [
                     {
                         "type": "image",
                         "source": {
                             "type": "base64",
-                            "media_type": mime_type,
-                            "data": b64_data,
+                            "media_type": img_mime,
+                            "data": img_b64,
                         },
-                    },
-                    {"type": "text", "text": prompt},
+                    }
+                    for img_mime, img_b64 in images
                 ]
+                content.append({"type": "text", "text": prompt})
             else:
                 content = prompt
             payload = {

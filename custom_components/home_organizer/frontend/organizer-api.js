@@ -14,7 +14,6 @@
 // [MODIFIED v7.7.60 | 2026-05-03] Purpose: Removed complex blur/input event tracking. autoSaveItem now cleanly responds to explicit save actions (like the new Save button in the UI).
 // [MODIFIED v7.7.59 | 2026-05-03] Purpose: Completely solved the mobile Companion App "reverting name" bug. Replaced unreliable DOM visibility checks during keyboard blur with a memory-based state tracker (_lastEditedValues) powered by the 'input' event, ensuring the exact text typed by the user is always the one saved.
 
-import { ITEM_CATEGORIES } from './organizer-data.js?v=6.6.10';
 import { escapeHtml } from './organizer-utils.js?v=2026.8.26';
 
 export const APIMixin = (Base) => class extends Base {
@@ -139,27 +138,126 @@ export const APIMixin = (Base) => class extends Base {
     const qtyEl  = this._getActiveEl(`pending-qty-${id}`);
     const state  = this.locationEditState[id] || {};
     const path   = [state.l1, state.l2, state.l3].filter(Boolean);
+    // [MODIFIED v2026.9.11] Send the corrected price along with the approval.
+    //
+    // purchase_history is written at approval time and is never updated
+    // afterwards, so this is the last moment a wrong figure can be fixed.
+    // An empty box sends null, not 0: null means "unknown", 0 means "free".
+    const priceEl = this._getActiveEl(`pending-price-${id}`);
+    const rawPrice = priceEl ? priceEl.value.trim() : "";
+    const price = rawPrice === "" ? null : (isNaN(parseFloat(rawPrice)) ? null : parseFloat(rawPrice));
     this.callHA('confirm_pending', {
       item_id: id,
       name: nameEl?.value.trim() || "",
       quantity: qtyEl ? (parseInt(qtyEl.value) || 1) : 1,
+      purchase_price: price,
       path
     });
+  }
+
+  // [ADDED v2026.9.11] Approve every item of one scan.
+  //
+  // Approving eighteen rows one at a time is the single biggest reason people
+  // abandon a review queue. The confirmation carries the count, because a
+  // click that changes eighteen things deserves one moment of pause.
+  async approveScan(receiptKey) {
+    // localData is the panel's cached view payload, the same source the review
+    // tab renders from, so this always matches what the user is looking at.
+    const items = (this.localData?.pending_list || []).filter(
+      it => String(it.receipt_id || '__none__') === String(receiptKey)
+    );
+    if (!items.length) return;
+    const msg = this.t('receipt_confirm_approve_all',
+      'Approve {n} item(s) and add them to your inventory?').replace('{n}', items.length);
+    if (!window.confirm(msg)) return;
+    // Sequential, not parallel: each approval writes a history row and may
+    // promote the receipt, and firing eighteen of those at one SQLite
+    // connection invites lock contention for no gain.
+    for (const it of items) {
+      try { await this.confirmPending(it.id); } catch (e) { console.error(e); }
+    }
+    this.fetchData();
+  }
+
+  // [ADDED v2026.9.11] Discard an unreviewed scan entirely.
+  //
+  // The backend refuses unless the receipt is still a draft with nothing
+  // approved, so this cannot destroy recorded spending even if the button is
+  // somehow shown when it should not be.
+  async deleteScan(receiptKey) {
+    if (!receiptKey || receiptKey === '__none__') return;
+    const msg = this.t('receipt_confirm_delete_scan',
+      'Delete this entire scan? The receipt, its images and all its unreviewed items will be removed.');
+    if (!window.confirm(msg)) return;
+    try {
+      await this.callHA('delete_scan', { receipt_id: parseInt(receiptKey, 10) });
+      if (this.collapsedScans) delete this.collapsedScans[receiptKey];
+      this.fetchData();
+    } catch (e) { console.error(e); }
   }
 
   deletePending(id) {
     this.callHA('delete_item', { item_id: id, current_path: [], is_folder: false });
   }
 
+  // [ADDED v2026.9.19] Categories come from the database, not from a shipped
+  // JS file.
+  //
+  // organizer-data.js was replaced on every HACS update, so anything the user
+  // or the scanner added to it was silently lost. The table is seeded once
+  // with the exact same list and is the source of truth afterwards.
+  //
+  // The returned shape is identical to the old constant, so callers did not
+  // change. The empty object fallback matters: the very first render can
+  // happen before the first fetch returns.
+  get categories() {
+    return (this.localData && this.localData.categories) || {};
+  }
+
+  // Prompt for a name and create it. Returns the created name, or null.
+  //
+  // The dropdowns put this behind an "+ Add" option rather than a separate
+  // button: the moment a user discovers a category is missing is the moment
+  // they are looking at the list, and making them close it to find a settings
+  // screen loses them.
+  async promptAddCategory(parentCategory) {
+    const isSub = !!parentCategory;
+    const title = isSub
+      ? this.t('add_sub_prompt') || 'New sub-category name:'
+      : this.t('add_cat_prompt') || 'New category name:';
+    const name = window.prompt(title, '');
+    if (name === null) return null;
+    const clean = String(name).trim();
+    if (!clean) return null;
+    await this.callHA('add_category', {
+      category: isSub ? parentCategory : clean,
+      sub_category: isSub ? clean : null,
+      source: 'user',
+    });
+    await this.fetchData();
+    return clean;
+  }
+
   updatePendingCategory(itemId, value, type) {
     const mainSel = this._getActiveEl(`pending-cat-main-${itemId}`);
     const subSel  = this._getActiveEl(`pending-cat-sub-${itemId}`);
+    // "+ Add" is a sentinel value, not a category. Create first, then continue
+    // with the real name so the item ends up filed under it immediately.
+    if (value === '__ADD__') {
+      const parent = type === 'sub' ? (mainSel?.value || '') : '';
+      if (type === 'sub' && !parent) { this.render(); return; }
+      this.promptAddCategory(parent).then(created => {
+        if (created) this.updatePendingCategory(itemId, created, type);
+        else this.render();
+      });
+      return;
+    }
     let mainCat = type === 'main' ? value : (mainSel?.value || "");
     let subCat  = type === 'sub'  ? value : (type === 'main' ? "" : (subSel?.value || ""));
     if (type === 'main') {
       let html = `<option value="">${this.t('select_sub')}</option>`;
-      if (mainCat && ITEM_CATEGORIES[mainCat])
-        Object.keys(ITEM_CATEGORIES[mainCat]).forEach(s => {
+      if (mainCat && this.categories[mainCat])
+        Object.keys(this.categories[mainCat]).forEach(s => {
           html += `<option value="${escapeHtml(s)}">${escapeHtml(this.t('sub_' + s.replace(/[^a-zA-Z0-9]+/g,'_')) || s)}</option>`;
         });
       if (subSel) subSel.innerHTML = html;
@@ -168,17 +266,69 @@ export const APIMixin = (Base) => class extends Base {
       .then(() => this.fetchData());
   }
 
+  // [ADDED v2026.9.30] Save the price and the expiry/warranty date.
+  //
+  // One call for both, because they sit on one row of the card and a user
+  // correcting a scanned date often adjusts the price in the same breath.
+  //
+  // An empty box sends null rather than "" or 0: null means "not known", and
+  // the expiry list has to be able to tell that apart from a real value.
+  // [ADDED v2026.10.1] Open or close the receipt block on one item card.
+  //
+  // Keyed by item id rather than a single flag, so opening the block on one
+  // card does not open it on every other card at the same time.
+  toggleReceiptBlock(itemId) {
+    this.openReceiptBlocks = this.openReceiptBlocks || {};
+    const key = String(itemId);
+    this.openReceiptBlocks[key] = !this.openReceiptBlocks[key];
+    this.render();
+  }
+
+  saveItemExtras(itemId) {
+    const priceEl = this._getActiveEl(`price-${itemId}`);
+    const dateEl  = this._getActiveEl(`itemdate-${itemId}`);
+    const payload = { item_id: itemId };
+
+    if (priceEl) {
+      const raw = String(priceEl.value || '').trim();
+      payload.purchase_price = raw === '' ? null
+        : (isNaN(parseFloat(raw)) ? null : parseFloat(raw));
+    }
+    if (dateEl) {
+      // Which of the two dates this card is showing is decided when it is
+      // rendered and carried on the element, so this does not have to work it
+      // out again and cannot disagree with what the user is looking at.
+      const field = dateEl.dataset?.field || 'expiry_date';
+      payload[field] = String(dateEl.value || '').trim() || null;
+    }
+    return this.callHA('update_item_extras', payload);
+  }
+
   updateItemCategory(itemId, value, type, itemName) {
     const mainSel  = this._getActiveEl(`cat-main-${itemId}`);
     const subSel   = this._getActiveEl(`cat-sub-${itemId}`);
+    // [ADDED v2026.9.27] "+ Add" is a sentinel, not a category.
+    //
+    // Same handling as the review card: create it, then re-enter with the real
+    // name so the item is filed under it straight away rather than being left
+    // on the placeholder.
+    if (value === '__ADD__') {
+      const parent = type === 'sub' ? (mainSel?.value || '') : '';
+      if (type === 'sub' && !parent) { this.render(); return; }
+      this.promptAddCategory(parent).then(created => {
+        if (created) this.updateItemCategory(itemId, created, type, itemName);
+        else this.render();
+      });
+      return;
+    }
     const valInput = this._getActiveEl(`unit-val-${itemId}`);
     const unitDisp = this._getActiveEl(`unit-disp-${itemId}`);
     let mainCat = type === 'main' ? value : (mainSel?.value || "");
     let subCat  = type === 'sub'  ? value : (type === 'main' ? "" : (subSel?.value || ""));
     if (type === 'main') {
       let html = `<option value="">${this.t('select_sub')}</option>`;
-      if (mainCat && ITEM_CATEGORIES[mainCat])
-        Object.keys(ITEM_CATEGORIES[mainCat]).forEach(s => {
+      if (mainCat && this.categories[mainCat])
+        Object.keys(this.categories[mainCat]).forEach(s => {
           html += `<option value="${escapeHtml(s)}">${escapeHtml(this.t('sub_' + s.replace(/[^a-zA-Z0-9]+/g,'_')) || s)}</option>`;
         });
       if (subSel) subSel.innerHTML = html;
@@ -191,8 +341,8 @@ export const APIMixin = (Base) => class extends Base {
       category: mainCat, sub_category: subCat,
       unit_value: valInput?.value || "", current_path: this.currentPath
     };
-    if (mainCat && subCat && ITEM_CATEGORIES[mainCat]?.[subCat]) {
-      const newUnit = ITEM_CATEGORIES[mainCat][subCat];
+    if (mainCat && subCat && this.categories[mainCat]?.[subCat]) {
+      const newUnit = this.categories[mainCat][subCat];
       payload.unit = newUnit;
       if (unitDisp) unitDisp.innerText = this.t('unit_' + newUnit) || newUnit;
     }

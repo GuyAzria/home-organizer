@@ -49,7 +49,15 @@ from .const import (
     CONF_AI_PROVIDER, CONF_PROCESSING_MODE, MODE_LOCAL_ONLY, MODE_HYBRID, PROVIDER_OPENAI, PROVIDER_GEMINI
 )
 from .database import (
-    async_init_db, get_db_path, async_get_or_create_catalog_ids, to_alpha_id, async_get_view_data, async_add_item_db_safe
+    async_init_db, get_db_path, async_get_or_create_catalog_ids, to_alpha_id, async_get_view_data, async_add_item_db_safe,
+    # [ADDED v2026.9.4 | STAGE 2] Receipt persistence helpers.
+    async_find_receipt, async_count_receipt_items, async_insert_receipt,
+    # [ADDED v2026.9.5 | STAGE 2] Receipt file storage + price history.
+    # [MODIFIED v2026.9.9] Every page of a multi-image receipt is archived,
+    # so the per-page helpers replace the single-file one here.
+    async_store_receipt_pages, async_link_receipt_pages,
+    async_list_receipts, async_get_receipt_pages, async_get_receipt_items,
+    async_get_categories,
 )
 from .services import register_services
 from .ai_logic import (
@@ -68,6 +76,8 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 WS_GET_DATA = "home_organizer/get_data"
 WS_GET_ALL_ITEMS = "home_organizer/get_all_items" 
 WS_AI_CHAT = "home_organizer/ai_chat" 
+# [ADDED v2026.9.12] Backing command for the receipts table.
+WS_LIST_RECEIPTS = "home_organizer/list_receipts"
 WS_LOOKUP_BARCODE = "home_organizer/lookup_barcode"
 WS_SAVE_AVATAR = "home_organizer/save_avatar"
 
@@ -285,6 +295,19 @@ async def websocket_ai_chat(hass, connection, msg):
         user_message = msg.get("message", "")
         image_data = msg.get("image_data") 
         mime_val = msg.get("mime_type", "image/jpeg") 
+
+        # [ADDED v2026.9.8] image_data may be a list of pages of ONE receipt.
+        # image_pages is what gets sent to the model: it sees every page in a
+        # single request, which is what lets it read the header from page one,
+        # collect lines from all pages, and treat the overlap between two
+        # photographs as the same lines rather than as new ones.
+        image_pages = (
+            [x for x in image_data if x]
+            if isinstance(image_data, list) else
+            ([image_data] if image_data else [])
+        )
+        # Anything downstream that only asks "is there an image" is unchanged.
+        image_data = image_pages[0] if image_pages else None
         
         lang_code = msg.get("language", hass.config.language)
         lang_map = {"en": "English", "he": "Hebrew", "it": "Italian", "es": "Spanish", "fr": "French", "ar": "Arabic"}
@@ -359,9 +382,22 @@ async def websocket_ai_chat(hass, connection, msg):
                         
                         existing_locs_str = "\n".join(loc_prompt_list)
                     
-                    async with db.execute("SELECT DISTINCT category FROM items WHERE category IS NOT NULL AND category != ''") as cc:
-                        cats = [r[0] for r in await cc.fetchall()]
-                        existing_cats_str = ", ".join(sorted(cats))
+                    # [MODIFIED v2026.9.28] Read the real category list, with
+                    # its sub-categories.
+                    #
+                    # This used to be SELECT DISTINCT category FROM items, which
+                    # had two consequences. A category nobody had filed anything
+                    # under yet was invisible, so a category the user had just
+                    # created could not be chosen by the assistant. And
+                    # sub-categories were never sent at all, which made the rule
+                    # "only invent a sub-category when nothing close exists"
+                    # impossible to follow - the model could not see what
+                    # existed.
+                    cat_map = await async_get_categories(hass)
+                    existing_cats_str = "\n".join(
+                        f"{cat}: {', '.join(subs.keys())}" if subs else f"{cat}:"
+                        for cat, subs in cat_map.items()
+                    )
             except Exception as ex:
                 _LOGGER.error(f"Context fetch error: {ex}")
         
@@ -421,7 +457,9 @@ async def websocket_ai_chat(hass, connection, msg):
                     "debug_content": invoice_prompt
                 })
 
-                res_text, err = await safe_smart_router(hass, entry, invoice_prompt, image_data, mime_val)
+                # Every page goes in one call. safe_smart_router accepts a
+                # list and passes it straight into the provider payload.
+                res_text, err = await safe_smart_router(hass, entry, invoice_prompt, image_pages, mime_val)
                 if err:
                     connection.send_result(msg["id"], {"error": f"AI Error: {err}"})
                     return
@@ -445,6 +483,99 @@ async def websocket_ai_chat(hass, connection, msg):
 
                     if parsed.get("intent") == "add_invoice" and "items" in parsed:
                         db_path = get_db_path(hass)
+
+                        # [ADDED v2026.9.4 | STAGE 2] Receipt-level handling.
+                        #
+                        # The model now returns a "receipt" object alongside the
+                        # items. Older responses will not have it, so an empty
+                        # dict keeps this backwards compatible.
+                        receipt_data = parsed.get("receipt") or {}
+                        receipt_id = None
+
+
+                        # Duplicate detection runs BEFORE a single item row is
+                        # written. Writing first and asking afterwards would
+                        # leave a half-imported receipt behind if the user then
+                        # declined.
+                        existing = await async_find_receipt(
+                            hass,
+                            receipt_data.get("vendor"),
+                            receipt_data.get("receipt_number"),
+                        )
+                        if existing:
+                            # The counts are the whole point of this message: a
+                            # re-scan usually happens because the first pass read
+                            # only part of the document. Without both numbers the
+                            # user is choosing blind.
+                            old_count = await async_count_receipt_items(
+                                hass, existing.get("id")
+                            )
+                            new_count = len(parsed.get("items") or [])
+                            connection.send_result(msg["id"], {
+                                "response": (
+                                    f"This receipt is already saved.\n\n"
+                                    f"{existing.get('vendor') or '-'} | "
+                                    f"{existing.get('purchase_date') or '-'} | "
+                                    f"{existing.get('total_amount') or '-'} "
+                                    f"{existing.get('currency') or ''}\n"
+                                    f"Saved copy: {old_count} item(s). "
+                                    f"This scan found {new_count}."
+                                ),
+                                "duplicate_receipt": {
+                                    "existing_id": existing.get("id"),
+                                    "existing_items": old_count,
+                                    "new_items": new_count,
+                                },
+                                "debug": {"intent": "duplicate_receipt"},
+                            })
+                            return
+
+                        # [ADDED v2026.9.5 | STAGE 2] Persist the scanned
+                        # document first, then record the row that points at it.
+                        #
+                        # This order is deliberate. A receipts row whose
+                        # file_path names a file that was never written gives a
+                        # broken screen every time the user opens it. A file with
+                        # no row is just an orphan on disk. If the write fails,
+                        # this returns None and the receipt is still recorded -
+                        # losing the image is much better than losing the amount.
+                        # [MODIFIED v2026.9.9] Every page is archived, not just
+                        # the first, so a receipt photographed in four parts can
+                        # be reopened later as the whole document.
+                        #
+                        # Files are written before the receipt row exists,
+                        # because a row pointing at a file that was never written
+                        # produces a broken screen every time it is opened, while
+                        # a file with no row is a harmless orphan.
+                        stored_pages = await async_store_receipt_pages(
+                            hass, image_pages, mime_val
+                        )
+                        # receipts.file_path stays as page one. It is what the
+                        # list views use for a thumbnail, and it keeps receipts
+                        # saved before receipt_pages existed working unchanged.
+                        stored_file = stored_pages[0] if stored_pages else None
+
+                        # Stored even when the item list is empty: a receipt whose
+                        # header was read is still a record that money was spent,
+                        # and items can be attached to it by hand later.
+                        receipt_id = await async_insert_receipt(hass, {
+                            "receipt_number": receipt_data.get("receipt_number"),
+                            "vendor": receipt_data.get("vendor"),
+                            "purchase_date": receipt_data.get("purchase_date"),
+                            "total_amount": receipt_data.get("total_amount"),
+                            "currency": receipt_data.get("currency"),
+                            "file_path": stored_file,
+                            "item_count": len(parsed.get("items") or []),
+                        })
+
+                        # Linked after the receipt exists, since page rows need
+                        # its id. If this fails the files are still on disk and
+                        # page one still displays from receipts.file_path.
+                        if receipt_id and stored_pages:
+                            await async_link_receipt_pages(
+                                hass, receipt_id, stored_pages, mime_val
+                            )
+
                         for item in parsed["items"]:
                             bcode = str(item.get("barcode", "0")).strip()
                             
@@ -460,7 +591,21 @@ async def websocket_ai_chat(hass, connection, msg):
                                 except Exception: pass
 
                             if hist_data:
-                                nm = hist_data.get("name", item.get("name", "Unknown"))
+                                # [FIXED v2026.9.18] The freshly scanned name wins.
+                                #
+                                # barcode_history remembers where a product lives
+                                # and how it is filed, which is worth keeping. The
+                                # NAME is different: it is whatever language the
+                                # receipt was read in the first time it was seen.
+                                # Taking it from history meant a product first
+                                # scanned in English kept its English name forever,
+                                # even after the user switched the panel to Hebrew
+                                # and rescanned the same receipt.
+                                #
+                                # History is still the fallback for a scan that
+                                # produced no readable name.
+                                scanned_name = (item.get("name") or "").strip()
+                                nm = scanned_name or hist_data.get("name", "Unknown")
                                 cat = hist_data.get("category", item.get("category", ""))
                                 scat = hist_data.get("sub_category", item.get("sub_category", ""))
                                 icon = hist_data.get("icon_key", item.get("icon_key", None))
@@ -482,10 +627,39 @@ async def websocket_ai_chat(hass, connection, msg):
                                             break
                                 if not raw_path: raw_path = ["General"]
                             
+                            # [MODIFIED v2026.9.4 | STAGE 2] Unit price, purchased
+                            # quantity and the receipt link now travel with the
+                            # item. _coerce_amount in database.py turns an
+                            # unreadable price into NULL rather than 0, so an
+                            # unknown price is never recorded as free.
+                            item_qty = int(item.get("qty", 1) or 1)
                             await async_add_item_db_safe(
-                                hass, nm, int(item.get("qty", 1)), raw_path, cat, scat, "pending", icon, bcode
+                                hass, nm, item_qty, raw_path, cat, scat, "pending", icon, bcode,
+                                purchase_price=item.get("price"),
+                                quantity_purchased=item_qty,
+                                receipt_id=receipt_id,
+                                # [ADDED v2026.9.30] The scanner's estimate; the
+                                # user can correct it on the item card.
+                                expiry_date=item.get("expiry_date"),
+                                warranty_end_date=item.get("warranty_end_date"),
                             )
+
                             added_count += 1
+
+                            # Write the current name back, so the next scan of
+                            # this barcode and any other screen reading history
+                            # both show what the user last confirmed rather than
+                            # the first language it was ever seen in.
+                            if bcode and bcode != "0" and nm:
+                                try:
+                                    async with aiosqlite.connect(db_path, timeout=10.0) as db:
+                                        await db.execute(
+                                            "UPDATE barcode_history SET name = ? WHERE barcode = ?",
+                                            (nm, bcode),
+                                        )
+                                        await db.commit()
+                                except Exception as hist_err:
+                                    _LOGGER.debug("Could not refresh barcode name: %s", hist_err)
                             
                             item["name"] = nm 
                             item["_resolved_path"] = raw_path
@@ -509,7 +683,15 @@ async def websocket_ai_chat(hass, connection, msg):
 
                         connection.send_result(msg["id"], {
                             "response": response_text,
-                            "debug": {"raw_json": clean_txt, "intent": "add_invoice"}
+                            "debug": {"raw_json": clean_txt, "intent": "add_invoice"},
+
+                            # [ADDED v2026.9.14] The panel scrolls to this scan once the
+
+                            # review list refreshes. Without it the user is dropped at the
+
+                            # top of a list that may already hold several scans.
+
+                            "receipt_id": receipt_id
                         })
                         return
 
@@ -847,6 +1029,49 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
     except Exception: pass
     
+    # [ADDED v2026.9.12] Receipts table.
+    #
+    # A read-only query, so it is a websocket command rather than a service:
+    # services are for actions that change state and show up in the HA service
+    # list, which a table refresh has no business appearing in.
+    @websocket_api.websocket_command({
+        vol.Required("type"): WS_LIST_RECEIPTS,
+        vol.Optional("vendor"): vol.Any(str, None),
+        vol.Optional("date_from"): vol.Any(str, None),
+        vol.Optional("date_to"): vol.Any(str, None),
+        vol.Optional("receipt_id"): vol.Any(int, None),
+    })
+    @websocket_api.async_response
+    async def websocket_list_receipts(hass, connection, msg):
+        try:
+            # A receipt_id asks for one document with its pages, which is what
+            # the viewer needs; without it the filtered list is returned.
+            if msg.get("receipt_id"):
+                # [MODIFIED v2026.9.21] Pages and items come back together.
+                #
+                # Both are wanted at the same moment - the table opens under
+                # the header and the viewer opens from the same row - so one
+                # round trip is fewer moving parts than two.
+                pages = await async_get_receipt_pages(hass, msg["receipt_id"])
+                items = await async_get_receipt_items(hass, msg["receipt_id"])
+                connection.send_result(msg["id"], {"pages": pages, "items": items})
+                return
+            data = await async_list_receipts(
+                hass,
+                vendor=msg.get("vendor"),
+                date_from=msg.get("date_from"),
+                date_to=msg.get("date_to"),
+            )
+            connection.send_result(msg["id"], data)
+        except Exception as err:
+            _LOGGER.error("list_receipts failed: %s", err)
+            connection.send_result(msg["id"], {"receipts": [], "vendors": [], "totals": {}})
+
+    try:
+        websocket_api.async_register_command(hass, websocket_list_receipts)
+    except Exception:
+        pass
+
     try:
         websocket_api.async_register_command(
             hass,
@@ -855,7 +1080,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend({
                 vol.Required("type"): WS_AI_CHAT,
                 vol.Optional("message", default=""): str,
-                vol.Optional("image_data"): vol.Any(str, None),
+                # [MODIFIED v2026.9.8] A list is accepted so a long receipt
+                # photographed in several parts arrives as one request.
+                # A bare string is still valid, so nothing that already
+                # sends a single image needs to change.
+                vol.Optional("image_data"): vol.Any(str, [str], None),
                 vol.Optional("mime_type", default="image/jpeg"): str,
                 vol.Optional("language", default="en"): str 
             })

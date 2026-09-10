@@ -44,11 +44,11 @@ take_photo,Take Photo,צלם תמונה,Scatta foto,Tomar foto,Prendre une photo
 change_img,Change Image,שנה תמונה,Cambia immagine,Cambiar imagen,Changer l'image,تغيير الصورة,Изменить изображение
 duplicate,Duplicate,שכפל,Duplica,Duplicar,Dupliquer,تكرار,Дубликат
 delete,Delete,מחק,Elimina,Eliminar,Supprimer,حذف,Удалить
-ai_chat_title,AI Chat Assistant,עוזר בינה מלאכותית,Assistente AI Chat,Asistente de chat IA,Assistant Chat IA,مساعد الدردشة الذكي,Искусственный интеллект-помощник в чате
+ai_chat_title,Receipts AI,חשבוניות AI,Ricevute AI,Recibos IA,Reçus IA,الفواتير AI,Чеки AI
 chat_placeholder,Type message or scan invoice...,הקלד הודעה או סרוק חשבונית...,Scrivi un messaggio o scansiona fattura...,Escribe un mensaje o escanea factura...,Tapez un message ou scannez la facture...,اكتب رسالة أو امسح فاتورة...,Введите сообщение или отсканируйте счет-фактуру...
 file_attached,File attached (Invoice Scan Mode),קובץ מצורף (מצב סריקת חשבונית),File allegato (Scansione fattura),Archivo adjunto (Escaneo de factura),Fichier joint (Scan de facture),تم إرفاق الملف (وضع مسح الفاتورة),Прикреплен файл (режим сканирования счета-фактуры)
-ai_welcome_title,AI Assistant Ready,העוזר החכם מוכן,Assistente AI pronto,Asistente IA listo,Assistant IA prêt,المساعد الذكي جاهز,Готовность к работе с ИИ-помощником
-ai_welcome_desc,I can help manage your inventory.,אני יכול לעזור לנהל את המלאי שלך.,Posso aiutare a gestire l'inventario.,Puedo ayudar a gestionar tu inventario.,Je peux aider à gérer votre inventaire.,يمكنني المساعدة في إدارة مخزونك.,Я могу помочь вам с управлением запасами.
+ai_welcome_title,Scan a receipt,סריקת חשבונית,Scansiona una ricevuta,Escanear un recibo,Scanner un reçu,مسح فاتورة,Сканировать чек
+ai_welcome_desc,"Photograph a receipt and I will add its items, prices and totals.","צלמו חשבונית ואוסיף את הפריטים, המחירים והסכומים שלה.","Fotografa una ricevuta e aggiungerò articoli, prezzi e totali.","Fotografía un recibo y añadiré sus artículos, precios y totales.","Photographiez un reçu et j'ajouterai ses articles, prix et totaux.",صوّر فاتورة وسأضيف أصنافها وأسعارها ومجاميعها.,"Сфотографируйте чек, и я добавлю позиции, цены и суммы."
 ai_caps,Capabilities:,יכולות:,Capacità:,Capacidades:,Capacités:,القدرات:,Возможности:
 ai_cap_1,Add Items: 'Add 3 batteries to kitchen',הוספת פריטים: 'הוסף 3 סוללות למטבח',Aggiungi articoli: 'Aggiungi 3 batterie in cucina',Añadir artículos: 'Añade 3 pilas a la cocina',Ajouter des articles : 'Ajouter 3 piles à la cuisine',إضافة عناصر: 'إضافة 3 بطاريات إلى المطبخ',Добавить товары: «Добавить 3 батарейки на кухню»
 ai_cap_2,Scan Invoices: Tap the camera icon!,סריקת חשבוניות: לחץ על סמל המצלמה!,Scansiona fatture: tocca l'icona fotocamera!,Escanear facturas: ¡Toca el icono de la cámara!,Scanner des factures : Appuyez sur l'icône caméra !,مسح الفواتير: اضغط على أيقونة الكاميرا!,Сканирование счетов-фактур: нажмите на значок камеры!
@@ -730,7 +730,7 @@ item_Iron,Iron,מגהץ,Ferro da stiro,Plancha,Fer à repasser,مكواة,Жел
 item_Hair_dryer_hair_straightener,Hair Dryer,פנים/מחליק,Asciugacapelli,Secador,Sèche-cheveux,مجفف شعر,Фен
 item_Hair_dryer,Hair Dryer,מייבש שיער (פן),Asciugacapelli,Secador de pelo,Sèche-cheveux,مجفف شعر,Фен
 item_Hair_straightener,Hair Straightener,מחליק שיער,Piastra capelli,Plancha de pelo,Fer à lisser,مملس شعر,Выпрямитель для волос
-review_tab,AI Exports,ייצוא AI,Esportazioni AI,Exportaciones de IA,Exportations IA,صادرات الذكاء الاصطناعي,Экспорт ИИ
+review_tab,AI Receipts Exports,ייצוא חשבוניות AI,Esportazioni ricevute AI,Exportaciones de recibos IA,Exports de reçus IA,تصدير الفواتير AI,Экспорт чеков AI
 reject,Reject,דחה,Rifiuta,Rechazar,Rejeter,رفض,Отклонять
 confirm,Confirm,אישור,Conferma,Confirmar,Confirmer,تأكيد,Подтверждать
 sub_Dairy,Dairy,מוצרי חלב,Latticini,Lácteos,Produits laitiers,ألبان,Молочный
@@ -914,3 +914,45 @@ upload_image,Upload Image,העלה תמונה,Carica Immagine,Subir Imagen,Tél�
 wiz_name_placeholder,Name (e.g. Guy),שם (למשל גיא),Nome (es. Guy),Nombre (ej. Guy),Nom (ex. Guy),الاسم (مثل غاي),"Имя (например, Гай)"
 wiz_weight_placeholder,Weight (kg),"משקל (ק\ג)""",Peso (kg),Peso (kg),Poids (kg),الوزن (كجم),Вес (кг)
 wiz_shoes_placeholder,Shoe Size,מידה (למשל 42),Misura (es. 42),Talla (ej. 42),Pointure (ex. 42),المقاس (مثل 42),Размер обуви
+receipts_tab,Receipts,חשבוניות,Ricevute,Recibos,Reçus,الفواتير,Чеки
+receipts_filter_vendor,Store,חנות,Negozio,Tienda,Magasin,المتجر,Магазин
+receipts_filter_from,From,מתאריך,Da,Desde,Du,من,С
+receipts_filter_to,To,עד תאריך,A,Hasta,Au,إلى,По
+receipts_none,No receipts match these filters.,אין חשבוניות שתואמות את הסינון.,Nessuna ricevuta corrisponde ai filtri.,Ningún recibo coincide con los filtros.,Aucun reçu ne correspond aux filtres.,لا توجد فواتير مطابقة.,Нет чеков по этим фильтрам.
+receipts_clear_filters,Clear,נקה,Pulisci,Limpiar,Effacer,مسح,Сброс
+receipts_items_col,Items,פריטים,Articoli,Artículos,Articles,أصناف,Позиции
+receipt_unreviewed,unreviewed,לא נסקרה,da rivedere,sin revisar,non vérifié,غير مراجعة,не проверен
+receipt_no_file,No image was stored for this receipt.,לא נשמרה תמונה לחשבונית הזו.,Nessuna immagine salvata per questa ricevuta.,No se guardó ninguna imagen de este recibo.,Aucune image enregistrée pour ce reçu.,لم تُحفظ صورة لهذه الفاتورة.,Изображение для этого чека не сохранено.
+scan_receipt,Scan receipt,צילום חשבונית,Scansiona ricevuta,Escanear recibo,Scanner un reçu,مسح فاتورة,Сканировать чек
+upload_receipt,Upload image or PDF,העלאת תמונה או PDF,Carica immagine o PDF,Subir imagen o PDF,Importer image ou PDF,رفع صورة أو PDF,Загрузить изображение или PDF
+receipt_page,Page,עמוד,Pagina,Página,Page,صفحة,Стр.
+previous,Previous,הקודם,Precedente,Anterior,Précédent,السابق,Назад
+next,Next,הבא,Successivo,Siguiente,Suivant,التالي,Вперёд
+close,Close,סגירה,Chiudi,Cerrar,Fermer,إغلاق,Закрыть
+receipt_not_servable,"This receipt is stored outside the www folder, so it cannot be displayed in the browser.",החשבונית שמורה מחוץ לתיקיית www ולכן לא ניתן להציג אותה בדפדפן.,Questa ricevuta è salvata fuori dalla cartella www e non può essere mostrata nel browser.,"Este recibo está fuera de la carpeta www, por lo que no puede mostrarse en el navegador.",Ce reçu est stocké hors du dossier www et ne peut pas être affiché dans le navigateur.,هذه الفاتورة مخزنة خارج مجلد www ولا يمكن عرضها في المتصفح.,"Чек хранится вне папки www, поэтому его нельзя показать в браузере."
+receipt_file_missing,The image file for this page is no longer on disk.,קובץ התמונה של העמוד הזה כבר לא נמצא בדיסק.,Il file immagine di questa pagina non è più sul disco.,El archivo de imagen de esta página ya no está en el disco.,Le fichier image de cette page n'est plus sur le disque.,ملف صورة هذه الصفحة لم يعد موجودًا.,Файл изображения этой страницы больше не найден.
+scan_in_progress,Reading the receipt...,קורא את החשבונית...,Lettura della ricevuta...,Leyendo el recibo...,Lecture du reçu...,جارٍ قراءة الفاتورة...,Чтение чека...
+receipt_delete,Delete receipt,מחיקת חשבונית,Elimina ricevuta,Eliminar recibo,Supprimer le reçu,حذف الفاتورة,Удалить чек
+receipt_delete_warning,"Delete this receipt permanently?\n\n{r}\n\nIts images and its price history will be removed. Items stay in your inventory.\n\nThis is a double confirmation, not a password: type 1234 so an accidental tap cannot delete a receipt.",למחוק את החשבונית לצמיתות?\n\n{r}\n\nהתמונות והיסטוריית המחירים שלה יימחקו. הפריטים יישארו במלאי.\n\nזהו אימות כפול ולא סיסמה: הקלידו 1234 כדי שלחיצה בטעות לא תמחק חשבונית.,"Eliminare definitivamente questa ricevuta?\n\n{r}\n\nImmagini e storico prezzi saranno rimossi. Gli articoli restano in inventario.\n\nQuesta è una doppia conferma, non una password: digita 1234 perché un tocco accidentale non elimini una ricevuta.","¿Eliminar este recibo definitivamente?\n\n{r}\n\nSus imágenes y su historial de precios se eliminarán. Los artículos permanecen en el inventario.\n\nEsto es una doble confirmación, no una contraseña: escribe 1234 para que un toque accidental no borre un recibo.","Supprimer definitivement ce reçu ?\n\n{r}\n\nSes images et son historique de prix seront supprimés. Les articles restent dans l'inventaire.\n\nCeci est une double confirmation, pas un mot de passe : tapez 1234 pour qu'un appui accidentel ne supprime pas un reçu.",حذف هذه الفاتورة نهائيًا؟\n\n{r}\n\nستُحذف صورها وسجل أسعارها. تبقى الأصناف في المخزون.\n\nهذا تأكيد مزدوج وليس كلمة مرور: اكتب 1234 حتى لا يؤدي ضغط عرضي إلى حذف فاتورة.,"Удалить чек навсегда?\n\n{r}\n\nЕго изображения и история цен будут удалены. Позиции останутся в инвентаре.\n\nЭто двойное подтверждение, а не пароль: введите 1234, чтобы случайное нажатие не удалило чек."
+receipt_delete_bad_code,The confirmation code did not match. Nothing was deleted.,קוד האימות לא תואם. שום דבר לא נמחק.,Il codice di conferma non corrisponde. Nulla è stato eliminato.,El código de confirmación no coincide. No se eliminó nada.,Le code de confirmation ne correspond pas. Rien n'a été supprimé.,رمز التأكيد غير مطابق. لم يُحذف شيء.,Код подтверждения не совпал. Ничего не удалено.
+add_new,Add,הוספה,Aggiungi,Añadir,Ajouter,إضافة,Добавить
+add_cat_prompt,New category name:,שם קטגוריה חדשה:,Nome nuova categoria:,Nombre de la nueva categoría:,Nom de la nouvelle catégorie :,اسم فئة جديدة:,Название новой категории:
+add_sub_prompt,New sub-category name:,שם תת-קטגוריה חדשה:,Nome nuova sottocategoria:,Nombre de la nueva subcategoría:,Nom de la nouvelle sous-catégorie :,اسم فئة فرعية جديدة:,Название новой подкатегории:
+barcode,Barcode,ברקוד,Codice,Código,Code-barres,الباركود,Штрихкод
+name,Name,שם,Nome,Nombre,Nom,الاسم,Название
+qty,Qty,כמות,Qtà,Cant.,Qté,الكمية,Кол-во
+price_paid,Paid,שולם,Pagato,Pagado,Payé,المدفوع,Оплачено
+receipt_no_items,No items are linked to this receipt.,אין פריטים המשויכים לחשבונית הזו.,Nessun articolo collegato a questa ricevuta.,No hay artículos vinculados a este recibo.,Aucun article lié à ce reçu.,لا توجد أصناف مرتبطة بهذه الفاتورة.,К этому чеку не привязаны позиции.
+receipt_view,View receipt,הצגת החשבונית,Vedi ricevuta,Ver recibo,Voir le reçu,عرض الفاتورة,Открыть чек
+receipt_send_pages,Scan these pages,סרוק את הדפים,Scansiona queste pagine,Escanear estas páginas,Scanner ces pages,مسح هذه الصفحات,Сканировать страницы
+receipt_add_page,Add another page,הוספת דף נוסף,Aggiungi un'altra pagina,Añadir otra página,Ajouter une page,إضافة صفحة أخرى,Добавить страницу
+receipt_drop_page,Remove this page,הסרת הדף,Rimuovi questa pagina,Quitar esta página,Retirer cette page,إزالة هذه الصفحة,Удалить страницу
+all_caught_up,All caught up! No pending items to review.,הכל מעודכן! אין פריטים הממתינים לאישור.,Tutto fatto! Nessun articolo da rivedere.,¡Todo al día! No hay artículos pendientes.,Tout est à jour ! Aucun article à vérifier.,كل شيء محدّث! لا توجد أصناف بانتظار المراجعة.,Всё готово! Нет позиций для проверки.
+from_receipt,From receipt,מתוך חשבונית,Dalla ricevuta,Del recibo,Depuis le reçu,من الفاتورة,Из чека
+open_receipt,Open this receipt,פתיחת החשבונית,Apri questa ricevuta,Abrir este recibo,Ouvrir ce reçu,فتح هذه الفاتورة,Открыть чек
+receipt_number,Invoice no.,מספר חשבונית,N. fattura,N.º de factura,N° de facture,رقم الفاتورة,№ чека
+purchase_date,Purchase date,תאריך קנייה,Data acquisto,Fecha de compra,Date d'achat,تاريخ الشراء,Дата покупки
+expiry_date,Expiry date,תאריך תפוגה,Data di scadenza,Fecha de caducidad,Date de péremption,تاريخ الانتهاء,Срок годности
+warranty_end,Warranty ends,סיום אחריות,Fine garanzia,Fin de garantía,Fin de garantie,انتهاء الضمان,Конец гарантии
+pdf_not_inline,This app cannot display PDF files inside the panel. Open it to view the receipt.,האפליקציה לא יכולה להציג קובצי PDF בתוך הפאנל. פתחו את הקובץ כדי לראות את החשבונית.,Questa app non può mostrare i PDF nel pannello. Aprilo per vedere la ricevuta.,Esta aplicación no puede mostrar PDF dentro del panel. Ábrelo para ver el recibo.,Cette application ne peut pas afficher les PDF dans le panneau. Ouvrez-le pour voir le reçu.,لا يمكن لهذا التطبيق عرض ملفات PDF داخل اللوحة. افتح الملف لعرض الفاتورة.,"Это приложение не может показать PDF внутри панели. Откройте файл, чтобы увидеть чек."
+pdf_open,Open receipt,פתיחת החשבונית,Apri ricevuta,Abrir recibo,Ouvrir le reçu,فتح الفاتورة,Открыть чек

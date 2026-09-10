@@ -235,7 +235,7 @@ export const UIMixin = (Base) => class extends Base {
               <button class="fab-item" id="btn-fab-search">${ICONS.search}</button>
             </div>
             <div class="fab-item-wrapper" id="wrap-fab-chat">
-              <span class="fab-tooltip" id="lbl-fab-chat">AI Chat</span>
+              <span class="fab-tooltip" id="lbl-fab-chat">Receipts AI</span>
               <button class="fab-item" id="btn-fab-chat">${ICONS.robot}</button>
             </div>
             <div class="fab-item-wrapper" id="wrap-fab-barcode">
@@ -458,7 +458,7 @@ export const UIMixin = (Base) => class extends Base {
     set('lbl-close',       'back', 'Back');
     set('lbl-loading',     'loading', 'Loading...');
     set('lbl-fab-stylist', 'stylist', 'Stylist');
-    set('lbl-fab-chat',    'ai_chat_title', 'AI Chat');
+    set('lbl-fab-chat',    'ai_chat_title', 'Receipts AI');
     set('lbl-fab-shop',    'shopping_list', 'Shopping List');
     set('lbl-fab-search',  'search_placeholder', 'Search...');
     set('lbl-fab-barcode', 'barcode_scanner', 'Barcode Scanner');
@@ -548,21 +548,21 @@ export const UIMixin = (Base) => class extends Base {
     click('btn-ha-menu', () => this.dispatchEvent(new Event('hass-toggle-menu', { bubbles: true, composed: true })));
     click('btn-up',   () => this.navigate('up'));
     click('btn-home', () => {
-      this.isShopMode = false; this.isSearch = false; this.isChatMode = false; this.isStylistMode = false; this.isReviewMode = false; this.isBarcodeMode = false;
+      this.isShopMode = false; this.isSearch = false; this.isChatMode = false; this.isStylistMode = false; this.isReviewMode = false; this.isBarcodeMode = false; this.isReceiptsMode=false;
       this.clearSearchInput(); this.navigate('root');
     });
 
     click('btn-fab-main', () => root.getElementById('fab-container')?.classList.toggle('open'));
     const closeFab = () => root.getElementById('fab-container')?.classList.remove('open');
 
-    click('btn-fab-shop',   () => { this.isShopMode=true;  this.isSearch=false; this.isEditMode=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isBarcodeMode=false; closeFab(); this.fetchData(); });
-    click('btn-fab-search', () => { this.isSearch=true;    this.isShopMode=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isBarcodeMode=false; closeFab(); this.render(); });
-    click('btn-fab-chat',   () => { this.isChatMode=true;  this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isBarcodeMode=false; closeFab(); this.render(); });
-    click('btn-fab-stylist',() => { this.isStylistMode=true; this.isChatMode=false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isReviewMode=false; this.isBarcodeMode=false; closeFab(); this.render(); });
-    click('btn-fab-review', () => { this.isReviewMode=true; this.isChatMode=false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isStylistMode=false; this.isBarcodeMode=false; closeFab(); this.fetchData(); });
+    click('btn-fab-shop',   () => { this.isReceiptsMode=false; this.isShopMode=true;  this.isSearch=false; this.isEditMode=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isBarcodeMode=false; closeFab(); this.fetchData(); });
+    click('btn-fab-search', () => { this.isReceiptsMode=false; this.isSearch=true;    this.isShopMode=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isBarcodeMode=false; closeFab(); this.render(); });
+    click('btn-fab-chat',   () => { this.isChatMode=false; this.isReceiptsMode=false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isStylistMode=false; this.isBarcodeMode=false; this.isReviewMode=true; closeFab(); this.fetchData(); });
+    click('btn-fab-stylist',() => { this.isReceiptsMode=false; this.isStylistMode=true; this.isChatMode=false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isReviewMode=false; this.isBarcodeMode=false; closeFab(); this.render(); });
+    click('btn-fab-review', () => { this.isReceiptsMode=false; this.isReviewMode=true; this.isChatMode=false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isStylistMode=false; this.isBarcodeMode=false; closeFab(); this.fetchData(); });
     
     click('btn-fab-barcode', () => { 
-      this.isShopMode=false; this.isSearch=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isEditMode=false; 
+      this.isShopMode=false; this.isSearch=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isEditMode=false; this.isReceiptsMode=false;
       this.isBarcodeMode=true;
       
       localStorage.removeItem('ho_pending_item_id');
@@ -582,7 +582,7 @@ export const UIMixin = (Base) => class extends Base {
     root.getElementById('search-input').oninput = () => this.fetchData();
 
     click('btn-edit', () => {
-      this.isEditMode = !this.isEditMode; this.isShopMode=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isBarcodeMode=false;
+      this.isEditMode = !this.isEditMode; this.isShopMode=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isBarcodeMode=false; this.isReceiptsMode=false;
       if (!this.isEditMode) this.selectedItems.clear();
       this.render();
     });
@@ -659,8 +659,9 @@ export const UIMixin = (Base) => class extends Base {
 
     let pathDisplay = this._t('default_path', 'Main');
     if      (this.isStylistMode)  pathDisplay = "👗 " + this._t('stylist', 'Stylist');
-    else if (this.isChatMode)     pathDisplay = this._t('ai_chat_title', 'AI Chat');
-    else if (this.isReviewMode)   pathDisplay = this._t('review_tab', 'Review');
+    else if (this.isChatMode)     pathDisplay = this._t('ai_chat_title', 'Receipts AI');
+    else if (this.isReceiptsMode) pathDisplay = this._t('receipts_tab', 'Receipts');
+    else if (this.isReviewMode)   pathDisplay = this._t('review_tab', 'AI Receipts Exports');
     else if (this.isShopMode)     pathDisplay = this._t('shopping_list', 'Shopping List');
     else if (this.isSearch)       pathDisplay = this._t('search_results', 'Search Results');
     else if (this.isBarcodeMode)  pathDisplay = this._t('barcode_scanner', 'Barcode Scanner'); 
@@ -713,7 +714,10 @@ export const UIMixin = (Base) => class extends Base {
 
     if (this.isBarcodeMode && typeof this.renderBarcodeView === 'function') return this.renderBarcodeView(content);
     if (this.isStylistMode && typeof this.renderStylistView === 'function') return this.renderStylistView(content, attrs);
-    if ((this.isChatMode || this.isReviewMode) && typeof this.renderChatAndReviewView === 'function') return this.renderChatAndReviewView(content, attrs);
+    // [FIXED v2026.9.15] isReceiptsMode was missing from this condition, so
+    // opening the Receipts tab cleared the other two flags, matched nothing
+    // here, and fell through to the home screen.
+    if ((this.isChatMode || this.isReviewMode || this.isReceiptsMode) && typeof this.renderChatAndReviewView === 'function') return this.renderChatAndReviewView(content, attrs);
     if (this.isShopMode && typeof this.renderShoppingView === 'function') return this.renderShoppingView(content, attrs);
     if ((this.isSearch || attrs.path_display?.startsWith('Search')) && attrs.items && typeof this.renderSearchView === 'function') return this.renderSearchView(content, attrs);
 

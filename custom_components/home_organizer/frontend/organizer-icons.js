@@ -13,7 +13,6 @@
 //
 
 import { ICONS, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.10';
-import { ITEM_CATEGORIES } from './organizer-data.js?v=6.6.10';
 
 export const IconsMixin = (Base) => class extends Base {
 
@@ -122,8 +121,8 @@ export const IconsMixin = (Base) => class extends Base {
       if (this.pendingItemId) {
         if (this.pickerContext === 'item' && this.pickerMainCategory) {
           let newUnit = "Units";
-          if (this.pickerSubCategory && ITEM_CATEGORIES[this.pickerMainCategory]?.[this.pickerSubCategory])
-            newUnit = ITEM_CATEGORIES[this.pickerMainCategory][this.pickerSubCategory];
+          if (this.pickerSubCategory && this.categories[this.pickerMainCategory]?.[this.pickerSubCategory])
+            newUnit = this.categories[this.pickerMainCategory][this.pickerSubCategory];
           await this.callHA('update_item_details', {
             item_id: this.pendingItemId, image_path: fullKey,
             category: this.pickerMainCategory, sub_category: this.pickerSubCategory || "", unit: newUnit

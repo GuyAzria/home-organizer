@@ -95,7 +95,41 @@ export const UtilsMixin = (Base) => class extends Base {
 
   stripMarkerForDisplay(text) {
     if (!text) return text;
-    return text.replace(/\[?ORDER_MARKER_\d+\]?[_\s]*/g, '').trim();
+    // [MODIFIED v2026.9.21] Also strip ZONE markers and any leftover brackets.
+    //
+    // The old pattern only caught ORDER_MARKER, so a name like
+    // "מקרר מדף תחתון [ORDER_MARKER_040]" was cleaned but "[קומה א] מטבח"
+    // was not, and the raw zone prefix appeared in the dropdowns.
+    return String(text)
+      .replace(/\[?\s*(?:ORDER_MARKER|ZONE_MARKER)_\d+\s*\]?[_\s]*/g, '')
+      // A zone prefix the user wrote themselves, e.g. "[קומה א] מטבח".
+      .replace(/^\s*\[[^\]]*\]\s*/, '')
+      .replace(/\s*\[[^\]]*\]\s*$/, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  }
+
+  // [ADDED v2026.9.21] Currency symbols.
+  //
+  // A three-letter code is what the database stores, because a symbol is
+  // ambiguous - $ is USD, CAD and AUD - but the symbol is what a person reads
+  // at a glance. So the code stays the stored value and the symbol is only a
+  // display concern.
+  //
+  // Anything not in this table falls back to the code itself rather than to a
+  // generic sign, because "PLN" tells the user more than "¤".
+  currencySymbol(code) {
+    const SYMBOLS = {
+      USD:'$', ILS:'\u20AA', EUR:'\u20AC', GBP:'\u00A3', JPY:'\u00A5', CNY:'\u00A5',
+      RUB:'\u20BD', INR:'\u20B9', KRW:'\u20A9', TRY:'\u20BA', SAR:'\uFDFC',
+      VND:'\u20AB', PHP:'\u20B1', UAH:'\u20B4', GHS:'\u20B5', KZT:'\u20B8',
+      AZN:'\u20BC', GEL:'\u20BE', BTC:'\u20BF', KGS:'\u20C0', AMD:'\u058F',
+      NGN:'\u20A6', PYG:'\u20B2', CRC:'\u20A1', LAK:'\u20AD', MNT:'\u20AE',
+      THB:'\u0E3F', BRL:'R$', CHF:'CHF', CAD:'$', AUD:'$', PLN:'z\u0142',
+      SEK:'kr', NOK:'kr', DKK:'kr', CZK:'K\u010D', HUF:'Ft', MXN:'$', ZAR:'R',
+    };
+    const key = String(code || '').trim().toUpperCase();
+    return SYMBOLS[key] || key || '';
   }
 
   toAlphaId(num) {

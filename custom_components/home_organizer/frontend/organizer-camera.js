@@ -10,6 +10,7 @@
 // ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
+
 //
 // [MODIFIED v10.0.11 | 2026-08-02] Purpose: Changed barcode polyfill CDN URL to local static path to satisfy offline HACS requirements.
 // [MODIFIED v10.0.10 | 2026-04-17] Purpose: Added robust stream destruction to fix intermittent camera loading blocks. Added toggleWhiteBG implementation to resolve undefined boolean properties breaking canvas extraction. Sanitized canvas width/height integer rounding to prevent NaN rendering loops.
@@ -104,7 +105,12 @@ export const CameraMixin = (Base) => class extends Base {
       const file = e.target.files[0]; if (!file) return;
       this.compressImage(file, async (dataUrl, finalMime) => {
         const isSearch = context === 'search';
-        const isChat   = context === 'chat';
+        // [FIXED v2026.9.24] 'invoice' is a receipt context as well.
+        // openCamera has always mapped chat and invoice to the same
+        // receipt labels, but these two capture paths only tested for
+        // 'chat', so a capture started as 'invoice' fell through and the
+        // photo went nowhere.
+        const isChat   = context === 'chat' || context === 'invoice';
         if (context === 'stylist_avatar') { this.saveAvatarImage(dataUrl); return; }
         if (isChat || context === 'stylist_add') { 
             this.chatImage = dataUrl; this.chatMimeType = finalMime; 
@@ -237,6 +243,125 @@ export const CameraMixin = (Base) => class extends Base {
     }
   }
 
+  // [ADDED v2026.9.10] Ask whether the receipt continues onto another photo.
+  //
+  // The prompt is deliberately shown AFTER each capture rather than as a mode
+  // chosen up front: at the moment the user has just photographed the receipt
+  // they can see whether the rest of it is still in their hand, which is not
+  // something they can answer before starting.
+  // [REPLACED v2026.9.25] The confirm() dialog is gone.
+  //
+  // Three problems with it. It offered only OK and Cancel, so there was no way
+  // to drop a blurred page or abandon the scan. It fired before anything was
+  // drawn, so the user was asked about a photo they had not seen. And "OK"
+  // called openFileUpload, which opened a file picker instead of the camera -
+  // the reason pressing OK appeared to do nothing when the external app was
+  // in use.
+  //
+  // The queue is now shown in the review tab with its own buttons, so this
+  // just triggers a redraw.
+  askForMoreReceiptPages() {
+    this.render();
+  }
+
+  // Capture another page, using whichever camera strategy is configured.
+  //
+  // openCamera, not openFileUpload: with the external app enabled the file
+  // picker is the wrong tool entirely, and without HTTPS it is the only path
+  // that reaches openNativeCamera.
+  captureAnotherReceiptPage() {
+    this.receiptPageMode = true;
+    this.receiptCaptureActive = true;
+    this.openCamera('invoice');
+  }
+
+  // Abandon the whole capture. Nothing has been sent or written yet, so this
+  // only clears local state.
+  cancelReceiptCapture() {
+    this.receiptPageMode = false;
+    this.receiptCaptureActive = false;
+    this.receiptPages = [];
+    this.chatImage = null;
+    this.chatImagePages = null;
+    this.chatMimeType = 'image/jpeg';
+    this.render();
+  }
+
+  // Drop one page that came out unreadable, by position rather than by
+  // "the last one" - the bad page is not always the most recent.
+  removeReceiptPage(index) {
+    if (!this.receiptPages || !this.receiptPages.length) return;
+    const i = parseInt(index, 10);
+    if (isNaN(i) || i < 0 || i >= this.receiptPages.length) return;
+    this.receiptPages.splice(i, 1);
+    const last = this.receiptPages[this.receiptPages.length - 1];
+    this.chatImage = last ? last.data : null;
+    this.chatMimeType = last ? last.mime : 'image/jpeg';
+    this.render();
+  }
+
+  // Finish collecting and hand the queue to the chat's own send path.
+  //
+  // The send logic in view-chat.js already writes the history entry, shows the
+  // progress message, renders the debug block and handles errors. Duplicating
+  // it here would mean two code paths to keep in step - the mistake that once
+  // left a second copy of safe_smart_router carrying an unfixed log line - so
+  // the queue is placed where that function looks for it and it is called.
+  sendCollectedReceipt() {
+    const pages = this.receiptPages || [];
+    this.receiptPageMode = false;
+    this.receiptPages = [];
+    if (!pages.length) { this.chatImage = null; this.render(); return; }
+
+    // chatImage stays a single value for the preview thumbnail; chatImagePages
+    // is what actually travels, and the websocket schema accepts both.
+    this.chatImage = pages[0].data;
+    this.chatMimeType = pages[0].mime;
+    this.chatImagePages = pages.map(pg => pg.data);
+
+    if (typeof this.sendReceiptScan === 'function') {
+      this.sendReceiptScan();
+    } else {
+      // The chat view has not rendered its input bar yet. Keep the pages so
+      // nothing the user photographed is lost, and let them press send.
+      this.render();
+    }
+  }
+
+  // Start collecting, then open the camera for page one.
+  startReceiptCapture() {
+    this.receiptPageMode = true;
+    this.receiptPages = [];
+    // [FIXED v2026.9.22] Go through openCamera, not straight to a file picker.
+    //
+    // openCamera is where the three capture strategies are chosen: the
+    // external app when "Enable App Integration" is ticked, the in-browser
+    // camera when getUserMedia exists, and a native file input otherwise.
+    // Calling openFileUpload directly skipped all of it, so the external app
+    // never launched for receipts and users without HTTPS - who have no
+    // getUserMedia at all - had no camera on this screen.
+    // [FIXED v2026.9.23] Launch the app in the mode it actually implements.
+    //
+    // The external app was written when the receipt scanner and the barcode
+    // scanner lived on one screen, so 'barcode' is the capture mode it knows.
+    // Passing 'chat' opened it in a mode it does not handle. This is the same
+    // call handleBarcodeScan makes, which is the path that has always worked.
+    //
+    // The mode only decides how the APP behaves. Where the photo goes when it
+    // comes back is decided by receiptCaptureActive below, so a receipt is
+    // still treated as a receipt and never sent for a barcode lookup.
+    this.receiptCaptureActive = true;
+    // The capture mode the external app opens on. It has a dedicated Receipt
+    // tab, so this is 'invoice' - the receipt context openCamera has always
+    // recognised. 'chat' opened the app in the wrong place and 'barcode'
+    // opened its barcode scanner.
+    //
+    // If the app expects a different string, this is the only line to change:
+    // the mode decides how the APP behaves, while receiptCaptureActive decides
+    // where the returned photo goes, so the two cannot fall out of step.
+    this.openCamera('invoice');
+  }
+
   openFileUpload(context) {
     const input = this.shadowRoot.getElementById('universal-file-upload');
     if (!input) return;
@@ -257,12 +382,44 @@ export const CameraMixin = (Base) => class extends Base {
 
   async processUploadedFile(dataUrl, context, mimeType) {
     const isSearch = context === 'search';
-    const isChat   = context === 'chat';
+    // [FIXED v2026.9.24] 'invoice' is a receipt context as well.
+        // openCamera has always mapped chat and invoice to the same
+        // receipt labels, but these two capture paths only tested for
+        // 'chat', so a capture started as 'invoice' fell through and the
+        // photo went nowhere.
+        const isChat   = context === 'chat' || context === 'invoice';
 
     if (context === 'stylist_avatar') { this.saveAvatarImage(dataUrl); return; }
 
     if (isChat || context === 'stylist_add') { 
-        this.chatImage = dataUrl; this.chatMimeType = mimeType; 
+        // [ADDED v2026.9.10] Multi-page receipts.
+        //
+        // A long till receipt does not fit in one photograph. When the chat is
+        // already collecting pages, or the user is adding a further page, the
+        // image joins the queue instead of replacing the single slot.
+        //
+        // PDFs are excluded on purpose: a PDF from a phone's document scanner
+        // is already a complete multi-page document, so asking "any more
+        // pages?" would be noise.
+        if (isChat && this.receiptPageMode && mimeType !== 'application/pdf') {
+            this.receiptPages = this.receiptPages || [];
+            this.receiptPages.push({ data: dataUrl, mime: mimeType });
+            this.chatImage = dataUrl; this.chatMimeType = mimeType;
+            this.askForMoreReceiptPages();
+            this.render(); return;
+        }
+        this.chatImage = dataUrl; this.chatMimeType = mimeType;
+        // [MODIFIED v2026.9.14] Send straight away. The send button is gone, so
+        // a file that was picked and then left sitting in a preview would never
+        // reach the model at all.
+        //
+        // Only for the receipts screen: 'stylist_add' still stages its image
+        // for that screen's own flow.
+        if (isChat && typeof this.sendReceiptScan === 'function') {
+          this.render();
+          this.sendReceiptScan();
+          return;
+        }
         if (context === 'stylist_add') {
             const inputBar = this.shadowRoot.querySelector('.chat-input');
             if (inputBar) inputBar.value = "stylist Add this clothing to my closet";
@@ -294,6 +451,43 @@ export const CameraMixin = (Base) => class extends Base {
     }
   }
 
+  // [ADDED v2026.9.23] One entry point for a receipt photo from the app.
+  //
+  // Shared by the two ways a photo can arrive - the flag-based route above and
+  // the ctx === 'chat' route - so both behave identically and cannot drift.
+  handleReceiptPhotoFromApp(imageData, applyAiBg) {
+    const mimeMatch = String(imageData).match(/^data:(image\/\w+);base64,/);
+    const incomingMime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    const ext = incomingMime === 'image/png' ? 'png' : 'jpg';
+
+    fetch(imageData)
+      .then(r => r.blob())
+      .then(blob => {
+        const file = new File([blob], `ext_cam.${ext}`, { type: incomingMime });
+        this.compressImage(file, (dataUrl, finalMime) => {
+          this.chatImage = dataUrl;
+          this.chatMimeType = finalMime;
+          // The app may have been launched from any screen; the result belongs
+          // on the receipts screen.
+          this.isReviewMode = true;
+          this.isChatMode = false; this.isReceiptsMode = false;
+          this.isShopMode = false; this.isSearch = false;
+          this.isEditMode = false; this.isStylistMode = false;
+
+          if (this.receiptPageMode) {
+            this.receiptPages = this.receiptPages || [];
+            this.receiptPages.push({ data: dataUrl, mime: finalMime });
+            this.render();
+            this.askForMoreReceiptPages();
+            return;
+          }
+          this.render();
+          if (typeof this.sendReceiptScan === 'function') this.sendReceiptScan();
+        }, applyAiBg, 'chat');
+      })
+      .catch(err => alert("Error handling image from app: " + err.message));
+  }
+
   handleExternalCameraEvent(data) {
     if (!data) return;
     const ctx = data.context || 'chat';
@@ -304,7 +498,22 @@ export const CameraMixin = (Base) => class extends Base {
       this.pendingItem   = localStorage.getItem('ho_pending_item_name');
     }
 
+    // [ADDED v2026.9.23] A receipt capture claims the result first.
+    //
+    // The app is launched in 'barcode' mode because that is the mode it
+    // implements, so the context coming back says 'barcode' even though the
+    // user pressed "Scan receipt". Without this the photo would be sent for a
+    // barcode lookup and the receipt would be lost.
+    //
+    // Cleared immediately, so a later genuine barcode scan is unaffected even
+    // if the user abandons this one.
+    if (this.receiptCaptureActive && data.image_data) {
+      this.receiptCaptureActive = false;
+      this.handleReceiptPhotoFromApp(data.image_data, data.apply_ai_bg === true);
+      return;
+    }
     if (ctx === 'barcode' && data.barcode_data) {
+      this.receiptCaptureActive = false;
       this.executeBarcodeLookup(data.barcode_data);
       localStorage.removeItem('ho_pending_item_id');
       localStorage.removeItem('ho_pending_item_name');
@@ -343,21 +552,25 @@ export const CameraMixin = (Base) => class extends Base {
         }
         
         if (ctx === 'chat' || ctx === 'invoice') {
-          if (typeof this.processStaticBarcodeFile === 'function') {
-            this.processStaticBarcodeFile(file);
-          } else {
-            this.compressImage(file, (dataUrl, finalMime) => {
-              this.chatImage = dataUrl; this.chatMimeType = finalMime;
-              if (!this.isChatMode) { this.isChatMode = true; this.isShopMode = false; this.isSearch = false; this.isEditMode = false; this.isReviewMode = false; }
+          // Same handling as the flag-based route above: one implementation,
+          // so the two entry points cannot behave differently.
+          this.compressImage(file, (dataUrl, finalMime) => {
+            this.chatImage = dataUrl;
+            this.chatMimeType = finalMime;
+            this.isReviewMode = true;
+            this.isChatMode = false; this.isReceiptsMode = false;
+            this.isShopMode = false; this.isSearch = false;
+            this.isEditMode = false; this.isStylistMode = false;
+            if (this.receiptPageMode) {
+              this.receiptPages = this.receiptPages || [];
+              this.receiptPages.push({ data: dataUrl, mime: finalMime });
               this.render();
-              setTimeout(() => {
-                const sendBtn = this.shadowRoot.querySelector('.chat-send-btn');
-                const input   = this.shadowRoot.querySelector('.chat-input');
-                if (input) input.value = "RESOLVE_BARCODE";
-                if (sendBtn) sendBtn.click();
-              }, 200);
-            }, applyAiBg, ctx);
-          }
+              this.askForMoreReceiptPages();
+              return;
+            }
+            this.render();
+            if (typeof this.sendReceiptScan === 'function') this.sendReceiptScan();
+          }, applyAiBg, ctx);
         } else {
           this.compressImage(file, (dataUrl, finalMime) => this.processUploadedFile(dataUrl, ctx, finalMime), applyAiBg, ctx);
         }

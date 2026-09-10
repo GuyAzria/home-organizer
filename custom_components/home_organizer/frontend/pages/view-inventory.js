@@ -15,7 +15,6 @@
 // [MODIFIED v10.0.22 | 2026-06-22] Purpose: Moved the qtyControlsHtml inside the xl-info container so it sits precisely 1mm above the product name, structurally detached from the image area.
 
 import { ICONS } from '../organizer-icon.js?v=10.0.13';
-import { ITEM_CATEGORIES } from '../organizer-data.js?v=10.0.13';
 import { escapeHtml } from '../organizer-utils.js?v=2026.8.26';
 
 const UPLOAD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>';
@@ -409,7 +408,10 @@ export const InventoryMixin = (Base) => class extends Base {
     const buildOpts = (keys, current, placeholder) => {
       let opts = `<option value="" disabled ${!current?'selected':''}>${placeholder}</option>`;
       let found = false;
-      keys.forEach(k => { if (k.startsWith('ZONE_MARKER_') || k.startsWith('ORDER_MARKER_')) return; const sel = current===k; if(sel) found=true; opts += `<option value="${k}" ${sel?'selected':''}>${k}</option>`; });
+      keys.forEach(k => { if (k.startsWith('ZONE_MARKER_') || k.startsWith('ORDER_MARKER_')) return; const sel = current===k; if(sel) found=true; // [FIXED v2026.9.21] Display the stripped name; the raw key stays the
+        // value so saving is unaffected. Rendering ${k} directly is why
+        // "[ORDER_MARKER_040]" appeared inside the location dropdown.
+        opts += `<option value="${escapeHtml(k)}" ${sel?'selected':''}>${escapeHtml(this.stripMarkerForDisplay(k))}</option>`; });
       if (current && !found) opts += `<option value="${current}" selected>${this.stripMarkerForDisplay(current)}</option>`;
       return opts;
     };
@@ -435,7 +437,26 @@ export const InventoryMixin = (Base) => class extends Base {
   }
 
   renderLocationControl(item, isShopMode) {
-    if (!isShopMode) return `<div class="sub-title">${item.date || ''}</div>`;
+    if (!isShopMode) {
+      // [ADDED v2026.9.21] Receipt details sit on the date line.
+      //
+      // Date, invoice number, store and cost belong together: they all answer
+      // "where did this come from". Putting the receipt on its own line pushed
+      // the card taller for every item, including the ones bought before any
+      // of this existed.
+      const rec = (this.localData?.pending_receipts || {})[String(item.receipt_id)] || null;
+      const qty = Number(item.quantity_purchased ?? item.qty ?? 1) || 1;
+      const unit = item.purchase_price != null ? Number(item.purchase_price) : null;
+      const total = unit != null ? Math.round(unit * qty * 100) / 100 : null;
+      const parts = [escapeHtml(item.date || '')];
+      if (rec?.receipt_number) parts.push('#' + escapeHtml(rec.receipt_number));
+      if (rec?.vendor) parts.push(escapeHtml(rec.vendor));
+      if (total != null) {
+        parts.push(escapeHtml(String(total)) + ' '
+          + escapeHtml(this.currencySymbol(rec?.currency) || ''));
+      }
+      return `<div class="sub-title">${parts.filter(Boolean).join(' <span style="opacity:.4;">|</span> ')}</div>`;
+    }
     let displayLoc = item.location || '';
     displayLoc = displayLoc.split('>').map(p => this.stripMarkerForDisplay(p)).join(' > ');
     return `<div class="sub-title">${displayLoc}</div>`;
@@ -515,7 +536,7 @@ export const InventoryMixin = (Base) => class extends Base {
       }
 
       let mainCatOptions = `<option value="">${this._t('select_cat', 'Category')}</option>`;
-      const mainKeys = Object.keys(ITEM_CATEGORIES);
+      const mainKeys = Object.keys(this.categories);
       let mainFound = false;
       mainKeys.forEach(cat => {
         const isSel = item.category === cat;
@@ -526,18 +547,28 @@ export const InventoryMixin = (Base) => class extends Base {
         mainCatOptions += `<option value="${item.category}" selected>${item.category}</option>`;
       }
 
+      // [ADDED v2026.9.27] Same "+ Add" entry as the review card.
+      //
+      // Categories are database rows now, so they can be created from anywhere
+      // they are chosen. Offering it only on the review card meant a category
+      // could be added while approving a scan but not while filing an item
+      // already on a shelf.
+      mainCatOptions += `<option value="__ADD__">+ ${escapeHtml(this._t('add_new', 'Add'))}</option>`;
+
       let subCatOptions = `<option value="">${this._t('select_sub', 'Sub-Category')}</option>`;
       let currentUnit = item.unit || "";
-      if (item.category && ITEM_CATEGORIES[item.category]) {
+      if (item.category && this.categories[item.category]) {
         let subFound = false;
-        Object.keys(ITEM_CATEGORIES[item.category]).forEach(sub => {
+        Object.keys(this.categories[item.category]).forEach(sub => {
           const selected = item.sub_category === sub;
-          if (selected) { subFound = true; currentUnit = ITEM_CATEGORIES[item.category][sub]; }
+          if (selected) { subFound = true; currentUnit = this.categories[item.category][sub]; }
           subCatOptions += `<option value="${sub}" ${selected?'selected':''}>${this._t('sub_'+sub.replace(/[^a-zA-Z0-9]+/g,'_'), sub)}</option>`;
         });
         if (item.sub_category && !subFound) {
           subCatOptions += `<option value="${item.sub_category}" selected>${item.sub_category}</option>`;
         }
+        // Only when a category is chosen: a sub-category needs a parent.
+        subCatOptions += `<option value="__ADD__">+ ${escapeHtml(this._t('add_new', 'Add'))}</option>`;
       } else if (item.sub_category) {
         subCatOptions += `<option value="${item.sub_category}" selected>${item.sub_category}</option>`;
       }
@@ -601,7 +632,140 @@ export const InventoryMixin = (Base) => class extends Base {
           `;
       }
 
+      // [ADDED v2026.9.14] Receipt context on an ordinary item card too.
+      //
+      // Reuses buildReceiptLineHtml from the review view so the two cards
+      // cannot drift apart in what they show or how they escape it. The
+      // currency is read-only here: this item is already in inventory, and
+      // correcting a receipt belongs with the receipt, not with one of the
+      // items that happens to reference it.
+      const itemReceipt = (this.localData?.pending_receipts || {})[String(item.receipt_id)] || null;
+      // [MODIFIED v2026.9.27] A full receipt block, not just the one line.
+      //
+      // The compact row already shows date, number, store and cost. Opening
+      // the item is where a person asks "show me that receipt", so this adds
+      // the button that takes them there.
+      //
+      // Nothing is rendered when the item has no receipt - most items in an
+      // existing inventory were never scanned, and an empty labelled box on
+      // every one of their cards is noise.
+      // [ADDED v2026.9.29] Manual price and expiry for items with no receipt.
+      //
+      // Most of an existing inventory was never scanned. Without these the
+      // fields could only ever be filled by the scanner, so an item added by
+      // hand had no way to record what it cost or when it goes off.
+      //
+      // Rendered only when there is no receipt: when there is one, the price
+      // belongs to that receipt and is shown read-only in the block above.
+      // Which date this item cares about. Food expires, a drill has a
+      // warranty, and showing both on everything would be noise - so the one
+      // that already has a value wins, and otherwise the category decides.
+      const WARRANTY_CATS = ['Electronics', 'Tools', 'Furniture', 'Appliances'];
+      const showsWarranty = item.warranty_end_date
+        || (!item.expiry_date && WARRANTY_CATS.includes(item.category));
+      const dateField = showsWarranty ? 'warranty_end_date' : 'expiry_date';
+      const dateLabel = showsWarranty
+        ? this._t('warranty_end', 'Warranty ends')
+        : this._t('expiry_date', 'Expiry date');
+      const dateValue = showsWarranty
+        ? (item.warranty_end_date || '') : (item.expiry_date || '');
+
+      const priceFieldHtml = itemReceipt ? '' : `
+          <label style="flex:1;display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--text-sub);">
+            ${escapeHtml(this._t('unit_price', 'Unit price'))}
+            <input type="number" step="0.01" min="0" inputmode="decimal"
+                   id="price-${escapeHtml(item.id)}"
+                   value="${item.purchase_price != null ? escapeHtml(String(item.purchase_price)) : ''}"
+                   onchange="if(typeof this.getRootNode().host.saveItemExtras === 'function') this.getRootNode().host.saveItemExtras('${escapeHtml(item.id)}')"
+                   style="padding:8px;border-radius:6px;border:1px solid var(--border-light);background:var(--bg-input-edit);color:var(--text-main);font-size:13px;">
+          </label>`;
+
+      // Always editable, however the value got there. The scanner's date is an
+      // estimate from the product and its location, so being able to correct
+      // it is the point, not an afterthought.
+      const manualBlockHtml = `
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          ${priceFieldHtml}
+          <label style="flex:1;display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--text-sub);">
+            ${escapeHtml(dateLabel)}
+            <input type="date" id="itemdate-${escapeHtml(item.id)}"
+                   data-field="${escapeHtml(dateField)}"
+                   value="${escapeHtml(dateValue)}"
+                   onchange="if(typeof this.getRootNode().host.saveItemExtras === 'function') this.getRootNode().host.saveItemExtras('${escapeHtml(item.id)}')"
+                   style="padding:7px;border-radius:6px;border:1px solid var(--border-light);background:var(--bg-input-edit);color:var(--text-main);font-size:13px;">
+          </label>
+        </div>`;
+
+      // [MODIFIED v2026.10.1] The summary line is the toggle.
+      //
+      // The block was open permanently and pushed everything else down the
+      // card. The one-line summary the user already recognises from the
+      // collapsed row now doubles as the button that opens it, so nothing new
+      // has to be learned and nothing is hidden without a visible way back.
+      //
+      // Collapsed by default: the details are a lookup, not something wanted
+      // on every card.
+      let receiptLineHtml = '';
+      if (itemReceipt) {
+        const qtyBought = Number(item.quantity_purchased ?? item.qty ?? 1) || 1;
+        const unitPrice = item.purchase_price != null ? Number(item.purchase_price) : null;
+        const lineTotal = unitPrice != null
+          ? Math.round(unitPrice * qtyBought * 100) / 100 : null;
+        const sym = (typeof this.currencySymbol === 'function')
+          ? this.currencySymbol(itemReceipt.currency) : (itemReceipt.currency || '');
+
+        this.openReceiptBlocks = this.openReceiptBlocks || {};
+        const isOpen = !!this.openReceiptBlocks[item.id];
+
+        // The same one-line summary as the collapsed row, so the two agree.
+        const summaryBits = [
+          itemReceipt.vendor,
+          itemReceipt.receipt_number ? '#' + itemReceipt.receipt_number : null,
+          itemReceipt.purchase_date,
+          lineTotal != null ? `${lineTotal} ${sym}` : null,
+        ].filter(Boolean).map(v => escapeHtml(String(v)));
+
+        const rows = [
+          [this._t('receipts_filter_vendor', 'Store'), itemReceipt.vendor],
+          [this._t('receipt_number', 'Invoice no.'), itemReceipt.receipt_number],
+          [this._t('purchase_date', 'Purchase date'), itemReceipt.purchase_date],
+          [this._t('price_paid', 'Paid'), lineTotal != null ? `${lineTotal} ${sym}` : null],
+        ].filter(([, v]) => v);
+
+        receiptLineHtml = `
+          <div style="margin-bottom:12px;border-radius:8px;overflow:hidden;
+                      border:1px solid var(--border-light,#3a3a3a);
+                      background:var(--bg-input,#242424);">
+            <div onclick="this.getRootNode().host.toggleReceiptBlock('${escapeHtml(this.escapeJSArg(String(item.id)))}')"
+                 style="display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;">
+              <span style="font-size:12px;">${isOpen ? '&#9662;' : '&#9656;'}</span>
+              <span style="flex:1;font-size:11px;color:var(--text-sub);
+                           white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                ${summaryBits.join(' <span style="opacity:.4;">|</span> ')}
+              </span>
+            </div>
+            ${isOpen ? `
+              <div style="padding:4px 10px 10px 10px;">
+                <!-- A two-column grid instead of space-between: the label
+                     column is sized to its content, so the value sits next to
+                     it rather than pinned to the far edge of a wide card. -->
+                <div style="display:grid;grid-template-columns:max-content 1fr;
+                            gap:4px 14px;font-size:12px;align-items:baseline;">
+                  ${rows.map(([label, value]) => `
+                    <span style="color:var(--text-sub);white-space:nowrap;">${escapeHtml(label)}</span>
+                    <span>${escapeHtml(String(value))}</span>`).join('')}
+                </div>
+                <button class="action-btn" style="width:100%;margin-top:10px;font-size:12px;"
+                        onclick="event.stopPropagation();this.getRootNode().host.jumpToReceipt('${escapeHtml(this.escapeJSArg(String(itemReceipt.id)))}')">
+                  ${escapeHtml(this._t('open_receipt', 'Open this receipt'))}
+                </button>
+              </div>` : ''}
+          </div>`;
+      }
+
       details.innerHTML = `
+        ${receiptLineHtml}
+        ${manualBlockHtml}
         <div style="display:flex; gap:12px; margin-bottom:12px; align-items:flex-start;">
             
             <div style="display:flex; flex-direction:column; gap:8px; width:100px; flex-shrink:0;">

@@ -26,10 +26,31 @@ import voluptuous as vol
 import homeassistant.helpers.config_validation as cv
 
 from .const import DOMAIN, IMG_DIR
-from .database import get_db_path, async_normalize_zone_path, async_repair_path_against_db
+from .database import (
+    get_db_path, async_normalize_zone_path, async_repair_path_against_db,
+    # [ADDED v2026.9.6 | STAGE 2] Purchase history is now written when an
+    # item is approved, not when the document is scanned.
+    async_record_purchase, async_activate_receipt, async_get_receipt,
+    # [ADDED v2026.9.11] Discard an entire unreviewed scan.
+    async_delete_draft_scan, async_update_receipt_currency,
+    async_delete_receipt_completely,
+    # [ADDED v2026.9.19] Categories now live in the database.
+    async_add_category, async_rename_category, async_update_item_extras,
+)
 from .ai_logic import async_smart_router
 
 _LOGGER = logging.getLogger(__name__)
+
+# [ADDED v2026.9.16] Double-confirmation code for destructive deletion.
+#
+# A second confirmation step, not a password. It is not secret, it is the
+# same for every user, and it grants no access - Home Assistant has already
+# authenticated whoever reached this point. It exists only so an accidental
+# tap cannot erase a receipt and its price history, in the same spirit as
+# typing a repository name before deleting it. The message shown to the user
+# states this outright, so nobody mistakes it for protection the data does
+# not actually have.
+DELETE_CONFIRM_CODE = "1234"
 
 async def register_services(hass, entry):
     def broadcast_update():
@@ -432,6 +453,122 @@ async def register_services(hass, entry):
             
         broadcast_update()
 
+    async def handle_update_item_extras(call):
+        """Save a manually entered price or expiry/warranty date."""
+        try:
+            fields = {}
+            # Presence, not truthiness: 0 is a valid price and None is a
+            # deliberate clear, so both must survive the check.
+            for key in ("purchase_price", "expiry_date", "warranty_end_date"):
+                if key in call.data:
+                    fields[key] = call.data.get(key)
+            if await async_update_item_extras(hass, call.data.get("item_id"), fields):
+                broadcast_update()
+        except Exception as e:
+            _LOGGER.error(f"Service update item extras error: {e}")
+
+    async def handle_add_category(call):
+        """Add a category or sub-category. Never deletes or replaces.
+
+        Callable both by the panel, when the user picks "Add" in a dropdown,
+        and by the scanner when it proposes a sub-category that genuinely has
+        no close match. `source` records which, so the two can be told apart
+        later without guessing.
+        """
+        try:
+            result = await async_add_category(
+                hass,
+                call.data.get("category"),
+                call.data.get("sub_category"),
+                call.data.get("unit"),
+                call.data.get("source", "user"),
+            )
+            if result:
+                broadcast_update()
+        except Exception as e:
+            _LOGGER.error(f"Service add category error: {e}")
+
+    async def handle_rename_category(call):
+        """Rename a category or sub-category, moving its items with it."""
+        try:
+            ok = await async_rename_category(
+                hass,
+                call.data.get("category"),
+                call.data.get("sub_category"),
+                call.data.get("new_category"),
+                call.data.get("new_sub_category"),
+            )
+            if ok:
+                broadcast_update()
+        except Exception as e:
+            _LOGGER.error(f"Service rename category error: {e}")
+
+    async def handle_delete_receipt(call):
+        """Delete a receipt outright, with its files and its price history.
+
+        The four-digit code is a deliberate speed bump, not authentication. It
+        exists so a mis-tap on a phone cannot wipe a receipt, in the same
+        spirit as typing a repository name before deleting it. It is checked
+        here as well as in the panel because a service is callable from
+        anywhere on the bus, and a guard that only lives in the UI is not a
+        guard at all.
+
+        It is NOT a password: it is not secret, not per-user, and grants no
+        privilege. Home Assistant has already authenticated whoever reached
+        this point; this only asks "did you mean to".
+        """
+        if str(call.data.get("confirm_code", "")).strip() != DELETE_CONFIRM_CODE:
+            _LOGGER.warning("delete_receipt refused: confirmation code did not match.")
+            return
+        try:
+            result = await async_delete_receipt_completely(
+                hass, call.data.get("receipt_id")
+            )
+            if result:
+                broadcast_update()
+        except Exception as e:
+            _LOGGER.error(f"Service delete receipt error: {e}")
+
+    async def handle_set_receipt_currency(call):
+        """Correct the currency of one receipt.
+
+        Stored on the receipt rather than the item because every line of a
+        single receipt is in the same currency; keeping it per item would let
+        the two drift apart. The value is validated in
+        async_update_receipt_currency, which rejects anything that is not a
+        three-letter ISO code.
+        """
+        try:
+            ok = await async_update_receipt_currency(
+                hass, call.data.get("receipt_id"), call.data.get("currency")
+            )
+            if ok:
+                broadcast_update()
+        except Exception as e:
+            _LOGGER.error(f"Service set receipt currency error: {e}")
+
+    async def handle_delete_scan(call):
+        """Discard a whole scan while it is still unreviewed.
+
+        The guard lives in async_delete_draft_scan rather than here. A service
+        is a public entry point that anything on the bus can call, so the rule
+        protecting recorded spending has to sit at the data layer where it
+        cannot be bypassed.
+        """
+        receipt_id = call.data.get("receipt_id")
+        try:
+            result = await async_delete_draft_scan(hass, receipt_id)
+            if result:
+                broadcast_update()
+            else:
+                _LOGGER.warning(
+                    "delete_scan refused for receipt %s: it is no longer a "
+                    "draft, or some of its items were already approved.",
+                    receipt_id,
+                )
+        except Exception as e:
+            _LOGGER.error(f"Service delete scan error: {e}")
+
     async def handle_confirm_pending(call):
         item_id = call.data.get("item_id")
         name = call.data.get("name")
@@ -443,13 +580,43 @@ async def register_services(hass, entry):
         try:
             db_path = get_db_path(hass)
             async with aiosqlite.connect(db_path, timeout=10.0) as db:
-                async with db.execute("SELECT barcode, image_path, category, sub_category FROM items WHERE id=?", (item_id,)) as cursor:
+                # [MODIFIED v2026.9.6 | STAGE 2] The purchase fields are read
+                # here so the history row can be written from the values as
+                # they stand at approval time - after any correction the
+                # user made in the review tab, not the raw model output.
+                async with db.execute(
+                    "SELECT barcode, image_path, category, sub_category, "
+                    "purchase_price, quantity_purchased, receipt_id, unit "
+                    "FROM items WHERE id=?", (item_id,)
+                ) as cursor:
                     row = await cursor.fetchone()
                 
                 bcode = row[0] if row else "0"
                 icon_k = row[1] if row else ""
                 cat = row[2] if row else ""
                 scat = row[3] if row else ""
+                purchase_price = row[4] if row else None
+
+                # [ADDED v2026.9.11] A price corrected in the review tab
+                # wins over whatever the model read.
+                #
+                # This is the last chance to fix it: purchase_history is
+                # written a few lines below and is never updated again, so
+                # a misread 49.0 that slipped through here would stay in
+                # the price trend permanently.
+                #
+                # 'not in call.data' rather than a falsy check, because 0
+                # is a legitimate price and None means 'still unknown'.
+                if "purchase_price" in call.data:
+                    corrected = call.data.get("purchase_price")
+                    purchase_price = corrected
+                    await db.execute(
+                        "UPDATE items SET purchase_price = ? WHERE id = ?",
+                        (corrected, item_id),
+                    )
+                qty_purchased = row[5] if row else None
+                receipt_id = row[6] if row else None
+                item_unit = row[7] if row else None
 
                 upd = ["type='item'", "name=?", "quantity=?"]
                 vals = [name, qty]
@@ -471,6 +638,33 @@ async def register_services(hass, entry):
                     ''', (bcode, name, cat, scat, icon_k, l1, l2, l3))
 
                 await db.commit()
+
+            # [ADDED v2026.9.6 | STAGE 2] Record the purchase, now that a human
+            # has confirmed this line is real.
+            #
+            # Deliberately outside the transaction above. purchase_history is
+            # append-only and is never read back by the approval itself, so a
+            # failure here must not roll back the approval the user just made.
+            # The name and quantity come from the approval call, which is what
+            # the user actually confirmed on screen.
+            if receipt_id:
+                receipt = await async_get_receipt(hass, receipt_id)
+                if receipt:
+                    await async_record_purchase(hass, {
+                        "barcode": bcode,
+                        "name": name,
+                        "unit": item_unit,
+                        "unit_price": purchase_price,
+                        "quantity": qty_purchased if qty_purchased is not None else qty,
+                        "currency": receipt.get("currency"),
+                        "purchase_date": receipt.get("purchase_date"),
+                        "vendor": receipt.get("vendor"),
+                        "receipt_id": receipt_id,
+                    })
+                # The first approved line promotes the receipt out of 'draft',
+                # which is what lets it count towards spending totals. Later
+                # approvals are no-ops.
+                await async_activate_receipt(hass, receipt_id)
         except Exception as e:
             _LOGGER.error(f"Service confirm pending error: {e}")
 
@@ -538,6 +732,50 @@ async def register_services(hass, entry):
     # [ADDED v2026.8.28] Schema for the service that accepts a file payload.
     # It was registered bare, so item_name arrived completely unvalidated.
     SCHEMAS = {
+        # [ADDED v2026.9.11] receipt_id is the only field and must be an
+        # integer: this service deletes rows, so an unvalidated value has
+        # no business reaching the handler.
+        "update_item_extras": vol.Schema(
+            {
+                vol.Required("item_id"): vol.Any(int, cv.string),
+                vol.Optional("purchase_price"): vol.Any(float, int, None),
+                vol.Optional("expiry_date"): vol.Any(cv.string, None),
+                vol.Optional("warranty_end_date"): vol.Any(cv.string, None),
+            }
+        ),
+        "add_category": vol.Schema(
+            {
+                vol.Required("category"): cv.string,
+                vol.Optional("sub_category"): vol.Any(cv.string, None),
+                vol.Optional("unit"): vol.Any(cv.string, None),
+                vol.Optional("source"): cv.string,
+            }
+        ),
+        "rename_category": vol.Schema(
+            {
+                vol.Required("category"): cv.string,
+                vol.Optional("sub_category"): vol.Any(cv.string, None),
+                vol.Optional("new_category"): vol.Any(cv.string, None),
+                vol.Optional("new_sub_category"): vol.Any(cv.string, None),
+            }
+        ),
+        "delete_receipt": vol.Schema(
+            {
+                vol.Required("receipt_id"): vol.Coerce(int),
+                vol.Required("confirm_code"): cv.string,
+            }
+        ),
+        "set_receipt_currency": vol.Schema(
+            {
+                vol.Required("receipt_id"): vol.Coerce(int),
+                vol.Required("currency"): cv.string,
+            }
+        ),
+        "delete_scan": vol.Schema(
+            {
+                vol.Required("receipt_id"): vol.Coerce(int),
+            }
+        ),
         "update_image": vol.Schema(
             {
                 vol.Optional("item_id"): vol.Any(int, cv.string),
@@ -556,6 +794,11 @@ async def register_services(hass, entry):
         ("clipboard_action", handle_clipboard), ("paste_item", handle_paste), ("ai_action", handle_ai_action),
         ("update_item_details", handle_update_item_details), ("duplicate_item", handle_duplicate),
         ("confirm_pending", handle_confirm_pending), ("clear_barcode_history", handle_clear_barcode_history),
+        ("delete_scan", handle_delete_scan),
+        ("set_receipt_currency", handle_set_receipt_currency),
+        ("delete_receipt", handle_delete_receipt),
+        ("add_category", handle_add_category), ("rename_category", handle_rename_category),
+        ("update_item_extras", handle_update_item_extras),
         ("clear_all_items", handle_clear_all_items), ("clear_all_data", handle_clear_all_data)
     ]:
         hass.services.async_register(DOMAIN, n, h, schema=SCHEMAS.get(n))

@@ -122,11 +122,15 @@ def _detect_lang(kwargs, hass, last_user_msg):
 # ==========================================
 # PROMPT
 # ==========================================
-def get_shopping_prompt(target_lang, existing_locs_str, history_text):
+def get_shopping_prompt(target_lang, existing_locs_str, history_text,
+                        existing_cats_str=""):
     return f"""You are a Smart Home Shopping List Manager. Your sole purpose is managing the user's shopping list, determining what needs to be ordered, and tracking items that are out of stock (quantity = 0).
 
 DATABASE LOCATIONS:
 {existing_locs_str}
+
+EXISTING CATEGORIES AND SUB-CATEGORIES:
+{existing_cats_str}
 
 ICON LIBRARY AND CATEGORIES:
 {ICON_PROMPT_CONTEXT}
@@ -137,6 +141,8 @@ CRITICAL RULES:
 3. CONTINUATION & CONTEXT RECOVERY: If you recently asked the user a clarification question and they provide an answer, YOU MUST NOT ask them what item they wanted to add! You MUST read the CHAT HISTORY, extract the original `item_name` and `requested_qty` from their previous messages.
 4. USER LOCATION MATCHING: If the user provided a location name, thoroughly search the EXISTING LOCATIONS list. If it matches an existing path (e.g., Fridge > Vegetable Drawer), use its EXACT `location_id` and leave `sub_location` empty. NEVER use `sub_location` for an existing location! ONLY use the `sub_location` argument if the user explicitly confirmed they want to open a completely NEW sub-location.
 5. SILENT CATEGORIZATION & ICONS: When using "manage_shopping_list", independently choose the best matching `category`, `sub_category`, and `icon_key`. Never ask the user for them. Make the decision yourself silently behind the scenes.
+5a. CATEGORIES ARE A CLOSED LIST. `category` MUST be one of EXISTING CATEGORIES above. Never invent a new top-level category; if nothing fits, pick the nearest one.
+5b. SUB-CATEGORIES: prefer an existing sub-category under that category every time. Only use a new one when NOTHING existing is reasonably close - batteries under Electronics when Electronics already has Accessories is NOT new, it belongs in Accessories; batteries when Electronics has no matching sub-category at all IS a fair new one. Write a new sub-category name in the user's language. It is added to the list automatically, so use it exactly as you write it.
 6. SPEED AND SHOPPING LIST LOGIC: ALWAYS use the "manage_shopping_list" tool ONCE, passing ALL items in the array. If it replies ASK_USER, explicitly ask to increase quantity.
 7. NO INTERNAL STATES: Never tell the user that you added an item with "quantity 0". The shopping list relies on "quantity to buy". Always use the requested quantity in your spoken replies.
 8. SYSTEM TOOL RESPONSES: If the CHAT HISTORY ends with a 'System Tool Output' (meaning a tool just succeeded), you MUST use intent "reply" to politely confirm to the user that the action was completed.
@@ -637,7 +643,25 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
               loc_hierarchy_map, history_text, last_user_msg, recipe_name,
               is_voice, device_id, user_id, lang_code="en"):
     strings = await get_strings_for_language(hass, entry, lang_code)
-    prompt = get_shopping_prompt(target_lang, existing_locs_str, history_text)
+    # [ADDED v2026.9.28] Fetch the category list here rather than taking it as
+    # a parameter.
+    #
+    # The dispatcher calls every agent with one fixed set of keyword arguments,
+    # so adding one would mean changing every agent signature to accept
+    # something most of them do not use. This agent already has `hass`.
+    try:
+        from ..database import async_get_categories
+        cat_map = await async_get_categories(hass)
+        existing_cats_str = "\n".join(
+            f"{cat}: {', '.join(subs.keys())}" if subs else f"{cat}:"
+            for cat, subs in cat_map.items()
+        )
+    except Exception as cat_err:
+        _LOGGER.error("Could not load categories for the shopping agent: %s", cat_err)
+        existing_cats_str = ""
+
+    prompt = get_shopping_prompt(target_lang, existing_locs_str, history_text,
+                                 existing_cats_str)
 
     for _ in range(10):
         raw_res, err = await safe_smart_router(
