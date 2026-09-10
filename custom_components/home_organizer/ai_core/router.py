@@ -280,11 +280,37 @@ async def async_smart_router(hass, entry: ConfigEntry, prompt: str,
         or entry.data.get("local_api_key")
         or ""
     )
+    # [MODIFIED v2026.10.3] Two local models instead of one.
+    #
+    # A single local model had to be good at both plain conversation and
+    # reading a photographed receipt. Those are different skills, and most
+    # text-focused local models - the shipped default, gpt-oss:120b, among
+    # them - have no vision at all, so image tasks silently failed while
+    # ordinary chat worked fine.
+    #
+    # local_model_vision falls back to local_model when not set, so an
+    # existing config with one model keeps working exactly as before; only
+    # someone who wants the split needs to fill in the second field.
     local_model = (
         entry.options.get("local_model")
         or entry.data.get("local_model")
         or "gpt-oss:120b"
     )
+    local_model_vision = (
+        entry.options.get("local_model_vision")
+        or entry.data.get("local_model_vision")
+        or local_model
+    )
+
+    # [ADDED v2026.10.4] One definition of "this call carries an image".
+    #
+    # image_data may be None, a single data URL, or a list of pages. An empty
+    # list is not None, so `image_data is not None` treated a text-only call
+    # with an empty page list as an image task and would have sent it to the
+    # vision model. Both the local-model choice and the hybrid cloud decision
+    # now use this instead of testing for None.
+    has_image = bool(image_data) if isinstance(image_data, (list, tuple)) \
+        else image_data is not None
 
     cloud_provider = PROVIDER_GEMINI
     if "OpenAI" in cloud_provider_raw:
@@ -295,9 +321,15 @@ async def async_smart_router(hass, entry: ConfigEntry, prompt: str,
     cloud_base_url = custom_cloud_url if custom_cloud_url else "https://api.openai.com/v1"
 
     if mode == MODE_LOCAL_ONLY:
-        _LOGGER.info("Home Organizer: Routing -> LOCAL ONLY")
+        # Same split as Hybrid's own image check just below: whether this call
+        # carries a photo decides which of the two local models answers it.
+        chosen_local_model = local_model_vision if has_image else local_model
+        _LOGGER.info(
+            "Home Organizer: Routing -> LOCAL ONLY (%s)",
+            "vision model" if has_image else "text model",
+        )
         return await async_universal_ai_router(
-            hass, PROVIDER_OPENAI, local_url, local_key, local_model,
+            hass, PROVIDER_OPENAI, local_url, local_key, chosen_local_model,
             prompt, image_data, mime_type,
         )
 
@@ -312,7 +344,7 @@ async def async_smart_router(hass, entry: ConfigEntry, prompt: str,
         is_cloud_task = False
         p_lower = prompt.lower()
 
-        if image_data is not None:
+        if has_image:
             is_cloud_task = True
         elif "scanned barcode" in p_lower or "retail product database" in p_lower:
             is_cloud_task = True

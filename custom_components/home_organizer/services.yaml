@@ -131,3 +131,43 @@ trigger_search:
   name: Trigger Search
   description: Internal search trigger
   fields: {}
+
+# [ADDED v2026.10.5] Services that were registered in code but never
+# listed here. hassfest validates services.yaml against strings.json, so
+# an undocumented service fails the action.
+
+add_category:
+  # Add a category or sub-category to the list.
+
+clear_all_data:
+  # Delete every item, location and setting.
+
+clear_all_items:
+  # Delete every item, keeping locations and settings.
+
+clear_barcode_history:
+  # Forget all remembered barcode lookups.
+
+confirm_pending:
+  # Approve a scanned item and add it to the inventory.
+
+delete_receipt:
+  # Permanently delete a receipt, its images and its price history.
+
+delete_scan:
+  # Discard an unreviewed scan with its items and images.
+
+duplicate_item:
+  # Create a copy of an item in the same location.
+
+rename_category:
+  # Rename a category or sub-category and move its items.
+
+set_receipt_currency:
+  # Correct the currency recorded on a receipt.
+
+update_item_extras:
+  # Set the purchase price, expiry date or warranty end date of an item.
+
+update_order_qty:
+  # Change how many of an item to buy.

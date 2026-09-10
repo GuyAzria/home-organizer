@@ -160,7 +160,18 @@ class HomeOrganizerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             schema[vol.Optional(
                 "local_model", 
                 default="gpt-oss:120b",
-                description="Exact Local Model Name. Ollama: Run 'ollama list' and copy the name exactly (e.g., llama3:8b)."
+                description="Local TEXT model, for ordinary questions and chat. Ollama: run 'ollama list' and copy the name exactly (e.g., llama3:8b). This model does NOT need to support images."
+            )] = str
+            # [ADDED v2026.10.3] A separate model for image tasks (receipt
+            # scanning, barcode photos). Most compact local text models -
+            # including this integration's own default, gpt-oss:120b - have no
+            # vision at all, so scanning a receipt would reach the model and
+            # silently fail. Left blank, the text model above is reused, which
+            # only works if that model happens to support images too.
+            schema[vol.Optional(
+                "local_model_vision",
+                default="",
+                description="Local VISION model, for receipt/barcode photos. Must support images - e.g. llama3.2-vision, qwen2-vl, minicpm-v, llava. Leave blank to reuse the text model above (only works if it also supports images)."
             )] = str
 
         if not schema:
@@ -355,7 +366,14 @@ class HomeOrganizerOptionsFlowHandler(config_entries.OptionsFlow):
             schema[vol.Optional(
                 "local_model",
                 default=self.data.get("local_model", "gpt-oss:120b"),
-                description="Exact Local Model Name. Ollama: Run 'ollama list' and copy the name exactly (e.g., llama3:8b)."
+                description="Local TEXT model, for ordinary questions and chat. Ollama: run 'ollama list' and copy the name exactly (e.g., llama3:8b). This model does NOT need to support images."
+            )] = str
+            # [ADDED v2026.10.3] See the same field in the setup flow above for
+            # why this is separate from the text model.
+            schema[vol.Optional(
+                "local_model_vision",
+                default=self.data.get("local_model_vision", ""),
+                description="Local VISION model, for receipt/barcode photos. Must support images - e.g. llama3.2-vision, qwen2-vl, minicpm-v, llava. Leave blank to reuse the text model above (only works if it also supports images)."
             )] = str
 
         if not schema:

@@ -26,7 +26,8 @@
           "custom_cloud_url": "Custom cloud endpoint URL",
           "local_api_url": "Local AI URL",
           "local_api_key": "Local API Key",
-          "local_model": "Local model name"
+          "local_model": "Local text model",
+          "local_model_vision": "Local vision model (images)"
         },
         "data_description": {
           "api_key": "Gemini: aistudio.google.com. OpenAI: platform.openai.com.",
@@ -34,7 +35,8 @@
           "custom_cloud_url": "Optional. Typically only used for enterprise proxies.",
           "local_api_url": "Ollama: http://YOUR_IP:11434/v1. LM Studio: http://YOUR_IP:1234/v1. Must end in /v1.",
           "local_api_key": "Local servers usually ignore this, but do not leave it blank. Type 'ollama' or 'local'.",
-          "local_model": "Run 'ollama list' and copy the name exactly, for example llama3:8b."
+          "local_model": "Used for ordinary questions and chat. Run 'ollama list' and copy the name exactly, for example llama3:8b. This model does not need to support images.",
+          "local_model_vision": "Used for receipt and barcode photos, and for future features that look at your wardrobe. Must be a multimodal model - for example llama3.2-vision, qwen2-vl, minicpm-v or llava. Leave blank to reuse the text model above, which only works if that model also supports images."
         }
       },
       "stylist": {
@@ -114,7 +116,8 @@
           "custom_cloud_url": "Custom cloud endpoint URL",
           "local_api_url": "Local AI URL",
           "local_api_key": "Local API Key",
-          "local_model": "Local model name"
+          "local_model": "Local text model",
+          "local_model_vision": "Local vision model (images)"
         },
         "data_description": {
           "api_key": "Gemini: aistudio.google.com. OpenAI: platform.openai.com.",
@@ -122,7 +125,8 @@
           "custom_cloud_url": "Optional. Typically only used for enterprise proxies.",
           "local_api_url": "Ollama: http://YOUR_IP:11434/v1. LM Studio: http://YOUR_IP:1234/v1. Must end in /v1.",
           "local_api_key": "Local servers usually ignore this, but do not leave it blank.",
-          "local_model": "Run 'ollama list' and copy the name exactly."
+          "local_model": "Used for ordinary questions and chat. Run 'ollama list' and copy the name exactly, for example llama3:8b. This model does not need to support images.",
+          "local_model_vision": "Used for receipt and barcode photos, and for future features that look at your wardrobe. Must be a multimodal model - for example llama3.2-vision, qwen2-vl, minicpm-v or llava. Leave blank to reuse the text model above, which only works if that model also supports images."
         }
       },
       "stylist": {
@@ -170,79 +174,101 @@
     }
   },
   "services": {
-    "voice_command": {
-      "name": "Voice command",
-      "description": "Send a text command to the Home Organizer AI assistant.",
-      "fields": {
-        "text": {
-          "name": "Text",
-          "description": "The command or question to send to the assistant."
-        },
-        "language": {
-          "name": "Language",
-          "description": "Two-letter language code for the reply, for example en or he."
-        },
-        "conversation_id": {
-          "name": "Conversation ID",
-          "description": "Optional identifier used to keep conversation history separate."
-        }
-      }
+    "add_category": {
+      "name": "Add category",
+      "description": "Add a category or sub-category to the list."
+    },
+    "add_item": {
+      "name": "Add item",
+      "description": "Add an item to a location in the inventory."
+    },
+    "ai_action": {
+      "name": "AI action",
+      "description": "Send a request to the AI assistant."
+    },
+    "clear_all_data": {
+      "name": "Clear all data",
+      "description": "Delete every item, location and setting."
+    },
+    "clear_all_items": {
+      "name": "Clear all items",
+      "description": "Delete every item, keeping locations and settings."
+    },
+    "clear_barcode_history": {
+      "name": "Clear barcode history",
+      "description": "Forget all remembered barcode lookups."
+    },
+    "clipboard_action": {
+      "name": "Clipboard action",
+      "description": "Copy or cut the selected items."
+    },
+    "confirm_pending": {
+      "name": "Confirm scanned item",
+      "description": "Approve a scanned item and add it to the inventory."
+    },
+    "delete_item": {
+      "name": "Delete item",
+      "description": "Remove an item from the inventory."
+    },
+    "delete_receipt": {
+      "name": "Delete receipt",
+      "description": "Permanently delete a receipt, its images and its price history."
+    },
+    "delete_scan": {
+      "name": "Discard scan",
+      "description": "Discard an unreviewed scan with its items and images."
+    },
+    "duplicate_item": {
+      "name": "Duplicate item",
+      "description": "Create a copy of an item in the same location."
+    },
+    "navigate": {
+      "name": "Navigate",
+      "description": "Move the panel to a location in the inventory tree."
+    },
+    "paste_item": {
+      "name": "Paste item",
+      "description": "Paste a copied or cut item into the current location."
+    },
+    "rename_category": {
+      "name": "Rename category",
+      "description": "Rename a category or sub-category and move its items."
+    },
+    "set_receipt_currency": {
+      "name": "Set receipt currency",
+      "description": "Correct the currency recorded on a receipt."
+    },
+    "set_view_context": {
+      "name": "Set view context",
+      "description": "Change which view the panel is showing."
+    },
+    "trigger_search": {
+      "name": "Search",
+      "description": "Run a search across the inventory."
+    },
+    "update_image": {
+      "name": "Update image",
+      "description": "Set or replace the photo or icon of an item."
+    },
+    "update_item_details": {
+      "name": "Update item details",
+      "description": "Change the name, category or unit of an item."
+    },
+    "update_item_extras": {
+      "name": "Update price and dates",
+      "description": "Set the purchase price, expiry date or warranty end date of an item."
+    },
+    "update_order_qty": {
+      "name": "Update order quantity",
+      "description": "Change how many of an item to buy."
+    },
+    "update_qty": {
+      "name": "Update quantity",
+      "description": "Change the quantity held of an item."
+    },
+    "update_stock": {
+      "name": "Update stock",
+      "description": "Mark an item as in stock or out of stock."
     }
-  },
-  "receipt_more_pages": "Photographed page {n}. Is there another part of this receipt?",
-  "receipt_pages_count": "{n} pages",
-  "receipt_no_vendor": "Unnamed receipt",
-  "receipt_none": "No receipt",
-  "receipt_items_left": "{n} to review",
-  "receipt_delete_scan": "Delete this entire scan",
-  "receipt_approve_all": "Approve all",
-  "receipt_confirm_approve_all": "Approve {n} item(s) and add them to your inventory?",
-  "receipt_confirm_delete_scan": "Delete this entire scan? The receipt, its images and all its unreviewed items will be removed.",
-  "price": "Price",
-  "unit_price": "Unit price",
-  "receipts_tab": "Receipts",
-  "receipts_filter_vendor": "Store",
-  "receipts_filter_from": "From",
-  "receipts_filter_to": "To",
-  "receipts_none": "No receipts match these filters.",
-  "receipts_clear_filters": "Clear",
-  "receipts_items_col": "Items",
-  "receipt_unreviewed": "unreviewed",
-  "receipt_no_file": "No image was stored for this receipt.",
-  "loading": "Loading...",
-  "scan_receipt": "Scan receipt",
-  "upload_receipt": "Upload image or PDF",
-  "receipt_page": "Page",
-  "previous": "Previous",
-  "next": "Next",
-  "close": "Close",
-  "receipt_not_servable": "This receipt is stored outside the www folder, so it cannot be displayed in the browser.",
-  "receipt_file_missing": "The image file for this page is no longer on disk.",
-  "review_tab": "AI Receipts Exports",
-  "scan_in_progress": "Reading the receipt...",
-  "receipt_delete": "Delete receipt",
-  "receipt_delete_warning": "Delete this receipt permanently?\n\n{r}\n\nIts images and its price history will be removed. Items stay in your inventory.\n\nThis is a double confirmation, not a password: type 1234 so an accidental tap cannot delete a receipt.",
-  "receipt_delete_bad_code": "The confirmation code did not match. Nothing was deleted.",
-  "add_new": "Add",
-  "add_cat_prompt": "New category name:",
-  "add_sub_prompt": "New sub-category name:",
-  "barcode": "Barcode",
-  "name": "Name",
-  "qty": "Qty",
-  "price_paid": "Paid",
-  "receipt_no_items": "No items are linked to this receipt.",
-  "receipt_view": "View receipt",
-  "receipt_send_pages": "Scan these pages",
-  "receipt_add_page": "Add another page",
-  "receipt_drop_page": "Remove this page",
-  "cancel": "Cancel",
-  "all_caught_up": "All caught up! No pending items to review.",
-  "from_receipt": "From receipt",
-  "open_receipt": "Open this receipt",
-  "receipt_number": "Invoice no.",
-  "purchase_date": "Purchase date",
-  "expiry_date": "Expiry date",
-  "warranty_end": "Warranty ends",
-  "pdf_not_inline": "This app cannot display PDF files inside the panel. Open it to view the receipt.",
-  "pdf_open": "Open receipt"
+  }
 }
