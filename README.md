@@ -23,7 +23,9 @@
 
 ---
 
-Home Organizer is a dedicated full-screen application for your Home Assistant sidebar. It allows you to manage your home inventory with ease using nested folders, live stock tracking, and a powerful **Cloud & Local AI** integration (Gemini, OpenAI, Claude, Ollama, LM Studio) that acts as your personal home assistant.
+Home Organizer is a dedicated full-screen application for your Home Assistant sidebar. It manages your home inventory with nested folders, live stock tracking, receipt scanning with price and expiry tracking, and a powerful **Cloud & Local AI** integration (Gemini, OpenAI, Claude, Ollama, LM Studio).
+
+**Talking to it in plain language happens through Home Assistant's own conversation agent** — set HO-AI as your assistant once (see Step 8) and every device with Assist already talks to it: no separate chat screen inside the panel.
 
 **Developed by Guy Azria.**
 
@@ -73,7 +75,7 @@ Navigate to **Settings** > **Devices & Services**. Click the **+ Add Integration
 ### Step 5: Choose Your Architecture & Storage
 The setup wizard will guide you through the initial configuration:
 * **Processing Mode & AI Provider:** Choose how you want the AI to process your data—Local Only (for maximum privacy), Cloud Only, or a Hybrid approach.
-* **Storage Method:** Choose where to store your database. **Highly Recommended:** Select `media` if your main Home Assistant drive is low on storage space. Because all item photos (and potentially future scanned invoices) are saved directly into the SQLite DB, the file size can grow significantly over time.
+* **Storage Method:** Choose where to store your database. **Highly Recommended:** Select `media` if your main Home Assistant drive is low on storage space. Because all item photos and scanned receipts are saved directly into the SQLite DB, the file size can grow significantly over time.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst6.png" width="60%" alt="Processing Mode and Storage Selection">
@@ -83,10 +85,10 @@ The setup wizard will guide you through the initial configuration:
 ### Step 6: Enter API Keys & Connections
 Depending on the AI provider you selected, you need to provide the correct connection details so Home Organizer can communicate with the AI:
 * **Cloud Providers (Gemini/OpenAI/Claude):** Paste your secure API Key and the specific Model Name you want to use (e.g., `gemini-1.5-flash-latest`).
-* **Local Providers (Ollama/LM Studio):** Enter the exact local URL of your AI server (ensure it ends with `/v1`), the local API Key (type `ollama` or `local`), and the exact local model name (e.g., `llama3:8b`).
+* **Local Providers (Ollama/LM Studio):** Enter the exact local URL of your AI server (ensure it ends with `/v1`) and the local API Key (type `ollama` or `local`). Then set **two** model names: a **Local Text Model** for ordinary questions and chat (e.g., `llama3:8b`), and a **Local Vision Model** for receipt and barcode photos — this one *must* support images (e.g., `llama3.2-vision`, `qwen2-vl`, `minicpm-v`). Most compact text models cannot see images at all, so leaving the vision field blank only works if your text model happens to support them too.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst7.png" width="60%" alt="API Keys Configuration">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst7.png" width="60%" alt="API Keys Configuration - now with separate Local Text and Local Vision model fields">
 </p>
 <p align="center"><i>Carefully input your respective API keys and model names. Ensure local URLs include the port and end with /v1.</i></p>
 
@@ -152,7 +154,7 @@ To make Home Organizer the default "brain" for voice commands across your entire
 <p align="center"><i>Change the Conversation agent to HO-AI Agent so your new AI can process all incoming voice and text commands.</i></p>
 
 **Part B: Install & Configure HO_Mind_AI (Android Users Only)**
-1. Open the HO dashboard on your phone. Go to the Chat screen, tap the Camera icon (📸), then the Gear icon (⚙️). Click **Download Android APK** and install.
+1. Open the HO dashboard on your phone, open **Settings** (⚙️) in the top bar, and click **Download Android APK**. Install it.
 2. Open the app and tap the Gear icon (⚙️) to open Settings.
 3. **URL:** Enter your exact internal HA IP (e.g., `http://192.168.1.100:8123`).
 4. **Token:** Generate a Long-Lived Access Token in your HA profile.
@@ -211,15 +213,16 @@ While the core inventory database (SQLite) is 100% local and private, please not
 ## ✨ Core Features
 
 ### 🤖 Advanced AI Capabilities
-* **Receipt & Invoice Scanning (Visual)** — Snap a photo or upload a PDF of your grocery receipt using the camera interface. The AI will automatically extract all items, quantities, and intelligently map them to your existing home locations.
+* **Receipt & Invoice Scanning (Visual)** — Snap a photo (multi-page supported) or upload a PDF of your grocery receipt. The AI extracts every item, quantity and price, maps them to your existing home locations, and keeps the receipt itself permanently archived and searchable in the **Receipts** tab.
 * **Auto-Categorization & Icons** — The AI automatically assigns the correct Main Category, Sub-category, Measurement Unit (Kg, Liter, Units), and a beautiful 3D icon to every item it processes.
 * **Smart "Review" Pipeline** — AI-extracted items go into a secure "Review Tab." Check, edit, confirm, or reject the AI's imports before they are permanently added.
-* **Native Multilingual Support** — Chat and interact in English, Hebrew, Arabic, or any other language.
+* **Native Multilingual Support** — The panel, the AI's replies, and everyday speech through Home Assistant's conversation agent all work in English, Hebrew, Arabic, or any other supported language.
 
 ### 📦 Smart Inventory Management
 * **Hierarchical Explorer** — Navigate through Rooms, Furniture, Shelves, and Boxes with unlimited depth.
 * **Live Stock Tracking & Shopping Mode** — Instantly update stock. When an item hits `0`, it is marked **Out of Stock** and sent directly to your Shopping List.
-* **Date Tracking & Management Tools** — Track expiration dates, Rename, Move (Cut/Paste), Duplicate, and Delete functions.
+* **Price History & Expiry Tracking** — Every item remembers what you paid and where you bought it. Expiry dates for food and medicine, and warranty end dates for electronics and tools, are estimated automatically based on the item and its storage location, and are always editable.
+* **Management Tools** — Rename, Move (Cut/Paste), Duplicate, and Delete items or entire locations.
 
 ### 📸 Camera & Visual Tools
 * **AI Background Removal** — Take photos of your items directly in the app. The built-in camera tool automatically filters out messy backgrounds to create clean, professional item thumbnails.
@@ -288,16 +291,19 @@ Use the **View Toggle** icon in the sub-bar to switch between a detailed List Vi
   <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/16.png" width="48%" alt="Populated Fridge Grid View">
 </p>
 
-### 7. Invoice Scanning & AI Chat
-Click the **Robot Icon (🤖)** in the top bar to open your personal AI Chat Assistant. 
-1. Click the **Camera Icon** or the **Upload Icon** to attach a grocery receipt.
-2. The AI will read the receipt, translate it, map the items to your existing rooms, apply icons, and send them to your **Review Tab** (inside the Shopping Cart menu) for approval.
-3. You can also chat naturally via text or voice to manage your inventory and HA devices.
+### 7. Scanning Receipts & the Receipts Tab
+Home Organizer keeps a permanent record of every receipt you scan — not just the items that came from it.
+
+1. Open the **Receipts** tab and press **Scan receipt** (camera) or **Upload image or PDF**.
+2. If the receipt is longer than one photo, keep photographing pages — you'll be asked after each one whether there's another part, and everything is read together as a single receipt.
+3. The AI reads the shop name, invoice number, date, total, and every line item, then maps each item to your existing rooms and categories.
+4. Extracted items land in the **Review** tab for you to check, correct, or reject before they're added to your inventory. Prices and expiry/warranty dates are editable right there.
+5. Once approved, the receipt itself — image or PDF — stays archived and searchable in the **Receipts** tab, grouped by store, with the exact items, quantities and prices from that purchase always one tap away.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/22.png" width="24%" alt="Original Receipt/Invoice">
-  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/12.png" width="24%" alt="AI Chat Ready with Attached File">
-  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/13.png" width="24%" alt="Sending Prompt with File">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/12.png" width="24%" alt="Receipt ready to scan">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/13.png" width="24%" alt="Sending the receipt for AI processing">
   <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/20.png" width="24%" alt="AI Processed Invoice">
 </p>
 
@@ -309,7 +315,7 @@ Click the **Robot Icon (🤖)** in the top bar to open your personal AI Chat Ass
 3. Under **Conversation Agent**, select **HO-AI Agent** (`conversation.ho_ai_agent`). Save.
 
 **Part B: Install & Configure HO-Mind AI (Android Users Only)**
-1. Open the HO dashboard on your phone. Go to the Chat screen, tap the Camera icon (📸), then the Gear icon (⚙️). Click **Download Android APK** and install.
+1. Open the HO dashboard on your phone, open **Settings** (⚙️) in the top bar, and click **Download Android APK**. Install it.
 2. Open the app and tap the Gear icon (⚙️) to open Settings.
 3. **URL:** Enter your exact internal HA IP (e.g., `http://192.168.1.100:8123`).
 4. **Token:** Generate a Long-Lived Access Token in your HA profile.
