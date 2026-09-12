@@ -33,24 +33,31 @@ Home Organizer is a dedicated full-screen application for your Home Assistant si
  ## 📥 Installation (Zero YAML Required! 🎉)
 There is absolutely no need to write a single line of code or touch your `configuration.yaml` file. The entire installation and setup process is handled seamlessly through the Home Assistant UI!
 
-### Step 1: Add Custom Repository in HACS
+**Home Organizer is in the official HACS default store.** For almost everyone, that means installation is two steps:
+
+1. In Home Assistant, go to **HACS**, search for **Home Organizer**, open it, and click **Download**.
+2. Restart Home Assistant (see Step 3 below).
+
+No repository URL, no custom repository step — HACS already knows about it.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst3.png" width="80%" alt="Searching for Home Organizer in HACS">
+</p>
+<p align="center"><i>Search for “Home Organizer” directly in HACS and download it — no custom repository needed.</i></p>
+
+### Prefer to install manually, or want the very latest commit before it reaches HACS?
+You can still add the repository by hand:
+
 1. In Home Assistant, go to **HACS**.
 2. Open the top right menu (⋮) and select **Custom repositories**.
 3. Paste `https://github.com/GuyAzria/home-organizer` into the Repository field, select **Integration** as the category, and click **ADD**.
+4. Search for **Home Organizer** in the HACS search bar, click on it, and select **Download**.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst1.png" width="45%" alt="Adding Custom Repository URL">
   <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst2.png" width="45%" alt="Home Organizer in Custom Repositories">
 </p>
-<p align="center"><i>Paste the GitHub URL and verify that Home Organizer is added to your custom repositories list.</i></p>
-
-### Step 2: Download the Integration
-Search for **Home Organizer** in the HACS search bar, click on it, and select **Download**.
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst3.png" width="80%" alt="Searching for Home Organizer in HACS">
-</p>
-<p align="center"><i>Locate the HO-AI Home Organizer integration and download it to your system.</i></p>
+<p align="center"><i>Only needed for a manual install: paste the GitHub URL and verify Home Organizer is added to your custom repositories list.</i></p>
 
 ### Step 3: Restart Home Assistant
 Go to **Settings** > **System** (or click the repair notification) and **Restart** Home Assistant to load the new files.
@@ -321,6 +328,13 @@ Home Organizer keeps a permanent record of every receipt you scan — not just t
 4. **Token:** Generate a Long-Lived Access Token in your HA profile.
 5. **Device ID:** Find your phone under HA Settings ➔ Devices. Look at your browser's address bar and copy the long string of characters at the very end of the URL. *(Pro-tip: Do this on a PC and WhatsApp the Token and ID to yourself!)*
 6. Enable **Shake to Speak** to activate the Ghost Screen, choose your **Language**, and adjust the **Volume Override** so the assistant speaks aloud even if your phone is on silent!
+
+## 🌍 Languages
+Home Organizer is available in **7 languages**: English, Hebrew (עברית), Italian, Spanish, French, Arabic (العربية), and Russian (Русский). This covers the panel itself, the setup wizard, and the AI's own replies — including full right-to-left (RTL) layout for Hebrew and Arabic.
+
+**Want your language added?** Open an issue on GitHub with the language you'd like to see — the translation file is a single spreadsheet-style CSV, so adding a language is usually a quick addition rather than a code change.
+
+---
 
 ## 📋 Requirements
 * Home Assistant 2024.1.0 or newer
