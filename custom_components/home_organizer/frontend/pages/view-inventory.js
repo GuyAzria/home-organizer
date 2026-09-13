@@ -38,18 +38,33 @@ export const InventoryMixin = (Base) => class extends Base {
           if (save && val && val !== originalText) {
               label.innerText = '...';
               try {
-                  if (typeof this.addFolder === 'function') {
-                      await this.addFolder(val);
-                  } else {
-                      await this.callHA('add_item', {
-                          item_name: `[Folder] ${val}`,
-                          item_type: 'folder_marker',
-                          current_path: [...this.currentPath, val],
-                          category: '',
-                          sub_category: ''
-                      });
-                      this.fetchData();
-                  }
+                  // [FIXED v2026.10.7] Three separate bugs made this silently
+                  // do nothing, which is why the button simply reappeared.
+                  //
+                  // 1. item_type was 'folder_marker'. That is the value stored
+                  //    in the database, not the value the service accepts. The
+                  //    handler only creates a folder for item_type === 'folder'
+                  //    and otherwise falls through to its "ordinary item"
+                  //    branch, so a sub-location was created as a plain item
+                  //    with no level column - invisible in the folder view.
+                  //
+                  // 2. The name was passed twice. The service appends the new
+                  //    folder name to current_path itself, so sending
+                  //    [...currentPath, val] produced a doubled path.
+                  //
+                  // 3. The name was pre-wrapped as `[Folder] ${val}`, and the
+                  //    service wraps it again - giving "[Folder] [Folder] X".
+                  //
+                  // This now matches exactly what organizer-nav.js sends, which
+                  // is the call that has always worked.
+                  await this.callHA('add_item', {
+                      item_name: val,
+                      item_type: 'folder',
+                      item_date: '',
+                      image_data: null,
+                      current_path: this.currentPath
+                  });
+                  await this.fetchData();
               } catch (e) {
                   console.error(e);
                   label.innerText = originalText;

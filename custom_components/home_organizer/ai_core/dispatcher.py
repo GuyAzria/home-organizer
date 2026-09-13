@@ -693,9 +693,23 @@ async def async_universal_agent_loop(hass, entry, messages, target_lang,
                 "Safety net skipped: '%s' belongs to the %s agent.",
                 last_user_msg, loose_domain,
             )
+            # [FIXED v2026.10.8] Two bugs in one call.
+            #
+            # 1. The arguments were in the wrong order. _dispatch takes
+            #    domain_name FIRST, so `hass` was landing in domain_name and
+            #    AGENT_MODULE_MAP.get(<HomeAssistant object>) returned nothing
+            #    - the function bailed out with "Unknown domain" before any
+            #    agent ran. That is why "add cheese to the fridge" worked only
+            #    occasionally: it succeeded only when the STRICT pass had
+            #    already matched and this branch was never reached.
+            #
+            # 2. It dispatched `domain_to_run`, which is still the INVENTORY
+            #    default here, instead of the `loose_domain` just detected.
+            #    "add milk to the shopping list" would have been handled by the
+            #    inventory agent rather than the shopping agent.
             return await _dispatch(
-                hass, entry, messages, target_lang, existing_locs_str,
-                loc_hierarchy_map, history_text, domain_to_run,
+                loose_domain, hass, entry, messages, target_lang,
+                existing_locs_str, loc_hierarchy_map, history_text,
                 last_user_msg, recipe_name, is_voice, device_id, user_id,
                 lang_code,
             )
@@ -716,6 +730,21 @@ async def async_universal_agent_loop(hass, entry, messages, target_lang,
             )
             messages.append({"role": "assistant", "content": refusal})
             return refusal
+
+    # [REVERTED v2026.10.8] The default stays INVENTORY.
+    #
+    # v2026.10.6 redirected every unmatched request to the smart home agent so
+    # that "what time is it" would reach the only agent holding the clock.
+    # That was too broad: an ordinary "add cheese to the fridge" that did not
+    # hit an explicit inventory trigger went to the smart home agent too, which
+    # correctly replied that it cannot manage the pantry. Four out of five add
+    # commands broke.
+    #
+    # The real fix for the clock was the vocabulary in trigger_manager.py -
+    # "time", "weather", "news" and the scene words now route to SMART_HOME on
+    # their own merit. This fallback added nothing except the regression, so it
+    # is gone. An unmatched sentence belongs to the inventory agent, which is
+    # what it was before and what makes "add X to Y" work without ceremony.
 
     # [MODIFIED v10.0.0] The smarthome agent expects the trailing user message
     # to NOT be in `messages`. This pop used to run unconditionally, which

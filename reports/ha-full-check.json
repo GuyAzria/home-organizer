@@ -4,9 +4,9 @@
     "domain": "home_organizer",
     "python_files": 31,
     "javascript_files": 16,
-    "python_lines": 13250,
+    "python_lines": 13377,
     "integration_path": "custom_components\\home_organizer",
-    "project_functions_indexed": 294
+    "project_functions_indexed": 295
   },
   "checks": [
     {

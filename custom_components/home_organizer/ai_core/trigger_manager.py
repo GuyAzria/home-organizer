@@ -73,6 +73,22 @@ MASTER_TRIGGERS_EN = {
         "lock", "unlock", "door", "front door", "gate",
         "shutter", "shutters", "garage", "roller shutter",
         "open the", "close the",
+        # [ADDED v2026.10.6] Ask-the-house vocabulary.
+        #
+        # smarthome_agent is the ONLY agent that receives the current date and
+        # time, the live sensor list and the news feed. None of those words
+        # appeared in any trigger list, so "what time is it" matched no domain
+        # at all, fell through to the INVENTORY default, and was answered by an
+        # agent with no clock - which is why it replied that it had no access
+        # to the time.
+        "time", "what time", "clock", "date", "what day", "today",
+        "weather", "forecast", "temperature outside", "how hot", "how cold",
+        "humidity", "raining", "news", "headlines", "what's happening",
+        # Scene and script words. A "good night" automation is usually a
+        # sentence trigger or a script, and both belong to Home Assistant -
+        # this routes them to the branch that hands them to HA first.
+        "good night", "goodnight", "good morning", "scene", "activate",
+        "run script", "routine", "i'm leaving", "i'm home", "bedtime",
     ],
     "STYLIST": [
         "stylist", "clothes", "outfit", "wear", "what to wear",
@@ -390,6 +406,30 @@ async def _translate_master_list(hass, entry, lang_code):
     return cleaned
 
 
+def _cache_is_stale(cached_for_lang):
+    """True when the cached translation predates a change to the master list.
+
+    Two things make a cache stale:
+      * a whole domain is missing, which is what happened when a new routing
+        domain was introduced; and
+      * a domain has noticeably fewer words than the English master, which is
+        what happens when vocabulary is added to an existing domain.
+
+    The second test is deliberately a ratio rather than an exact count. A good
+    translation legitimately merges or drops a word or two - "turn on" and
+    "switch on" can be the same verb in another language - so demanding an
+    exact match would retranslate forever. Two thirds coverage catches a real
+    addition without firing on normal translation variance.
+    """
+    for domain, en_words in MASTER_TRIGGERS_EN.items():
+        translated = cached_for_lang.get(domain)
+        if not translated:
+            return True
+        if len(translated) < (len(en_words) * 2) // 3:
+            return True
+    return False
+
+
 async def _ensure_language_cached(hass, entry, lang_code):
     """Make sure a translation exists, WITHOUT blocking the user's reply.
 
@@ -406,7 +446,20 @@ async def _ensure_language_cached(hass, entry, lang_code):
     await _ensure_memory_cache_loaded(hass)
     languages = _MEMORY_CACHE.setdefault("languages", {})
 
-    if lang_code in languages:
+    # [MODIFIED v2026.10.6] Presence is no longer the same as completeness.
+    #
+    # This returned as soon as the language existed in the cache at all. So
+    # when MASTER_TRIGGERS_EN gained new words - the time, weather, news and
+    # scene vocabulary - an existing Hebrew or French cache was treated as
+    # finished and those words were never translated. The user updated and
+    # nothing changed for them.
+    #
+    # Earlier releases solved this by bumping the cache filename, which threw
+    # away a translation the user had already paid to build. Instead we check
+    # whether every domain the master list defines is actually present, and
+    # re-translate only when something is genuinely missing.
+    cached = languages.get(lang_code)
+    if cached is not None and not _cache_is_stale(cached):
         return
     if _in_backoff("triggers:" + lang_code):
         return
