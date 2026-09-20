@@ -11,8 +11,16 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [ADDED v2026.9.20 | 2026-09-20] Purpose: getItemIcon and drawnItemIcon.
+//   An item can now carry a drawing the assistant designed for it, stored
+//   as the SPEC it sent. This builds it through item-icon.js, and every
+//   value is coerced again on the way - neither end trusts the other.
 
 import { ICONS, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.10';
+// [ADDED v2026.9.20] Item icons the assistant designed, drawn from the
+// spec it sent. See item-icon.js for why they carry no background and
+// inherit their colour.
+import { itemIconFromSpec } from './item-icon.js?v=2026.9.20';
 
 // [ADDED v2026.8.26] HTML escaping for any value that reaches innerHTML.
 //
@@ -76,10 +84,32 @@ export const UtilsMixin = (Base) => class extends Base {
   // spec and passed through emblem_sanitizer before it was stored, which is
   // the same gate a recipe emblem goes through (RULE 15).
   getItemIcon(item) {
-    if (item && typeof item.icon_svg === 'string' && item.icon_svg.includes('<svg')) {
-      return item.icon_svg;
-    }
+    const drawn = this.drawnItemIcon(item);
+    if (drawn) return drawn;
     return this.getIconByKey(item && item.img) || ICONS.item;
+  }
+
+  // The icon the assistant designed for this item, built here from the spec
+  // it sent, or '' when there is none or it draws nothing.
+  //
+  // The SPEC is what was stored, not the picture. It was rebuilt field by
+  // field before it was written, and every value is coerced again on the way
+  // through spec-draw.js - so neither end of this trusts the other, and the
+  // markup is written by us both times (RULE 7, RULE 11, RULE 15).
+  drawnItemIcon(item) {
+    const raw = item && item.icon_spec;
+    if (!raw) return '';
+    let spec = raw;
+    if (typeof raw === 'string') {
+      try {
+        spec = JSON.parse(raw);
+      } catch (e) {
+        // A row that cannot be parsed simply has no drawn icon. The item
+        // still has its library icon and its default behind it.
+        return '';
+      }
+    }
+    return itemIconFromSpec(spec);
   }
 
   // Is this item showing a PHOTOGRAPH rather than an icon? A library key

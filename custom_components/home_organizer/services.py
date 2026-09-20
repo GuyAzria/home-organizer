@@ -12,8 +12,17 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
-# [MODIFIED v8.57.0 | 2026-08-02] Purpose: Refactored database interactions to use aiosqlite for full asynchronous I/O. Replaced get_db_connection with get_db_path and removed async_add_executor_job wrappers.
-# [MODIFIED v7.18.2 | 2026-04-20] Purpose: Added handle_update_order_qty service and order_qty extraction to handle_update_item_details so shopping list amounts save permanently to the database.
+# [MODIFIED v2026.9.20 | 2026-09-20] Purpose: update_item_details accepts
+#   clear_suggestion, which answers the scanner's category proposal by
+#   clearing suggested_category. Explicit rather than implied: setting a
+#   category could have counted as an answer, but the icon picker also
+#   writes a category, and choosing a picture is not a decision about
+#   shelves (RULE 33a.8).
+# [MODIFIED v2026.9.20 | 2026-09-20] Purpose: Choosing a library icon or
+#   uploading a picture now CLEARS icon_spec. A drawn icon wins over
+#   image_path when the panel renders, so without this an item the
+#   assistant had drawn could never be given a different picture - the
+#   choice was stored and nothing changed on screen.
 
 import logging
 import os
@@ -264,6 +273,14 @@ async def register_services(hass, entry):
         image_path = call.data.get("image_path")
         new_path = call.data.get("new_path")
         order_qty = call.data.get("order_qty")
+        # [ADDED v2026.9.20] Answer the scanner's category proposal.
+        #
+        # Explicit rather than implied. Setting a category could have been
+        # taken to mean the proposal was answered, but update_item_details
+        # is also how the icon picker writes a category, and choosing a
+        # picture is not an answer to a question about shelves. A caller
+        # that means "this is answered" says so (RULE 33a.8).
+        clear_suggestion = bool(call.data.get("clear_suggestion"))
         
         owner = call.data.get("owner")
         season = call.data.get("season")
@@ -338,8 +355,14 @@ async def register_services(hass, entry):
                     if sub_cat is not None: updates.append("sub_category = ?"); params.append(sub_cat)
                     if unit is not None: updates.append("unit = ?"); params.append(unit)
                     if unit_value is not None: updates.append("unit_value = ?"); params.append(unit_value)
-                    if image_path is not None: updates.append("image_path = ?"); params.append(image_path)
+                    # [ADDED v2026.9.20] Same reason as handle_update_image: choosing a
+                    # library icon has to clear a drawn one, or the drawing keeps
+                    # winning and the choice does nothing. Only when an image_path was
+                    # actually supplied - an omitted argument still means leave alone
+                    # (RULE 33a.8).
+                    if image_path is not None: updates.append("image_path = ?"); params.append(image_path); updates.append("icon_spec = NULL")
                     if order_qty is not None: updates.append("order_qty = ?"); params.append(order_qty)
+                    if clear_suggestion: updates.append("suggested_category = NULL")
                     
                     if owner is not None: updates.append("owner = ?"); params.append(owner)
                     if season is not None: updates.append("season = ?"); params.append(season)
@@ -436,7 +459,14 @@ async def register_services(hass, entry):
             db_path = get_db_path(hass)
             async with aiosqlite.connect(db_path, timeout=10.0) as db:
                 if item_id:
-                    await db.execute("UPDATE items SET image_path = ? WHERE id = ?", (fname, item_id))
+                    # [ADDED v2026.9.20] A picture REPLACES a drawing.
+                    #
+                    # getItemIcon prefers a drawn icon over image_path, so without this
+                    # an item the assistant had once drawn could never be given a
+                    # library icon or a photo again - the new choice would be stored
+                    # and nothing on screen would change. Clearing icon_spec in the
+                    # same statement makes the choice a real one.
+                    await db.execute("UPDATE items SET image_path = ?, icon_spec = NULL WHERE id = ?", (fname, item_id))
                     
                     async with db.execute("SELECT barcode, name, category, sub_category, image_path, level_1, level_2, level_3 FROM items WHERE id=?", (item_id,)) as cursor:
                         row = await cursor.fetchone()
@@ -446,7 +476,7 @@ async def register_services(hass, entry):
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                         ''', (row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7]))
                 else:
-                    await db.execute("UPDATE items SET image_path = ? WHERE name = ?", (fname, name))
+                    await db.execute("UPDATE items SET image_path = ?, icon_spec = NULL WHERE name = ?", (fname, name))
                 await db.commit()
         except Exception as e:
             _LOGGER.error(f"Service update image error: {e}")

@@ -11,6 +11,13 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [MODIFIED v2026.9.20 | 2026-09-20] Purpose: A review card shows the
+//   scanner's category proposal as a note with two answers - Create, which
+//   opens the category and files the item into it, and Not now, which only
+//   clears the note. The scan itself no longer asks: one guitar on a
+//   fifty-line receipt used to replace the whole list with a question
+//   (RULE 22). Only the item id travels through the handler string; the
+//   proposed name is read from the item by the method.
 // [MODIFIED v10.0.10 | 2026-04-17] Purpose: Stripped ?v= backend timestamps from pending review card renders to prevent caching loops.
 
 import { ICONS } from '../organizer-icon.js?v=10.0.10';
@@ -194,6 +201,26 @@ export const ChatMixin = (Base) => class extends Base {
 
             const hierarchyHtml = (typeof this.renderHierarchyControl === 'function') ? this.renderHierarchyControl(item, true) : '';
 
+            // [ADDED v2026.9.20] The scanner's category proposal, as a note.
+            //
+            // The scan no longer stops to ask where an odd product belongs -
+            // one guitar on a fifty-line receipt used to replace the whole
+            // list with a question. The item is filed under the nearest
+            // category and what the assistant WOULD have opened is shown
+            // here. Pressing Create is the explicit user action that opens a
+            // top-level category (RULE 22); nothing was created by the scan.
+            //
+            // Only the id travels through the handler string. The name is
+            // read from the item by the method itself.
+            const suggestCat = (item.suggested_category || '').trim();
+            const suggestHtml = suggestCat ? `
+              <div class="cat-suggest">
+                <span class="cat-suggest-text">${escapeHtml(this._t('cat_suggest_msg', 'Nothing here fits this item. Open a new category?'))}</span>
+                <b class="cat-suggest-name">${escapeHtml(suggestCat)}</b>
+                <button class="action-btn cat-suggest-yes" onclick="this.getRootNode().host.acceptCategorySuggestion('${escapeHtml(item.id)}')">${escapeHtml(this._t('cat_suggest_yes', 'Create'))}</button>
+                <button class="action-btn cat-suggest-no" title="${escapeHtml(this._t('cat_suggest_no', 'Not now'))}" onclick="this.getRootNode().host.dismissCategorySuggestion('${escapeHtml(item.id)}')">${ICONS.close}</button>
+              </div>` : '';
+
             const card = document.createElement('div'); card.className = 'pending-card';
             card.innerHTML = `
               <div class="pending-top">
@@ -217,7 +244,7 @@ export const ChatMixin = (Base) => class extends Base {
                        title="${escapeHtml(this._t('unit_price', 'Unit price'))}">
               </div>
               ${this.buildReceiptLineHtml(item, rec, true)}
-              <div class="pending-mid" style="display:flex;flex-direction:column;gap:8px;">${hierarchyHtml}<div style="display:flex;gap:5px;"><select class="move-select" id="pending-cat-main-${escapeHtml(item.id)}" style="flex:1;" onchange="this.getRootNode().host.updatePendingCategory('${escapeHtml(item.id)}',this.value,'main')">${mainCatOptions}</select><select class="move-select" id="pending-cat-sub-${escapeHtml(item.id)}" style="flex:1;" onchange="this.getRootNode().host.updatePendingCategory('${escapeHtml(item.id)}',this.value,'sub')">${subCatOptions}</select></div></div>
+              <div class="pending-mid" style="display:flex;flex-direction:column;gap:8px;">${hierarchyHtml}${suggestHtml}<div style="display:flex;gap:5px;"><select class="move-select" id="pending-cat-main-${escapeHtml(item.id)}" style="flex:1;" onchange="this.getRootNode().host.updatePendingCategory('${escapeHtml(item.id)}',this.value,'main')">${mainCatOptions}</select><select class="move-select" id="pending-cat-sub-${escapeHtml(item.id)}" style="flex:1;" onchange="this.getRootNode().host.updatePendingCategory('${escapeHtml(item.id)}',this.value,'sub')">${subCatOptions}</select></div></div>
               <div class="pending-actions" style="justify-content:space-between;align-items:center;margin-top:12px;">
                 <div style="display:flex;gap:10px;"><button class="action-btn" title="${this._t('take_photo', 'Take Photo')}" onclick="this.getRootNode().host.triggerCameraEdit('${escapeHtml(item.id)}','${escapeHtml(this.escapeJSArg(item.name))}')">${ICONS.camera}</button><button class="action-btn" title="${this._t('upload_file', 'Upload File')}" onclick="this.getRootNode().host.triggerFileUploadEdit('${escapeHtml(item.id)}','${escapeHtml(this.escapeJSArg(item.name))}')">${UPLOAD_SVG}</button><button class="action-btn" title="${this._t('change_img', 'Change Icon')}" onclick="this.getRootNode().host.openIconPicker('${escapeHtml(item.id)}','item')">${ICONS.image}</button></div>
                 <div style="display:flex;gap:10px;"><button class="action-btn btn-danger" title="${this._t('reject', 'Reject')}" onclick="this.getRootNode().host.deletePending('${escapeHtml(item.id)}')" style="display:flex;align-items:center;justify-content:center;">${ICONS.delete}</button><button class="action-btn" title="${this._t('confirm', 'Confirm')}" style="background:var(--success);color:white;display:flex;align-items:center;justify-content:center;" onclick="this.getRootNode().host.confirmPending('${escapeHtml(item.id)}')">${ICONS.check}</button></div>

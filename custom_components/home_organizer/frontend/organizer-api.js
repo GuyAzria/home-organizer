@@ -11,8 +11,11 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [ADDED v2026.9.20 | 2026-09-20] Purpose: acceptCategorySuggestion and
+//   dismissCategorySuggestion answer the category a receipt scan proposed.
+//   The click is the explicit user action that opens a top-level category;
+//   the scan never creates one and never stops to ask (RULE 22).
 // [MODIFIED v7.7.60 | 2026-05-03] Purpose: Removed complex blur/input event tracking. autoSaveItem now cleanly responds to explicit save actions (like the new Save button in the UI).
-// [MODIFIED v7.7.59 | 2026-05-03] Purpose: Completely solved the mobile Companion App "reverting name" bug. Replaced unreliable DOM visibility checks during keyboard blur with a memory-based state tracker (_lastEditedValues) powered by the 'input' event, ensuring the exact text typed by the user is always the one saved.
 
 import { escapeHtml } from './organizer-utils.js?v=2026.8.26';
 
@@ -236,6 +239,51 @@ export const APIMixin = (Base) => class extends Base {
     });
     await this.fetchData();
     return clean;
+  }
+
+  // [ADDED v2026.9.20] Answer the scanner's category proposal.
+  //
+  // WHY THE BUTTON EXISTS - permanent architectural note.
+  //
+  // A receipt can carry something no shelf in the house fits. The scan used
+  // to stop and ask, which showed the question INSTEAD of the fifty items it
+  // had just read; letting the assistant open the category itself would fill
+  // the list with near-duplicates nothing merges afterwards (RULE 22).
+  //
+  // So the item is filed under the nearest category during the scan and the
+  // proposal rides along as a note. THIS CLICK is the explicit user action
+  // RULE 22 requires, and until it happens nothing has been created.
+  //
+  // The name is read from the item, not from the markup. Nothing about the
+  // proposal travels through an attribute or a handler string.
+  async acceptCategorySuggestion(itemId) {
+    const item = (this.localData?.pending_list || []).find(i => i.id == itemId);
+    const name = (item && item.suggested_category)
+      ? String(item.suggested_category).trim() : '';
+    if (!name) return;
+    this.setLoading(itemId, true);
+    try {
+      // add_category gives a new top-level category its General
+      // sub-category, because the two-step picker has nothing to show
+      // otherwise - so the item is filed into that same General.
+      await this.callHA('add_category', {
+        category: name, sub_category: null, source: 'user' });
+      await this.callHA('update_item_details', {
+        item_id: itemId, category: name, sub_category: 'General',
+        clear_suggestion: true });
+      await this.fetchData();
+    } catch (e) { console.error(e); }
+    finally { this.setLoading(itemId, false); }
+  }
+
+  // Dismiss it without creating anything. The item keeps the category the
+  // scan chose for it; only the note goes away.
+  async dismissCategorySuggestion(itemId) {
+    try {
+      await this.callHA('update_item_details', {
+        item_id: itemId, clear_suggestion: true });
+      await this.fetchData();
+    } catch (e) { console.error(e); }
   }
 
   updatePendingCategory(itemId, value, type) {

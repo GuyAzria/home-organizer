@@ -12,68 +12,25 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
-# [MODIFIED v2026.9.20 | 2026-09-20] Purpose: A dish photo is deleted from
-#   disk at all three points where a recipe stops pointing at it: the photo
-#   is removed, a new photo replaces it, or the recipe itself is deleted.
-#   Each one used to leave the file behind. The row is cleared FIRST and the
-#   file removed second - an orphaned file is harmless, while a row pointing
-#   at a file that is gone shows a broken picture every time - and on a
-#   replace the old file only goes once the new one is safely written, so a
-#   failed write never costs the picture that was there. No file is touched
-#   while another recipe still references it.
-#   [FIXED] Two edits in a row undid each other. Approving a change wrote
-#   it to the database and the panel re-read the page, but the agent's
-#   cooking state was left holding the recipe as it stood BEFORE - and
-#   the binding is only rebuilt when the panel names a DIFFERENT recipe,
-#   which it does not while the user stays on the page. So the next
-#   proposal was built from the stale copy: adding anchovies and then
-#   changing the oil gave back more oil and no anchovies.
-#   _absorb_applied_edit is the missing half of recipe_edits.async_apply,
-#   called from both places an edit is applied so they cannot drift, and it
-#   now carries the title and language across too - a rewrite in another
-#   language moves both, and the assistant builds its next proposal from
-#   what it holds. Same release: the voice service keyed its conversation
-#   by conversation_id alone and fell back to a single "default_session",
-#   so two people cooking at once shared one recipe and one step position;
-#   the authenticated caller is part of the key now, and the device_id the
-#   schema already declared is finally read, so a timer set by voice has a
-#   phone to ring. Added the answer_timer action - a boolean and nothing
-#   else - for the buttons under an offered timer.
-#   [FIXED] Switching to a different recipe replaced the BINDING but left
-#   the whole conversation about the previous one in the session, so
-#   "translate this recipe" on the second was answered from the first -
-#   its full text was still the most recent recipe in the exchange. The
-#   turns are cleared on the switch, along with any change frozen against
-#   the old recipe and any timer offered for one of its steps. Another
-#   agent's state, such as a shopping draft, is left alone.
-# [MODIFIED v2026.9.19 | 2026-09-19] Purpose: Three recipe fixes. Declared
-#   "assume_available" on the recipes schema and passed it to
-#   async_check_ingredients, so the pantry staples the panel names are
-#   never reported as missing - an undeclared key is rejected before the
-#   handler runs, which is why the declaration matters as much as the call.
-#   The save path now relays the agent's HO_RECIPE_SAVED marker as
-#   saved_recipe_id, which is what lets a request typed on the contents
-#   page open the finished recipe instead of leaving it in the chat. And
-#   the recipe binding hands the agent the open recipe's id, so filling in
-#   an empty page writes back into that page rather than creating a twin.
-#   [FIXED] A recipe_id sent as null - the cookbook saying nothing is open -
-#   used to fall straight through the binding block, leaving the binding from
-#   the last recipe in place. A question typed on the contents page was then
-#   understood as being about a recipe the user had closed, which is why
-#   "suggest something for dinner" never opened a page of its own. A key that
-#   is present and null now unbinds; a key that is absent still changes
-#   nothing, and a walkthrough in progress is never cleared.
-#   [FIXED] The saved_recipe_id relay itself sat inside the block that runs
-#   only when the panel names an OPEN recipe, so on the contents page - where
-#   by definition none is open - the marker was never read. The recipe was
-#   written and appeared in the cookbook, but the panel was never told to
-#   turn to it, which is why the answer only ever arrived as text in the
-#   chat. A recipe that has just been created cannot have an id the panel
-#   could have sent, so the scan belongs outside that guard.
-#   The emblem_choice relay is removed with the library it relayed a choice
-#   from. emblem_spec - the drawing the assistant DESIGNS - is untouched,
-#   and so is the set_emblem websocket action that stores the result
-#   through emblem_sanitizer.
+# [MODIFIED v2026.9.20 | 2026-09-20] Purpose: A receipt scan no longer stops
+#   to ask where an odd product belongs. _clean_category_suggestion checks
+#   the name the model proposes - a length, a character whitelist, and that
+#   it does not already exist - and it is stored as a NOTE on the item
+#   while the item itself is filed under the nearest existing category.
+#   Nothing is created here; the review tab shows the proposal with a
+#   button, and pressing it is the explicit user action RULE 22 requires.
+#   One guitar on a fifty-line receipt used to replace the whole list with
+#   a question.
+# [MODIFIED v2026.9.20 | 2026-09-20] Purpose: home_organizer/draw_item_icon
+#   draws ONE item an icon on request, from the Change Icon window. The
+#   voice path already draws while it adds; a receipt and a barcode do
+#   not, and deliberately still do not - a receipt is read in one call
+#   carrying every line on the page, and a truncated answer loses the
+#   receipt, not just its pictures. So the drawing is offered where it
+#   costs one call and the user is looking at the result. The panel
+#   sends an id and a sentence; the NAME is read from the database and
+#   what comes back is rebuilt field by field by validate_icon_spec
+#   before anything is stored (RULE 7, RULE 11, RULE 33a.2).
 
 import logging
 from homeassistant.components import frontend
@@ -110,10 +67,11 @@ from .database import (
     async_store_receipt_pages, async_link_receipt_pages,
     # [ADDED v2026.9.17] A photo of a finished dish, for the cookbook.
     async_store_recipe_photo,
-    async_set_item_icon,
     async_delete_recipe_photo,
     async_list_receipts, async_get_receipt_pages, async_get_receipt_items,
     async_get_categories, async_check_ingredients,
+    # [ADDED v2026.9.20] Redrawing one item's icon from the item card.
+    async_get_item_naming, async_set_item_icon,
 )
 from .services import register_services
 from .ai_logic import (
@@ -137,7 +95,11 @@ from .agents import cooking_agent
 from .ai_core.json_utils import safe_parse_json
 # [ADDED v2026.9.17] One gate for every emblem that reaches the database.
 from .emblem_sanitizer import sanitize_emblem_svg
-from .prompt_core import get_intent_resolve_prompt
+from .prompt_core import get_intent_resolve_prompt, get_icon_draw_prompt
+# [ADDED v2026.9.20] The same validator the inventory agent's drawings go
+# through. A spec from the Change Icon button is no more trusted than one
+# that arrives with an add_item call.
+from .ai_core.draw_spec import validate_icon_spec
 from .prompt_inventory import get_barcode_prompt, get_invoice_prompt
 
 _LOGGER = logging.getLogger(__name__)
@@ -153,8 +115,8 @@ WS_LIST_RECEIPTS = "home_organizer/list_receipts"
 WS_RECIPES = "home_organizer/recipes"
 WS_LOOKUP_BARCODE = "home_organizer/lookup_barcode"
 WS_SAVE_AVATAR = "home_organizer/save_avatar"
-# [ADDED v2026.9.20] Store an icon the panel drew for an item.
-WS_SET_ITEM_ICON = "home_organizer/set_item_icon"
+# [ADDED v2026.9.20] Draw one item an icon, on request from its card.
+WS_DRAW_ICON = "home_organizer/draw_item_icon"
 
 STATIC_PATH_URL = "/home_organizer_static"
 ACTIVE_SESSIONS = {}
@@ -725,6 +687,17 @@ async def websocket_ai_chat(hass, connection, msg):
                                 hass, receipt_id, stored_pages, mime_val
                             )
 
+                        # [ADDED v2026.9.20] Read once, for the suggestion
+                        # check below - a name that already exists is not a
+                        # proposal for a new one.
+                        try:
+                            known_cats = {
+                                str(c).casefold()
+                                for c in (await async_get_categories(hass))
+                            }
+                        except Exception:
+                            known_cats = set()
+
                         for item in parsed["items"]:
                             bcode = str(item.get("barcode", "0")).strip()
                             
@@ -791,6 +764,10 @@ async def websocket_ai_chat(hass, connection, msg):
                                 # user can correct it on the item card.
                                 expiry_date=item.get("expiry_date"),
                                 warranty_end_date=item.get("warranty_end_date"),
+                                # [ADDED v2026.9.20] A note, not a category.
+                                # See _clean_category_suggestion.
+                                suggested_category=_clean_category_suggestion(
+                                    item.get("suggest_category"), known_cats),
                             )
 
                             added_count += 1
@@ -1108,30 +1085,6 @@ async def websocket_ai_chat(hass, connection, msg):
                         and m["content"].startswith("HO_RECIPE_SAVED:"))
             ]
 
-        # [ADDED v2026.9.20] An icon the assistant drew for an item it just
-        # added. Outside the recipe block on purpose: this has nothing to do
-        # with a recipe being open, and the item was created in this same
-        # turn - so nothing the panel sent could have named it.
-        #
-        # The SPEC travels, not a picture. The panel draws it and stores the
-        # result through set_item_icon, which sanitises on the way in - the
-        # same path a recipe emblem takes (RULE 7, RULE 15).
-        for m in ACTIVE_SESSIONS[session_key]:
-            content = m.get("content")
-            if (m.get("role") == "system" and isinstance(content, str)
-                    and content.startswith("HO_ITEM_ICON:")):
-                try:
-                    result["item_icon"] = json.loads(content[len("HO_ITEM_ICON:"):])
-                except ValueError:
-                    _LOGGER.warning("An item icon spec could not be read back.")
-        if result.get("item_icon"):
-            ACTIVE_SESSIONS[session_key] = [
-                m for m in ACTIVE_SESSIONS[session_key]
-                if not (m.get("role") == "system"
-                        and isinstance(m.get("content"), str)
-                        and m["content"].startswith("HO_ITEM_ICON:"))
-            ]
-
         if ws_recipe_id and ws_user_id:
             # [ADDED v2026.9.17] A typed approval - "yes", "save it" - reaches
             # the SAME execution boundary the buttons use. The agent leaves a
@@ -1280,6 +1233,117 @@ async def websocket_save_avatar(hass, connection, msg):
         connection.send_result(msg["id"], {"status": "success"})
     except Exception as e:
         connection.send_result(msg["id"], {"error": str(e)})
+
+# [ADDED v2026.9.20 | 2026-09-20] Draw an icon for ONE item, on request.
+#
+# WHY THIS IS A SEPARATE PATH - permanent architectural note.
+#
+# The assistant already draws an icon while it is adding an item by voice.
+# Two other routes into the inventory do not: a receipt is read in a single
+# call carrying every line on the page, and a barcode lookup answers about a
+# product it has never seen. Both still choose from the shipped library,
+# deliberately - a drawing per line would multiply the size of the one answer
+# that a whole receipt depends on, and a truncated answer loses the receipt,
+# not just its pictures.
+#
+# So the drawing is offered where it costs one call and the user is already
+# looking at the result: the Change Icon window. That also makes it THEIR
+# choice rather than something that happens to their data unasked.
+#
+# WHAT CROSSES THE BOUNDARY. The panel sends an item id and a sentence. The
+# NAME of the thing being drawn is read from the database here, never taken
+# from the message. What comes back from the model is a list of shapes, and
+# validate_icon_spec rebuilds it field by field before a single character is
+# stored (RULE 7, RULE 11, RULE 15). Nothing on the row is touched except
+# icon_spec (RULE 33a.8).
+# [ADDED v2026.9.20] A category name the scanner PROPOSED, or None.
+#
+# WHY A SUGGESTION AND NOT A CATEGORY - permanent architectural note.
+#
+# A receipt can carry something no shelf in the house fits: a guitar, a
+# fishing rod, a socket set. The scan used to be allowed to stop and ask,
+# which cost the user the whole receipt - the question was shown INSTEAD of
+# the fifty items just read - and letting the model open the category
+# instead would produce 'Food', 'Groceries' and 'Foodstuffs' inside a week,
+# with nothing to merge them afterwards (RULE 22).
+#
+# So the item is filed under the nearest existing category and the proposal
+# rides along as a note. The review tab shows it with a button. Pressing
+# that button is the explicit user action RULE 22 requires, and until it is
+# pressed nothing has been created.
+#
+# This is model output, so it is checked rather than trusted: a length, a
+# character whitelist, and a name that does not already exist (RULE 11).
+_CATEGORY_NAME = re.compile(r"\A[^\W\d_][\w \-&'/]{0,59}\Z", re.UNICODE)
+
+
+def _clean_category_suggestion(raw, existing_names):
+    """The name the scanner would open, or None if it is not usable."""
+    name = str(raw or "").strip()
+    if not name or not _CATEGORY_NAME.match(name):
+        return None
+    # A proposal to open a category that already exists is not a proposal -
+    # it is the model restating where the item has already been filed.
+    if name.casefold() in existing_names:
+        return None
+    return name
+
+DRAW_ICON_MAX_DESCRIPTION = 200
+
+
+@websocket_api.async_response
+async def websocket_draw_item_icon(hass, connection, msg):
+    item_id = msg.get("item_id")
+    naming = await async_get_item_naming(hass, item_id)
+    if not naming:
+        connection.send_result(msg["id"], {"error": "unknown_item"})
+        return
+
+    # The user's own words about their own item. Trimmed to a sentence: this
+    # is a hint for a drawing, and a long one is either a mistake or an
+    # attempt to make the prompt into something else. Either way the ANSWER
+    # is what is constrained - only numbers survive validation below.
+    description = str(msg.get("description") or "").strip()
+    description = description[:DRAW_ICON_MAX_DESCRIPTION]
+    if not description:
+        description = naming["name"]
+
+    entries = hass.config_entries.async_entries(DOMAIN)
+    if not entries:
+        connection.send_result(msg["id"], {"error": "no_ai"})
+        return
+
+    prompt = get_icon_draw_prompt(naming["name"], description)
+    res_text, err = await safe_smart_router(hass, entries[0], prompt)
+    if err or not res_text:
+        # The message is logged, not returned. A provider error can carry a
+        # URL or a key fragment, and this one is on its way to a browser
+        # (RULE 14).
+        _LOGGER.warning("[HO-ICON] Drawing an icon failed: %s", err)
+        connection.send_result(msg["id"], {"error": "no_ai"})
+        return
+
+    parsed = safe_parse_json(res_text)
+    spec = validate_icon_spec((parsed or {}).get("shapes"))
+    if not spec:
+        # Nothing drawable came back. The item keeps whatever it had rather
+        # than losing its picture to a blank one (RULE 31, fail closed).
+        _LOGGER.debug("[HO-ICON] No drawable shapes for item %s.", item_id)
+        connection.send_result(msg["id"], {"error": "not_drawable"})
+        return
+
+    stored = {"shapes": spec}
+    if not await async_set_item_icon(
+        hass, item_id, json.dumps(stored, ensure_ascii=False)
+    ):
+        connection.send_result(msg["id"], {"error": "unknown_item"})
+        return
+
+    hass.bus.async_fire("home_organizer_db_update")
+    _LOGGER.info("[HO-ICON] Drew a new icon for item %s (%d shapes).",
+                 item_id, len(spec))
+    connection.send_result(msg["id"], {"icon_spec": stored})
+
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     return True
@@ -2044,45 +2108,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.error("list_receipts failed: %s", err)
             connection.send_result(msg["id"], {"receipts": [], "vendors": [], "totals": {}})
 
-    # [ADDED v2026.9.20] An item's drawn icon, on its way to the database.
-    #
-    # The panel built this from a spec that ai_core.draw_spec had already
-    # rebuilt field by field, so the markup is ours twice over - but it still
-    # goes through the sanitiser, because this is the one door into the
-    # column and a door that trusts its caller is not a door (RULE 33d: one
-    # gate, so the weaker path cannot become the way in).
-    @websocket_api.websocket_command({
-        vol.Required("type"): WS_SET_ITEM_ICON,
-        vol.Required("item_id"): vol.Any(int, str),
-        vol.Required("icon_svg"): vol.Any(str, None),
-    })
-    @websocket_api.async_response
-    async def websocket_set_item_icon(hass, connection, msg):
-        try:
-            raw = msg.get("icon_svg")
-            if not raw:
-                # Clearing it is allowed: the item falls back to the library
-                # icon or the default, which is what it had before.
-                await async_set_item_icon(hass, msg["item_id"], None)
-                connection.send_result(msg["id"], {"cleared": True})
-                return
-            clean = sanitize_emblem_svg(raw)
-            if not clean:
-                _LOGGER.warning("Rejected an item icon that could not be cleaned.")
-                connection.send_result(msg["id"], {"error": "Bad icon."})
-                return
-            stored = await async_set_item_icon(hass, msg["item_id"], clean)
-            hass.bus.async_fire("home_organizer_db_update")
-            connection.send_result(msg["id"], {"stored": stored})
-        except Exception as err:
-            _LOGGER.error("set_item_icon failed: %s", err)
-            connection.send_result(msg["id"], {"error": str(err)})
-
-    try:
-        websocket_api.async_register_command(hass, websocket_set_item_icon)
-    except Exception:
-        pass
-
     try:
         websocket_api.async_register_command(hass, websocket_list_receipts)
     except Exception:
@@ -2140,6 +2165,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend({
                 vol.Required("type"): WS_SAVE_AVATAR,
                 vol.Required("image_data"): str
+            })
+        )
+    except Exception: pass
+
+    # [ADDED v2026.9.20] Redraw one item's icon. Two keys and nothing else:
+    # which item, and what the user says it is. Declared here, handled in
+    # websocket_draw_item_icon and sent by organizer-icons.js - a websocket
+    # schema rejects any key it was not told about, so all three sides are
+    # written together (RULE 33a.2).
+    try:
+        websocket_api.async_register_command(
+            hass,
+            WS_DRAW_ICON,
+            websocket_draw_item_icon,
+            websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend({
+                vol.Required("type"): WS_DRAW_ICON,
+                vol.Required("item_id"): vol.Any(int, cv.string),
+                vol.Optional("description"): vol.Any(str, None),
             })
         )
     except Exception: pass

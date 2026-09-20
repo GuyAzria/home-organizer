@@ -1,4 +1,8 @@
 /* pages/inventory.css | v10.0.7 */
+/* [ADDED v2026.9.20 | 2026-09-20] Purpose: A phone-only block at the end of
+   this file rebuilds the expanded item card as one column of full-width
+   rows. The name owns its row; everything else lines up on a row of its
+   own. Nothing applies above 768px. */
 .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 15px; margin-bottom: 20px; }
 .folder-item { background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 12px; padding: 15px; text-align: center; cursor: pointer; transition: all 0.2s; position: relative; }
 .folder-item:hover { background: var(--bg-card-hover); transform: translateY(-2px); border-color: var(--primary); }
@@ -106,3 +110,80 @@
 }
 .xl-name { font-size: 13px; font-weight: bold; text-align: center; word-break: break-word; }
 .xl-date { font-size: 11px; color: var(--text-sub, #888); margin-top: 2px; }
+
+/* [ADDED v2026.9.20 | 2026-09-20] The expanded item card, on a phone only.
+
+   WHAT WAS WRONG. The card is two columns: a fixed 100px media column and
+   everything else beside it. On a 360px screen that left the name box about
+   170px wide - too narrow to read a product name - and put the date button,
+   the save button and the unit badge at three different heights, because
+   each one sits at a different point inside its own column.
+
+   WHAT IT IS NOW. Below 768px the card is one column of full-width rows.
+   The name owns its row outright, with nothing beside it. Everything else
+   lines up on a row of its own, so no control sits half a step above its
+   neighbour.
+
+   WHY !important. Every one of these elements carries an INLINE style, and
+   inline beats a stylesheet rule. The flag appears only on the properties
+   that are actually set inline; where it is absent, nothing inline sets
+   that property and the cascade is enough.
+
+   768px is this panel's existing phone breakpoint (organizer-panel.css uses
+   it for #btn-ha-menu). inventory.css had no media query at all, so rather
+   than invent a fourth set of widths this follows the one already in use
+   (RULE 36). Tablet and desktop are untouched: nothing here applies above
+   768px, and not one inline style was changed. */
+@media (max-width: 768px) {
+
+  /* Collapsed row: the name is clipped hard because .item-left hides its
+     overflow and nothing inside it was allowed to shrink. A flex child will
+     not go below its content width without min-width:0, so the ellipsis
+     never had a chance to appear. */
+  .item-text { min-width: 0; flex: 1; }
+  .item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* One column. The media column stops reserving 100px of the name's row. */
+  .item-row .exp-top { flex-direction: column; align-items: stretch !important; }
+
+  /* Picture and date side by side, both on the same line and the same
+     height - this is the pair that used to sit stacked in a narrow column
+     while the name and save button sat elsewhere. */
+  .item-row .exp-media { flex-direction: row !important; width: 100% !important;
+    align-items: stretch; }
+  .item-row .exp-icon-box { flex: 0 0 100px; }
+  .item-row .exp-date { flex: 1 1 auto; width: auto !important;
+    height: 100px !important; }
+  .item-row .exp-date .action-btn { font-size: 13px !important; }
+
+  .item-row .exp-fields { width: 100%; }
+
+  /* THE NAME GETS THE WHOLE ROW. flex-basis 100% forces the wrap; the save
+     button follows on the next line as a full-width bar, which is a bigger
+     thumb target than the 42px square it was. */
+  .item-row .exp-name-row { flex-wrap: wrap; }
+  .item-row .exp-name-input { flex: 1 0 100% !important; width: 100% !important; }
+  .item-row .exp-save { flex: 1 0 100% !important; width: 100% !important;
+    height: 44px !important; }
+
+  /* Quantity and unit read as one field, pushed to the start of their row. */
+  .item-row .exp-unit-row { width: 100%; }
+  .item-row .exp-unit-row input { height: 44px; }
+  .item-row .exp-unit-row > div { height: 44px; }
+
+  /* The two selects keep one row - they are a pair - at a touch height. */
+  .item-row .exp-cats select { min-height: 44px; }
+
+  /* Five buttons, one line, one height. 5x44 plus the gaps is 262px, which
+     fits inside the narrowest phone this panel supports; nowrap stops a
+     single group dropping to a second line and sitting out of step with
+     the other, which is what made one button look lower than the rest. */
+  .item-row .exp-actions { flex-wrap: nowrap !important; }
+  .item-row .exp-actions > div { flex: 0 1 auto; min-width: 0; align-items: center; }
+  /* 44px is the target; 40px is the floor. Allowing four pixels of give
+     means the narrowest phone compresses the buttons instead of wrapping a
+     group onto a second line - which is the thing that made one button sit
+     lower than the rest. 40px is still a valid touch target (RULE 36). */
+  .item-row .exp-actions .action-btn { height: 44px !important; width: 44px !important;
+    min-width: 40px; flex-shrink: 1; }
+}

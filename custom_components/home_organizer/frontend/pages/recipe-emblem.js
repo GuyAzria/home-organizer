@@ -11,56 +11,16 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [MODIFIED v2026.9.20 | 2026-09-20] Purpose: The drawing-spec core moved
+//   to ../spec-draw.js. Item icons need the same allow-lists and nothing
+//   else about this file, and two copies of an allow-list is two things
+//   to keep in step (RULE 33d). What stays here is what makes a drawing a
+//   recipe emblem: the palettes and the medallion.
 // [MODIFIED v2026.9.19 | 2026-09-19] Purpose: The local part library is
 //   GONE, along with emblem-parts.js and the 132 composed dishes. An emblem
 //   is now only ever the one the assistant designed for THAT recipe. A recipe
 //   with no emblem shows a camera on an empty plate instead of a drawing
 //   chosen from its chapter - see below.
-// [MODIFIED v2026.9.17 | 2026-09-17] Purpose: An emblem the assistant designs
-//   arrives as a DRAWING SPEC - numbers and vetted keywords - which is built
-//   into SVG here. The assistant never sends markup of any kind.
-//
-// WHY THIS EXISTS - permanent architectural note.
-//
-// A recipe needs something to look at, and the obvious ways to get one are
-// all worse than drawing it: a generated photograph is model output, which
-// RULE 11 treats as untrusted, and a convincing picture of the WRONG dish is
-// worse than no picture; a shipped image bank would add tens of megabytes to
-// every install to show the same generic bowl for every soup.
-//
-// This draws instead. It costs nothing to ship, works with no network - which
-// RULE 33b says to assume - and follows what recipes.css already states about
-// this screen: everything is generated, no image files, no external fonts,
-// no CDN.
-//
-// WHAT CHANGED IN v2026.9.19, AND WHY IT IS WORTH KNOWING.
-//
-// This file used to draw an emblem for EVERY recipe, composed from a library
-// of parts picked by the recipe's chapter. It was the same mistake in a
-// smaller form: a plate of couscous and a plate of rice came out identical,
-// and a Neapolitan pizza came out as a cake. A drawing that is merely
-// plausible still tells the reader something untrue about their own recipe.
-//
-// Nothing is drawn speculatively now. Either the assistant designed this
-// emblem for this dish, or there is no emblem and the page says so and offers
-// the camera.
-//
-// TWO PROPERTIES THIS MUST KEEP:
-//
-// 1. DETERMINISTIC. The same spec produces the same emblem on every render,
-//    on every device. The frame and palette are derived from a hash of the
-//    recipe's identity; nothing here uses Math.random or the clock.
-//
-// 2. NO USER TEXT IS DRAWN. A recipe's name influences only a NUMBER, via the
-//    hash. No name, letter or ingredient reaches the markup (RULE 15).
-//
-// 3. NO MARKUP IS EVER ACCEPTED FROM ANYWHERE. Not from the model, not from
-//    the panel, not from the database. Every character of every emblem is
-//    written by the templates in this file. What CAN come from
-//    outside is a specification: a list of shapes with numbers and keywords
-//    that are checked against fixed lists before anything is drawn. A number
-//    cannot carry a script, so there is nothing to sanitise and nothing to
-//    get wrong.
 
 import { shapesFromSpec } from '../spec-draw.js?v=2026.9.20';
 

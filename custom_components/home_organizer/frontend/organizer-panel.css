@@ -1,8 +1,11 @@
 /* Home Organizer CSS - Ver 7.7.33 */
+/* [ADDED v2026.9.20 | 2026-09-20] Purpose: .ai-icon-row - the Draw with
+   AI row on the Change Icon window. min-width:0 on the input is what
+   stops a flex child refusing to shrink below its content and pushing
+   the button off a phone screen; below 450px the two stack instead. */
 /* [MODIFIED v2026.9.16 | 2026-09-16] Purpose: Added the --ho-chrome-h token,
    the combined height of .top-bar and .sub-bar, so a fixed overlay can start
    below the panel chrome instead of covering the Home and Edit buttons. */
-/* [ADDED v7.7.33 | 2026-04-01] Purpose: Added CSS rules to support dragging the Speed Dial button */
 
 :host { 
     --primary: #03a9f4; --accent: #4caf50; --danger: #f44336; --warning: #ffeb3b; --icon-btn-bg: #444;
@@ -67,6 +70,29 @@ svg { width: 24px; height: 24px; fill: currentColor; }
 .main-title { font-weight: bold; font-size: 16px; }
 .sub-title { font-size: 11px; color: var(--text-sub); direction: ltr; } 
 .content { flex: 1; padding: 15px; overflow-y: auto; }
+
+/* [ADDED v2026.9.20] An icon the assistant drew for an item.
+   No background of its own and no colour of its own: it inherits the colour
+   of whatever text sits beside it, which is the only way one drawing reads
+   on the light theme and the dark one. The box sizes it; the drawing fills
+   the box. */
+.ho-item-icon { width: 100%; height: 100%; display: block; }
+
+/* The delete control under an enlarged photograph. Sized for a thumb, and
+   marked as destructive without shouting - it sits over the picture it is
+   about to remove. */
+.ho-overlay-btn {
+  min-height: 44px;
+  padding: 10px 22px;
+  border: 1px solid rgba(214, 120, 100, .6);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, .35);
+  color: #f0b6a8;
+  font-family: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+.ho-overlay-btn:hover { background: rgba(154, 59, 42, .45); }
 .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; padding: 5px; margin-bottom: 20px; }
 .folder-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; position: relative; }
 .folder-item.dragging { opacity: 0.4; transform: scale(0.9); transition: all 0.2s ease; border: 1px dashed var(--primary); border-radius: 12px; }
@@ -164,6 +190,26 @@ svg { width: 24px; height: 24px; fill: currentColor; }
 .page-btn { background: #444; color: white; border: none; border-radius: 4px; padding: 5px 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 .page-info { font-size: 12px; color: #aaa; }
+/* [ADDED v2026.9.20] The 'Draw with AI' row on the Change Icon window.
+   Laid out like .url-input-row above it so the two read as one stack.
+   min-width:0 on the input is what stops a flex child refusing to shrink
+   below its content and pushing the button off a phone screen; the button
+   keeps a 44px target and never wraps its label. Logical properties only -
+   this panel signals direction with a class, so [dir] rules never match
+   and physical padding would be wrong in one of the two directions. */
+.ai-icon-row { display: flex; gap: 10px; margin-top: 10px; border-top: 1px solid #444; padding-top: 10px; align-items: stretch; }
+.ai-icon-row input { flex: 1; min-width: 0; padding: 8px; background: #111; color: white; border: 1px solid #444; border-radius: 4px; }
+.ai-icon-row .action-btn { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; white-space: nowrap; flex: 0 0 auto; }
+.ai-icon-glyph { display: inline-flex; width: 20px; height: 20px; }
+.ai-icon-glyph svg { width: 100%; height: 100%; fill: currentColor; }
+/* Phone: the label alone would make the row too tall to leave the grid
+   usable, so the two children stack only below the panel's own 450px
+   breakpoint - the one this file already uses (RULE 36). */
+@media (max-width: 450px) {
+  .ai-icon-row { flex-wrap: wrap; }
+  .ai-icon-row .action-btn { flex: 1 0 100%; }
+}
+
 .url-input-row { display: flex; gap: 10px; margin-top: 10px; border-top: 1px solid #444; padding-top: 10px; }
 #camera-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: center; }
 #camera-video { width: 100%; height: 80%; object-fit: cover; }

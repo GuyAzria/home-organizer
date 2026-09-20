@@ -11,6 +11,15 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [MODIFIED v2026.9.20 | 2026-09-20] Purpose: drawIconWithAi asks the
+//   assistant to draw THIS item, from a sentence the user typed. It is the
+//   repair for an icon that landed wrong: the voice path draws as it adds,
+//   but a receipt and a barcode still choose from the shipped library, so
+//   an item can arrive with the nearest thing rather than the thing. Same
+//   release: openIconPicker shows the row for items only, and every other
+//   way of setting a picture now clears the drawing (see services.py) -
+//   a drawn icon outranks image_path, so without that the first drawing
+//   would have been permanent.
 
 import { ICONS, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.10';
 
@@ -24,6 +33,10 @@ export const IconsMixin = (Base) => class extends Base {
       const item = (this.localData?.items || []).find(i => i.id == target)
                 || (this.localData?.shopping_list || []).find(i => i.id == target)
                 || (this.localData?.pending_list || []).find(i => i.id == target);
+      // [ADDED v2026.9.20] Kept for the AI row's description field. It is a
+      // STARTING POINT for the user to edit, not the subject of the drawing -
+      // the backend reads the name it draws from the database.
+      this.pendingItemName = (item && item.name) ? String(item.name) : '';
       if (item?.category && ICON_LIB_ITEM[item.category]) {
         currentCat = item.category;
         if (item.sub_category && ICON_LIB_ITEM[item.category][item.sub_category]) currentSub = item.sub_category;
@@ -42,6 +55,19 @@ export const IconsMixin = (Base) => class extends Base {
     }
     this.pickerContext = context;
     this.renderIconPickerGrid();
+
+    // [ADDED v2026.9.20] The AI row belongs to items only. A room or a shelf
+    // is a place; there is no object to draw, and the folder icons are a
+    // small closed set the library covers properly.
+    const aiRow = this.shadowRoot.getElementById('ai-icon-row');
+    if (aiRow) {
+      aiRow.style.display = (context === 'item') ? 'flex' : 'none';
+      const desc = this.shadowRoot.getElementById('ai-icon-desc');
+      // Prefilled, and left editable. "Milk" draws a carton; the user typing
+      // "glass bottle with a blue cap" is the whole point of the field.
+      if (desc) desc.value = this.pendingItemName || '';
+    }
+
     this.shadowRoot.getElementById('icon-modal').style.display = 'flex';
   }
 
@@ -230,6 +256,57 @@ export const IconsMixin = (Base) => class extends Base {
       finally { if (target) this.setLoading(target, false); }
     });
     input.value = '';
+  }
+
+  // [ADDED v2026.9.20] Ask the assistant to draw this item, from a sentence.
+  //
+  // WHY THE BUTTON EXISTS - permanent architectural note.
+  //
+  // An item added by voice is drawn as it is added. An item that arrived on a
+  // receipt or a barcode is not: those read many products in one answer and
+  // still pick from the shipped library, which is the right trade for a scan
+  // that must not truncate. This is the repair for the ones that land wrong -
+  // the user says what the thing actually is and gets a drawing of it.
+  //
+  // Nothing about the drawing is decided here. The panel sends an id and a
+  // sentence; the backend reads the item's real name, asks for shapes, and
+  // rebuilds every field before storing it. What comes back is a spec that
+  // item-icon.js draws, never markup (RULE 7, RULE 15).
+  async drawIconWithAi() {
+    const itemId = this.pendingItemId;
+    if (!itemId) return;
+    const descEl = this.shadowRoot.getElementById('ai-icon-desc');
+    const description = (descEl && descEl.value ? descEl.value : '').trim();
+
+    const btn = this.shadowRoot.getElementById('btn-ai-icon');
+    if (btn) btn.disabled = true;
+    this.setLoading(itemId, true);
+
+    try {
+      const res = await this._hass.callWS({
+        type: 'home_organizer/draw_item_icon',
+        item_id: itemId,
+        description: description
+      });
+      if (res && res.icon_spec) {
+        // Only now is the window closed. A failure leaves it open with the
+        // sentence still in the box, because the answer to a drawing that
+        // did not work is usually a better description, not starting again.
+        this.shadowRoot.getElementById('icon-modal').style.display = 'none';
+        this.refreshImageVersion(itemId);
+        this.fetchData();
+      } else {
+        const key = (res && res.error === 'not_drawable')
+          ? 'ai_icon_not_drawable' : 'ai_icon_failed';
+        alert(this.t(key) || 'The assistant could not draw this item.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert(this.t('ai_icon_failed') || 'The assistant could not draw this item.');
+    } finally {
+      this.setLoading(itemId, false);
+      if (btn) btn.disabled = false;
+    }
   }
 
 };

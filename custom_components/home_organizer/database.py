@@ -12,35 +12,22 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
-# // [MODIFIED v2026.9.20 | 2026-09-20] Purpose: A dish photo is now deleted
-# // from DISK, not just unhooked from its recipe. Taking a photo off used
-# // to clear the column and leave the file behind for ever, so on an
-# // install where people photograph what they cook the folder only grew.
-# // async_delete_recipe_photo is the one way in, and it is built to be hard
-# // to misuse: the name must match the pattern this integration writes,
-# // basename() strips any directory part before that check, and the joined
-# // path must still resolve inside the photo folder. It reuses
-# // _delete_files_sync, so every image removal in this integration goes
-# // through one function, in the executor (RULE 13, RULE 31, RULE 33d).
-# // [MODIFIED v2026.9.19 | 2026-09-19] Purpose: Water, salt, oil and
-# // pepper are assumed to be in the house. async_check_ingredients takes
-# // an assume_available list and reports those as in stock without
-# // consulting the inventory, because nobody records the salt and calling
-# // it missing buries the one ingredient that really is. _is_pantry_staple
-# // matches whole words, so "salt" is a staple and "salted butter" is not.
-# // The words arrive from the caller in the user's own language - see the
-# // note on async_check_ingredients for why they are not listed here.
-# // For the same reason the ingredient stopwords are now supplied the same
-# // way: _STOPWORDS keeps only English, and _significant_words takes the
-# // caller's set on top. The list had grown a Hebrew tail, which put natural
-# // language in the code (RULE 17) and left the other five languages with no
-# // stopwords at all - an Italian shelf holding "pomodoro" never matched a
-# // recipe asking for "pomodoro fresco".
-# // Same release: categories move from the shipped organizer-data.js into
-# // db_items_categories. A JavaScript file that ships with the integration
-# // is replaced on every HACS update, so anything the user or the AI added
-# // to it would be lost. The table is seeded once with the exact former
-# // contents and order, and is the only source of truth afterwards.
+# // [MODIFIED v2026.9.20 | 2026-09-20] Purpose: Items carry
+# // suggested_category - what a scan WOULD have called a new top-level
+# // category for an item nothing on the shelf fits. It is a note, not a
+# // category: the item is filed under the nearest existing one either way,
+# // so a scan never stops to ask and never creates a category on its own
+# // (RULE 22). Only the pending_list row carries it to the panel - a
+# // proposal is a question about an item nobody has confirmed yet, and the
+# // review tab is the one screen that can answer it. Purely additive;
+# // every existing row gets NULL and shows nothing.
+# // [MODIFIED v2026.9.20 | 2026-09-20] Purpose: async_get_item_naming
+# // reads the name, category and sub-category of ONE item. The Change
+# // Icon window can ask for an icon to be redrawn, and what it sends is
+# // an id and a sentence - the NAME of the thing being drawn is read
+# // here, from the database, and never taken from the message. Three
+# // columns and no more: building a drawing prompt is no reason to see
+# // a price, a barcode or a location.
 
 import logging
 import aiosqlite
@@ -224,7 +211,22 @@ async def async_init_db(hass):
                 # Purely additive: every existing row gets NULL and keeps the
                 # icon it has. The panel prefers a photograph, then this, then
                 # the library key (RULE 5, RULE 25).
-                'icon_spec': "TEXT"
+                'icon_spec': "TEXT",
+                #
+                # [ADDED v2026.9.20] What the scanner WOULD call a new
+                # top-level category for this item, when nothing on the
+                # shelf fits it - a guitar, a fishing rod, a socket set.
+                #
+                # It is a SUGGESTION and nothing else. The item is filed
+                # under the nearest existing category either way, so a
+                # scan never stops to ask and never creates a category on
+                # its own (RULE 22). The review tab shows the suggestion
+                # with a button; the category is created when the user
+                # presses it, which is the explicit action RULE 22 means.
+                #
+                # Purely additive; every existing row gets NULL and
+                # shows nothing (RULE 5, RULE 25).
+                'suggested_category': "TEXT"
             }
             
             for i in range(1, 11): 
@@ -697,7 +699,8 @@ async def async_repair_path_against_db(hass, path_list):
 
 async def async_add_item_db_safe(hass, name, qty, path_list, category="", sub_category="", item_type="item", icon_key=None, barcode="0",
                                  purchase_price=None, quantity_purchased=None, receipt_id=None,
-                                 expiry_date=None, warranty_end_date=None):
+                                 expiry_date=None, warranty_end_date=None,
+                                 suggested_category=None):
     """Insert one item row.
 
     [MODIFIED v2026.9.4 | STAGE 2] Three purchase fields were added at
@@ -738,6 +741,11 @@ async def async_add_item_db_safe(hass, name, qty, path_list, category="", sub_ca
             # instead of a date the rest of the code cannot compare.
             ("expiry_date", _coerce_date(expiry_date)),
             ("warranty_end_date", _coerce_date(warranty_end_date)),
+            # [ADDED v2026.9.20] A name the model proposed, never a
+            # category that exists. _coerce_text caps the length and
+            # strips it; nothing acts on it until the user presses the
+            # button in the review tab (RULE 11, RULE 22).
+            ("suggested_category", _coerce_text(suggested_category, 60) or None),
         ):
             if value is not None:
                 cols.append(col_name)
@@ -2297,6 +2305,12 @@ async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping)
                             "category": r_dict.get("category", ""),
                             "sub_category": r_dict.get("sub_category", ""),
                             "barcode": r_dict.get("barcode", "0"),
+                            # [ADDED v2026.9.20] What the scanner would have
+                            # called a new category for this item. Read only
+                            # here: a suggestion is a question about an item
+                            # that has not been confirmed yet, and the review
+                            # tab is the one screen that can answer it.
+                            "suggested_category": r_dict.get("suggested_category") or "",
                             # [ADDED v2026.9.6 | STAGE 2] Purchase fields, so the
                             # review tab can show and correct the price before it
                             # is committed to the append-only history table.
@@ -2569,6 +2583,39 @@ async def async_delete_recipe_photo(hass, stored_name):
     removed = await hass.async_add_executor_job(_delete_files_sync, [path])
     _LOGGER.info("Deleted dish photo %s (%s file removed).", name, removed)
     return removed > 0
+
+
+async def async_get_item_naming(hass, item_id):
+    """Name, category and sub-category for ONE item, or None.
+
+    [ADDED v2026.9.20] The Change Icon window can ask for an icon to be
+    redrawn. What it sends is an item id and a sentence the user typed; the
+    NAME of the thing being drawn is read here, from the database, and is
+    never taken from the panel. The description is a hint, not the subject.
+
+    Three columns and no more. This is called to build a drawing prompt, so
+    it has no business seeing a price, a barcode or a location.
+    """
+    if not item_id:
+        return None
+    try:
+        db_path = get_db_path(hass)
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            async with db.execute(
+                "SELECT name, category, sub_category FROM items WHERE id = ?",
+                (item_id,),
+            ) as cursor:
+                row = await cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "name": row[0] or "",
+            "category": row[1] or "",
+            "sub_category": row[2] or "",
+        }
+    except Exception as err:
+        _LOGGER.error("Reading an item for its icon failed: %s", err)
+        return None
 
 
 async def async_set_item_icon(hass, item_id, icon_spec_json):

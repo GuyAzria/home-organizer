@@ -12,15 +12,32 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
-# // [MODIFIED v9.1.12 | 2026-08-02] Purpose: Refactored database interactions to use aiosqlite for full asynchronous I/O. Replaced get_db_connection with get_db_path and removed async_add_executor_job wrappers to prevent Event Loop blocking.
-# // [ADDED v9.1.11 | 2026-04-14] Purpose: Fixed sub-location logic where AI created new sub-locations instead of using existing ones. Rewrote Rule 3 to explicitly enforce 'USER LOCATION MATCHING', requiring the AI to match user input to an existing location_id first, and forbidding the use of the sub_location parameter unless explicit permission for a NEW location was granted.
+# // [MODIFIED v2026.9.20 | 2026-09-20] Purpose: A receipt scan never stops
+# // to ask about a category. Rule 3a files an item nothing fits under the
+# // NEAREST existing category and returns the name it WOULD have opened in
+# // "suggest_category"; rule 3c forbids answering "clarify" for anything to
+# // do with filing, which used to replace a fifty-line receipt with one
+# // question about one guitar. Nothing is created by the scan - the review
+# // tab shows the proposal with a button, and pressing it is the explicit
+# // user action RULE 22 requires.
+# // [MODIFIED v2026.9.20 | 2026-09-20] Purpose: The receipt prompt gets
+# // the shipped icon list back. It still CHOOSES an icon rather than
+# // drawing one - a receipt is read in one call carrying every line on
+# // the page, so a drawing per line multiplies the size of the single
+# // answer the whole scan depends on - but the list it chooses from had
+# // been cut down to categories for the drawing path above, leaving it
+# // picking from nothing. Same release: the drawing rules moved to
+# // prompt_core.ICON_DRAW_RULES, so the Change Icon button and this
+# // prompt cannot drift apart (RULE 33d).
 
 import json
 import logging
 import aiosqlite
 import homeassistant.util.dt as dt_util
 
-from ..database import get_db_path, async_add_item_db_safe
+from ..database import (
+    get_db_path, async_add_item_db_safe, async_set_item_icon,
+)
 from ..ai_core.router import safe_smart_router
 from ..ai_core.json_utils import safe_parse_json, apply_voice_rules
 from ..ai_core.localized_strings import get_strings_for_language
@@ -28,7 +45,9 @@ from ..ai_core.localized_strings import get_strings_for_language
 # picking the nearest thing from a fixed library. Same validator the
 # recipe emblems use - one allow-list, not two (RULE 33d).
 from ..ai_core.draw_spec import validate_icon_spec
-from ..prompt_core import ICON_PROMPT_CONTEXT
+from ..prompt_core import (
+    ICON_PROMPT_CONTEXT, ICON_LIB_PROMPT_CONTEXT, ICON_DRAW_RULES,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -47,14 +66,40 @@ EXISTING PHYSICAL LOCATIONS IN THE HOUSE:
 {existing_locs_str}
 
 ICON LIBRARY AND CATEGORIES:
-(Choose the most logical category, sub_category, and icon_key from this list)
+(Choose the most logical category and sub_category from this list. The icon
+is not chosen - you draw it. See rule 4b.)
 {ICON_PROMPT_CONTEXT}
 
 CRITICAL RULES:
 1. SMART SUB-LOCATION CLARIFICATION: If the user asks to add an item to a broad/general location (e.g., "Fridge") AND you see a perfectly matching sub-location under it in the EXISTING LOCATIONS list, guess the most logical sub-location (e.g., "Vegetable Drawer" for carrots) and return JSON: {{"intent": "clarify", "question": "Should I place it in the <Suggested Sub-Location>? (Translate this naturally to {target_lang})"}}.
 2. MISSING SUB-LOCATION PROPOSAL: If the user wants to add an item to an existing location (e.g., "TV Cabinet", "Fridge") but does NOT specify a sub-location, AND you cannot find a suitable existing sub-location for it, YOU MUST NOT use the "add_item_to_ho" tool yet! Instead, you MUST explicitly ask the user if they want to create a new sub-location. Return JSON: {{"intent": "clarify", "question": "I don't see a specific place for this in the <Location>. Would you like me to open a new sub-location, like '<Suggested Name>'? (Translate naturally to {target_lang})"}}.
 3. USER LOCATION MATCHING & CONTINUATION: If the user answers a clarify question by naming a location (e.g., "in the fridge vegetable drawer"), you MUST thoroughly search the EXISTING LOCATIONS list for the best match. If the full path exists (e.g., "Fridge > Vegetable Drawer"), you MUST use its EXACT `location_id` and leave `sub_location` empty. NEVER use `sub_location` to pass an existing drawer/shelf! ONLY fill the `sub_location` argument if the user explicitly confirmed they want to create a completely NEW, non-existent sub-location. If they name a new location but haven't been asked yet, fall back to Rule 2 and ask for permission first.
-4. SILENT CATEGORIZATION & ICONS: When using the "add_item_to_ho" tool, you MUST independently choose the best matching `category`, `sub_category`, and `icon_key` from the ICON LIBRARY. If no perfect match exists, pick the closest broader category (e.g., "Electronics" for a remote). Do not leave them empty. YOU MUST NEVER ASK THE USER to provide a category, sub_category, or icon. Make the decision yourself silently behind the scenes.
+4. SILENT CATEGORIZATION: When using the "add_item_to_ho" tool, you MUST
+   independently choose the best matching `category` and `sub_category` from
+   the list above. Do not leave them empty and never ask the user which
+   category to use for something the list already covers.
+
+   The ONE exception is an item the list genuinely has no shelf for - a
+   guitar, a drill, a fishing rod. Do not force it under "Electronics" and do
+   not invent a category silently. Return intent "clarify" and ask whether to
+   open a new one, naming what you would call it. Opening a top-level
+   category is the user's decision, not yours.
+
+4b. YOU DRAW THE ICON. There is no icon library to choose from any more.
+
+   Every "add_item_to_ho" call carries `icon_spec`: a drawing of the item,
+   as SHAPES AND NUMBERS. You never send SVG, a tag, an attribute or any
+   markup - you send a list of shapes and the application draws them.
+
+   {{"icon_spec": [
+     {{"t": "ellipse", "cx": 60, "cy": 84, "rx": 26, "ry": 24, "w": 3}},
+     {{"t": "rect", "x": 55, "y": 14, "width": 10, "height": 26, "rx": 2, "w": 2.5}},
+     {{"t": "circle", "cx": 60, "cy": 70, "r": 8, "w": 2.5}}
+   ]}}
+
+{ICON_DRAW_RULES}   - Leave icon_spec out entirely if you cannot picture the item. An item
+     with no drawing gets a plain default icon, which is better than a
+     drawing that could be anything.
 5. LANGUAGE RULE: Your entire spoken response (the "message" or "question" field) MUST be fully translated into {target_lang}.
 6. SYSTEM TOOL RESPONSES: If the CHAT HISTORY ends with a 'System Tool Output' (meaning a tool just succeeded), you MUST use intent "reply" to politely confirm to the user that the action was completed.
 7. JSON FORMATTING SAFETY: Do NOT use double quotes (") inside your JSON string values (e.g., inside the question or message text). Use single quotes (') for any inner quotes to ensure valid JSON parsing.
@@ -67,7 +112,7 @@ AVAILABLE TOOLS (Use "intent": "tool", then specify "tool_name"):
 2. "add_item_to_ho" - Adds an item to the home inventory.
    - You MUST supply the EXACT `location_id` from the existing locations list if it exists.
    - If the user wants to place the item in a NEW sub-location (e.g., a new shelf or drawer that doesn't exist yet), provide it in the `sub_location` argument.
-   - kwargs: {{"item_name": "Milk", "qty": 2, "location_id": "A1.2", "sub_location": "", "category": "Food", "sub_category": "Dairy", "icon_key": "ICON_LIB_ITEM|Food|Dairy|Milk"}}
+   - kwargs: {{"item_name": "Milk", "qty": 2, "location_id": "A1.2", "sub_location": "", "category": "Food", "sub_category": "Dairy", "icon_spec": [{{"t": "path", "d": "M50 26 h20 v10 l8 14 v46 a6 6 0 0 1 -6 6 h-24 a6 6 0 0 1 -6 -6 v-46 l8 -14 z", "w": 3}}, {{"t": "line", "x1": 46, "y1": 66, "x2": 74, "y2": 66, "w": 2.5}}]}}
 
 3. "create_sub_location" - Creates a NEW, empty sub-location (folder, drawer, shelf) inside an existing location, without adding an item to it.
    - kwargs: {{"location_id": "A1", "new_sub_location": "Vegetable Drawer"}}
@@ -97,10 +142,10 @@ Example 2 (Missing Sub-Location Clarification - MUST DO THIS IF NO LOGICAL SUB-L
 {{"intent": "clarify", "question": "I don't see a specific place for the remote in the TV Cabinet. Should I open a new sub-location called 'Top Drawer'?"}}
 
 Example 3 (Continuing after Clarification - User explicitly confirmed a completely NEW location!):
-{{"intent": "tool", "tool_name": "add_item_to_ho", "kwargs": {{"item_name": "Remote", "qty": 1, "location_id": "A1", "sub_location": "Top Drawer", "category": "Electronics", "sub_category": "Computing", "icon_key": "ICON_LIB_ITEM|Electronics|Computing|Laptop"}}}}
+{{"intent": "tool", "tool_name": "add_item_to_ho", "kwargs": {{"item_name": "Remote", "qty": 1, "location_id": "A1", "sub_location": "Top Drawer", "category": "Electronics", "sub_category": "Computing", "icon_spec": [{{"t": "rect", "x": 40, "y": 30, "width": 40, "height": 60, "rx": 6, "w": 3}}, {{"t": "circle", "cx": 60, "cy": 44, "r": 4, "w": 2.5}}]}}}}
 
 Example 4 (Continuing after Clarification - User named an EXISTING location, so use its exact location_id and leave sub_location empty!):
-{{"intent": "tool", "tool_name": "add_item_to_ho", "kwargs": {{"item_name": "Cucumbers", "qty": 4, "location_id": "A1.2.3", "sub_location": "", "category": "Food", "sub_category": "Vegetables", "icon_key": "ICON_LIB_ITEM|Food|Vegetables|Cucumbers"}}}}
+{{"intent": "tool", "tool_name": "add_item_to_ho", "kwargs": {{"item_name": "Cucumbers", "qty": 4, "location_id": "A1.2.3", "sub_location": "", "category": "Food", "sub_category": "Vegetables", "icon_spec": [{{"t": "ellipse", "cx": 60, "cy": 60, "rx": 16, "ry": 40, "w": 3}}, {{"t": "line", "x1": 52, "y1": 34, "x2": 52, "y2": 86, "w": 1.5}}]}}}}
 
 Example 5 (Reply after a tool succeeds):
 {{"intent": "reply", "message": "I have successfully added the items. Anything else?"}}
@@ -199,8 +244,11 @@ def get_invoice_prompt(target_lang, existing_locs_str, existing_cats_str, user_m
         # "Food", "Groceries" and "Foodstuffs" within a week, and nothing merges
         # them afterwards.
         "3a. CATEGORIES ARE A CLOSED LIST. Use a category from EXISTING CATEGORIES. "
-        "Never invent a new top-level category - if nothing fits, choose the "
-        "nearest one and leave sub_category empty.\n"
+        "Never invent a new top-level category. If nothing fits, file the item "
+        "under the NEAREST existing category, leave sub_category empty, and put "
+        "the name you WOULD have opened in \"suggest_category\" on that item - "
+        "a guitar becomes Musical Instruments, a fishing rod becomes Fishing. "
+        "That is a note for the user to act on later, not a category you made.\n"
 
         "3b. SUB-CATEGORIES: prefer an existing sub-category every time. Only "
         "propose a new one when NOTHING existing is reasonably close. Ice cream "
@@ -209,7 +257,23 @@ def get_invoice_prompt(target_lang, existing_locs_str, existing_cats_str, user_m
         "or dessert sub-category at all IS a fair proposal. When you do propose "
         "one, set \"new_sub_category\": true on that item and write the name in "
         "the user's language.\n"
-        f"{ICON_PROMPT_CONTEXT}\n"
+
+        # [ADDED v2026.9.20] NEVER stop a scan to ask about a category.
+        #
+        # The receipt used to be allowed to answer with intent "clarify" when
+        # nothing on the shelf fitted an item. That reply short-circuits the
+        # whole scan: the panel shows the question and NOT the fifty items it
+        # just read, so one unusual product cost the user the entire receipt.
+        #
+        # The item is filed under the nearest category instead, and what the
+        # model would have called a new one travels with it as a note. Nothing
+        # is created here - the user presses a button in the review tab, which
+        # is the explicit action RULE 22 requires.
+        "3c. NEVER ASK ABOUT A CATEGORY. Do not return \"clarify\" because a "
+        "category or a sub-category is missing or unclear, and do not ask the "
+        "user anything about filing. ALWAYS return the items. \"clarify\" is "
+        "only for a document that is not a receipt at all or cannot be read.\n"
+        f"{ICON_LIB_PROMPT_CONTEXT}\n"
 
         "4. NEVER GUESS. If a value is unreadable, missing or you are unsure, return null "
         "for that field. Do not invent a receipt number, a date, a price or a total. "
@@ -295,6 +359,7 @@ def get_invoice_prompt(target_lang, existing_locs_str, existing_cats_str, user_m
         '       "items": [{"name": "...", "qty": <number>, "price": <number|null>, '
         '"barcode": "<string|null>", "category": "...", "sub_category": "...", '
         '"location_id": "...", "icon_key": "...", "new_sub_category": <true|false>, '
+        '"suggest_category": "<name of a category that does NOT exist yet|null>", '
         '"expiry_date": "<YYYY-MM-DD|null>", "warranty_end_date": "<YYYY-MM-DD|null>"}]}\n'
         "   - If you can read the receipt header but no product lines, still return "
         '"add_invoice" with the "receipt" object filled in and an empty "items" array. '
@@ -318,10 +383,7 @@ def get_invoice_prompt(target_lang, existing_locs_str, existing_cats_str, user_m
 # ==========================================
 # TOOLS (inventory-only)
 # ==========================================
-# [MODIFIED v2026.9.20] messages, so a tool can leave a marker for the
-# panel - the same way the cooking agent hands over an emblem design.
-async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map,
-                       messages=None):
+async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map):
     _LOGGER.info(f"Inventory tool: {tool_name} args={kwargs}")
 
     if tool_name == "check_sub_locations":
@@ -409,22 +471,27 @@ async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map,
             hass, nm, qt, full_path, cat, scat, "item", icon, "0"
         )
 
-        # [ADDED v2026.9.20] The icon the assistant DREW for this item.
+        # [ADDED v2026.9.20] The icon the assistant DESIGNED for this item.
         #
-        # A drawing spec - shapes and numbers, never markup - checked here
-        # against a fixed allow-list and handed to the panel, which does the
-        # drawing. The item is already saved by this point: a spec that is
-        # refused, or absent, costs the user nothing but the default icon
-        # (RULE 31).
-        if new_id and messages is not None:
+        # Stored here, not handed to the panel. Items are added by voice as
+        # often as from a screen, and on the voice path there is no panel
+        # listening - a design that needed one to draw before anything could
+        # be saved would simply never have arrived for most items.
+        #
+        # What is written is the SPEC - shapes and numbers, rebuilt field by
+        # field by validate_icon_spec - and never markup. The panel draws it
+        # when it draws the row, and checks every value again on the way
+        # (RULE 7, RULE 11).
+        #
+        # Written AFTER the item, and separately: the item is what the user
+        # asked for, and a spec that is refused or absent costs them nothing
+        # but the default icon (RULE 31).
+        if new_id:
             spec = validate_icon_spec(kwargs.get("icon_spec"))
             if spec:
-                messages.append({
-                    "role": "system",
-                    "content": "HO_ITEM_ICON:" + json.dumps(
-                        {"item_id": new_id, "shapes": spec},
-                        ensure_ascii=False),
-                })
+                await async_set_item_icon(
+                    hass, new_id,
+                    json.dumps({"shapes": spec}, ensure_ascii=False))
                 _LOGGER.info(
                     "[HO-INVENTORY] Icon designed for item %s (%d shapes).",
                     new_id, len(spec),
@@ -621,8 +688,7 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
         if intent == "tool":
             tool_name = parsed.get("tool_name")
             kwargs = parsed.get("kwargs", {})
-            tool_result = await execute_tool(
-                hass, tool_name, kwargs, loc_hierarchy_map, messages)
+            tool_result = await execute_tool(hass, tool_name, kwargs, loc_hierarchy_map)
             messages.append({"role": "system", "content": f"System Tool Output: {tool_result}"})
 
             history_text_new = ""

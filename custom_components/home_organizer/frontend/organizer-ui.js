@@ -11,21 +11,20 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
-// [MODIFIED v2026.9.20 | 2026-09-20] Purpose: updateUI clears the WHOLE
-//   inline style on #content instead of three named properties. Views
-//   style that element on their way in and this is the one place that
-//   undoes it; the cookbook also sets overflow:hidden, which was not on
-//   the list - so one visit to it left the rooms, locations and
-//   sub-locations unable to scroll, because .content gets overflow-y:auto
-//   from the stylesheet and an inline overflow beats it. Removing the
-//   attribute cannot go stale the next time a view sets a fourth property.
-//   Same release: render() records the screen the user is on, so the panel
-//   can put them back where they were - see organizer-state.js.
-// [MODIFIED v2026.9.17 | 2026-09-17] Purpose: The top-bar pencil no longer
-// clears isRecipesMode. Pressing it inside the cookbook threw the user out
-// to the home screen with the inventory in edit mode; it now flips
-// isEditMode and leaves the screen where it is, which is what the
-// cookbook uses to show its chapter controls.
+// [MODIFIED v2026.9.20 | 2026-09-20] Purpose: The Change Icon window
+//   carries a Draw with AI row for items: a sentence describing the
+//   thing, and a button that asks the assistant to draw it. It is the
+//   repair for an icon that landed wrong on a receipt or a barcode
+//   scan, where the library is still what gets picked - and it makes
+//   the drawing the user's own choice rather than something that
+//   happens to their data unasked.
+// [MODIFIED v2026.9.20 | 2026-09-20] Purpose: getItemIcon is the one
+//   place that decides what an item shows - a photograph, then an icon
+//   the assistant drew for it, then the shipped library, then the
+//   default. Seven render sites each had their own copy of that order.
+//   The enlarge overlay now shows a drawn icon too, and carries a delete
+//   control for a photograph, from the place the user is already looking
+//   at it.
 
 import { ICONS } from './organizer-icon.js?v=10.3.0';
 import { escapeHtml } from './organizer-utils.js?v=2026.8.26';
@@ -394,6 +393,17 @@ export const UIMixin = (Base) => class extends Base {
           <div id="picker-main-categories" style="display:none;overflow-x:auto;overflow-y:hidden;gap:10px;padding:5px 5px 15px 5px;margin-bottom:10px;align-items:center;"></div>
           <div id="picker-sub-categories"  style="display:none;overflow-x:auto;overflow-y:hidden;gap:10px;padding:10px 10px 15px 10px;background:#222;border-radius:8px;margin-bottom:10px;align-items:center;"></div>
           <div class="icon-grid" id="icon-lib-grid"></div>
+          <!-- [ADDED v2026.9.20] Ask the assistant to DRAW this item.
+               Shown for items only: a room or a location is a place, not a
+               thing, and there is nothing to picture. The sentence is a
+               hint - the name comes from the database, not from here. -->
+          <div class="ai-icon-row" id="ai-icon-row" style="display:none;">
+            <input type="text" id="ai-icon-desc" maxlength="200">
+            <button class="action-btn" id="btn-ai-icon">
+              <span class="ai-icon-glyph">${ICONS.wand}</span>
+              <span id="lbl-ai-icon">Draw with AI</span>
+            </button>
+          </div>
           <div class="url-input-row">
             <input type="text" id="icon-url-input" style="flex:1;padding:8px;background:#111;color:white;border:1px solid #444;border-radius:4px">
             <button class="action-btn" id="btn-load-url">${ICONS.check}</button>
@@ -424,6 +434,13 @@ export const UIMixin = (Base) => class extends Base {
           <img id="overlay-img">
           <div id="overlay-icon-big">${ICONS.item}</div>
           <div id="overlay-details" style="color:white;text-align:center;background:#2a2a2a;padding:20px;border-radius:12px;width:100%;max-width:300px;box-shadow:0 4px 15px rgba(0,0,0,.7);display:none;border:1px solid #444"></div>
+          <!-- [ADDED v2026.9.20] Take the photograph off, from the place the
+               user is already looking at it. Shown only when there IS one:
+               there is nothing to delete about a drawn icon, which is not a
+               file and comes back by itself. -->
+          <div id="overlay-photo-tools" style="display:none;margin-top:14px">
+            <button id="overlay-photo-delete" class="ho-overlay-btn"></button>
+          </div>
         </div>
       </div>
 
@@ -477,6 +494,7 @@ export const UIMixin = (Base) => class extends Base {
     set('lbl-dark',        'dark', 'Dark');
     set('lbl-change-icon', 'change_icon', 'Change Icon');
     set('lbl-upload-file', 'upload_file', 'Upload File');
+    set('lbl-ai-icon',     'ai_draw_icon', 'Draw with AI');
     set('lbl-close',       'back', 'Back');
     set('lbl-loading',     'loading', 'Loading...');
     set('lbl-fab-stylist', 'stylist', 'Stylist');
@@ -488,6 +506,7 @@ export const UIMixin = (Base) => class extends Base {
     
     setPh('search-input',  'search_placeholder', 'Search...');
     setPh('icon-url-input','paste_url', 'Paste URL...');
+    setPh('ai-icon-desc',  'ai_icon_hint', 'Describe the item...');
 
     // Camera App Setup Translations
     set('lbl-ext-menu',         'ext_app_title', '📱 HO_Mind_AI');
@@ -644,6 +663,7 @@ export const UIMixin = (Base) => class extends Base {
     
     click('btn-paste',      () => this.pasteItem());
     click('btn-load-url',   () => { const url = root.getElementById('icon-url-input').value; if (url) this.handleUrlIcon(url); });
+    click('btn-ai-icon',    () => this.drawIconWithAi());
     click('btn-bulk-delete',() => this.bulkDeleteItems());
     click('btn-ai-search',  () => this.openCamera('search'));
     click('btn-ai-upload',  () => this.openFileUpload('search'));
@@ -809,14 +829,49 @@ export const UIMixin = (Base) => class extends Base {
       const ver = this.imageVersions[item.id] || 'ok';
       img.src = `${cleanPath}?v=${ver}`;
       img.style.display = 'block'; iconBig.style.display = 'none';
+      this.showOverlayPhotoTools(item);
     } else {
       img.style.display = 'none';
+      this.showOverlayPhotoTools(null);
       iconBig.innerHTML = this.getItemIcon(item);
       const svgEl = iconBig.querySelector('svg');
       if (svgEl) { svgEl.style.width = '140px'; svgEl.style.height = '140px'; }
       iconBig.style.display = 'block';
     }
     det.innerHTML = `<div style="font-size:20px;font-weight:bold;margin-bottom:8px">${escapeHtml(item.name)}</div><div style="font-size:16px;color:#aaa;margin-bottom:15px">${escapeHtml(item.date||this.t('no_date'))}</div><div style="font-size:18px;font-weight:bold;color:var(--accent);background:#333;padding:8px 20px;border-radius:20px;display:inline-block">${escapeHtml(this.t('quantity'))}: ${escapeHtml(item.qty)}</div>`;
+  }
+
+  // [ADDED v2026.9.20] The delete control under an enlarged photograph.
+  //
+  // Wired here rather than in the template, because a handler cannot be
+  // attached from an innerHTML string. Passing null hides it, which is what
+  // an item showing a drawn icon or the default gets - neither is a file and
+  // neither has anything to delete.
+  showOverlayPhotoTools(item) {
+    const tools = this.shadowRoot.getElementById('overlay-photo-tools');
+    const btn = this.shadowRoot.getElementById('overlay-photo-delete');
+    if (!tools || !btn) return;
+    if (!item) { tools.style.display = 'none'; btn.onclick = null; return; }
+    tools.style.display = 'block';
+    btn.textContent = this._t('delete_photo', 'Delete photo');
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      if (!window.confirm(this._t('delete_photo_confirm', 'Delete this photo?'))) return;
+      this.shadowRoot.getElementById('img-overlay').style.display = 'none';
+      this.deleteItemPhoto(item.id);
+    };
+  }
+
+  // Clear an item's photograph. What it falls back to is whatever it had
+  // underneath - a drawn icon, a library icon, or the default.
+  async deleteItemPhoto(itemId) {
+    try {
+      await this.callHA('update_image', { item_id: itemId, image_data: '' });
+      this.refreshImageVersion(itemId);
+      this.fetchData();
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   showItemDetailsProxy(itemId) {

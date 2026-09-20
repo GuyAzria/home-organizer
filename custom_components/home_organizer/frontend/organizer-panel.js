@@ -11,6 +11,15 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [MODIFIED v2026.9.20 | 2026-09-20] Purpose: Cache version 10.11.49.
+//   Not cosmetic. Features land in pairs of files that must arrive
+//   together: organizer-icons.js gained drawIconWithAi and organizer-ui.js
+//   the row that calls it; organizer-api.js gained
+//   acceptCategorySuggestion and view-chat.js the banner that calls it;
+//   view-inventory.js gained the class names the phone layout in
+//   inventory.css is written against. A browser holding one old copy of
+//   any pair would render a button with no handler, or a card with no
+//   layout.
 // [MODIFIED v2026.9.20 | 2026-09-20] Purpose: restoreNavState is called
 //   after initUI - it needs the search box to exist - and before the
 //   first fetchData, so that fetch loads the screen the user left
@@ -18,29 +27,24 @@
 //   lives in localStorage. Cache version bumped with it, because a
 //   browser holding the old organizer-state.js would have no
 //   restoreNavState to call.
-// [MODIFIED v10.11.44 | 2026-09-19] Purpose: Cache version bumped to
-//   10.11.44. Not cosmetic this time: view-recipes.js no longer imports
-//   recipeEmblemSvg or motifKeyForCategory, and a browser holding the old
-//   copy would import names the module no longer exports - which fails the
-//   whole module, not just the emblem.
 
-import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=10.11.44';
-import { UtilsMixin }  from './organizer-utils.js?v=10.11.44';
-import { StateMixin }  from './organizer-state.js?v=10.11.44';
-import { APIMixin }    from './organizer-api.js?v=10.11.44';
-import { CameraMixin } from './organizer-camera.js?v=10.11.44';
-import { NavMixin }    from './organizer-nav.js?v=10.11.44';
-import { IconsMixin }  from './organizer-icons.js?v=10.11.44';
-import { UIMixin }     from './organizer-ui.js?v=10.11.44';
+import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=10.11.49';
+import { UtilsMixin }  from './organizer-utils.js?v=10.11.49';
+import { StateMixin }  from './organizer-state.js?v=10.11.49';
+import { APIMixin }    from './organizer-api.js?v=10.11.49';
+import { CameraMixin } from './organizer-camera.js?v=10.11.49';
+import { NavMixin }    from './organizer-nav.js?v=10.11.49';
+import { IconsMixin }  from './organizer-icons.js?v=10.11.49';
+import { UIMixin }     from './organizer-ui.js?v=10.11.49';
 
-import { StylistMixin }   from './pages/view-stylist.js?v=10.11.44';
-import { BarcodeMixin }   from './pages/view-barcode.js?v=10.11.44';
-import { InventoryMixin } from './pages/view-inventory.js?v=10.11.44';
-import { ChatMixin }      from './pages/view-chat.js?v=10.11.44';
-// [ADDED v10.11.44] The cookbook screen.
-import { RecipesMixin }   from './pages/view-recipes.js?v=10.11.44';
-import { ShoppingMixin }  from './pages/view-shopping.js?v=10.11.44';
-import { SearchMixin }    from './pages/view-search.js?v=10.11.44';
+import { StylistMixin }   from './pages/view-stylist.js?v=10.11.49';
+import { BarcodeMixin }   from './pages/view-barcode.js?v=10.11.49';
+import { InventoryMixin } from './pages/view-inventory.js?v=10.11.49';
+import { ChatMixin }      from './pages/view-chat.js?v=10.11.49';
+// [ADDED v10.11.45] The cookbook screen.
+import { RecipesMixin }   from './pages/view-recipes.js?v=10.11.49';
+import { ShoppingMixin }  from './pages/view-shopping.js?v=10.11.49';
+import { SearchMixin }    from './pages/view-search.js?v=10.11.49';
 
 class HomeOrganizerPanel extends APIMixin(CameraMixin(SearchMixin(ShoppingMixin(RecipesMixin(ChatMixin(InventoryMixin(BarcodeMixin(StylistMixin(UIMixin(NavMixin(IconsMixin(UtilsMixin(StateMixin(HTMLElement)))))))))))))) {
   set hass(hass) {

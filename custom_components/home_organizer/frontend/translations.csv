@@ -44,6 +44,15 @@ take_photo,Take Photo,צלם תמונה,Scatta foto,Tomar foto,Prendre une photo
 change_img,Change Image,שנה תמונה,Cambia immagine,Cambiar imagen,Changer l'image,تغيير الصورة,Изменить изображение
 duplicate,Duplicate,שכפל,Duplica,Duplicar,Dupliquer,تكرار,Дубликат
 delete,Delete,מחק,Elimina,Eliminar,Supprimer,حذف,Удалить
+delete_photo,Delete photo,מחק תמונה,Elimina foto,Eliminar foto,Supprimer la photo,حذف الصورة,Удалить фото
+delete_photo_confirm,Delete this photo?,למחוק את התמונה?,Eliminare questa foto?,Eliminar esta foto?,Supprimer cette photo ?,حذف هذه الصورة?,Удалить это фото?
+cat_suggest_msg,Nothing here fits this item. Open a new category?,אין קטגוריה מתאימה לפריט הזה. לפתוח קטגוריה חדשה?,Nessuna categoria adatta a questo articolo. Aprirne una nuova?,Ninguna categoría encaja con este artículo. ¿Abrir una nueva?,Aucune catégorie ne convient à cet article. En ouvrir une nouvelle ?,لا توجد فئة مناسبة لهذا العنصر. هل نفتح فئة جديدة؟,Нет подходящей категории для этого предмета. Открыть новую?
+cat_suggest_yes,Create,צור,Crea,Crear,Créer,إنشاء,Создать
+cat_suggest_no,Not now,לא עכשיו,Non ora,Ahora no,Pas maintenant,ليس الآن,Не сейчас
+ai_draw_icon,Draw with AI,צייר עם AI,Disegna con l'IA,Dibujar con IA,Dessiner avec l'IA,ارسم بالذكاء الاصطناعي,Нарисовать с ИИ
+ai_icon_hint,Describe the item...,תארו את הפריט...,Descrivi l'oggetto...,Describe el artículo...,Décrivez l'article...,صف العنصر...,Опишите предмет...
+ai_icon_failed,The assistant could not draw this item.,העוזר לא הצליח לצייר את הפריט הזה.,L'assistente non è riuscito a disegnare questo oggetto.,El asistente no pudo dibujar este artículo.,L'assistant n'a pas pu dessiner cet article.,لم يتمكن المساعد من رسم هذا العنصر.,Ассистент не смог нарисовать этот предмет.
+ai_icon_not_drawable,Try describing the item differently.,נסו לתאר את הפריט אחרת.,Prova a descrivere l'oggetto in modo diverso.,Intenta describir el artículo de otra forma.,Essayez de décrire l'article autrement.,حاول وصف العنصر بطريقة أخرى.,Попробуйте описать предмет иначе.
 ai_chat_title,Receipts AI,חשבוניות AI,Ricevute AI,Recibos IA,Reçus IA,الفواتير AI,Чеки AI
 chat_placeholder,Type message or scan invoice...,הקלד הודעה או סרוק חשבונית...,Scrivi un messaggio o scansiona fattura...,Escribe un mensaje o escanea factura...,Tapez un message ou scannez la facture...,اكتب رسالة أو امسح فاتورة...,Введите сообщение или отсканируйте счет-фактуру...
 file_attached,File attached (Invoice Scan Mode),קובץ מצורף (מצב סריקת חשבונית),File allegato (Scansione fattura),Archivo adjunto (Escaneo de factura),Fichier joint (Scan de facture),تم إرفاق الملف (وضع مسح الفاتورة),Прикреплен файл (режим сканирования счета-фактуры)

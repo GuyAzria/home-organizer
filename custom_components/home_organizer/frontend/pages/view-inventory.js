@@ -11,8 +11,14 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [MODIFIED v2026.9.20 | 2026-09-20] Purpose: The expanded item card's
+//   boxes carry class names - exp-top, exp-media, exp-name-row and the
+//   rest. NOTHING ELSE CHANGED HERE: every inline style is exactly what it
+//   was, so the tablet and desktop layouts are untouched. The names exist
+//   so the phone block in inventory.css has something to select; the card
+//   was built entirely from inline styles, which a stylesheet cannot
+//   override without a handle to grip and a reason to shout.
 // [MODIFIED v10.0.24 | 2026-06-22] Purpose: Version bump to match restored CSS grid layout explicitly protecting the square shape and 15px gap.
-// [MODIFIED v10.0.22 | 2026-06-22] Purpose: Moved the qtyControlsHtml inside the xl-info container so it sits precisely 1mm above the product name, structurally detached from the image area.
 
 import { ICONS } from '../organizer-icon.js?v=10.0.13';
 import { escapeHtml } from '../organizer-utils.js?v=2026.8.26';
@@ -529,8 +535,8 @@ export const InventoryMixin = (Base) => class extends Base {
       <div class="item-main" onclick="this.getRootNode().host.toggleRow('${escapeHtml(item.id)}')">
         <div class="item-left">
           ${checkboxHtml}${iconHtml}
-          <div style="display:flex;flex-direction:column;justify-content:center;">
-            <div>${escapeHtml(item.name)}</div>
+          <div class="item-text" style="display:flex;flex-direction:column;justify-content:center;">
+            <div class="item-name">${escapeHtml(item.name)}</div>
             ${barcodeHtml}
             ${typeof subText==='string'&&subText.startsWith('<') ? subText : `<div class="sub-title">${subText}</div>`}
           </div>
@@ -787,13 +793,13 @@ export const InventoryMixin = (Base) => class extends Base {
       details.innerHTML = `
         ${receiptLineHtml}
         ${manualBlockHtml}
-        <div style="display:flex; gap:12px; margin-bottom:12px; align-items:flex-start;">
+        <div class="exp-top" style="display:flex; gap:12px; margin-bottom:12px; align-items:flex-start;">
             
-            <div style="display:flex; flex-direction:column; gap:8px; width:100px; flex-shrink:0;">
-                <div style="width:100px; height:100px; border-radius:10px; border:1px solid var(--border-light); background:var(--bg-input); box-shadow:inset 0 2px 4px rgba(0,0,0,0.2); position:relative;">
+            <div class="exp-media" style="display:flex; flex-direction:column; gap:8px; width:100px; flex-shrink:0;">
+                <div class="exp-icon-box" style="width:100px; height:100px; border-radius:10px; border:1px solid var(--border-light); background:var(--bg-input); box-shadow:inset 0 2px 4px rgba(0,0,0,0.2); position:relative;">
                     ${expandedIconHtml}
                 </div>
-                <div style="position:relative; width:100px; height:34px;">
+                <div class="exp-date" style="position:relative; width:100px; height:34px;">
                     <button class="action-btn" style="width:100%; height:100%; text-align:center; padding:0; display:flex; align-items:center; justify-content:center; background:var(--bg-input-edit); color:var(--text-main); border:1px solid var(--border-light); border-radius:6px; font-size:11px; box-sizing:border-box;" onclick="this.nextElementSibling.showPicker()">
                         ${ICONS.calendar || '📅'} ${escapeHtml(item.date || this._t('set_date', 'Set Date'))}
                     </button>
@@ -803,19 +809,19 @@ export const InventoryMixin = (Base) => class extends Base {
                 </div>
             </div>
             
-            <div style="flex:1; display:flex; flex-direction:column; gap:8px; min-width:0;">
-                <div style="position:relative; display:flex; gap:8px; align-items:center; width:100%;">
+            <div class="exp-fields" style="flex:1; display:flex; flex-direction:column; gap:8px; min-width:0;">
+                <div class="exp-name-row" style="position:relative; display:flex; gap:8px; align-items:center; width:100%;">
                     <input type="text" id="name-${escapeHtml(item.id)}" value="${escapeHtml(item.name)}"
-                        style="flex:1; width:100%; min-width:0; padding:10px; background:var(--bg-input-edit); color:var(--text-main); border:1px solid var(--border-light); border-radius:8px; box-sizing:border-box; font-weight:bold; font-size:15px;"
+                        class="exp-name-input" style="flex:1; width:100%; min-width:0; padding:10px; background:var(--bg-input-edit); color:var(--text-main); border:1px solid var(--border-light); border-radius:8px; box-sizing:border-box; font-weight:bold; font-size:15px;"
                         autocomplete="off"
                         oninput="if(typeof this.getRootNode().host.handleNameInput === 'function') this.getRootNode().host.handleNameInput(this,'${escapeHtml(item.id)}')"
                         onblur="setTimeout(()=>{this.parentElement.querySelector('.suggestions-box')?.remove()},200)"
                         onkeydown="if(event.key==='Enter'){this.blur();if(typeof this.getRootNode().host.autoSaveItem === 'function') this.getRootNode().host.autoSaveItem('${escapeHtml(item.id)}','name','${escapeHtml(this.escapeJSArg(item.name))}')}">
                     
-                    <button class="action-btn" style="height:42px; width:42px; display:flex; align-items:center; justify-content:center; padding:0; border-radius:8px; cursor:pointer; flex-shrink:0;" title="${this._t('save', 'Save')}" onclick="if(typeof this.getRootNode().host.autoSaveItem === 'function') this.getRootNode().host.autoSaveItem('${escapeHtml(item.id)}','name','${escapeHtml(this.escapeJSArg(item.name))}')">${FLOPPY_SVG}</button>
+                    <button class="action-btn exp-save" style="height:42px; width:42px; display:flex; align-items:center; justify-content:center; padding:0; border-radius:8px; cursor:pointer; flex-shrink:0;" title="${this._t('save', 'Save')}" onclick="if(typeof this.getRootNode().host.autoSaveItem === 'function') this.getRootNode().host.autoSaveItem('${escapeHtml(item.id)}','name','${escapeHtml(this.escapeJSArg(item.name))}')">${FLOPPY_SVG}</button>
                 </div>
                 
-                <div style="display:flex; gap:8px; align-items:center; justify-content:flex-start;">
+                <div class="exp-unit-row" style="display:flex; gap:8px; align-items:center; justify-content:flex-start;">
                     <input type="text" id="unit-val-${escapeHtml(item.id)}" value="${escapeHtml(item.unit_value||'')}" placeholder="Val"
                         style="width:60px; padding:8px 4px; background:var(--bg-input-edit); color:var(--text-main); border:1px solid var(--border-light); border-radius:6px; text-align:center; box-sizing:border-box; font-size:13px;"
                         onchange="if(typeof this.getRootNode().host.updateUnitValue === 'function') this.getRootNode().host.updateUnitValue('${escapeHtml(item.id)}','${escapeHtml(this.escapeJSArg(item.name))}')"
@@ -828,7 +834,7 @@ export const InventoryMixin = (Base) => class extends Base {
             </div>
         </div>
 
-        <div style="display:flex; gap:8px; margin-bottom:12px; width:100%;">
+        <div class="exp-cats" style="display:flex; gap:8px; margin-bottom:12px; width:100%;">
             <select class="move-select" id="cat-main-${escapeHtml(item.id)}" style="flex:1; min-width:0; padding:8px; border-radius:6px; border:1px solid var(--border-light); background:var(--bg-input-edit); color:var(--text-main); font-size:13px;" onchange="if(typeof this.getRootNode().host.updateItemCategory === 'function') this.getRootNode().host.updateItemCategory('${escapeHtml(item.id)}',this.value,'main','${escapeHtml(this.escapeJSArg(item.name))}')">${mainCatOptions}</select>
             
             <select class="move-select" id="cat-sub-${escapeHtml(item.id)}" style="flex:1; min-width:0; padding:8px; border-radius:6px; border:1px solid var(--border-light); background:var(--bg-input-edit); color:var(--text-main); font-size:13px;" onchange="if(typeof this.getRootNode().host.updateItemCategory === 'function') this.getRootNode().host.updateItemCategory('${escapeHtml(item.id)}',this.value,'sub','${escapeHtml(this.escapeJSArg(item.name))}')">${subCatOptions}</select>
@@ -839,7 +845,7 @@ export const InventoryMixin = (Base) => class extends Base {
         <div style="display:flex; flex-direction:column; gap:15px; margin-top:15px; padding-top:15px; border-top:1px solid var(--border-light);">
             ${this.renderHierarchyControl(item)}
             
-            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <div class="exp-actions" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
                 <div style="display:flex; gap:8px;">
                     <button class="action-btn" style="height:44px; width:44px; display:flex; align-items:center; justify-content:center; padding:0; border-radius:8px;" title="${this._t('take_photo', 'Take Photo')}" onclick="if(typeof this.getRootNode().host.triggerCameraEdit === 'function') this.getRootNode().host.triggerCameraEdit('${escapeHtml(item.id)}','${escapeHtml(this.escapeJSArg(item.name))}')">${ICONS.camera}</button>
                     <button class="action-btn" style="height:44px; width:44px; display:flex; align-items:center; justify-content:center; padding:0; border-radius:8px;" title="${this._t('upload_file', 'Upload File')}" onclick="if(typeof this.getRootNode().host.triggerFileUploadEdit === 'function') this.getRootNode().host.triggerFileUploadEdit('${escapeHtml(item.id)}','${escapeHtml(this.escapeJSArg(item.name))}')">${UPLOAD_SVG}</button>
