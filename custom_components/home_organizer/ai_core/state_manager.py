@@ -27,6 +27,11 @@ _LOGGER = logging.getLogger(__name__)
 # Reserved state keys. Add new ones here when introducing a new stateful agent.
 COOKING_STATE_KEY = "HO_COOKING_STATE"
 SHOPPING_DRAFT_KEY = "HO_SHOPPING_DRAFT"
+# [ADDED v2026.9.20] A timer the assistant has OFFERED and nobody has
+# answered yet. Its own key rather than a field on the cooking state,
+# so the many places that rewrite the cooking state cannot drop the
+# offer halfway through the question.
+TIMER_OFFER_KEY = "HO_TIMER_OFFER"
 
 
 def _is_state_message(msg, key):

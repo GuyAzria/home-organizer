@@ -11,8 +11,21 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
-// [MODIFIED v10.4.4 | 2026-08-02] Purpose: Changed the Android App download button to point to the GitHub Releases page. Updated labels and UI strings from HOCameraApp to HO_Mind_AI to reflect the new repository and application name.
-// [MODIFIED v10.4.3 | 2026-05-13] Purpose: Enhanced translation strings for the Android setup modal. Replaced long paragraphs with bulleted, multi-line instructions, specifically isolating English LTR terms (URLs, IDs, Navigation paths) into their own lines using <br> and <span dir="ltr"> to prevent RTL layout breakage in Hebrew. Clarified the precise method for extracting the HA Notify Device ID from the browser URL bar.
+// [MODIFIED v2026.9.20 | 2026-09-20] Purpose: updateUI clears the WHOLE
+//   inline style on #content instead of three named properties. Views
+//   style that element on their way in and this is the one place that
+//   undoes it; the cookbook also sets overflow:hidden, which was not on
+//   the list - so one visit to it left the rooms, locations and
+//   sub-locations unable to scroll, because .content gets overflow-y:auto
+//   from the stylesheet and an inline overflow beats it. Removing the
+//   attribute cannot go stale the next time a view sets a fourth property.
+//   Same release: render() records the screen the user is on, so the panel
+//   can put them back where they were - see organizer-state.js.
+// [MODIFIED v2026.9.17 | 2026-09-17] Purpose: The top-bar pencil no longer
+// clears isRecipesMode. Pressing it inside the cookbook threw the user out
+// to the home screen with the inventory in edit mode; it now flips
+// isEditMode and leaves the screen where it is, which is what the
+// cookbook uses to show its chapter controls.
 
 import { ICONS } from './organizer-icon.js?v=10.3.0';
 import { escapeHtml } from './organizer-utils.js?v=2026.8.26';
@@ -134,6 +147,10 @@ export const UIMixin = (Base) => class extends Base {
       <link rel="stylesheet" href="/home_organizer_static/pages/chat.css?v=${timestamp}">
       <link rel="stylesheet" href="/home_organizer_static/pages/shopping.css?v=${timestamp}">
       <link rel="stylesheet" href="/home_organizer_static/pages/search.css?v=${timestamp}">
+      <!-- [ADDED v2026.10.9] The cookbook has its own stylesheet: it is the
+           one screen that deliberately does not follow the HA theme, because
+           a recipe book should read as paper in dark mode too. -->
+      <link rel="stylesheet" href="/home_organizer_static/pages/recipes.css?v=${timestamp}">
       <style>
         .fab-container { position:fixed; bottom:30px; right:30px; z-index:1000; display:flex; flex-direction:column-reverse; align-items:flex-end; gap:15px; pointer-events:none; }
         :host-context(.rtl) .fab-container, .rtl .fab-container, [dir="rtl"] .fab-container { right:auto; left:30px; align-items:flex-start; }
@@ -237,6 +254,11 @@ export const UIMixin = (Base) => class extends Base {
             <div class="fab-item-wrapper" id="wrap-fab-chat">
               <span class="fab-tooltip" id="lbl-fab-chat">Receipts AI</span>
               <button class="fab-item" id="btn-fab-chat">${ICONS.robot}</button>
+            </div>
+            <!-- [ADDED v2026.10.9] Cookbook. -->
+            <div class="fab-item-wrapper" id="wrap-fab-recipes">
+              <span class="fab-tooltip" id="lbl-fab-recipes">My Recipes</span>
+              <button class="fab-item" id="btn-fab-recipes">${ICONS.chef || ICONS.cooking || ICONS.item}</button>
             </div>
             <div class="fab-item-wrapper" id="wrap-fab-barcode">
               <span class="fab-tooltip" id="lbl-fab-barcode">Barcode Scanner</span>
@@ -459,6 +481,7 @@ export const UIMixin = (Base) => class extends Base {
     set('lbl-loading',     'loading', 'Loading...');
     set('lbl-fab-stylist', 'stylist', 'Stylist');
     set('lbl-fab-chat',    'ai_chat_title', 'Receipts AI');
+    set('lbl-fab-recipes', 'recipes_title', 'My Recipes');
     set('lbl-fab-shop',    'shopping_list', 'Shopping List');
     set('lbl-fab-search',  'search_placeholder', 'Search...');
     set('lbl-fab-barcode', 'barcode_scanner', 'Barcode Scanner');
@@ -548,21 +571,23 @@ export const UIMixin = (Base) => class extends Base {
     click('btn-ha-menu', () => this.dispatchEvent(new Event('hass-toggle-menu', { bubbles: true, composed: true })));
     click('btn-up',   () => this.navigate('up'));
     click('btn-home', () => {
-      this.isShopMode = false; this.isSearch = false; this.isChatMode = false; this.isStylistMode = false; this.isReviewMode = false; this.isBarcodeMode = false; this.isReceiptsMode=false;
+      this.isShopMode = false; this.isSearch = false; this.isChatMode = false; this.isStylistMode = false; this.isReviewMode = false; this.isBarcodeMode = false; this.isReceiptsMode=false; this.isRecipesMode=false;
       this.clearSearchInput(); this.navigate('root');
     });
 
     click('btn-fab-main', () => root.getElementById('fab-container')?.classList.toggle('open'));
     const closeFab = () => root.getElementById('fab-container')?.classList.remove('open');
 
-    click('btn-fab-shop',   () => { this.isReceiptsMode=false; this.isShopMode=true;  this.isSearch=false; this.isEditMode=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isBarcodeMode=false; closeFab(); this.fetchData(); });
-    click('btn-fab-search', () => { this.isReceiptsMode=false; this.isSearch=true;    this.isShopMode=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isBarcodeMode=false; closeFab(); this.render(); });
-    click('btn-fab-chat',   () => { this.isChatMode=false; this.isReceiptsMode=false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isStylistMode=false; this.isBarcodeMode=false; this.isReviewMode=true; closeFab(); this.fetchData(); });
-    click('btn-fab-stylist',() => { this.isReceiptsMode=false; this.isStylistMode=true; this.isChatMode=false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isReviewMode=false; this.isBarcodeMode=false; closeFab(); this.render(); });
-    click('btn-fab-review', () => { this.isReceiptsMode=false; this.isReviewMode=true; this.isChatMode=false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isStylistMode=false; this.isBarcodeMode=false; closeFab(); this.fetchData(); });
+    click('btn-fab-shop',   () => { this.isReceiptsMode=false; this.isShopMode=true;  this.isSearch=false; this.isEditMode=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isBarcodeMode=false; this.isRecipesMode=false; closeFab(); this.fetchData(); });
+    click('btn-fab-search', () => { this.isReceiptsMode=false; this.isSearch=true;    this.isShopMode=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isBarcodeMode=false; this.isRecipesMode=false; closeFab(); this.render(); });
+    click('btn-fab-recipes', () => { this.isChatMode=false; this.isReviewMode=false; this.isReceiptsMode=false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isStylistMode=false; this.isBarcodeMode=false; this.isRecipesMode=true; closeFab(); this.render(); });
+    click('btn-fab-chat',   () => { this.isChatMode=false; this.isReceiptsMode=false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isStylistMode=false; this.isBarcodeMode=false; this.isRecipesMode=false; this.isReviewMode=true; closeFab(); this.fetchData(); });
+    click('btn-fab-stylist',() => { this.isReceiptsMode=false; this.isStylistMode=true; this.isChatMode=false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isReviewMode=false; this.isBarcodeMode=false; this.isRecipesMode=false; closeFab(); this.render(); });
+    click('btn-fab-review', () => { this.isReceiptsMode=false; this.isReviewMode=true; this.isChatMode=false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isStylistMode=false; this.isBarcodeMode=false; this.isRecipesMode=false; closeFab(); this.fetchData(); });
     
     click('btn-fab-barcode', () => { 
       this.isShopMode=false; this.isSearch=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isEditMode=false; this.isReceiptsMode=false;
+      this.isRecipesMode=false;
       this.isBarcodeMode=true;
       
       localStorage.removeItem('ho_pending_item_id');
@@ -581,8 +606,26 @@ export const UIMixin = (Base) => class extends Base {
     click('search-close', () => { this.isSearch=false; this.clearSearchInput(); this.fetchData(); });
     root.getElementById('search-input').oninput = () => this.fetchData();
 
+    // [FIXED v2026.9.17] The pencil edits the screen you are ON.
+    //
+    // It used to clear every view flag, including isRecipesMode - so pressing
+    // it inside the cookbook threw you out to the home screen with the
+    // inventory in edit mode. That is not an edit of anything the user was
+    // looking at.
+    //
+    // The cookbook has its own edit affordances (rename and remove a
+    // chapter), so there the pencil only flips isEditMode and the screen
+    // stays put. Everywhere else it behaves exactly as before.
+    //
+    // isEditMode is a MODIFIER, not one of the view modes in the RULE 33a.1
+    // list, which is why it is correct for it to survive here while the view
+    // flags do not move.
     click('btn-edit', () => {
-      this.isEditMode = !this.isEditMode; this.isShopMode=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isBarcodeMode=false; this.isReceiptsMode=false;
+      this.isEditMode = !this.isEditMode;
+      if (!this.isRecipesMode) {
+        this.isShopMode=false; this.isChatMode=false; this.isStylistMode=false;
+        this.isReviewMode=false; this.isBarcodeMode=false; this.isReceiptsMode=false;
+      }
       if (!this.isEditMode) this.selectedItems.clear();
       this.render();
     });
@@ -646,7 +689,10 @@ export const UIMixin = (Base) => class extends Base {
     });
   }
 
-  render() { this.updateUI(); }
+  // [MODIFIED v2026.9.20] Every change of screen passes through here, so
+  // this is where the position is recorded. saveNavState writes only when
+  // something actually moved, and swallows a storage failure.
+  render() { this.saveNavState(); this.updateUI(); }
 
   updateUI() {
     if (!this.localData) return;
@@ -660,6 +706,7 @@ export const UIMixin = (Base) => class extends Base {
     let pathDisplay = this._t('default_path', 'Main');
     if      (this.isStylistMode)  pathDisplay = "👗 " + this._t('stylist', 'Stylist');
     else if (this.isChatMode)     pathDisplay = this._t('ai_chat_title', 'Receipts AI');
+    else if (this.isRecipesMode)  pathDisplay = this._t('recipes_title', 'My Recipes');
     else if (this.isReceiptsMode) pathDisplay = this._t('receipts_tab', 'Receipts');
     else if (this.isReviewMode)   pathDisplay = this._t('review_tab', 'AI Receipts Exports');
     else if (this.isShopMode)     pathDisplay = this._t('shopping_list', 'Shopping List');
@@ -708,15 +755,29 @@ export const UIMixin = (Base) => class extends Base {
 
     const content = root.getElementById('content');
     content.innerHTML = '';
-    content.style.padding = '';
-    content.style.display = '';
-    content.style.flexDirection = '';
+    // [FIXED v2026.9.20] Clear the WHOLE inline style, not three properties.
+    //
+    // Views style this element inline on their way in, and this is the one
+    // place that undoes it. It listed padding, display and flexDirection -
+    // but the cookbook also sets overflow: hidden, which was never cleared.
+    // .content carries overflow-y: auto from the stylesheet, so one visit to
+    // the cookbook left every later screen unable to scroll: the rooms, the
+    // locations and the sub-locations all looked frozen once the list was
+    // taller than the window.
+    //
+    // Naming properties means this breaks again the next time a view sets a
+    // fourth one. Removing the attribute cannot: whatever a view wrote on
+    // the way in is gone on the way out, and the stylesheet decides again.
+    content.removeAttribute('style');
 
     if (this.isBarcodeMode && typeof this.renderBarcodeView === 'function') return this.renderBarcodeView(content);
     if (this.isStylistMode && typeof this.renderStylistView === 'function') return this.renderStylistView(content, attrs);
     // [FIXED v2026.9.15] isReceiptsMode was missing from this condition, so
     // opening the Receipts tab cleared the other two flags, matched nothing
     // here, and fell through to the home screen.
+    // [ADDED v2026.10.9] Cookbook. Checked before the receipts branch so
+    // the two cannot both claim a render.
+    if (this.isRecipesMode && typeof this.renderRecipesView === 'function') return this.renderRecipesView(content, attrs);
     if ((this.isChatMode || this.isReviewMode || this.isReceiptsMode) && typeof this.renderChatAndReviewView === 'function') return this.renderChatAndReviewView(content, attrs);
     if (this.isShopMode && typeof this.renderShoppingView === 'function') return this.renderShoppingView(content, attrs);
     if ((this.isSearch || attrs.path_display?.startsWith('Search')) && attrs.items && typeof this.renderSearchView === 'function') return this.renderSearchView(content, attrs);
@@ -732,20 +793,27 @@ export const UIMixin = (Base) => class extends Base {
     const det    = this.shadowRoot.getElementById('overlay-details');
     const iconBig = this.shadowRoot.getElementById('overlay-icon-big');
     ov.style.display = 'flex'; det.style.display = 'block';
-    if (item.img) {
-      if (item.img.startsWith('ICON_LIB')) {
-        img.style.display = 'none'; iconBig.innerHTML = this.getIconByKey(item.img) || ICONS.item;
-        const svgEl = iconBig.querySelector('svg'); if (svgEl) { svgEl.style.width='140px'; svgEl.style.height='140px'; }
-        iconBig.style.display = 'block';
-      } else { 
-        let cleanPath = item.img.split('?')[0]; 
-        const ver = this.imageVersions[item.id] || 'ok';
-        img.src = `${cleanPath}?v=${ver}`; 
-        img.style.display = 'block'; iconBig.style.display = 'none'; 
-      }
+    // [MODIFIED v2026.9.20] Three possibilities, not two.
+    //
+    // This branched on "library key, or else a photograph", with a third
+    // copy of the icon case for an item that had neither. An icon the
+    // assistant DREW is a fourth thing, and getItemIcon is what knows the
+    // order - photograph, drawn icon, library, default - so the branch here
+    // is now only "is it a photograph".
+    //
+    // The icon is sized to 140px, which is why a drawn one has to be
+    // designed for the large view: it is a vector, so enlarging costs no
+    // quality, but a drawing with too little in it looks empty at this size.
+    if (this.itemHasPhoto(item)) {
+      const cleanPath = String(item.img).split('?')[0];
+      const ver = this.imageVersions[item.id] || 'ok';
+      img.src = `${cleanPath}?v=${ver}`;
+      img.style.display = 'block'; iconBig.style.display = 'none';
     } else {
-      img.style.display = 'none'; iconBig.innerHTML = ICONS.item;
-      const svgEl = iconBig.querySelector('svg'); if (svgEl) { svgEl.style.width='140px'; svgEl.style.height='140px'; }
+      img.style.display = 'none';
+      iconBig.innerHTML = this.getItemIcon(item);
+      const svgEl = iconBig.querySelector('svg');
+      if (svgEl) { svgEl.style.width = '140px'; svgEl.style.height = '140px'; }
       iconBig.style.display = 'block';
     }
     det.innerHTML = `<div style="font-size:20px;font-weight:bold;margin-bottom:8px">${escapeHtml(item.name)}</div><div style="font-size:16px;color:#aaa;margin-bottom:15px">${escapeHtml(item.date||this.t('no_date'))}</div><div style="font-size:18px;font-weight:bold;color:var(--accent);background:#333;padding:8px 20px;border-radius:20px;display:inline-block">${escapeHtml(this.t('quantity'))}: ${escapeHtml(item.qty)}</div>`;

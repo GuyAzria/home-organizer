@@ -12,6 +12,18 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
+# // [MODIFIED v2026.9.20 | 2026-09-20] Purpose: A cached language is no
+# // longer assumed COMPLETE. _ensure_language_cached returned as soon as
+# // a language had ever been translated, so any string added to
+# // MASTER_STRINGS_EN afterwards stayed English on that install for
+# // good - and because get_strings_for_language falls back per key, the
+# // failure was silent and looked like one stubborn untranslated
+# // sentence. The key sets are compared now, and a missing key starts a
+# // background re-translation; no reply waits for it. Added
+# // cooking_timer_ask / _set / _skip and cooking_minutes, plus twelve
+# // messages the cooking agent used to say for itself in English, and
+# // emblem_draw_failed, which the agent had been asking for since the
+# // emblem work without it ever being added here.
 # // [v9.1.1 | 2026-04-14] Purpose: Lazy-translated user-facing fallback
 # // strings. Mirrors the architecture of trigger_manager.py: an English
 # // master dictionary, on-demand translation per language via the smart
@@ -49,6 +61,33 @@ MASTER_STRINGS_EN = {
     "cooking_finished":      "You have finished the recipe! Enjoy your meal!",
     "cooking_engine_error":  "Sorry, the cooking engine had a connection error.",
     "cooking_step_error":    "Error generating steps.",
+    # [ADDED v2026.9.20] Timers are offered, never set behind the cook.
+    "cooking_timer_ask":     "Shall I set a timer?",
+    "cooking_timer_set":     "Timer set.",
+    "cooking_timer_skip":    "No timer set.",
+    "cooking_minutes":       "minutes",
+    # [ADDED v2026.9.20] Everything the cooking agent says for itself. These
+    # were English sentences written into the code, so every language other
+    # than English got them in English - and the step-out-of-range message
+    # was written twice, in Hebrew and English, which left the other five
+    # languages on English. No placeholders in any of them on purpose: a
+    # number is appended by the caller, because a translated {n} is one more
+    # thing a translation can lose.
+    "cooking_no_items":      "There is nothing to add.",
+    "cooking_add_failed":    "I could not add those.",
+    "cooking_no_missing":    "I could not work out what is missing.",
+    "cooking_saved_no_steps": "That saved recipe has no steps. Try another.",
+    "cooking_not_caught":    "I did not catch that. Say the next step again, or say done.",
+    "cooking_dictation_error": "Something went wrong while recording.",
+    "cooking_nothing_recorded": "No steps were recorded, so there is nothing to save.",
+    "cooking_cannot_save":   "The recipe has no steps, so it cannot be saved.",
+    "cooking_recipe_saved":  "Recipe saved:",
+    "cooking_no_active":     "No recipe is running, so there is no step to jump to.",
+    "cooking_step_missing":  "That step does not exist. The recipe has these steps:",
+    "cooking_mid_recipe":    "We are in the middle of a recipe. Cancel it and start something else?",
+    # Asked for by the cooking agent since the emblem work but never
+    # added here, so it always fell back to its inline English.
+    "emblem_draw_failed":    "I could not draw that one. The symbol is unchanged.",
 
     # Smart Home
     "smarthome_engine_error": "Sorry, I couldn't reach the Smart Home engine.",
@@ -303,8 +342,27 @@ async def _ensure_language_cached(hass, entry, lang_code):
     await _ensure_memory_cache_loaded(hass)
     languages = _MEMORY_CACHE.setdefault("languages", {})
 
-    if lang_code in languages:
+    # [FIXED v2026.9.20] A cached language is not necessarily a COMPLETE one.
+    #
+    # This returned as soon as the language had ever been translated, so every
+    # string added to MASTER_STRINGS_EN after that moment stayed English on
+    # that install for good - get_strings_for_language falls back per key, so
+    # the failure is silent and looks like one stubborn untranslated sentence
+    # rather than a cache that stopped updating. "Shall I set a timer?" was
+    # the first new string in a while and is how it surfaced.
+    #
+    # Comparing the key sets costs nothing and catches every future addition.
+    # The translation still runs in the BACKGROUND, so no reply waits for it:
+    # this turn answers in English and the next one is translated.
+    cached = languages.get(lang_code)
+    if cached and not (set(MASTER_STRINGS_EN) - set(cached)):
         return
+    if cached:
+        _LOGGER.info(
+            "UI strings for '%s' are missing %d newer key(s); re-translating "
+            "in the background.",
+            lang_code, len(set(MASTER_STRINGS_EN) - set(cached)),
+        )
     if _in_backoff("strings:" + lang_code):
         return
     if lang_code in _PENDING_TRANSLATIONS:

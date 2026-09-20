@@ -11,31 +11,49 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
-// [MODIFIED v10.4.1 | 2026-04-17] Purpose: Version bump to bypass cache for the new Interactive Unit Select Dropdown in the Inventory View.
+// [MODIFIED v2026.9.20 | 2026-09-20] Purpose: restoreNavState is called
+//   after initUI - it needs the search box to exist - and before the
+//   first fetchData, so that fetch loads the screen the user left
+//   rather than the root. See organizer-state.js for why the position
+//   lives in localStorage. Cache version bumped with it, because a
+//   browser holding the old organizer-state.js would have no
+//   restoreNavState to call.
+// [MODIFIED v10.11.44 | 2026-09-19] Purpose: Cache version bumped to
+//   10.11.44. Not cosmetic this time: view-recipes.js no longer imports
+//   recipeEmblemSvg or motifKeyForCategory, and a browser holding the old
+//   copy would import names the module no longer exports - which fails the
+//   whole module, not just the emblem.
 
-import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=10.8.8';
-import { UtilsMixin }  from './organizer-utils.js?v=10.8.8';
-import { StateMixin }  from './organizer-state.js?v=10.8.8';
-import { APIMixin }    from './organizer-api.js?v=10.8.8';
-import { CameraMixin } from './organizer-camera.js?v=10.8.8';
-import { NavMixin }    from './organizer-nav.js?v=10.8.8';
-import { IconsMixin }  from './organizer-icons.js?v=10.8.8';
-import { UIMixin }     from './organizer-ui.js?v=10.8.8';
+import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=10.11.44';
+import { UtilsMixin }  from './organizer-utils.js?v=10.11.44';
+import { StateMixin }  from './organizer-state.js?v=10.11.44';
+import { APIMixin }    from './organizer-api.js?v=10.11.44';
+import { CameraMixin } from './organizer-camera.js?v=10.11.44';
+import { NavMixin }    from './organizer-nav.js?v=10.11.44';
+import { IconsMixin }  from './organizer-icons.js?v=10.11.44';
+import { UIMixin }     from './organizer-ui.js?v=10.11.44';
 
-import { StylistMixin }   from './pages/view-stylist.js?v=10.8.8';
-import { BarcodeMixin }   from './pages/view-barcode.js?v=10.8.8';
-import { InventoryMixin } from './pages/view-inventory.js?v=10.8.8';
-import { ChatMixin }      from './pages/view-chat.js?v=10.8.8';
-import { ShoppingMixin }  from './pages/view-shopping.js?v=10.8.8';
-import { SearchMixin }    from './pages/view-search.js?v=10.8.8';
+import { StylistMixin }   from './pages/view-stylist.js?v=10.11.44';
+import { BarcodeMixin }   from './pages/view-barcode.js?v=10.11.44';
+import { InventoryMixin } from './pages/view-inventory.js?v=10.11.44';
+import { ChatMixin }      from './pages/view-chat.js?v=10.11.44';
+// [ADDED v10.11.44] The cookbook screen.
+import { RecipesMixin }   from './pages/view-recipes.js?v=10.11.44';
+import { ShoppingMixin }  from './pages/view-shopping.js?v=10.11.44';
+import { SearchMixin }    from './pages/view-search.js?v=10.11.44';
 
-class HomeOrganizerPanel extends APIMixin(CameraMixin(SearchMixin(ShoppingMixin(ChatMixin(InventoryMixin(BarcodeMixin(StylistMixin(UIMixin(NavMixin(IconsMixin(UtilsMixin(StateMixin(HTMLElement))))))))))))) {
+class HomeOrganizerPanel extends APIMixin(CameraMixin(SearchMixin(ShoppingMixin(RecipesMixin(ChatMixin(InventoryMixin(BarcodeMixin(StylistMixin(UIMixin(NavMixin(IconsMixin(UtilsMixin(StateMixin(HTMLElement)))))))))))))) {
   set hass(hass) {
     this._hass = hass;
     if (!this.content) {
       console.log("%c Home Organizer v10.4.1 SPA Loaded ", "background: #e91e63; color: #fff; font-weight: bold;");
       this.initState();
       this.initUI();
+      // [ADDED v2026.9.20] Put the user back on the screen they left.
+      // After initUI, because it needs the search box to exist; before the
+      // first fetchData below, so that fetch loads the restored path
+      // instead of the root.
+      this.restoreNavState();
       this.loadTranslations();
       this.fetchAllItems();
     }

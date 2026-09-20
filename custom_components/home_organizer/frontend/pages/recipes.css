@@ -1,0 +1,1533 @@
+/* Home Organizer for Home Assistant
+ * Copyright (C) 2026 Guy Azria
+ *
+ * This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation, either version 3 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+ * more details. <https://www.gnu.org/licenses/>.
+ *
+ * [MODIFIED v2026.9.20 | 2026-09-20] Purpose: On a desktop the book was
+ * pushed 396px off the starting edge to clear the docked Sous-Chef column,
+ * which overrode its auto margin - so it sat against the column with all
+ * the leftover desk piled up on the far side, reading as a small book in a
+ * corner. The space now comes off the CONTAINER as padding and the book
+ * centres in what is left. Above 1600px and 2000px it is also allowed to
+ * grow, then stops, because a spread without a limit gives lines too long
+ * to read. Added the tools menu; removed .cookbook-tool-danger and
+ * .cookbook-cat-chip, which the menu orphaned (RULE 33d).
+ * [MODIFIED v2026.9.19 | 2026-09-19] Purpose: On a phone the ingredient row
+ * broke into three lines. .cookbook-ing-qty was given width:100%, which made
+ * the quantity claim a line of its own and pushed the delete button onto a
+ * third - one ingredient read as three separate things. The row is nowrap
+ * again: tick, name, quantity, delete. Only the name wraps, inside its own
+ * box, and the quantity is flex:0 0 auto so it is never squeezed out of the
+ * line. .cookbook-mini keeps its 22px glyph but gets a 40px hit area on
+ * touch, through a ::after inset rather than a bigger button, so the row
+ * height is unchanged and nothing overlaps the ingredient above (RULE 36).
+ * Same release: .cookbook-photo-viewer and its bar - a photograph shown
+ * full screen over the panel, at z-index 3300 so nothing this screen puts
+ * over the book can sit on top of it. Safe-area padding on all four sides,
+ * 44px targets, and the picture capped at the height left over once the
+ * buttons have theirs.
+ */
+
+/* ==========================================================================
+   The book itself
+   ========================================================================== */
+
+.cookbook-wrap {
+  height: 100%;
+  overflow-y: auto;
+  /* [ADDED v2026.9.17] Only the Y axis was constrained here. A book view
+     should never scroll sideways, and the desktop page arrows deliberately
+     sit 20px outside the book's edge, which is exactly the kind of thing
+     that can put a scrollbar along the bottom at an awkward width. */
+  overflow-x: hidden;
+  padding: 16px;
+  box-sizing: border-box;
+  /* A desk the book sits on. */
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(0,0,0,.35), transparent 70%),
+    linear-gradient(160deg, #3b2f26 0%, #2a211a 100%);
+}
+
+.cookbook-book {
+  position: relative;
+  max-width: 1100px;
+  margin: 0 auto;
+  border-radius: 6px;
+  /* Lifted off the desk, with a hard edge on the spine side. */
+  box-shadow:
+    0 18px 40px rgba(0,0,0,.55),
+    0 2px 0 rgba(255,255,255,.06) inset;
+}
+
+/* The paper. The repeating-linear-gradient is a very faint fibre texture -
+   cheaper and sharper than a background image, and it scales to any DPI. */
+.cookbook-page {
+  position: relative;
+  background-color: #f6efe2;
+  background-image:
+    repeating-linear-gradient(
+      92deg, rgba(120, 95, 60, .035) 0 2px, transparent 2px 5px),
+    repeating-linear-gradient(
+      3deg, rgba(120, 95, 60, .025) 0 3px, transparent 3px 7px),
+    radial-gradient(ellipse at 50% 50%, #fbf6ec 0%, #efe6d5 100%);
+  color: #2e2620;
+  min-height: 60vh;
+  padding: 34px 30px 40px 30px;
+  box-sizing: border-box;
+}
+
+/* Aged edges, so the paper does not end in a flat rectangle. */
+.cookbook-page::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 26px rgba(140, 110, 70, .22),
+    inset 0 0 90px rgba(140, 110, 70, .10);
+}
+
+/* --- dual page, only where there is room for it ---------------------------
+   Below this width a two-page spread would give two unreadably narrow
+   columns, so the book becomes a single page and the binding disappears. */
+@media (min-width: 900px) {
+  .cookbook-spread {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  /* The binding: a dark gutter with the shadow each page casts into it. */
+  .cookbook-spread::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 44px;
+    transform: translateX(-50%);
+    pointer-events: none;
+    z-index: 2;
+    background: linear-gradient(
+      90deg,
+      rgba(0,0,0,0) 0%,
+      rgba(90, 66, 40, .20) 28%,
+      rgba(60, 42, 24, .42) 48%,
+      rgba(60, 42, 24, .42) 52%,
+      rgba(90, 66, 40, .20) 72%,
+      rgba(0,0,0,0) 100%);
+  }
+  .cookbook-spread .cookbook-page:first-child { border-radius: 6px 0 0 6px; }
+  .cookbook-spread .cookbook-page:last-child  { border-radius: 0 6px 6px 0; }
+}
+
+/* ==========================================================================
+   Typography
+   ========================================================================== */
+
+/* ==========================================================================
+   [ADDED v2026.9.17] The recipe emblem and its frame
+   A drawn stand-in for a photograph. The DRAWING is generated in
+   recipe-emblem.js; the FRAME is here, so the mount survives whatever is
+   hung in it.
+   ========================================================================== */
+
+.cookbook-emblem {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 18px 0;
+}
+
+/* The frame: a pressed plate on the page. Three layers do the work - an
+   inset mount, the rim, and a soft drop shadow - which together read as
+   something mounted rather than pasted on. All generated: no image file, no
+   external font, nothing to download. */
+.cookbook-emblem-plate {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  padding: 9px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 28%, #fffdf7 0%, #f3e9d6 62%, #e6d8bd 100%);
+  border: 1px solid rgba(90, 66, 40, .55);
+  box-shadow:
+    0 2px 10px rgba(60, 42, 24, .30),            /* lifted off the paper */
+    0 0 0 1px rgba(255, 255, 255, .55) inset,    /* highlight under the rim */
+    0 0 0 7px rgba(251, 246, 236, .85) inset,    /* the mount */
+    0 0 0 8px rgba(90, 66, 40, .35) inset;       /* the inner rule */
+}
+
+/* A second hairline ring, set in from the rim. A pseudo-element rather than
+   another inset shadow so its gap can be tuned on its own. */
+.cookbook-emblem-plate::after {
+  content: "";
+  position: absolute;
+  inset: 13px;
+  border-radius: 50%;
+  border: 1px solid rgba(90, 66, 40, .22);
+  pointer-events: none;
+}
+
+.cookbook-emblem-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* [ADDED v2026.9.17] The plate is a button - press it to add your own photo.
+   Reset to look like the plate it replaced rather than a control, because it
+   is the picture that invites the press, not a button shape. */
+button.cookbook-emblem-plate {
+  display: block;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+button.cookbook-emblem-plate:hover {
+  box-shadow:
+    0 4px 14px rgba(60, 42, 24, .38),
+    0 0 0 1px rgba(255, 255, 255, .55) inset,
+    0 0 0 7px rgba(251, 246, 236, .85) inset,
+    0 0 0 8px rgba(90, 66, 40, .45) inset;
+}
+button.cookbook-emblem-plate:focus-visible {
+  outline: 2px solid #6b4f2c;
+  outline-offset: 3px;
+}
+
+/* [MODIFIED v2026.9.17] A photograph keeps its own proportions.
+   The drawn emblem is square by construction and sits happily in a round
+   mount. A photograph is not: forcing one into a circle either squashes it
+   or crops most of it away. So when there IS a photo the frame stops being a
+   disc - the HEIGHT is fixed and the WIDTH follows the picture. */
+.cookbook-emblem-plate.has-photo {
+  width: auto;                /* whatever the picture's ratio asks for */
+  height: 132px;              /* the one fixed dimension */
+  max-width: 100%;
+  padding: 7px;
+  border-radius: 12px;
+  box-shadow:
+    0 2px 10px rgba(60, 42, 24, .30),
+    0 0 0 1px rgba(255, 255, 255, .55) inset,
+    0 0 0 6px rgba(251, 246, 236, .85) inset,
+    0 0 0 7px rgba(90, 66, 40, .35) inset;
+}
+/* The second ring belongs to the disc; a rectangular mount has its own. */
+.cookbook-emblem-plate.has-photo::after {
+  inset: 11px;
+  border-radius: 6px;
+}
+
+.cookbook-emblem-photo {
+  display: block;
+  height: 100%;
+  width: auto;                /* computed from the file's own dimensions */
+  max-width: 100%;
+  border-radius: 5px;
+  /* contain, not cover: nothing is cropped away, and because the box is
+     already the picture's shape there is nothing to letterbox either. */
+  object-fit: contain;
+}
+
+/* ==========================================================================
+   [ADDED v2026.9.19] The photograph, full screen
+   A 130px plate is not where anyone looks at a picture of their own dinner,
+   so pressing one opens it over the whole panel.
+   ========================================================================== */
+
+.cookbook-photo-viewer {
+  position: fixed;
+  inset: 0;
+  /* Above the category sheet at 3200, which is the highest thing this screen
+     puts over the book. Nothing on the panel may sit on top of a picture
+     being looked at full screen. */
+  z-index: 3300;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  /* Dark enough that the picture is the only thing being looked at, and the
+     book behind it reads as put down rather than hidden. */
+  background: rgba(24, 18, 12, .92);
+  /* Not on the safe-area edges: a phone notch and the home indicator both
+     eat into this. */
+  padding: max(16px, env(safe-area-inset-top)) 16px
+           max(16px, env(safe-area-inset-bottom)) 16px;
+  box-sizing: border-box;
+}
+
+.cookbook-photo-full {
+  max-width: 100%;
+  /* Room is left for the buttons underneath at every height. */
+  max-height: calc(100% - 72px);
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 18px 46px rgba(0, 0, 0, .6);
+}
+
+.cookbook-photo-bar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.cookbook-photo-btn {
+  /* A thumb-sized target on every device, not only on touch: this sits over
+     a photograph and a miss closes the wrong thing (RULE 36). */
+  min-height: 44px;
+  min-width: 96px;
+  padding: 10px 20px;
+  border: 1px solid rgba(246, 239, 226, .35);
+  border-radius: 6px;
+  background: rgba(246, 239, 226, .1);
+  color: #f6efe2;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  cursor: pointer;
+}
+.cookbook-photo-btn:hover { background: rgba(246, 239, 226, .2); }
+.cookbook-photo-danger {
+  border-color: rgba(214, 120, 100, .6);
+  color: #f0b6a8;
+}
+.cookbook-photo-danger:hover { background: rgba(154, 59, 42, .35); }
+
+/* On a phone the page is a single column and vertical space is scarce, so
+   the plate gives some back rather than pushing the ingredients under the
+   fold. */
+@media (max-width: 899px) {
+  .cookbook-emblem { margin-bottom: 12px; }
+  .cookbook-emblem-plate { width: 104px; height: 104px; padding: 7px; }
+  .cookbook-emblem-plate::after { inset: 11px; }
+  /* The photo frame needs its own rule: .has-photo is two classes and would
+     otherwise beat the one-class rule above and stay at its desktop height.
+     Width is left alone - it still follows the picture. */
+  .cookbook-emblem-plate.has-photo { width: auto; height: 104px; }
+}
+
+/* System font stacks only - no webfont to download. */
+.cookbook-title {
+  font-family: "Hoefler Text", "Iowan Old Style", Palatino, "Palatino Linotype",
+               Georgia, "Times New Roman", serif;
+  font-size: clamp(24px, 4vw, 38px);
+  line-height: 1.15;
+  margin: 0 0 6px 0;
+  color: #1f1a15;
+  letter-spacing: .01em;
+}
+
+.cookbook-meta {
+  font-family: "Hoefler Text", Georgia, serif;
+  font-style: italic;
+  font-size: 14px;
+  color: #6b5a45;
+  margin-bottom: 18px;
+}
+
+/* A rule under the title, thicker in the middle like a printed flourish. */
+.cookbook-rule {
+  height: 2px;
+  border: 0;
+  margin: 0 0 20px 0;
+  background: linear-gradient(90deg,
+    transparent, rgba(90,66,40,.55) 15%, rgba(90,66,40,.55) 85%, transparent);
+}
+
+.cookbook-h2 {
+  font-family: "Hoefler Text", Georgia, serif;
+  font-size: 18px;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  color: #6b4f2c;
+  margin: 0 0 12px 0;
+}
+
+/* Instructions in a sans-serif, as asked: serif reads well for a title and
+   badly for a list of actions followed with wet hands. */
+.cookbook-body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+               Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+/* ==========================================================================
+   Ingredients
+   ========================================================================== */
+
+.cookbook-ing-list { list-style: none; margin: 0; padding: 0; }
+
+.cookbook-ing {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px dotted rgba(110, 85, 55, .35);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+}
+
+/* A hand-drawn looking checkbox rather than the browser default, which looks
+   wrong on paper. */
+.cookbook-check {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  margin-top: 2px;
+  border: 1.5px solid #7a5c38;
+  border-radius: 3px;
+  background: rgba(255,255,255,.45);
+  cursor: pointer;
+  position: relative;
+}
+.cookbook-check:checked { background: rgba(122, 92, 56, .16); }
+.cookbook-check:checked::after {
+  content: "\2713";
+  position: absolute;
+  inset: -3px 0 0 1px;
+  font-size: 15px;
+  color: #5c4327;
+}
+/* A ticked ingredient is struck through - the one you already put in. */
+.cookbook-check:checked + .cookbook-ing-text {
+  text-decoration: line-through;
+  color: #8a7862;
+}
+
+.cookbook-ing-text { flex: 1; min-width: 0; }
+.cookbook-ing-qty {
+  font-variant-numeric: tabular-nums;
+  color: #6b5a45;
+  white-space: nowrap;
+  margin-inline-start: 8px;
+}
+
+/* ==========================================================================
+   Steps
+   ========================================================================== */
+
+.cookbook-steps { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+
+.cookbook-step {
+  counter-increment: step;
+  position: relative;
+  /* [FIXED v2026.10.14] Logical padding, no direction rule needed.
+     This used physical `padding-left` with a `[dir="rtl"]` override. The panel
+     signals Hebrew with an `.ltr` CLASS on #app - it never sets a `dir`
+     attribute - so that override never matched and Hebrew kept the
+     left-hand padding, leaving the numbered circle sitting on top of the
+     text. padding-inline-start flips by itself and needs no signal. */
+  padding-block: 0 18px;
+  padding-inline: 44px 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+/* The numeral, set in serif inside a circle. */
+.cookbook-step::before {
+  content: counter(step);
+  position: absolute;
+  inset-inline-start: 0;
+  top: -1px;
+  width: 30px;
+  height: 30px;
+  border: 1.5px solid #8a6a40;
+  border-radius: 50%;
+  font-family: "Hoefler Text", Georgia, serif;
+  font-size: 15px;
+  line-height: 28px;
+  text-align: center;
+  color: #6b4f2c;
+  background: rgba(255,255,255,.4);
+}
+
+/* ==========================================================================
+   The drawing layer
+   ========================================================================== */
+
+/* Sits exactly over the page. pointer-events flips to auto only while the
+   pencil is active, so in normal reading the checkboxes stay clickable -
+   an always-on canvas would swallow every tap. */
+.cookbook-canvas {
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0;
+  z-index: 5;
+  pointer-events: none;
+  /* [FIXED v2026.10.10] pan-y, not none.
+     `touch-action: none` swallowed finger swipes over the whole sheet, so the
+     page could not be scrolled while the pencil was on and the bottom of a
+     long recipe was unreachable. A finger now scrolls; the pen and mouse
+     draw. */
+  touch-action: pan-y;
+}
+.cookbook-canvas.drawing { pointer-events: auto; cursor: crosshair; }
+
+/* [ADDED v2026.10.15] Applied only for the length of a pen stroke, so the
+   page cannot slide under the nib while a note is being written. It is
+   removed the moment the pen lifts, which keeps the rest of the recipe
+   reachable. overscroll-behavior stops the gesture leaking to the page
+   behind the panel on iOS. */
+.cookbook-wrap.drawing-lock {
+  overflow: hidden;
+  overscroll-behavior: contain;
+  touch-action: none;
+}
+.cookbook-wrap.drawing-lock .cookbook-canvas { touch-action: none; }
+
+/* The saved drawing, shown beneath the live canvas. */
+.cookbook-notes-img {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+}
+
+.cookbook-pencil-bar {
+  position: absolute;
+  z-index: 6;
+  top: 10px;
+  inset-inline-end: 12px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.cookbook-tool {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 18px;
+  border: 1px solid rgba(90, 66, 40, .5);
+  background: rgba(255, 252, 245, .92);
+  color: #4a3620;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.cookbook-tool.active {
+  background: #6b4f2c;
+  color: #fbf6ec;
+  border-color: #6b4f2c;
+}
+.cookbook-tool svg { width: 18px; height: 18px; fill: currentColor; }
+
+/* ==========================================================================
+   [ADDED v2026.9.17] Page arrows and the page turn
+   ========================================================================== */
+
+/* Halfway down each edge of the book. Positioned with inset-inline-* so
+   "previous" is on the left in English and on the right in Hebrew - the right
+   way round for a book in each - from one declaration and with no [dir]
+   selector, which would never match in this panel (RULE 33b).
+
+   Inside the book edge by default: the page has a 30px inner margin, so they
+   sit over blank paper rather than over the text, and they can never be
+   clipped by the 8px wrap padding on a phone. */
+.cookbook-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 6;
+  width: 40px;
+  height: 40px;          /* thumb-sized on phone and tablet */
+  border-radius: 50%;
+  border: 1px solid rgba(90, 66, 40, .45);
+  background: rgba(255, 252, 245, .92);
+  color: #4a3620;
+  /* Centres a drawn mark rather than a text glyph. The mark is an SVG path
+     because every chevron CHARACTER is Bidi_Mirrored and would turn round in
+     the right-to-left context this panel sets - see view-recipes.js. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,.35);
+  /* Belt and braces against the mirroring bug coming back: this subtree is
+     always laid out left to right, so if a future edit ever does put a
+     character in here, the bidi algorithm will not turn it round. Same
+     treatment .catalog-badge uses in organizer-panel.css. */
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.cookbook-nav svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+/* [FIXED v2026.9.17] Physical left/right ON PURPOSE - these must not swap.
+   They were inset-inline-* at first, so in Hebrew they traded places while
+   the glyphs traded with them, and a left-hand button ended up pointing
+   right. An arrow points away from where it sits, in any language.
+   This is the documented exception to RULE 33b: that rule keeps TEXT and
+   LAYOUT following the reading direction, and a media control is neither.
+   left/right are unaffected by `direction`, so this needs no [dir] override -
+   which is just as well, since one would never match in this panel. */
+.cookbook-nav-prev { left: 2px; }
+.cookbook-nav-next { right: 2px; }
+.cookbook-nav:hover { background: #6b4f2c; color: #fbf6ec; border-color: #6b4f2c; }
+.cookbook-nav:focus-visible { outline: 2px solid #6b4f2c; outline-offset: 2px; }
+/* At the ends of the book. Kept in place rather than removed, so the edge of
+   the page does not shift as you read through. */
+.cookbook-nav:disabled {
+  opacity: .28;
+  cursor: default;
+  box-shadow: none;
+}
+.cookbook-nav:disabled:hover {
+  background: rgba(255, 252, 245, .92);
+  color: #4a3620;
+  border-color: rgba(90, 66, 40, .45);
+}
+
+/* There is room on the desk at desktop width, so they step outside the book
+   entirely and stop sharing the paper with the recipe. Centred on the page
+   height, where there is nothing to collide with. */
+@media (min-width: 1200px) {
+  .cookbook-nav-prev { left: -20px; }
+  .cookbook-nav-next { right: -20px; }
+}
+
+/* [ADDED v2026.9.17] Phone and tablet: level with the rule under the title.
+   Below 1200px the arrows sit ON the paper, and halfway down the page put
+   them in the middle of the ingredients and the steps. Level with the rule
+   they sit in the band the title block already keeps clear.
+
+   The offsets are measured from the top of the book, which is the top of
+   .cookbook-page - .cookbook-book and .cookbook-spread add no padding of
+   their own - by adding up the rules above:
+
+     phone   20 padding + 28 title (24px x 1.15) + 6 + 17 meta + 18 = ~89
+     tablet  34 padding + 43 title (~38px x 1.15) + 6 + 17 meta + 18 = ~118
+
+   transform is cleared because the base rule centres with translateY(-50%),
+   and these are absolute offsets rather than a percentage. */
+@media (max-width: 1199px) {
+  .cookbook-nav { top: 118px; transform: none; }
+}
+@media (max-width: 899px) {
+  .cookbook-nav { top: 89px; transform: none; }
+}
+
+/* [REMOVED v2026.9.17] There is no page-turn animation, on purpose.
+   Three were built - a CSS class here, Web Animations, then a scripted
+   transition - and each behaved differently per engine: a diagonal skew on
+   Android, a flicker in Chrome that read as a fault. Turning a page shows
+   the next recipe and nothing else, which is the behaviour that is correct
+   everywhere. Anyone reinstating one should check both engines before
+   believing it works. */
+
+/* ==========================================================================
+   [ADDED v2026.9.16] Category chip + category sheet
+   The chip says which shelf the open recipe sits on; pressing it opens the
+   sheet, which lists every shelf and can create a new one.
+   ========================================================================== */
+
+/* [FIXED v2026.9.16] Colour, border and size are inherited from
+   .cookbook-tool and are NOT restated here, so this button looks exactly like
+   the ones beside it in the same strip.
+
+   It previously set background: rgba(122, 92, 56, .14) to read as a label
+   rather than an action. That is a 14%-alpha brown, so it took the colour of
+   whatever was behind it - over the dark cookbook ground it went dark, and
+   .cookbook-tool's dark brown text (#4a3620) became unreadable against it.
+   An alpha fill only works over a known backdrop; this strip has none.
+
+   Only the two things a long category name actually needs are set below.
+   display is the one unavoidable deviation: .cookbook-tool is inline-flex,
+   and text-overflow: ellipsis does not apply to a flex container's own text,
+   so the name would overflow instead of truncating. line-height replaces the
+   flex centring - 34px is the 36px box minus its two 1px borders. */
+/* ==========================================================================
+   [ADDED v2026.9.20] The recipe's tools menu
+   Renaming, re-filing and deleting moved off the toolbar and behind one
+   button. The row keeps what is pressed often; the menu holds what is not,
+   and the one destructive action.
+   ========================================================================== */
+
+.cookbook-menu-wrap {
+  /* The anchor the menu is positioned against. z-index stays auto so this
+     does NOT become a stacking context - the menu has to rise above the
+     docked Sous-Chef column, which is fixed. */
+  position: relative;
+  /* Pushed to the far end of the strip, where the delete button used to sit.
+     Logical, so it is the left in Hebrew and the right in English from one
+     declaration (RULE 33b). */
+  margin-inline-start: auto;
+}
+
+.cookbook-menu-btn {
+  /* Square, because it holds a mark rather than a word. 40px is a thumb. */
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.cookbook-menu-btn svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+/* What closes the menu on a press anywhere else. Invisible on purpose: it is
+   a hit area, not a scrim - a menu this small does not need the page dimmed
+   behind it. */
+.cookbook-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 3090;
+}
+
+.cookbook-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  /* Opens INWARD from the end of the strip, so it cannot run off the edge
+     in either direction. */
+  inset-inline-end: 0;
+  z-index: 3100;            /* over the docked column; under the sheets */
+  min-width: 232px;
+  padding: 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(90, 66, 40, .45);
+  background: #fbf6ec;
+  box-shadow: 0 10px 28px rgba(40, 28, 16, .35);
+}
+
+.cookbook-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  /* A thumb-sized row, not a line of text (RULE 36). */
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: #4a3720;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  text-align: start;
+  cursor: pointer;
+}
+.cookbook-menu-item:hover { background: rgba(122, 92, 56, .12); }
+
+/* The shelf the recipe is on, beside the item that changes it - so moving
+   the chip into the menu did not also hide what it was telling you. */
+.cookbook-menu-note {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #8a7862;
+  font-size: 13px;
+}
+
+/* Last, and marked. A destructive action should not look like its
+   neighbours. */
+.cookbook-menu-danger {
+  margin-top: 4px;
+  border-top: 1px solid rgba(90, 66, 40, .2);
+  border-radius: 0 0 6px 6px;
+  color: #9a3b2a;
+}
+.cookbook-menu-danger:hover { background: rgba(154, 59, 42, .14); }
+
+.cookbook-catpick {
+  position: fixed;
+  inset: 0;
+  z-index: 3200;            /* over the docked Sous-Chef column (z-index 20) */
+  background: rgba(0, 0, 0, .55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;            /* the phone gutter; the sheet never touches the edge */
+}
+
+.cookbook-catpick-sheet {
+  width: 100%;
+  max-width: 420px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  background: #fbf6ec;
+  color: #4a3620;
+  border-radius: 14px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .55);
+  overflow: hidden;
+}
+
+.cookbook-catpick-head {
+  padding: 14px 16px;
+  font-family: "Hoefler Text", Georgia, serif;
+  font-size: 15px;
+  font-weight: 600;
+  border-bottom: 1px solid rgba(110, 85, 55, .22);
+}
+
+/* The only scrolling part, so the heading and the two actions stay reachable
+   however many shelves exist. */
+.cookbook-catpick-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.cookbook-catpick-row {
+  display: block;
+  width: 100%;
+  min-height: 44px;         /* thumb-sized on phone and tablet */
+  padding-block: 10px;
+  padding-inline: 16px;
+  border: 0;
+  border-bottom: 1px solid rgba(110, 85, 55, .12);
+  background: none;
+  color: inherit;
+  font-size: 15px;
+  font-family: inherit;
+  /* Logical: follows the reading direction without a [dir] selector, which
+     would never match in this panel (RULE 33b). */
+  text-align: start;
+  cursor: pointer;
+  /* A long invented category name must not widen the sheet. */
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cookbook-catpick-row:hover { background: rgba(122, 92, 56, .12); }
+/* The shelf it is already on. Marked with weight, a wash and a rule down the
+   reading edge rather than a floated tick: `float: inline-end` is not
+   reliable in the older Android webview Home Assistant's companion app uses,
+   and a marker that silently does not apply is worse than a plainer one that
+   always does. The row also carries aria-current for a screen reader. */
+.cookbook-catpick-row.is-current {
+  font-weight: 700;
+  background: rgba(122, 92, 56, .16);
+  border-inline-start: 3px solid #6b4f2c;
+  padding-inline-start: 13px;   /* 16 - 3, so the text stays aligned */
+}
+
+.cookbook-catpick-new,
+.cookbook-catpick-cancel {
+  min-height: 46px;
+  padding: 12px 16px;
+  border: 0;
+  border-top: 1px solid rgba(110, 85, 55, .22);
+  background: none;
+  color: inherit;
+  font-size: 15px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.cookbook-catpick-new { font-weight: 600; }
+.cookbook-catpick-cancel { color: #6b5a45; }
+.cookbook-catpick-new:hover,
+.cookbook-catpick-cancel:hover { background: rgba(122, 92, 56, .12); }
+
+/* On a phone the sheet rises from the bottom, which is where a thumb is,
+   rather than floating in the middle of the screen. */
+@media (max-width: 899px) {
+  .cookbook-catpick { align-items: flex-end; padding: 0; }
+  .cookbook-catpick-sheet {
+    max-width: none;
+    max-height: 72vh;
+    border-radius: 14px 14px 0 0;
+  }
+}
+
+/* ==========================================================================
+   Sous-Chef call to action
+   ========================================================================== */
+
+.cookbook-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  margin-top: 22px;
+  border: 0;
+  border-radius: 26px;
+  cursor: pointer;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  color: #fdf8ee;
+  background: linear-gradient(135deg, #8a5a2b 0%, #6b4f2c 100%);
+  box-shadow: 0 4px 14px rgba(60, 42, 24, .45);
+}
+.cookbook-cta:hover { filter: brightness(1.08); }
+.cookbook-cta svg { width: 22px; height: 22px; fill: currentColor; }
+
+/* ==========================================================================
+   The shelf (list of recipes)
+   ========================================================================== */
+
+.cookbook-shelf {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 16px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* Each recipe as a book spine/cover. */
+.cookbook-spine {
+  position: relative;
+  min-height: 150px;
+  border-radius: 4px 8px 8px 4px;
+  padding: 16px 14px 14px 22px;
+  cursor: pointer;
+  color: #fbf3e4;
+  background: linear-gradient(135deg, #7a4b2a 0%, #5d3a20 100%);
+  box-shadow: 0 6px 16px rgba(0,0,0,.45);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+}
+/* The spine band down the binding edge. */
+.cookbook-spine::before {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0;
+  inset-inline-start: 0;
+  width: 11px;
+  background: linear-gradient(90deg, rgba(0,0,0,.42), rgba(0,0,0,.10));
+}
+.cookbook-spine:hover { transform: translateY(-2px); }
+.cookbook-spine-title {
+  font-family: "Hoefler Text", Georgia, serif;
+  font-size: 17px;
+  line-height: 1.25;
+}
+.cookbook-spine-meta { font-size: 11px; opacity: .8; }
+
+/* Marks a recipe the user has drawn on. */
+.cookbook-spine-annotated {
+  position: absolute;
+  top: 8px;
+  inset-inline-end: 8px;
+  font-size: 13px;
+  opacity: .85;
+}
+
+/* "New recipe" tile, drawn as an empty slot on the shelf. */
+.cookbook-spine.add {
+  background: rgba(255, 248, 235, .07);
+  border: 1.5px dashed rgba(251, 243, 228, .45);
+  box-shadow: none;
+  align-items: center;
+  justify-content: center;
+  color: rgba(251, 243, 228, .8);
+  font-size: 14px;
+}
+
+.cookbook-empty {
+  max-width: 1100px;
+  margin: 40px auto;
+  text-align: center;
+  color: rgba(251, 243, 228, .75);
+  font-family: "Hoefler Text", Georgia, serif;
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.cookbook-back {
+  max-width: 1100px;
+  margin: 0 auto 14px auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ==========================================================================
+   [ADDED v2026.10.10] Sous-Chef panel
+   Sits over the book rather than replacing it: the recipe has to stay
+   readable while the assistant talks you through it.
+   ========================================================================== */
+
+.cookbook-souschef {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  max-width: 1100px;
+  margin: 14px auto 0 auto;
+  border-radius: 14px 14px 0 0;
+  background: #2a211a;
+  color: #f6efe2;
+  box-shadow: 0 -8px 26px rgba(0,0,0,.5);
+  border: 1px solid rgba(251,243,228,.18);
+  border-bottom: 0;
+  overflow: hidden;
+}
+
+.cookbook-sc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  font-family: "Hoefler Text", Georgia, serif;
+  font-size: 14px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  background: rgba(0,0,0,.25);
+}
+
+.cookbook-sc-body {
+  padding: 14px;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.7;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.cookbook-sc-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 0 12px 14px 12px;
+}
+.cookbook-sc-actions .cookbook-tool {
+  background: rgba(251,243,228,.10);
+  border-color: rgba(251,243,228,.35);
+  color: #f6efe2;
+}
+
+/* ==========================================================================
+   [ADDED v2026.10.11] Stock status and inline editing
+   ========================================================================== */
+
+/* The answer to "do I have this", directly under the ingredient. */
+.cookbook-stock {
+  font-size: 11.5px;
+  line-height: 1.4;
+  margin-top: 2px;
+}
+.cookbook-stock.have { color: #3f6b33; }
+.cookbook-stock.need { color: #9a3b2a; }
+
+/* Delete control on an ingredient or a step. Faint until the row is hovered,
+   so the page still reads as a recipe rather than as a form. */
+.cookbook-mini {
+  position: relative;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  margin-inline-start: 6px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #9a3b2a;
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .12s ease;
+}
+.cookbook-ing:hover .cookbook-mini,
+.cookbook-step:hover .cookbook-mini { opacity: .75; }
+.cookbook-mini:hover { opacity: 1; background: rgba(154, 59, 42, .12); }
+/* On touch there is no hover, so the control is always visible - and the
+   target is grown to a thumb-sized one (RULE 36). The glyph stays small; it
+   is the hit area that grows, so the row does not turn into a row of buttons.
+   flex-shrink stays 0 so it can never be squeezed out of the line by a long
+   ingredient name. */
+@media (hover: none) {
+  .cookbook-mini { opacity: .55; }
+  /* The hit area grows past the glyph instead of the button growing, so the
+     row keeps its height and nothing overlaps the ingredient above it.
+     22px + 9px on each side = 40px of thumb. */
+  .cookbook-mini::after {
+    content: "";
+    position: absolute;
+    inset: -9px;
+  }
+}
+
+.cookbook-step { position: relative; }
+
+/* "Add ingredient" / "Add step", styled as a pencil note rather than a button
+   so it does not compete with the recipe itself. */
+.cookbook-addline {
+  margin-top: 12px;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  color: #6b4f2c;
+  font-family: "Hoefler Text", Georgia, serif;
+  font-style: italic;
+  font-size: 14px;
+  cursor: pointer;
+  opacity: .8;
+}
+.cookbook-addline:hover { opacity: 1; text-decoration: underline; }
+
+/* The toolbar wraps on a phone instead of overflowing. */
+.cookbook-back { flex-wrap: wrap; }
+
+/* ==========================================================================
+   [FIXED v2026.10.13] Phone layout
+   The numbered circles sat outside the text column and the type was set for a
+   two-page spread, so on a narrow screen the numbers collided with the step
+   text and the page felt cramped.
+   ========================================================================== */
+
+@media (max-width: 899px) {
+  .cookbook-wrap { padding: 8px; }
+  .cookbook-page { padding: 20px 16px 26px 16px; }
+
+  /* The spread is a single column here, so the page must not also try to
+     reserve room for a binding. */
+  .cookbook-spread { display: block; }
+
+  .cookbook-title { font-size: 24px; }
+  .cookbook-h2 { font-size: 15px; letter-spacing: .08em; }
+  .cookbook-body, .cookbook-ing, .cookbook-step { font-size: 15px; }
+
+  /* The number becomes a compact badge on the same line rather than a large
+     circle hanging off the side. */
+  .cookbook-step {
+    padding-inline: 34px 0;
+    padding-bottom: 14px;
+  }
+  .cookbook-step::before {
+    width: 24px;
+    height: 24px;
+    line-height: 22px;
+    font-size: 13px;
+    top: 1px;
+  }
+
+  /* [MODIFIED v2026.9.19] One row: tick, name, quantity, delete.
+     The quantity used to be given width:100%, which made it claim a line of
+     its own and pushed the delete button down onto a third line. The row read
+     as three separate things instead of one ingredient. The name is the only
+     part that may wrap, and it wraps inside its own box. */
+  .cookbook-ing { flex-wrap: nowrap; }
+  .cookbook-ing-qty {
+    width: auto;
+    /* Never squeezed: the quantity is nowrap, so shrinking it would push it
+       out of the row rather than wrap it. The name is the flexible part and
+       wraps inside its own box. */
+    flex: 0 0 auto;
+    margin-inline-start: 8px;
+    font-size: 12.5px;
+  }
+
+  /* A second page in the book is the next section, not a column. */
+  .cookbook-spread .cookbook-page:first-child,
+  .cookbook-spread .cookbook-page:last-child { border-radius: 6px; }
+  .cookbook-spread .cookbook-page + .cookbook-page {
+    border-top: 1px dashed rgba(110, 85, 55, .4);
+  }
+
+  .cookbook-shelf { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+  .cookbook-souschef { max-height: 60vh; }
+  .cookbook-sc-body { max-height: 32vh; }
+}
+
+/* [ADDED v2026.10.14] Ask-about-this-recipe input, above the quick buttons. */
+.cookbook-sc-ask {
+  display: flex;
+  gap: 8px;
+  padding: 0 12px 10px 12px;
+}
+
+.cookbook-sc-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(251,243,228,.30);
+  background: rgba(251,243,228,.08);
+  color: #f6efe2;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+}
+.cookbook-sc-input::placeholder { color: rgba(246,239,226,.5); }
+.cookbook-sc-input:focus {
+  outline: none;
+  border-color: var(--primary-color, #03a9f4);
+  background: rgba(251,243,228,.13);
+}
+
+/* [ADDED v2026.10.15] Voice controls.
+   The microphone pulses while it is open, because a control that is silently
+   recording needs to look different from one that is not. */
+.cookbook-tool.listening {
+  background: var(--error-color, #c62828);
+  border-color: var(--error-color, #c62828);
+  color: #fff;
+  animation: cookbook-mic-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes cookbook-mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(198, 40, 40, .55); }
+  50%      { box-shadow: 0 0 0 7px rgba(198, 40, 40, 0); }
+}
+
+/* Anyone who has asked the system not to animate should not get a pulsing
+   red button. */
+@media (prefers-reduced-motion: reduce) {
+  .cookbook-tool.listening { animation: none; }
+}
+
+/* Voice controls in the dark panel header need the panel's palette, not the
+   paper one. */
+.cookbook-sc-head .cookbook-tool {
+  background: rgba(251,243,228,.10);
+  border-color: rgba(251,243,228,.35);
+  color: #f6efe2;
+}
+.cookbook-sc-head .cookbook-tool.active {
+  background: var(--primary-color, #03a9f4);
+  border-color: var(--primary-color, #03a9f4);
+  color: #fff;
+}
+.cookbook-sc-ask .cookbook-tool {
+  flex: 0 0 auto;
+  background: rgba(251,243,228,.10);
+  border-color: rgba(251,243,228,.35);
+  color: #f6efe2;
+}
+
+/* [ADDED v2026.10.16] The question shown in the panel header.
+   Truncated rather than wrapped: the header is a fixed strip and a long
+   spoken question would otherwise push the controls off it. */
+/* [ADDED v2026.9.17] A change waiting to be approved.
+   Marked out from the reply above it, because the difference between "here is
+   what I suggest" and "this has been done" is the whole point. */
+.cookbook-editbox {
+  margin: 0 12px 12px 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(251, 243, 228, .35);
+  border-radius: 10px;
+  background: rgba(251, 243, 228, .08);
+}
+.cookbook-editbox-what {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  margin-bottom: 10px;
+  color: #f6efe2;
+}
+.cookbook-editbox-row {
+  display: flex;
+  flex-wrap: wrap;   /* three buttons do not fit one phone line */
+  gap: 8px;
+}
+.cookbook-editbox .cookbook-tool {
+  background: rgba(251, 243, 228, .10);
+  border-color: rgba(251, 243, 228, .35);
+  color: #f6efe2;
+  min-height: 40px;   /* thumb-sized: this is the confirmation step */
+}
+.cookbook-editbox .cookbook-tool:hover {
+  background: rgba(251, 243, 228, .22);
+}
+/* The one that rewrites the stored recipe reads as the weightier choice, but
+   is never styled as the default - the reversible option comes first. */
+.cookbook-editbox .cookbook-editbox-save {
+  border-color: #cdab6d;
+  color: #ffeec2;
+}
+
+.cookbook-sc-heard {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-style: italic;
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: .9;
+}
+
+/* ==========================================================================
+   [ADDED v2026.10.17] Sous-Chef placement
+   Phone keeps the sheet that slides up over the book. From tablet width up it
+   becomes a column beside the book instead, so the recipe and the
+   conversation are both fully readable at once - which is the whole reason
+   the chat was moved into this screen.
+   ========================================================================== */
+
+@media (min-width: 1200px) {
+  /* The wrap becomes the positioning context for the docked column. */
+  .cookbook-wrap { position: relative; }
+
+  .cookbook-souschef {
+    position: fixed;
+    /* [FIXED v2026.9.16] Was top: 0, which put the column over the whole
+       viewport height - it covered the main bar and the sub-bar, hiding the
+       Home button on one side and the Edit button on the other. The column
+       now starts below the panel chrome. The fallback matters: if the token
+       ever goes missing the column drops below the bars rather than back on
+       top of them. */
+    top: var(--ho-chrome-h, 90px);
+    bottom: 0;
+    /* Logical, not left/right: Home Assistant sets dir="rtl" on the document
+       and the shadow tree inherits it, so this resolves to the RIGHT in
+       Hebrew and the LEFT in English - exactly the two sides asked for,
+       from one declaration. */
+    inset-inline-start: 0;
+    width: 380px;
+    max-width: 34vw;
+    margin: 0;
+    border-radius: 0;
+    border: 0;
+    border-inline-end: 1px solid rgba(251,243,228,.18);
+    box-shadow: 0 0 30px rgba(0,0,0,.5);
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* The reply takes the height that is left, rather than a fixed slice. */
+  .cookbook-sc-body {
+    flex: 1;
+    max-height: none;
+  }
+
+  /* [FIXED v2026.9.20] The desk starts where the column ends, and the book
+     centres in what is left.
+     
+     This used to push each child 396px off the starting edge. margin:auto
+     can only centre something inside its CONTAINER, so overriding the start
+     margin left the book pinned to the column with all the leftover desk
+     piled up on the far side - on a wide monitor it read as a small book
+     shoved into a corner. Taking the space off the container instead leaves
+     margin:auto doing its job. The column is position:fixed and out of flow,
+     so padding here cannot move it. */
+  .cookbook-wrap.with-souschef {
+    padding-inline-start: 396px;
+  }
+
+  /* [ADDED v2026.9.20] Bigger displays get a bigger book.
+     1100px is right on a laptop and looks lost on a wide monitor, but a
+     spread that grows without limit gives lines too long to read - so it
+     steps up and then stops. Every element that has to line up with the book
+     steps with it. */
+  @media (min-width: 1600px) {
+    .cookbook-book, .cookbook-back, .cookbook-shelf { max-width: 1280px; }
+    .cookbook-toc { max-width: 1040px; }
+  }
+  @media (min-width: 2000px) {
+    .cookbook-book, .cookbook-back, .cookbook-shelf { max-width: 1460px; }
+    .cookbook-toc { max-width: 1160px; }
+  }
+}
+
+/* [MODIFIED v2026.10.18] Raised from 899px to 1199px.
+   A tablet has the width for two book pages but not for two book pages AND a
+   380px column beside them - the recipe ended up squeezed. Tablets now get
+   the same bottom sheet as a phone, and only a real desktop gets the docked
+   column. */
+@media (max-width: 1199px) {
+  .cookbook-souschef {
+    position: sticky;
+    inset-inline-start: auto;
+    width: auto;
+    max-width: none;
+  }
+  /* The header wraps rather than pushing the voice controls off the strip. */
+  .cookbook-sc-head { flex-wrap: wrap; }
+}
+
+/* ==========================================================================
+   [ADDED v2026.10.18] Table of contents
+   Set as a real contents page: chapter, leader dots, count.
+   ========================================================================== */
+
+.cookbook-toc {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 28px 26px 34px 26px;
+  border-radius: 6px;
+  background-color: #f6efe2;
+  background-image:
+    repeating-linear-gradient(92deg, rgba(120,95,60,.035) 0 2px, transparent 2px 5px),
+    radial-gradient(ellipse at 50% 50%, #fbf6ec 0%, #efe6d5 100%);
+  color: #2e2620;
+  box-shadow: 0 18px 40px rgba(0,0,0,.55);
+}
+
+.cookbook-toc-title {
+  font-family: "Hoefler Text", "Iowan Old Style", Palatino, Georgia, serif;
+  font-size: clamp(22px, 3.4vw, 30px);
+  text-align: center;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  margin: 0 0 22px 0;
+  padding-bottom: 12px;
+  border-bottom: 2px solid rgba(90,66,40,.45);
+}
+
+.cookbook-chapter {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 11px 4px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(110,85,55,.18);
+  font-family: "Hoefler Text", Georgia, serif;
+  font-size: 17px;
+}
+.cookbook-chapter:hover { background: rgba(120,95,60,.06); }
+.cookbook-chapter-caret { font-size: 11px; color: #8a6a40; }
+.cookbook-chapter-name { font-weight: 600; white-space: nowrap; }
+
+/* The leader dots of a printed contents page. */
+.cookbook-chapter-dots {
+  flex: 1;
+  min-width: 14px;
+  align-self: center;
+  height: 1px;
+  margin: 0 4px;
+  background-image: radial-gradient(circle, rgba(110,85,55,.55) 1px, transparent 1px);
+  background-size: 6px 2px;
+  background-repeat: repeat-x;
+}
+
+/* [MODIFIED v2026.9.17] Rename and remove, on a chapter row.
+   Plainly visible rather than revealed on hover, because these are only
+   rendered at all while the pencil in the top bar is on - the user has
+   already said they are arranging things, so hiding the controls again
+   would be perverse, and a hover-only control is unreachable on a tablet
+   anyway (RULE 36). Sized for a thumb on touch. */
+.cookbook-chapter-tool {
+  flex: 0 0 auto;
+  align-self: center;
+  margin-inline-start: 4px;
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0 5px;
+  border: 1px solid rgba(122, 92, 56, .35);
+  border-radius: 8px;
+  background: rgba(255, 252, 245, .75);
+  color: #8a6a40;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.cookbook-chapter-tool:hover { background: rgba(122, 92, 56, .18); }
+.cookbook-chapter-tool:focus-visible { outline: 2px solid #8a6a40; }
+.cookbook-chapter-tool.cookbook-chapter-danger {
+  color: #9a3b2a;
+  border-color: rgba(154, 59, 42, .45);
+}
+@media (hover: none) {
+  .cookbook-chapter-tool { min-width: 40px; min-height: 40px; }
+}
+
+/* A recipe shown in a language it was not written in. Marked out rather than
+   blended in: it is machine output and the reader should know. */
+.cookbook-translated {
+  border-style: dashed;
+  font-style: italic;
+}
+
+.cookbook-chapter-count {
+  min-width: 26px;
+  text-align: center;
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  color: #6b4f2c;
+  background: rgba(122,92,56,.14);
+  border-radius: 10px;
+  padding: 1px 7px;
+}
+
+.cookbook-chapter-body {
+  padding: 4px 0 12px 26px;
+  border-bottom: 1px solid rgba(110,85,55,.18);
+}
+[dir="rtl"] .cookbook-chapter-body { padding-inline: 26px 0; }
+
+.cookbook-toc-entry {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 2px;
+  cursor: pointer;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 14.5px;
+}
+.cookbook-toc-entry:hover { color: #6b4f2c; }
+.cookbook-entry-mark { width: 14px; font-size: 12px; color: #8a6a40; }
+.cookbook-entry-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cookbook-entry-meta { font-size: 12px; color: #6b5a45; white-space: nowrap; }
+
+/* [ADDED v2026.9.16] "Move to another category", per contents entry.
+   Logical properties only: this panel signals direction with a class on #app
+   and never sets a dir attribute, so a [dir="rtl"] override would not match
+   (RULE 33b). align-self keeps it centred on a baseline-aligned row. */
+.cookbook-entry-move {
+  flex: 0 0 auto;
+  align-self: center;
+  margin-inline-start: 4px;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: #8a6a40;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+}
+.cookbook-toc-entry:hover .cookbook-entry-move { opacity: .75; }
+.cookbook-entry-move:hover { opacity: 1; background: rgba(122, 92, 56, .14); }
+/* Keyboard users never trigger :hover, so focus must reveal it too. */
+.cookbook-entry-move:focus-visible { opacity: 1; outline: 2px solid #8a6a40; }
+
+/* On touch there is no hover, so the control is always visible and the target
+   is grown to a thumb-sized one. Same pattern as .cookbook-mini above. */
+@media (hover: none) {
+  .cookbook-entry-move { opacity: .55; min-width: 40px; min-height: 40px; }
+}
+
+.cookbook-add-chapter {
+  display: block;
+  width: 100%;
+  margin-top: 18px;
+  text-align: center;
+}
+
+@media (max-width: 899px) {
+  .cookbook-toc { padding: 20px 14px 26px 14px; }
+  .cookbook-chapter { font-size: 15.5px; }
+  .cookbook-chapter-body { padding-inline: 16px 0; }
+}

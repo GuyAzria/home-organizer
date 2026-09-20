@@ -370,16 +370,18 @@ export const InventoryMixin = (Base) => class extends Base {
       if (this.isEditMode) checkboxHtml = `<input type="checkbox" class="item-select-cb" style="position:absolute;top:8px;inset-inline-start:8px;z-index:20;transform:scale(1.3);cursor:pointer;" ${this.selectedItems.has(Number(item.id))?'checked':''} onclick="event.stopPropagation();this.getRootNode().host.toggleItemSelection('${escapeHtml(item.id)}',this.checked)">`;
       
       let iconHtml = ICONS.item;
-      if (item.img) {
-        if (item.img.startsWith('ICON_LIB')) {
-          iconHtml = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">${this.getIconByKey(item.img)||ICONS.item}</div>`;
-        } else {
-          let cleanPath = item.img.split('?')[0]; 
-          const ver = this.imageVersions[item.id] || 'ok';
-          const src = `${cleanPath}?v=${ver}`;
-          const loader = this.loadingSet.has(item.id) ? `<div class="loader-container"><span class="loader"></span></div>` : '';
-          iconHtml = `<img src="${src}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:8px">${loader}`;
-        }
+      // [MODIFIED v2026.9.20] The question is "is it a photograph", not
+      // "is there an img". An item whose icon the assistant DREW has no
+      // img at all - the drawing lives in its own field - so gating on img
+      // meant a drawn icon was never reached and the default showed.
+      if (!this.itemHasPhoto(item)) {
+        iconHtml = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">${this.getItemIcon(item)}</div>`;
+      } else {
+        let cleanPath = item.img.split('?')[0]; 
+        const ver = this.imageVersions[item.id] || 'ok';
+        const src = `${cleanPath}?v=${ver}`;
+        const loader = this.loadingSet.has(item.id) ? `<div class="loader-container"><span class="loader"></span></div>` : '';
+        iconHtml = `<img src="${src}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:8px">${loader}`;
       }
       
       const fitAlert = (typeof this.checkFitWarning === 'function') ? this.checkFitWarning(item.measurements) : null;
@@ -506,16 +508,18 @@ export const InventoryMixin = (Base) => class extends Base {
     }
 
     let iconHtml = `<span class="item-icon">${ICONS.item}</span>`;
-    if (item.img) {
-      if (item.img.startsWith('ICON_LIB')) {
-        iconHtml = `<div class="item-icon" style="cursor:zoom-in;" onclick="event.stopPropagation();this.getRootNode().host.showItemDetailsProxy('${escapeHtml(item.id)}')">${this.getIconByKey(item.img)||ICONS.item}</div>`;
-      } else {
-        let cleanPath = item.img.split('?')[0]; 
-        const ver = this.imageVersions[item.id] || 'ok';
-        const src = `${cleanPath}?v=${ver}`;
-        const loader = this.loadingSet.has(item.id) ? `<div class="loader-container"><span class="loader"></span></div>` : '';
-        iconHtml = `<div style="position:relative;width:40px;height:40px"><img src="${src}" class="item-thumbnail" alt="${escapeHtml(item.name)}" onclick="event.stopPropagation();this.getRootNode().host.showImg('${cleanPath}?v=${ver}')">${loader}</div>`;
-      }
+    // [MODIFIED v2026.9.20] The question is "is it a photograph", not
+    // "is there an img". An item whose icon the assistant DREW has no
+    // img at all - the drawing lives in its own field - so gating on img
+    // meant a drawn icon was never reached and the default showed.
+    if (!this.itemHasPhoto(item)) {
+      iconHtml = `<div class="item-icon" style="cursor:zoom-in;" onclick="event.stopPropagation();this.getRootNode().host.showItemDetailsProxy('${escapeHtml(item.id)}')">${this.getItemIcon(item)}</div>`;
+    } else {
+      let cleanPath = item.img.split('?')[0]; 
+      const ver = this.imageVersions[item.id] || 'ok';
+      const src = `${cleanPath}?v=${ver}`;
+      const loader = this.loadingSet.has(item.id) ? `<div class="loader-container"><span class="loader"></span></div>` : '';
+      iconHtml = `<div style="position:relative;width:40px;height:40px"><img src="${src}" class="item-thumbnail" alt="${escapeHtml(item.name)}" onclick="event.stopPropagation();this.getRootNode().host.showImg('${cleanPath}?v=${ver}')">${loader}</div>`;
     }
 
     const barcodeHtml = (item.barcode && item.barcode !== '0')
@@ -539,15 +543,17 @@ export const InventoryMixin = (Base) => class extends Base {
       details.className = 'expanded-details';
 
       let expandedIconHtml = ICONS.item;
-      if (item.img) {
-        if (item.img.startsWith('ICON_LIB')) {
-          expandedIconHtml = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--primary);">${this.getIconByKey(item.img)||ICONS.item}</div>`;
-        } else {
-          let cleanPath = item.img.split('?')[0]; 
-          const ver = this.imageVersions[item.id] || 'ok';
-          const src = `${cleanPath}?v=${ver}`;
-          expandedIconHtml = `<img src="${src}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;">`;
-        }
+      // [MODIFIED v2026.9.20] The question is "is it a photograph", not
+      // "is there an img". An item whose icon the assistant DREW has no
+      // img at all - the drawing lives in its own field - so gating on img
+      // meant a drawn icon was never reached and the default showed.
+      if (!this.itemHasPhoto(item)) {
+        expandedIconHtml = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--primary);">${this.getItemIcon(item)}</div>`;
+      } else {
+        let cleanPath = item.img.split('?')[0]; 
+        const ver = this.imageVersions[item.id] || 'ok';
+        const src = `${cleanPath}?v=${ver}`;
+        expandedIconHtml = `<img src="${src}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;">`;
       }
 
       let mainCatOptions = `<option value="">${this._t('select_cat', 'Category')}</option>`;

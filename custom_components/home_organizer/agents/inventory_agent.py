@@ -15,6 +15,7 @@
 # // [MODIFIED v9.1.12 | 2026-08-02] Purpose: Refactored database interactions to use aiosqlite for full asynchronous I/O. Replaced get_db_connection with get_db_path and removed async_add_executor_job wrappers to prevent Event Loop blocking.
 # // [ADDED v9.1.11 | 2026-04-14] Purpose: Fixed sub-location logic where AI created new sub-locations instead of using existing ones. Rewrote Rule 3 to explicitly enforce 'USER LOCATION MATCHING', requiring the AI to match user input to an existing location_id first, and forbidding the use of the sub_location parameter unless explicit permission for a NEW location was granted.
 
+import json
 import logging
 import aiosqlite
 import homeassistant.util.dt as dt_util
@@ -23,6 +24,10 @@ from ..database import get_db_path, async_add_item_db_safe
 from ..ai_core.router import safe_smart_router
 from ..ai_core.json_utils import safe_parse_json, apply_voice_rules
 from ..ai_core.localized_strings import get_strings_for_language
+# [ADDED v2026.9.20] The assistant draws an item's icon instead of
+# picking the nearest thing from a fixed library. Same validator the
+# recipe emblems use - one allow-list, not two (RULE 33d).
+from ..ai_core.draw_spec import validate_icon_spec
 from ..prompt_core import ICON_PROMPT_CONTEXT
 
 _LOGGER = logging.getLogger(__name__)
@@ -313,7 +318,10 @@ def get_invoice_prompt(target_lang, existing_locs_str, existing_cats_str, user_m
 # ==========================================
 # TOOLS (inventory-only)
 # ==========================================
-async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map):
+# [MODIFIED v2026.9.20] messages, so a tool can leave a marker for the
+# panel - the same way the cooking agent hands over an emblem design.
+async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map,
+                       messages=None):
     _LOGGER.info(f"Inventory tool: {tool_name} args={kwargs}")
 
     if tool_name == "check_sub_locations":
@@ -397,9 +405,31 @@ async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map):
         if sl:
             full_path.append(sl)
 
-        await async_add_item_db_safe(
+        new_id = await async_add_item_db_safe(
             hass, nm, qt, full_path, cat, scat, "item", icon, "0"
         )
+
+        # [ADDED v2026.9.20] The icon the assistant DREW for this item.
+        #
+        # A drawing spec - shapes and numbers, never markup - checked here
+        # against a fixed allow-list and handed to the panel, which does the
+        # drawing. The item is already saved by this point: a spec that is
+        # refused, or absent, costs the user nothing but the default icon
+        # (RULE 31).
+        if new_id and messages is not None:
+            spec = validate_icon_spec(kwargs.get("icon_spec"))
+            if spec:
+                messages.append({
+                    "role": "system",
+                    "content": "HO_ITEM_ICON:" + json.dumps(
+                        {"item_id": new_id, "shapes": spec},
+                        ensure_ascii=False),
+                })
+                _LOGGER.info(
+                    "[HO-INVENTORY] Icon designed for item %s (%d shapes).",
+                    new_id, len(spec),
+                )
+
         hass.bus.async_fire("home_organizer_db_update")
         loc_str = " > ".join(full_path)
         return f"Success! Added {qt} {nm} to {loc_str}."
@@ -591,7 +621,8 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
         if intent == "tool":
             tool_name = parsed.get("tool_name")
             kwargs = parsed.get("kwargs", {})
-            tool_result = await execute_tool(hass, tool_name, kwargs, loc_hierarchy_map)
+            tool_result = await execute_tool(
+                hass, tool_name, kwargs, loc_hierarchy_map, messages)
             messages.append({"role": "system", "content": f"System Tool Output: {tool_result}"})
 
             history_text_new = ""

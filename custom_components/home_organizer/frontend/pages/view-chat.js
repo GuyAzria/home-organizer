@@ -181,14 +181,15 @@ export const ChatMixin = (Base) => class extends Base {
               + (curCat ? `<option value="__ADD__">+ ${escapeHtml(this._t('add_new', 'Add'))}</option>` : '');
             
             let iconHtml = `<div class="item-icon" style="margin-inline-end:10px;">${ICONS.item}</div>`;
-            if (item.img) {
-              if (item.img.startsWith('ICON_LIB')) {
-                iconHtml = `<div class="item-icon" style="margin-inline-end:10px;">${this.getIconByKey(item.img)||ICONS.item}</div>`;
-              } else {
-                let cleanPath = item.img.split('?')[0]; 
-                const ver = this.imageVersions[item.id] || 'ok';
-                iconHtml = `<img src="${cleanPath}?v=${ver}" style="width:40px;height:40px;border-radius:4px;object-fit:cover;margin-inline-end:10px;">`;
-              }
+            // [MODIFIED v2026.9.20] "is it a photograph", not "is there an img":
+            // a drawn icon lives in its own field, so an item that has one but no
+            // img was falling through to the default.
+            if (!this.itemHasPhoto(item)) {
+              iconHtml = `<div class="item-icon" style="margin-inline-end:10px;">${this.getItemIcon(item)}</div>`;
+            } else {
+              let cleanPath = item.img.split('?')[0]; 
+              const ver = this.imageVersions[item.id] || 'ok';
+              iconHtml = `<img src="${cleanPath}?v=${ver}" style="width:40px;height:40px;border-radius:4px;object-fit:cover;margin-inline-end:10px;">`;
             }
 
             const hierarchyHtml = (typeof this.renderHierarchyControl === 'function') ? this.renderHierarchyControl(item, true) : '';

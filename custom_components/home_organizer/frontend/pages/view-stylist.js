@@ -493,15 +493,16 @@ export const StylistMixin = (Base) => class extends Base {
 
               let imgHtml = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--primary);">${ICONS.item}</div>`;
               let src = '';
-              if (item.img) {
-                  if (item.img.startsWith('ICON_LIB')) {
-                      imgHtml = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--primary);">${this.getIconByKey(item.img)||ICONS.item}</div>`;
-                  } else {
-                      let cleanPath = item.img.split('?')[0]; 
-                      const ver = this.imageVersions[item.id] || 'ok';
-                      src = `${cleanPath}?v=${ver}`;
-                      imgHtml = `<img src="${src}">`;
-                  }
+              // [MODIFIED v2026.9.20] "is it a photograph", not "is there an img":
+              // a drawn icon lives in its own field, so an item that has one but no
+              // img was falling through to the default.
+              if (!this.itemHasPhoto(item)) {
+                  imgHtml = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--primary);">${this.getItemIcon(item)}</div>`;
+              } else {
+                  let cleanPath = item.img.split('?')[0]; 
+                  const ver = this.imageVersions[item.id] || 'ok';
+                  src = `${cleanPath}?v=${ver}`;
+                  imgHtml = `<img src="${src}">`;
               }
 
               const fitAlert = (typeof this.checkFitWarning === 'function') ? this.checkFitWarning(item.measurements) : null;

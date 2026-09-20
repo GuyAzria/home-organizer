@@ -1,4 +1,7 @@
 /* Home Organizer CSS - Ver 7.7.33 */
+/* [MODIFIED v2026.9.16 | 2026-09-16] Purpose: Added the --ho-chrome-h token,
+   the combined height of .top-bar and .sub-bar, so a fixed overlay can start
+   below the panel chrome instead of covering the Home and Edit buttons. */
 /* [ADDED v7.7.33 | 2026-04-01] Purpose: Added CSS rules to support dragging the Speed Dial button */
 
 :host { 
@@ -27,6 +30,15 @@
     --chat-bg: #fff; --chat-msg-user: #e0f2f1; --chat-msg-ai: #eceff1;
 }
 * { box-sizing: border-box; }
+
+/* [ADDED v2026.9.16] Combined height of .top-bar (60px) + .sub-bar (30px).
+   Both are border-box, so these are their full heights including borders.
+   Any position:fixed panel must start BELOW this, or it covers the Home and
+   Edit buttons - which is exactly what the docked Sous-Chef column did. It
+   lives here, next to the two rules it is derived from, so the number cannot
+   drift away from them unnoticed. */
+:host { --ho-chrome-h: 90px; }
+
 .app-container { background: var(--bg-body); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; font-family: sans-serif; }
 svg { width: 24px; height: 24px; fill: currentColor; }
 .top-bar { background: var(--bg-bar); padding: 10px; border-bottom: 1px solid var(--border-color); display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-shrink: 0; height: 60px; position: relative; }

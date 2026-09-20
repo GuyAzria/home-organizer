@@ -12,58 +12,35 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
-# // [MODIFIED v2026.9.13 | STAGE 2] Purpose: Receipt pages now carry a
-# // browser URL alongside the filesystem path. A stored path is not
-# // something a browser can open; only files under config/www are served
-# // by Home Assistant, at /local/.
-# // [MODIFIED v2026.9.12 | STAGE 2] Purpose: Backing query for the receipts
-# // table. async_list_receipts filters by vendor and date range in SQL and
-# // returns the distinct vendor list for the filter control.
-# // [MODIFIED v2026.9.19] Purpose: Categories move from the shipped
-# // organizer-data.js into db_items_categories. A JavaScript file that
-# // ships with the integration is replaced on every HACS update, so
-# // anything the user or the AI added to it would be lost. The table is
-# // seeded once with the exact former contents and order, and is the only
-# // source of truth afterwards.
-# // [MODIFIED v2026.9.11 | STAGE 2] Purpose: A scan can be discarded whole
-# // while it is still a draft. Adds async_delete_draft_scan, which removes
-# // the pending items, the archived page files and the receipt row - but
-# // only while nothing has been approved, so no recorded spend is ever
-# // destroyed.
-# // [MODIFIED v2026.9.9 | STAGE 2] Purpose: All pages of a multi-image
-# // receipt are now archived, not just the first. Adds the receipt_pages
-# // table (one row per photograph, ordered) so the whole document can be
-# // reopened later exactly as it was captured.
-# // [MODIFIED v2026.9.8 | STAGE 2] Purpose: Multi-page receipts. Every
-# // page of a long receipt is now sent to the model in ONE request,
-# // so it reads the header from page 1, takes lines from all pages and
-# // resolves the overlap between photographs itself. The earlier
-# // heuristic that attached headerless scans to a recent draft has
-# // been removed rather than left in place unused.
-# // [MODIFIED v2026.9.6 | STAGE 2] Purpose: Receipts are inserted as
-# // 'draft' and promoted to 'active' on the first approved item, and
-# // purchase history is written at approval rather than at scan time.
-# // Writing history at scan time meant a hallucinated line the user
-# // then deleted still left a permanent row in a table that is never
-# // updated or deleted.
-# // [MODIFIED v2026.9.5 | STAGE 2] Purpose: Purchase history and receipt
-# // file storage. Adds the `purchase_history` table (one immutable row
-# // per receipt line, so price history survives an item being consumed),
-# // a product_key that groups the same product across receipts with or
-# // without a barcode, and async_store_receipt_file which writes the
-# // scanned document to disk under an unguessable name.
-# // [MODIFIED v2026.9.4 | STAGE 2] Purpose: Receipt persistence. Adds
-# // async_add_item_db_safe purchase fields, receipt lookup/insert helpers
-# // and a `status` column on receipts so a superseded scan is marked
-# // rather than deleted - receipts are never removed.
-# // [MODIFIED v2026.9.3 | STAGE 1] Purpose: Additive schema expansion for
-# // expiry, warranty, purchase price, receipts and per-location shelf life.
-# // Adds 7 columns to `items`, the `receipts` and `location_settings`
-# // tables, and supporting indexes. Purely additive: existing rows get
-# // NULL in the new columns and no existing data is read or rewritten.
-# // A one-time backup of the database file is taken before the first
-# // migration run.
-# // [MODIFIED v8.57.0 | 2026-08-02] Purpose: Completely refactored all database operations to aiosqlite for non-blocking I/O in Home Assistant event loop. Added async_init_db, async_add_item_db_safe, and async_get_view_data.
+# // [MODIFIED v2026.9.20 | 2026-09-20] Purpose: A dish photo is now deleted
+# // from DISK, not just unhooked from its recipe. Taking a photo off used
+# // to clear the column and leave the file behind for ever, so on an
+# // install where people photograph what they cook the folder only grew.
+# // async_delete_recipe_photo is the one way in, and it is built to be hard
+# // to misuse: the name must match the pattern this integration writes,
+# // basename() strips any directory part before that check, and the joined
+# // path must still resolve inside the photo folder. It reuses
+# // _delete_files_sync, so every image removal in this integration goes
+# // through one function, in the executor (RULE 13, RULE 31, RULE 33d).
+# // [MODIFIED v2026.9.19 | 2026-09-19] Purpose: Water, salt, oil and
+# // pepper are assumed to be in the house. async_check_ingredients takes
+# // an assume_available list and reports those as in stock without
+# // consulting the inventory, because nobody records the salt and calling
+# // it missing buries the one ingredient that really is. _is_pantry_staple
+# // matches whole words, so "salt" is a staple and "salted butter" is not.
+# // The words arrive from the caller in the user's own language - see the
+# // note on async_check_ingredients for why they are not listed here.
+# // For the same reason the ingredient stopwords are now supplied the same
+# // way: _STOPWORDS keeps only English, and _significant_words takes the
+# // caller's set on top. The list had grown a Hebrew tail, which put natural
+# // language in the code (RULE 17) and left the other five languages with no
+# // stopwords at all - an Italian shelf holding "pomodoro" never matched a
+# // recipe asking for "pomodoro fresco".
+# // Same release: categories move from the shipped organizer-data.js into
+# // db_items_categories. A JavaScript file that ships with the integration
+# // is replaced on every HACS update, so anything the user or the AI added
+# // to it would be lost. The table is seeded once with the exact former
+# // contents and order, and is the only source of truth afterwards.
 
 import logging
 import aiosqlite
@@ -150,6 +127,22 @@ async def async_init_db(hass):
 
     try:
         async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            # [FIXED v2026.9.17] First run means the TABLE has never existed,
+            # not that the file is absent.
+            #
+            # Deleting the database while Home Assistant is running leaves
+            # the next query to recreate it - empty and with no tables, since
+            # only setup builds the schema. The file then exists, so a file
+            # test reports "not a first install" forever after and the
+            # starter folders are never written. Asking about the table is
+            # exact, and still refuses to seed over an inventory that was
+            # merely emptied (RULE 5).
+            async with db.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type='table' AND name='items'"
+            ) as cur:
+                is_first_install = (await cur.fetchone()) is None
+
             await db.execute("CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)")
             await db.execute("CREATE TABLE IF NOT EXISTS persistent_ids (scope TEXT, item_name TEXT, seq_id INTEGER, PRIMARY KEY (scope, item_name))")
 
@@ -203,7 +196,35 @@ async def async_init_db(hass):
                 # Set when the user marks an item as thrown away rather than
                 # consumed. Feeds the waste metric on the expenses screen.
                 'discarded': "INTEGER DEFAULT 0",
-                'discarded_at': "TEXT"
+                'discarded_at': "TEXT",
+
+                # [ADDED v2026.9.20] The icon the assistant designed for THIS
+                # item, as the SPEC it sent - not as a picture.
+                #
+                # Storing the spec rather than finished SVG is deliberate:
+                #
+                #   * The panel is the only thing that turns a spec into
+                #     markup, so there is ONE builder rather than one here
+                #     and one in JavaScript (RULE 33a.6). Items are usually
+                #     added by voice, with no panel listening, so a design
+                #     that needed the panel to draw before anything could be
+                #     stored would never have reached the main path at all.
+                #   * A spec is a few hundred bytes; the SVG it produces is
+                #     two to three thousand.
+                #   * It is checked twice over: ai_core.draw_spec rebuilds it
+                #     field by field before it is stored, and spec-draw.js
+                #     coerces every value again when it draws. Neither end
+                #     trusts the other (RULE 7, RULE 11).
+                #
+                # A column of its own rather than a third meaning for
+                # image_path, which already carries two - a library key or a
+                # photo filename - and is tested with startswith("ICON_LIB")
+                # wherever it is read.
+                #
+                # Purely additive: every existing row gets NULL and keeps the
+                # icon it has. The panel prefers a photograph, then this, then
+                # the library key (RULE 5, RULE 25).
+                'icon_spec': "TEXT"
             }
             
             for i in range(1, 11): 
@@ -523,6 +544,43 @@ async def async_init_db(hass):
             except Exception:
                 pass
 
+            # [ADDED v2026.9.17] One worked example of a location, on a brand
+            # new install only.
+            #
+            # Guarded twice over. is_first_install says the database file did
+            # not exist a moment ago, and the count says nothing has been put
+            # in the table since - which covers the case of two setups racing
+            # on the same fresh install. Any existing installation fails the
+            # first test and never reaches the second.
+            if is_first_install:
+                try:
+                    async with db.execute(
+                        "SELECT COUNT(*) FROM items"
+                    ) as cur:
+                        already_have = (await cur.fetchone())[0]
+                    if not already_have:
+                        from .location_seed import (
+                            DEFAULT_LOCATIONS, build_folder_row,
+                        )
+                        for parent_path, folder_name in DEFAULT_LOCATIONS:
+                            columns, values = build_folder_row(
+                                parent_path, folder_name
+                            )
+                            placeholders = ",".join("?" * len(values))
+                            await db.execute(
+                                f"INSERT INTO items ({','.join(columns)}) "
+                                f"VALUES ({placeholders})",
+                                tuple(values),
+                            )
+                        _LOGGER.info(
+                            "First run: seeded %s starter locations.",
+                            len(DEFAULT_LOCATIONS),
+                        )
+                except Exception as loc_err:
+                    # A missing example is a cosmetic loss. It must never stop
+                    # the integration from setting up.
+                    _LOGGER.error("Location seeding failed: %s", loc_err)
+
             await db.commit()
     except Exception as e:
         _LOGGER.error(f"DB Init Error: {e}")
@@ -695,7 +753,12 @@ async def async_add_item_db_safe(hass, name, qty, path_list, category="", sub_ca
         sql = f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})"
         
         async with aiosqlite.connect(db_path, timeout=10.0) as db:
-            await db.execute(sql, tuple(vals))
+            # [MODIFIED v2026.9.20] The new row's id is kept.
+            #
+            # An icon the assistant drew has to be attached to THIS item, and
+            # the caller had no way to name the item it had just added.
+            cursor = await db.execute(sql, tuple(vals))
+            new_item_id = cursor.lastrowid
             if barcode and barcode != "0":
                 l1 = path_list[0] if len(path_list) > 0 else ""
                 l2 = path_list[1] if len(path_list) > 1 else ""
@@ -712,10 +775,14 @@ async def async_add_item_db_safe(hass, name, qty, path_list, category="", sub_ca
             await async_register_subcategory_if_new(hass, category, sub_category)
         except Exception:
             pass
-        return True
+        # [MODIFIED v2026.9.20] The id, not True. Every caller either ignores
+        # the result or tests it for truth, and an id is truthy - so this adds
+        # information without changing any of them. Failure returns None,
+        # which is falsy exactly as False was.
+        return new_item_id
     except Exception as e:
         _LOGGER.error(f"DB Add Error: {e}")
-        return False
+        return None
 
 # ==========================================================================
 # [ADDED v2026.9.4 | STAGE 2] RECEIPTS
@@ -1461,6 +1528,217 @@ async def async_update_item_extras(hass, item_id, fields):
         return False
 
 
+# Words that carry no identity and would cause false matches if compared.
+#
+# [MODIFIED v2026.9.19] English only. These words describe the ingredient
+# rather than name it, so every language needs its own set - but a set of
+# Hebrew or Italian words written here would be natural language inside the
+# code, which RULE 17 does not allow, and only the language someone happened
+# to add would ever be served. The rest arrive from the caller as data, read
+# from the translation file, exactly as the pantry staples do. English stays
+# because it is the language the code itself is written in, and because it is
+# the fallback when no caller supplies anything.
+_STOPWORDS = {
+    "or", "and", "of", "the", "a", "an", "fresh", "large", "small", "medium",
+    "extra", "virgin", "ground", "chopped", "sliced", "optional", "to", "taste",
+}
+
+
+def _significant_words(name, stopwords=None):
+    """The identifying words of an item or ingredient name.
+
+    Punctuation, percentages and pack sizes are dropped, so "Yellow Cheese
+    28%" and "yellow cheese" compare equal. Descriptive words that appear on
+    one side but not the other - "fresh", "extra virgin", "large" - are
+    dropped too, because they describe a product rather than identify it.
+
+    [MODIFIED v2026.9.19] stopwords adds the caller's own language to the
+    English set. Without it an Italian shelf holding "pomodoro" never matched
+    a recipe asking for "pomodoro fresco".
+    """
+    if not name:
+        return set()
+    text = str(name).lower()
+    text = re.sub(r"[\d]+\s*%", " ", text)          # 28%
+    text = re.sub(r"[^\w\s]", " ", text, flags=re.UNICODE)
+    drop = _STOPWORDS
+    if stopwords:
+        drop = _STOPWORDS | {str(w or "").strip().lower() for w in stopwords if w}
+    words = {w for w in text.split() if len(w) > 1 and w not in drop}
+    # A name made only of stopwords and numbers still has to match something,
+    # so fall back to whatever is left rather than returning nothing.
+    return words or {w for w in text.split() if w}
+
+
+def _is_pantry_staple(ing_name, staples):
+    """Is this ingredient one of the things every kitchen already has?
+
+    [ADDED v2026.9.19] Matched on whole words so "salt" is a staple while
+    "salted butter" is not, and "oil" covers "olive oil" without swallowing
+    "oily fish". The words themselves come from the caller - see
+    async_check_ingredients for why they are not listed in this file.
+    """
+    if not staples:
+        return False
+    lowered = ing_name.lower()
+    words = set(re.findall(r"\w+", lowered, flags=re.UNICODE))
+    for staple in staples:
+        token = str(staple or "").strip().lower()
+        if not token:
+            continue
+        # A staple of several words ("olive oil") matches as a phrase; a
+        # single word matches only as a whole word.
+        if " " in token:
+            if token in lowered:
+                return True
+        elif token in words:
+            return True
+    return False
+
+
+async def async_check_ingredients(hass, ingredients, assume_available=None,
+                                  stopwords=None):
+    """Match a recipe's ingredients against the inventory.
+
+    Returns one entry per ingredient with where it is and how much is there,
+    so the cookbook can say "flour - kitchen, top shelf" instead of a bare
+    tick. The shopping decision stays with the caller: this only reports.
+
+    Matching is deliberately fuzzy in one direction only. A recipe says
+    "yellow cheese" and the shelf holds "Yellow Cheese 28%", so an ingredient
+    matches when either name contains the other. It does NOT match on single
+    shared words - "oil" and "olive oil" are close enough to be useful, but
+    "salt" must not match "salted butter", which is why whole-substring
+    containment is used rather than token overlap.
+    """
+    if not ingredients:
+        return []
+    try:
+        db_path = get_db_path(hass)
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT name, quantity, unit, "
+                "level_1, level_2, level_3, level_4, level_5 "
+                "FROM items WHERE type = 'item'"
+            ) as cur:
+                rows = [dict(r) for r in await cur.fetchall()]
+    except Exception as err:
+        _LOGGER.error("Ingredient check failed: %s", err)
+        return []
+
+    stock = []
+    for row in rows:
+        name = (row.get("name") or "").strip()
+        if not name:
+            continue
+        levels = [row.get(f"level_{i}") for i in range(1, 6)]
+        parts = []
+        for lvl in levels:
+            if not lvl:
+                continue
+            # Strip the internal markers so a location reads as a place.
+            cleaned = re.sub(
+                r"\[?\s*(?:ORDER_MARKER|ZONE_MARKER)_\d+\s*\]?[_\s]*", "", str(lvl)
+            ).strip()
+            cleaned = re.sub(r"^\s*\[[^\]]*\]\s*", "", cleaned).strip()
+            if cleaned:
+                parts.append(cleaned)
+        stock.append({
+            "name": name,
+            "lower": name.lower(),
+            "quantity": row.get("quantity"),
+            "unit": row.get("unit"),
+            "location": " > ".join(parts),
+        })
+
+    results = []
+    for ing in ingredients:
+        # An ingredient is either a bare string or {name, qty}; both shapes
+        # exist in saved recipes.
+        if isinstance(ing, dict):
+            ing_name = (ing.get("name") or ing.get("item") or "").strip()
+            ing_qty = ing.get("qty") or ing.get("quantity") or ""
+        else:
+            ing_name = str(ing or "").strip()
+            ing_qty = ""
+
+        entry = {
+            "ingredient": ing_name,
+            "required": ing_qty,
+            "in_stock": False,
+            "matched_name": None,
+            "location": None,
+            "quantity": None,
+            "unit": None,
+        }
+
+        # [ADDED v2026.9.19] Water, salt, oil and pepper are assumed present.
+        #
+        # Nobody tracks the salt. Reporting it as missing sent the user
+        # shopping for something already by the hob, and buried the one
+        # ingredient that really was absent among four that were not.
+        #
+        # The words arrive from the CALLER rather than being listed here,
+        # because an ingredient is written in the user's own language, and a
+        # list of English words in this file would never match the Hebrew or
+        # Italian word for salt. They belong in the translation file, which
+        # is where the panel reads them from: they are data, not code, and
+        # RULE 17 keeps the code itself English.
+        if ing_name and _is_pantry_staple(ing_name, assume_available):
+            entry["in_stock"] = True
+            entry["assumed"] = True
+            results.append(entry)
+            continue
+        # [MODIFIED v2026.10.13] Match on normalised words, not raw substrings.
+        #
+        # Plain containment failed on the two cases that matter most:
+        #
+        #   * "Extra virgin olive oil" against a shelf holding "Olive Oil,
+        #     Extra Virgin" - the words are all there, in a different order,
+        #     so neither string contains the other.
+        #   * "Butter or Milk" against "Butter" - an ingredient naming an
+        #     alternative matched nothing.
+        #
+        # Comparing the significant words of each name fixes both. It cannot
+        # bridge languages - an English recipe against a Hebrew pantry still
+        # needs the assistant, which is why Sous-Chef gets that right and this
+        # does not - but it handles everything within one language.
+        needle_words = _significant_words(ing_name, stopwords)
+        if needle_words:
+            best = None
+            for item in stock:
+                item_words = _significant_words(item["name"], stopwords)
+                if not item_words:
+                    continue
+                shared = needle_words & item_words
+                # Every word of the shorter name must appear in the longer
+                # one. That keeps "olive oil" matching "extra virgin olive
+                # oil" while stopping "salt" matching "salted butter", where
+                # no whole word is shared.
+                if shared and (shared == needle_words or shared == item_words):
+                    has_qty = item["quantity"] is None or item["quantity"] > 0
+                    # Prefer something actually in stock over an empty shelf
+                    # entry with the same name.
+                    if best is None or (has_qty and not best[1]):
+                        best = (item, has_qty)
+                    if has_qty:
+                        break
+            if best:
+                item, has_qty = best
+                # Something on the shelf but at zero is not "in stock";
+                # saying it is would be worse than saying nothing.
+                entry.update({
+                    "in_stock": bool(has_qty),
+                    "matched_name": item["name"],
+                    "location": item["location"] or None,
+                    "quantity": item["quantity"],
+                    "unit": item["unit"],
+                })
+        results.append(entry)
+    return results
+
+
 async def async_get_categories(hass):
     """Every category and sub-category, in display order.
 
@@ -1895,6 +2173,36 @@ async def async_store_receipt_file(hass, image_b64, mime_type):
         return None
 
 
+# [ADDED v2026.9.20] The icon fields of an item row, worked out once.
+#
+# Five blocks in this file build item rows - the shopping list, the review
+# list, the location view, the search results and the sub-location view - and
+# all five computed these by hand, identically. That is the shape RULE 33a.6
+# describes, and it has already cost this project once: purchase and expiry
+# fields were added to two of the three blocks that existed then, so an item
+# opened from a shelf showed nothing.
+#
+# A drawn icon is a sixth thing to get right in five places, so the five
+# copies became this.
+#
+#   img       the library key as-is, or a URL for a stored photograph
+#   icon_spec the drawing the assistant designed for THIS item, as
+#             the JSON spec it sent, or None. The panel draws it.
+#
+# The panel prefers a photograph, then the drawn icon, then the library key.
+def _item_icon_fields(r_dict, url_prefix):
+    raw_path = r_dict.get('image_path')
+    img = None
+    if raw_path:
+        # A library key is passed through untouched; anything else is a
+        # filename and only becomes a URL here, where the prefix is known.
+        if str(raw_path).startswith("ICON_LIB"):
+            img = raw_path
+        else:
+            img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
+    return img, (r_dict.get('icon_spec') or None)
+
+
 async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping):
     enable_ai = False
     entries = hass.config_entries.async_entries(DOMAIN)
@@ -1931,11 +2239,7 @@ async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping)
                         r_dict = dict(r_dict)
                         fp = [r_dict.get(f"level_{i}") for i in range(1, 11) if r_dict.get(f"level_{i}")]
                         
-                        img = None
-                        raw_path = r_dict.get('image_path')
-                        if raw_path:
-                            if raw_path.startswith("ICON_LIB"): img = raw_path
-                            else: img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
+                        img, icon_spec = _item_icon_fields(r_dict, url_prefix)
 
                         shopping_list.append({
                             "id": r_dict['id'],
@@ -1943,7 +2247,8 @@ async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping)
                             "qty": r_dict['quantity'], 
                             "order_qty": r_dict.get('order_qty') or 1,
                             "date": r_dict['item_date'], 
-                            "img": img, 
+                            "img": img,
+                            "icon_spec": icon_spec,
                             "location": " > ".join([p for p in fp if p]),
                             "main_location": r_dict.get("level_2", "General"),
                             "sub_location": r_dict.get("level_3", ""),
@@ -1977,18 +2282,15 @@ async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping)
                 async with db.execute("SELECT * FROM items WHERE type='pending' ORDER BY created_at DESC") as cursor:
                     for r_dict in await cursor.fetchall():
                         r_dict = dict(r_dict)
-                        img = None
-                        raw_path = r_dict.get('image_path')
-                        if raw_path:
-                            if raw_path.startswith("ICON_LIB"): img = raw_path
-                            else: img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
+                        img, icon_spec = _item_icon_fields(r_dict, url_prefix)
 
                         pending_list.append({
                             "id": r_dict['id'],
                             "name": r_dict['name'], 
                             "qty": r_dict['quantity'], 
                             "order_qty": r_dict.get('order_qty', 1),
-                            "img": img, 
+                            "img": img,
+                            "icon_spec": icon_spec,
                             "level_1": r_dict.get("level_1", ""),
                             "level_2": r_dict.get("level_2", ""),
                             "level_3": r_dict.get("level_3", ""),
@@ -2017,11 +2319,7 @@ async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping)
                     for r_dict in await cursor.fetchall():
                         r_dict = dict(r_dict)
                         fp = [r_dict.get(f"level_{i}") for i in range(1, 11) if r_dict.get(f"level_{i}")]
-                        img = None
-                        raw_path = r_dict.get('image_path')
-                        if raw_path:
-                            if raw_path.startswith("ICON_LIB"): img = raw_path
-                            else: img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
+                        img, icon_spec = _item_icon_fields(r_dict, url_prefix)
 
                         items.append({
                             # [ADDED v2026.9.29] Purchase and expiry context on every item list.
@@ -2039,7 +2337,8 @@ async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping)
                             "qty": r_dict['quantity'], 
                             "order_qty": r_dict.get('order_qty', 1),
                             "date": r_dict['item_date'], 
-                            "img": img, 
+                            "img": img,
+                            "icon_spec": icon_spec,
                             "location": " > ".join([p for p in fp if p]),
                             "category": r_dict.get('category', ''),
                             "sub_category": r_dict.get('sub_category', ''),
@@ -2082,11 +2381,7 @@ async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping)
                     async with db.execute(sql, tuple(params)) as cursor:
                         for r_dict in await cursor.fetchall():
                             r_dict = dict(r_dict)
-                            img = None
-                            raw_path = r_dict.get('image_path')
-                            if raw_path:
-                                if raw_path.startswith("ICON_LIB"): img = raw_path
-                                else: img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
+                            img, icon_spec = _item_icon_fields(r_dict, url_prefix)
 
                             items.append({
                                 # [ADDED v2026.9.29] Purchase and expiry context on every item list.
@@ -2103,7 +2398,8 @@ async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping)
                                 "type": 'item', 
                                 "qty": r_dict['quantity'], 
                                 "order_qty": r_dict.get('order_qty', 1),
-                                "img": img, 
+                                "img": img,
+                                "icon_spec": icon_spec,
                                 "date": r_dict.get('item_date', ''),
                                 "category": r_dict.get('category', ''),
                                 "sub_category": r_dict.get('sub_category', ''),
@@ -2127,11 +2423,7 @@ async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping)
                         fetched_items = []
                         for r_dict in await cursor.fetchall():
                             r_dict = dict(r_dict)
-                            img = None
-                            raw_path = r_dict.get('image_path')
-                            if raw_path:
-                                if raw_path.startswith("ICON_LIB"): img = raw_path
-                                else: img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
+                            img, icon_spec = _item_icon_fields(r_dict, url_prefix)
 
                             subloc = r_dict.get(f"level_{depth+1}", "")
                             
@@ -2151,7 +2443,8 @@ async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping)
                                 "qty": r_dict['quantity'], 
                                 "order_qty": r_dict.get('order_qty', 1),
                                 "date": r_dict['item_date'], 
-                                "img": img, 
+                                "img": img,
+                                "icon_spec": icon_spec,
                                 "sub_location": subloc,
                                 "category": r_dict.get('category', ''),
                                 "sub_category": r_dict.get('sub_category', ''),
@@ -2226,3 +2519,143 @@ async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping)
         "enable_ai": enable_ai,
         "catalog_map": catalog_map
     }
+
+# A dish photo as async_store_recipe_photo names it: "rp_" plus ten hex
+# characters plus one of three extensions. Nothing else is ever deleted by
+# async_delete_recipe_photo, so a value that has been tampered with in the
+# database cannot become a path to something else.
+_RECIPE_PHOTO_NAME = re.compile(r"^rp_[0-9a-f]{10}\.(?:jpg|png|webp)$")
+
+
+async def async_delete_recipe_photo(hass, stored_name):
+    """Delete a dish photo from disk. Returns True when a file was removed.
+
+    [ADDED v2026.9.20] Taking a photo off a recipe used to clear the database
+    column and leave the file behind for ever. On an install where people
+    photograph what they cook, that is a folder that only grows, holding
+    pictures nothing refers to any more.
+
+    THREE THINGS GUARD THIS, because it is a delete built from a stored
+    string (RULE 31, fail closed):
+
+      1. The name must match the pattern this integration writes. A value
+         that does not is refused outright rather than cleaned up, so a row
+         edited by hand cannot name /config/configuration.yaml.
+      2. os.path.basename first, so no directory part survives at all -
+         "../../secrets.yaml" becomes "secrets.yaml", which then fails (1).
+      3. The joined path must still resolve inside the photo folder.
+
+    The caller checks that no OTHER recipe still points at the file. That
+    belongs with the recipes table, not here.
+
+    Deletion happens in the executor: os.remove blocks (RULE 13), and
+    _delete_files_sync is the one place this integration removes image files.
+    """
+    name = os.path.basename(str(stored_name or "").strip())
+    if not name or not _RECIPE_PHOTO_NAME.match(name):
+        _LOGGER.warning(
+            "Refused to delete %r: not a name this integration writes.",
+            stored_name,
+        )
+        return False
+
+    cfg = hass.data.get(DOMAIN, {}).get("config", {})
+    target_dir = cfg.get("img_path", hass.config.path("www", IMG_DIR))
+    path = os.path.normpath(os.path.join(target_dir, name))
+    if os.path.dirname(path) != os.path.normpath(target_dir):
+        _LOGGER.warning("Refused to delete %r: outside the photo folder.", name)
+        return False
+
+    removed = await hass.async_add_executor_job(_delete_files_sync, [path])
+    _LOGGER.info("Deleted dish photo %s (%s file removed).", name, removed)
+    return removed > 0
+
+
+async def async_set_item_icon(hass, item_id, icon_spec_json):
+    """Store the icon spec the assistant designed for one item.
+
+    [ADDED v2026.9.20] Writes ONE column. Passing None clears it, which is
+    how an item goes back to the shipped library icon or the default.
+    Nothing else on the row is touched: an icon is not a reason to rewrite a
+    quantity or a location (RULE 33a.8).
+
+    What is stored is the SPEC - shapes and numbers, already rebuilt field by
+    field by ai_core.draw_spec - and never markup. The panel draws from it.
+    """
+    if not item_id:
+        return False
+    try:
+        db_path = get_db_path(hass)
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            cursor = await db.execute(
+                "UPDATE items SET icon_spec = ? WHERE id = ?",
+                (icon_spec_json, item_id),
+            )
+            await db.commit()
+            return cursor.rowcount > 0
+    except Exception as err:
+        _LOGGER.error("Storing an item icon failed: %s", err)
+        return False
+
+
+async def async_store_recipe_photo(hass, image_b64, mime_type="image/jpeg"):
+    """Save a photo of a finished dish and return its stored path, or None.
+
+    [ADDED v2026.9.17] The recipe emblem can be replaced with a real picture.
+
+    Built on the same pieces as async_store_receipt_file, and for the same
+    reasons: `www` is served at /local/ with NO authentication, so the name is
+    ten random hex characters rather than the recipe's title. A predictable
+    "shakshuka.jpg" can be guessed by anyone who can reach the instance, and
+    the fact that a name carries no meaning is the point - the recipe row is
+    where the meaning belongs.
+
+    The file is written first and the row updated by the caller afterwards. A
+    row pointing at a file that was never written breaks the screen every
+    time; a file with no row is an orphan on disk, which is harmless.
+    """
+    if not image_b64:
+        return None
+    try:
+        cfg = hass.data.get(DOMAIN, {}).get("config", {})
+        target_dir = cfg.get("img_path", hass.config.path("www", IMG_DIR))
+
+        payload = image_b64
+        if isinstance(payload, str) and "base64," in payload:
+            header, payload = payload.split("base64,", 1)
+            if ":" in header and ";" in header:
+                declared = header.split(":", 1)[1].split(";", 1)[0]
+                if declared:
+                    mime_type = declared
+        raw = base64.b64decode(payload)
+
+        # A dish photo is a photo. Anything else - a PDF, an SVG, an HTML file
+        # renamed - is refused rather than stored and served back from a
+        # folder that needs no authentication to read.
+        kind = (mime_type or "").lower()
+        if not any(k in kind for k in ("jpeg", "jpg", "png", "webp")):
+            _LOGGER.warning("Refused a recipe photo of type %r.", mime_type)
+            return None
+        if len(raw) > 6_000_000:
+            _LOGGER.warning("Refused a recipe photo of %d bytes.", len(raw))
+            return None
+
+        ext = ".png" if "png" in kind else (".webp" if "webp" in kind else ".jpg")
+        filename = f"rp_{secrets.token_hex(5)}{ext}"
+        stored = await hass.async_add_executor_job(
+            _write_receipt_file_sync, target_dir, filename, raw
+        )
+        if not stored:
+            return None
+        # [FIXED v2026.9.17] Return the FILENAME, not the absolute path that
+        # the writer hands back.
+        #
+        # Every other image in this integration is stored as a bare filename
+        # and turned into a URL with url_prefix at the point it is displayed.
+        # Storing the disk path here produced
+        # "/local/home_organizer_images/C:\...\rp_ab12.jpg", which is a 404,
+        # so the picture never loaded and the frame sat empty.
+        return os.path.basename(stored)
+    except Exception as err:
+        _LOGGER.error("Could not store the recipe photo: %s", err)
+        return None

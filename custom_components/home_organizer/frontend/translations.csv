@@ -967,3 +967,94 @@ receipt_confirm_approve_all,Approve {n} item(s) and add them to your inventory?,
 receipt_confirm_delete_scan,"Delete this entire scan? The receipt, its images and all its unreviewed items will be removed.","למחוק את כל הסריקה? החשבונית, התמונות שלה וכל הפריטים שלא אושרו יימחקו.","Eliminare tutta la scansione? La ricevuta, le immagini e gli articoli non rivisti saranno rimossi.","¿Eliminar todo el escaneo? El recibo, sus imágenes y los artículos sin revisar se eliminarán.","Supprimer tout le scan ? Le reçu, ses images et les articles non vérifiés seront supprimés.",حذف المسح بالكامل؟ ستُحذف الفاتورة وصورها وكل الأصناف غير المراجعة.,"Удалить всё сканирование? Чек, его изображения и непроверенные позиции будут удалены."
 price,Price,מחיר,Prezzo,Precio,Prix,السعر,Цена
 unit_price,Unit price,מחיר ליחידה,Prezzo unitario,Precio unitario,Prix unitaire,سعر الوحدة,Цена за единицу
+recipes_title,My Recipes,המתכונים שלי,Le mie ricette,Mis recetas,Mes recettes,وصفاتي,Мои рецепты
+recipe_new,New recipe,מתכון חדש,Nuova ricetta,Nueva receta,Nouvelle recette,وصفة جديدة,Новый рецепт
+recipe_shelf,Cookbook,ספר המתכונים,Ricettario,Libro de recetas,Livre de recettes,كتاب الوصفات,Книга рецептов
+recipe_ingredients,Ingredients,מצרכים,Ingredienti,Ingredientes,Ingrédients,المكونات,Ингредиенты
+recipe_method,Method,אופן ההכנה,Preparazione,Preparación,Préparation,طريقة التحضير,Приготовление
+recipe_sous_chef,Start Sous-Chef Mode,הפעלת מצב סו-שף,Avvia modalità Sous-Chef,Iniciar modo Sous-Chef,Démarrer le mode Sous-Chef,تشغيل وضع مساعد الطاهي,Режим су-шефа
+recipe_sous_chef_cmd,Let's cook {name},בוא נבשל {name},Cuciniamo {name},Vamos a cocinar {name},Cuisinons {name},لنطبخ {name},Готовим {name}
+recipe_draw,Handwritten notes,הערות בכתב יד,Note a mano,Notas a mano,Notes manuscrites,ملاحظات بخط اليد,Рукописные заметки
+recipe_clear_notes,Erase,מחיקה,Cancella,Borrar,Effacer,محو,Стереть
+recipe_clear_confirm,Erase the handwritten notes on this recipe?,למחוק את ההערות בכתב יד במתכון הזה?,Cancellare le note a mano di questa ricetta?,¿Borrar las notas a mano de esta receta?,Effacer les notes manuscrites de cette recette ?,محو الملاحظات المكتوبة بخط اليد في هذه الوصفة؟,Стереть рукописные заметки этого рецепта?
+recipe_has_notes,Has handwritten notes,יש הערות בכתב יד,Ha note a mano,Tiene notas a mano,Contient des notes manuscrites,تحتوي ملاحظات بخط اليد,Есть рукописные заметки
+recipe_mine,My recipe,מתכון שלי,Mia ricetta,Mi receta,Ma recette,وصفتي,Мой рецепт
+recipe_ai,Suggested,הוצע,Suggerita,Sugerida,Suggérée,مقترحة,Предложен
+recipe_n_ingredients,{n} ingredients,{n} מצרכים,{n} ingredienti,{n} ingredientes,{n} ingrédients,{n} مكونات,{n} ингредиентов
+recipe_shelf_empty,"Your cookbook is empty. Add a recipe by hand, or ask the assistant for one and it will be saved here.","ספר המתכונים ריק. הוסיפו מתכון ידנית, או בקשו מהעוזר מתכון והוא יישמר כאן.",Il ricettario è vuoto. Aggiungi una ricetta a mano o chiedila all'assistente.,Tu libro de recetas está vacío. Añade una receta a mano o pídesela al asistente.,Votre livre de recettes est vide. Ajoutez une recette ou demandez-en une à l'assistant.,كتاب الوصفات فارغ. أضف وصفة يدويًا أو اطلبها من المساعد.,Книга рецептов пуста. Добавьте рецепт вручную или попросите у ассистента.
+recipe_ask_name,Recipe name:,שם המתכון:,Nome della ricetta:,Nombre de la receta:,Nom de la recette :,اسم الوصفة:,Название рецепта:
+recipe_ask_prep,"Prep time (optional), e.g. 40 minutes:","זמן הכנה (לא חובה), למשל 40 דקות:",Tempo di preparazione (facoltativo):,Tiempo de preparación (opcional):,Temps de préparation (facultatif) :,مدة التحضير (اختياري):,Время приготовления (необязательно):
+recipe_ask_ingredients,"Ingredients, one per line.\n""name | quantity"" is also accepted.","מצרכים, אחד בכל שורה.\nאפשר גם ""שם | כמות"".","Ingredienti, uno per riga.\n""nome | quantità"" è accettato.","Ingredientes, uno por línea.\n""nombre | cantidad"" también vale.","Ingrédients, un par ligne.\n""nom | quantité"" est accepté.","المكونات، واحد في كل سطر.\n""الاسم | الكمية"" مقبول أيضًا.","Ингредиенты, по одному в строке.\n""название | количество"" тоже подходит."
+recipe_ask_steps,"Steps, one per line.","שלבי ההכנה, אחד בכל שורה.","Passaggi, uno per riga.","Pasos, uno por línea.","Étapes, une par ligne.",الخطوات، واحدة في كل سطر.,"Шаги, по одному в строке."
+save,Save,שמירה,Salva,Guardar,Enregistrer,حفظ,Сохранить
+recipe_next_step,Next step,השלב הבא,Passo successivo,Siguiente paso,Étape suivante,الخطوة التالية,Следующий шаг
+recipe_repeat,Repeat that,חזור על זה,Ripeti,Repite eso,Répète,أعد ذلك,Повтори
+recipe_finish,Finish cooking,סיום הבישול,Termina,Terminar,Terminer,إنهاء الطهي,Закончить
+recipe_no_reply,No reply.,אין תשובה.,Nessuna risposta.,Sin respuesta.,Pas de réponse.,لا يوجد رد.,Нет ответа.
+recipe_check_stock,Check my inventory,בדיקה מול המלאי,Controlla la dispensa,Comprobar inventario,Vérifier l'inventaire,تحقق من المخزون,Проверить запасы
+recipe_in_stock,In stock,יש במלאי,Disponibile,En stock,En stock,متوفر,В наличии
+recipe_in_stock_at,In stock: {where},יש במלאי: {where},Disponibile: {where},En stock: {where},En stock : {where},متوفر: {where},В наличии: {where}
+recipe_in_stock_assumed,Always in the kitchen,תמיד במטבח,Sempre in cucina,Siempre en la cocina,Toujours en cuisine,موجود دائمًا في المطبخ,Всегда на кухне
+recipe_not_in_stock,Not in stock,חסר במלאי,Non disponibile,No hay,Absent,غير متوفر,Нет в наличии
+recipe_add_missing,Add {n} missing to shopping,הוספת {n} חסרים לקניות,Aggiungi {n} mancanti alla spesa,Añadir {n} a la compra,Ajouter {n} à la liste,أضف {n} إلى التسوق,Добавить {n} в список
+recipe_add_missing_confirm,Add {n} missing ingredient(s) to your shopping list?,להוסיף {n} מצרכים חסרים לרשימת הקניות?,Aggiungere {n} ingredienti mancanti alla lista della spesa?,¿Añadir {n} ingredientes que faltan a la lista de la compra?,Ajouter {n} ingrédients manquants à la liste de courses ?,إضافة {n} من المكونات الناقصة إلى قائمة التسوق؟,Добавить {n} недостающих ингредиентов в список покупок?
+recipe_add_ingredient,Add ingredient,הוספת מצרך,Aggiungi ingrediente,Añadir ingrediente,Ajouter un ingrédient,إضافة مكون,Добавить ингредиент
+recipe_add_step,Add step,הוספת שלב,Aggiungi passaggio,Añadir paso,Ajouter une étape,إضافة خطوة,Добавить шаг
+recipe_ask_add_ingredient,"New ingredient. Optionally ""name | quantity"":","מצרך חדש. אפשר גם ""שם | כמות"":","Nuovo ingrediente. Facoltativo ""nome | quantità"":","Nuevo ingrediente. Opcional ""nombre | cantidad"":","Nouvel ingrédient. Facultatif ""nom | quantité"" :","مكون جديد. اختياريًا ""الاسم | الكمية"":","Новый ингредиент. Можно ""название | количество"":"
+recipe_ask_add_step,New step:,שלב חדש:,Nuovo passaggio:,Nuevo paso:,Nouvelle étape :,خطوة جديدة:,Новый шаг:
+recipe_edit_title,Edit title,עריכת הכותרת,Modifica titolo,Editar título,Modifier le titre,تعديل العنوان,Изменить название
+recipe_finish_cmd,Finish cooking. Exit recipe mode.,סיום הבישול. צא ממצב מתכון.,Termina la ricetta. Esci dalla ricetta.,Terminar la receta. Salir de la receta.,Terminer la recette. Quitter la recette.,إنهاء الوصفة. أنهِ الطهي.,Закончить рецепт. Выйти из рецепта.
+recipe_ask_placeholder,"Ask about this recipe, e.g. can I use less sugar?","שאלה על המתכון, למשל אפשר פחות סוכר?","Chiedi sulla ricetta, es. posso usare meno zucchero?","Pregunta sobre la receta, p. ej. ¿puedo usar menos azúcar?","Posez une question, ex. puis-je mettre moins de sucre ?",اسأل عن الوصفة، مثلاً هل أستخدم سكرًا أقل؟,"Вопрос о рецепте, например можно меньше сахара?"
+send,Send,שליחה,Invia,Enviar,Envoyer,إرسال,Отправить
+voice_read_aloud,Read replies aloud,הקראת התשובות,Leggi le risposte,Leer respuestas,Lire les réponses,قراءة الردود بصوت,Читать ответы вслух
+voice_ask_by_voice,Ask by voice,שאלה בקול,Chiedi a voce,Preguntar por voz,Demander à la voix,اسأل بصوتك,Спросить голосом
+voice_listening,Listening...,מקשיב...,In ascolto...,Escuchando...,Écoute...,أستمع...,Слушаю...
+voice_error,Could not hear that.,לא הצלחתי לשמוע.,Non ho sentito.,No te he oído.,Je n'ai pas entendu.,لم أسمع ذلك.,Не расслышал.
+recipe_checking,Checking...,בודק...,Controllo...,Comprobando...,Vérification...,جارٍ التحقق...,Проверяю...
+recipe_thinking,Thinking...,חושב...,Sto pensando...,Pensando...,Réflexion...,أفكر...,Думаю...
+cat_meat,Meat dishes,תבשילי בשר,Piatti di carne,Platos de carne,Plats de viande,أطباق اللحم,Мясные блюда
+cat_poultry,Chicken & poultry,עוף ופרגיות,Pollo e pollame,Pollo y aves,Volaille,الدجاج والدواجن,Курица и птица
+cat_fish,Fish & seafood,תבשילי דגים,Pesce e frutti di mare,Pescados y mariscos,Poissons et fruits de mer,السمك والمأكولات البحرية,Рыба и морепродукты
+cat_soups,Soups,מרקים,Zuppe,Sopas,Soupes,الشوربات,Супы
+cat_salads,Salads & starters,סלטים ומנות ראשונות,Insalate e antipasti,Ensaladas y entrantes,Salades et entrées,السلطات والمقبلات,Салаты и закуски
+cat_pasta,Pasta & rice,פסטה ואורז,Pasta e riso,Pasta y arroz,Pâtes et riz,المعكرونة والأرز,Паста и рис
+cat_vegetarian,Vegetarian,צמחוני,Vegetariano,Vegetariano,Végétarien,نباتي,Вегетарианское
+cat_baking,Cakes & baking,עוגות ואפייה,Torte e dolci da forno,Pasteles y repostería,Gâteaux et pâtisserie,الكيك والمخبوزات,Торты и выпечка
+cat_desserts,Ice cream & desserts,גלידות וקינוחים,Gelati e dessert,Helados y postres,Glaces et desserts,الآيس كريم والحلويات,Мороженое и десерты
+cat_drinks,Drinks,משקאות,Bevande,Bebidas,Boissons,المشروبات,Напитки
+cat_other,Other,שונות,Altro,Otros,Autres,أخرى,Другое
+pantry_staples,water|salt|oil|pepper,מים|המים|מלח|המלח|שמן|השמן|פלפל|הפלפל,acqua|sale|olio|pepe,agua|sal|aceite|pimienta,eau|sel|huile|poivre,ماء|الماء|ملح|الملح|زيت|الزيت|فلفل|الفلفل,вода|соль|перец|растительное масло|оливковое масло|подсолнечное масло
+ingredient_stopwords,or|and|of|the|a|an|fresh|large|small|medium|extra|virgin|ground|chopped|sliced|optional|to|taste,או|עם|טרי|גדול|קטן|בינוני|טחון|קצוץ|פרוס|לפי|טרייה|גדולה|קטנה|טחונה|קצוצה|פרוסה,o|e|di|del|della|il|la|un|una|fresco|fresca|grande|piccolo|medio|macinato|tritato|affettato|quanto|basta,o|y|de|del|la|el|un|una|fresco|fresca|grande|pequeño|mediano|molido|picado|en|rodajas|al|gusto,ou|et|de|du|la|le|un|une|frais|fraiche|grand|petit|moyen|moulu|hache|emince|selon|gout,أو|مع|طازج|كبير|صغير|متوسط|مطحون|مفروم|مقطع,или|с|свежий|большой|маленький|средний|молотый|нарезанный|по вкусу
+recipe_contents,Contents,תוכן עניינים,Indice,Índice,Sommaire,المحتويات,Содержание
+recipe_new_category,New category,קטגוריה חדשה,Nuova categoria,Nueva categoría,Nouvelle catégorie,فئة جديدة,Новая категория
+recipe_ask_category,New category name:,שם הקטגוריה החדשה:,Nome della nuova categoria:,Nombre de la nueva categoría:,Nom de la nouvelle catégorie :,اسم الفئة الجديدة:,Название новой категории:
+recipe_cook_this,Cook this with me,בוא נבשל את זה,Cuciniamola insieme,Cocinemos esto,Cuisinons ensemble,لنطبخ هذا معًا,Готовим вместе
+recipe_collapse,Collapse,כיווץ,Riduci,Contraer,Réduire,طيّ,Свернуть
+recipe_assistant_hint,"Ask for a recipe, or ask about the one on screen. Say ""save it as ..."" to keep it.","בקשו מתכון, או שאלו על זה שמוצג. אמרו ""תשמור בשם ..."" כדי לשמור אותו.","Chiedi una ricetta o parla di quella a schermo. Di' ""salvala come ..."" per conservarla.","Pide una receta o pregunta por la que ves. Di ""guárdala como ..."" para conservarla.","Demandez une recette ou posez une question. Dites ""enregistre-la sous ..."" pour la garder.","اطلب وصفة أو اسأل عن المعروضة. قل ""احفظها باسم ..."" للاحتفاظ بها.","Попросите рецепт или спросите о показанном. Скажите ""сохрани как ..."", чтобы оставить."
+recipe_assistant,Kitchen assistant,עוזר המטבח,Assistente di cucina,Asistente de cocina,Assistant de cuisine,مساعد المطبخ,Кухонный помощник
+recipe_move,Move to another category,העברה לקטגוריה אחרת,Sposta in un'altra categoria,Mover a otra categoría,Déplacer vers une autre catégorie,نقل إلى فئة أخرى,Переместить в другую категорию
+recipe_more,More,עוד,Altro,Mas,Plus,المزيد,Ещё
+recipe_ask_move,Move to which category?,לאיזו קטגוריה להעביר?,In quale categoria spostarlo?,¿A qué categoría moverlo?,Vers quelle catégorie le déplacer ?,إلى أي فئة تريد نقله؟,В какую категорию переместить?
+recipe_delete_confirm,"Delete ""{n}""? This cannot be undone.","למחוק את ""{n}""? לא ניתן לבטל את הפעולה.","Eliminare ""{n}""? L'operazione non può essere annullata.","¿Eliminar ""{n}""? Esta acción no se puede deshacer.","Supprimer ""{n}"" ? Cette action est irréversible.","حذف ""{n}""؟ لا يمكن التراجع عن هذا الإجراء.","Удалить ""{n}""? Это действие нельзя отменить."
+recipe_ask_name_in,"New recipe in ""{c}"":","מתכון חדש בקטגוריה ""{c}"":","Nuova ricetta in ""{c}"":","Nueva receta en ""{c}"":","Nouvelle recette dans ""{c}"" :","وصفة جديدة في ""{c}"":","Новый рецепт в ""{c}"":"
+recipe_prev,Previous recipe,המתכון הקודם,Ricetta precedente,Receta anterior,Recette précédente,الوصفة السابقة,Предыдущий рецепт
+recipe_timer_ask,Set a timer for {n} minutes for {what}?,להפעיל טיימר ל-{n} דקות עבור {what}?,Impostare un timer di {n} minuti per {what}?,Poner un temporizador de {n} minutos para {what}?,Regler une minuterie de {n} minutes pour {what} ?,تعيين مؤقت لـ{n} دقيقة لـ{what}?,Поставить таймер на {n} минут для {what}?
+recipe_timer_step,this step,השלב הזה,questo passo,este paso,cette etape,هذه الخطوة,этого шага
+recipe_timer_yes,Set a timer,להגדיר טיימר,Imposta,Ponerlo,Regler,تعيين,Поставить
+recipe_timer_no,Not now,לא עכשיו,Non ora,Ahora no,Pas maintenant,ليس الآن,Не сейчас
+recipe_timer_set,Timer set for {n} minutes.,הטיימר נקבע ל-{n} דקות.,Timer impostato per {n} minuti.,Temporizador puesto para {n} minutos.,Minuterie reglee sur {n} minutes.,تم تعيين مؤقت لـ{n} دقيقة.,Таймер поставлен на {n} минут.
+recipe_next,Next recipe,המתכון הבא,Ricetta successiva,Receta siguiente,Recette suivante,الوصفة التالية,Следующий рецепт
+recipe_edit_once,Just this time,רק הפעם,Solo stavolta,Solo esta vez,Juste cette fois,هذه المرة فقط,Только в этот раз
+recipe_edit_save,Save to recipe,שמור במתכון,Salva nella ricetta,Guardar en la receta,Enregistrer dans la recette,حفظ في الوصفة,Сохранить в рецепт
+recipe_edit_generic,Update this recipe?,לעדכן את המתכון?,Aggiornare la ricetta?,¿Actualizar la receta?,Mettre à jour la recette ?,تحديث الوصفة؟,Обновить рецепт?
+recipe_fill_confirm,Put this recipe on the page?,להכניס את המתכון לדף?,Inserire questa ricetta nella pagina?,Poner esta receta en la pagina?,Mettre cette recette sur la page ?,إضافة هذه الوصفة إلى الصفحة?,Добавить этот рецепт на страницу?
+recipe_photo_add,"Add a photo of the dish","הוספת תמונה של המנה","Aggiungi una foto del piatto","Añadir una foto del plato","Ajouter une photo du plat","إضافة صورة للطبق","Добавить фото блюда"
+recipe_photo_remove,Delete this photo?,למחוק את התמונה?,Eliminare questa foto?,Eliminar esta foto?,Supprimer cette photo ?,حذف هذه الصورة?,Удалить это фото?
+recipe_photo_failed,Could not read that photo. Try another one.,לא הצלחתי לקרוא את התמונה. נסו אחת אחרת.,Non riesco a leggere quella foto. Provane un altra.,No he podido leer esa foto. Prueba con otra.,Impossible de lire cette photo. Essayez-en une autre.,تعذر قراءة الصورة. جرب صورة أخرى.,Не удалось прочитать фото. Выберите другое.
+recipe_emblem_cmd,Design a symbol for this recipe based on what the dish is.,עצב סמל למתכון הזה לפי מה שהמנה.,Disegna un simbolo per questa ricetta in base al piatto.,Disena un simbolo para esta receta segun el plato.,Dessine un symbole pour cette recette selon le plat.,صمم رمزًا لهذه الوصفة بناءًا على الطبق.,Нарисуйте символ для этого рецепта исходя из блюда.
+recipe_cat_rename,"Rename this category","שינוי שם הקטגוריה","Rinomina questa categoria","Cambiar el nombre de la categoría","Renommer cette catégorie","إعادة تسمية الفئة","Переименовать категорию"
+recipe_cat_delete,"Remove this category","הסרת הקטגוריה","Rimuovi questa categoria","Quitar esta categoría","Supprimer cette catégorie","إزالة هذه الفئة","Удалить категорию"
+recipe_cat_delete_n,"Remove ""{c}""? Its {n} recipes are kept and move to Other.","להסיר את ""{c}""? {n} המתכונים שבה יישמרו ויעברו ל""שונות"".","Rimuovere ""{c}""? Le sue {n} ricette restano e passano ad Altro.","¿Quitar ""{c}""? Sus {n} recetas se conservan y pasan a Otros.","Supprimer ""{c}"" ? Ses {n} recettes sont conservées et passent dans Autres.","إزالة ""{c}""؟ سيتم الاحتفاظ بـ {n} وصفات ونقلها إلى أخرى.","Удалить ""{c}""? Её {n} рецептов сохранятся и перейдут в «Другое»."
+recipe_cat_delete_empty,"Remove the empty category ""{c}""?","להסיר את הקטגוריה הריקה ""{c}""?","Rimuovere la categoria vuota ""{c}""?","¿Quitar la categoría vacía ""{c}""?","Supprimer la catégorie vide ""{c}"" ?","إزالة الفئة الفارغة ""{c}""؟","Удалить пустую категорию ""{c}""?"
+recipe_translated,"Translated","מתורגם","Tradotta","Traducida","Traduite","مترجمة","Переведено"
+recipe_show_original,"Show the original","הצגת המקור","Mostra l'originale","Mostrar el original","Afficher l'original","عرض النص الأصلي","Показать оригинал"

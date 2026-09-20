@@ -59,6 +59,36 @@ export const UtilsMixin = (Base) => class extends Base {
     return '';
   }
 
+  // [ADDED v2026.9.20] The icon for one item, in one place.
+  //
+  // Seven render sites worked this out for themselves, each with its own
+  // copy of "library key or photograph". A drawn icon is a third possibility
+  // and adding it to seven places is how the second one ended up subtly
+  // different in some of them (RULE 33a.6).
+  //
+  // The order is: a photograph the user chose, then an icon the assistant
+  // drew for THIS item, then the nearest thing from the shipped library,
+  // then the plain default. Each step is more specific to this item than
+  // the next.
+  //
+  // What comes back is markup, and it is injected with innerHTML like every
+  // other icon here. A drawn icon was built by this panel from a checked
+  // spec and passed through emblem_sanitizer before it was stored, which is
+  // the same gate a recipe emblem goes through (RULE 15).
+  getItemIcon(item) {
+    if (item && typeof item.icon_svg === 'string' && item.icon_svg.includes('<svg')) {
+      return item.icon_svg;
+    }
+    return this.getIconByKey(item && item.img) || ICONS.item;
+  }
+
+  // Is this item showing a PHOTOGRAPH rather than an icon? A library key
+  // lives in the same field, so the two are told apart by its prefix.
+  itemHasPhoto(item) {
+    const img = item && item.img;
+    return !!img && !String(img).startsWith('ICON_LIB');
+  }
+
   getIconByKey(keyString) {
     if (!keyString) return ICONS.item;
     let searchItemName = "";

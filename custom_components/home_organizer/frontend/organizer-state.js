@@ -11,10 +11,145 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [ADDED v2026.9.20 | 2026-09-20] Purpose: The panel remembers which screen
+//   the user was on. A Home Assistant panel is destroyed on navigating away
+//   and rebuilt from nothing on return, so answering a phone call dropped
+//   the user at the front door with the whole path to walk again.
+//   saveNavState records mode, open recipe, inventory path, shopping tab
+//   and search text; restoreNavState puts them back. Kept in localStorage,
+//   because a position is not user data: it is per device, costs no round
+//   trip, and losing it costs nothing - every read and write is wrapped and
+//   every failure ends at the home screen. applyNavMode sets all eight view
+//   flags in ONE place, so a restored screen cannot leave two of them true
+//   (RULE 33a.1). The barcode scanner is deliberately not restored.
 // [MODIFIED v7.7.56 | 2026-04-20] Purpose: Removed obsolete adjustShopQty method and shopQuantities state object. The shopping list qty is now persisted directly to DB via updateOrderQty (see organizer-api.js v7.7.50), so the transient client-side counter is no longer needed.
-// [ADDED v7.7.55 | 2026-04-07] Purpose: Added showExternalAppSetup method to display the new dedicated Android App setup modal.
+
+// [ADDED v2026.9.20] Where the user was, kept between visits.
+//
+// A Home Assistant panel is destroyed when you navigate away from it and
+// built again from nothing when you come back - so answering the phone, or
+// glancing at another dashboard, dropped you back at the front door. This
+// remembers the screen you were on and puts you back on it.
+//
+// localStorage, not the database: this is a position, not user data. It is
+// per device, which is what "where I was on this phone" means, it costs no
+// round trip on a screen that is already waiting for one, and losing it costs
+// nothing at all - which is why every read and write here is wrapped and
+// every failure ends at the home screen (RULE 31).
+const NAV_KEY = 'home_organizer_nav';
+// Bumped when the shape below changes, so an older saved position is ignored
+// rather than half-read.
+const NAV_VERSION = 1;
 
 export const StateMixin = (Base) => class extends Base {
+
+  // The eight view flags, set in one place so a restored mode cannot leave
+  // two of them true - the failure RULE 33a.1 describes, which has shipped
+  // three times in this project.
+  //
+  // The FAB handlers still set their own flags inline. They are not touched
+  // here: changing them is a refactor nobody asked for (RULE 30), and this
+  // function is only ever used to restore.
+  applyNavMode(mode) {
+    this.isRecipesMode  = mode === 'recipes';
+    this.isReceiptsMode = mode === 'receipts';
+    this.isReviewMode   = mode === 'review';
+    this.isChatMode     = mode === 'chat';
+    this.isShopMode     = mode === 'shop';
+    this.isSearch       = mode === 'search';
+    this.isStylistMode  = mode === 'stylist';
+    this.isBarcodeMode  = false;   // never restored - see restoreNavState
+  }
+
+  currentNavState() {
+    const mode =
+        this.isRecipesMode  ? 'recipes'
+      : this.isReceiptsMode ? 'receipts'
+      : this.isReviewMode   ? 'review'
+      : this.isChatMode     ? 'chat'
+      : this.isShopMode     ? 'shop'
+      : this.isSearch       ? 'search'
+      : this.isStylistMode  ? 'stylist'
+      : this.isBarcodeMode  ? 'barcode'
+      : 'home';
+    let query = '';
+    try {
+      query = this.shadowRoot?.getElementById('search-input')?.value || '';
+    } catch { query = ''; }
+    return {
+      v: NAV_VERSION,
+      mode,
+      // The open recipe, the inventory path, the shopping tab and the search
+      // text: the four things that make one screen a different screen.
+      recipeId: (this.openRecipe && this.openRecipe.id) || null,
+      path: Array.isArray(this.currentPath) ? this.currentPath.slice(0, 8) : [],
+      catalogPath: Array.isArray(this.catalogPath)
+        ? this.catalogPath.slice(0, 8) : [],
+      shopTab: this.shopTab || 'list',
+      query: String(query).slice(0, 120),
+    };
+  }
+
+  // Called from render(), which is the one place every change of screen
+  // passes through - so no new screen can be added and forgotten here.
+  // Written only when something actually moved: render runs on every keypress
+  // in the chat, and localStorage writes are synchronous.
+  saveNavState() {
+    try {
+      const json = JSON.stringify(this.currentNavState());
+      if (json === this._navSaved) return;
+      this._navSaved = json;
+      localStorage.setItem(NAV_KEY, json);
+    } catch {
+      // Private browsing, a full quota, storage turned off. A forgotten
+      // position is not worth interrupting anyone for.
+    }
+  }
+
+  // Called once, after initUI has built the shell - it needs the search box
+  // to exist - and before the first fetchData, which then loads the restored
+  // path rather than the root.
+  restoreNavState() {
+    let saved = null;
+    try {
+      saved = JSON.parse(localStorage.getItem(NAV_KEY) || 'null');
+    } catch {
+      saved = null;
+    }
+    if (!saved || saved.v !== NAV_VERSION || typeof saved.mode !== 'string') {
+      return;
+    }
+
+    // The barcode screen is a live camera, not a view. Coming back from a
+    // phone call to a running scanner is a side effect nobody asked for, so
+    // it restores to the home screen instead.
+    const mode = saved.mode === 'barcode' ? 'home' : saved.mode;
+    this.applyNavMode(mode);
+
+    if (Array.isArray(saved.path)) this.currentPath = saved.path.slice(0, 8);
+    if (Array.isArray(saved.catalogPath)) {
+      this.catalogPath = saved.catalogPath.slice(0, 8);
+    }
+    if (saved.shopTab) this.shopTab = saved.shopTab;
+
+    // Held for the cookbook to pick up once its list has loaded: the recipe
+    // has to be fetched by id, and there is nothing to fetch it with yet.
+    this._restoreRecipeId = (mode === 'recipes' && saved.recipeId)
+      ? saved.recipeId : null;
+
+    // The search box holds its own text - it is a DOM value, not state - so
+    // putting the query back is what makes a restored search show results
+    // rather than an empty list.
+    if (mode === 'search' && saved.query) {
+      try {
+        const el = this.shadowRoot?.getElementById('search-input');
+        if (el) el.value = saved.query;
+      } catch {
+        // Then it restores as an empty search, which is still a search.
+      }
+    }
+  }
+
 
   initState() {
     this.currentPath = [];
@@ -85,20 +220,60 @@ export const StateMixin = (Base) => class extends Base {
       });
   }
 
+  // [ADDED v2026.9.16] RFC-4180 field splitter.
+  //
+  // translations.csv is written with standard CSV quoting: a value containing
+  // a comma is wrapped in double quotes, and a literal quote inside such a
+  // value is doubled. The previous row.split(',') knew nothing about that, so
+  // one comma inside a translated sentence pushed that value into the NEXT
+  // language column, shifted every later language by one, and left a stray
+  // quote on screen. Python's csv.reader already reads this same file
+  // correctly in agents/shopping_agent.py; this brings the panel in line.
+  //
+  // The scan runs over the whole text rather than line by line, because a
+  // quoted value may legitimately contain a newline, and splitting on
+  // newlines first would tear such a record in half.
+  parseCsvRows(text) {
+    const rows = [];
+    let row = [], field = "", inQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+
+      if (inQuotes) {
+        if (c === '"') {
+          // A doubled quote is one literal quote; a single one ends the field.
+          if (text[i + 1] === '"') { field += '"'; i++; }
+          else inQuotes = false;
+        } else if (c !== '\r') {
+          field += c;
+        }
+        continue;
+      }
+
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ""; }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ""; }
+      else if (c !== '\r') field += c;
+    }
+    // The last record has no trailing newline to close it.
+    if (field !== "" || row.length) { row.push(field); rows.push(row); }
+    return rows;
+  }
+
   parseCSV(csvText) {
-    const lines = csvText.split(/\r?\n/);
-    if (lines.length < 2) return;
-    let headerLine = lines[0].trim();
-    if (headerLine.charCodeAt(0) === 0xFEFF) headerLine = headerLine.substr(1);
-    const headers = headerLine.split(',').map(h => h.trim());
+    if (csvText.charCodeAt(0) === 0xFEFF) csvText = csvText.slice(1);
+    const rows = this.parseCsvRows(csvText);
+    if (rows.length < 2) return;
+
+    const headers = rows[0].map(h => h.trim());
     this.availableLangs = headers.slice(1);
     this.translations = {};
 
-    for (let i = 1; i < lines.length; i++) {
-      const row = lines[i].trim();
-      if (!row) continue;
-      const cols = row.split(',');
-      const key = cols[0].trim();
+    for (let i = 1; i < rows.length; i++) {
+      const cols = rows[i];
+      const key = (cols[0] || "").trim();
+      if (!key) continue;
       if (!this.translations[key]) this.translations[key] = {};
       for (let j = 1; j < headers.length; j++) {
         this.translations[key][headers[j]] = (cols[j] || "").trim();

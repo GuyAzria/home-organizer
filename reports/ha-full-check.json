@@ -2,11 +2,11 @@
   "domain": "home_organizer",
   "stats": {
     "domain": "home_organizer",
-    "python_files": 31,
-    "javascript_files": 16,
-    "python_lines": 13377,
+    "python_files": 35,
+    "javascript_files": 19,
+    "python_lines": 16859,
     "integration_path": "custom_components\\home_organizer",
-    "project_functions_indexed": 295
+    "project_functions_indexed": 331
   },
   "checks": [
     {
@@ -27,7 +27,7 @@
     {
       "check": "Python AST parse",
       "status": "PASS",
-      "detail": "31 files parsed"
+      "detail": "35 files parsed"
     },
     {
       "check": "Python compileall",
@@ -72,7 +72,7 @@
     {
       "check": "frontend security scan",
       "status": "PASS",
-      "detail": "16 JS files, 0 findings"
+      "detail": "19 JS files, 0 findings"
     },
     {
       "check": "frontend asset isolation",
@@ -118,14 +118,6 @@
       "evidence": ""
     },
     {
-      "severity": "INFO",
-      "category": "HA Best Practices",
-      "message": "Frontend is vanilla JavaScript rather than Lit.",
-      "location": "frontend/",
-      "fix": "Home Assistant core uses Lit, but custom panels are not required to. Escaping is what prevents XSS, not the framework.",
-      "evidence": ""
-    },
-    {
       "severity": "WARN",
       "category": "Runtime tests",
       "message": "No pytest directory found for 'home_organizer'.",
@@ -135,7 +127,7 @@
     }
   ],
   "counts": {
-    "INFO": 3,
+    "INFO": 2,
     "WARN": 1
   },
   "heuristic_risk_score": 93

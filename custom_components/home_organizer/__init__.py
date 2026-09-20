@@ -12,16 +12,68 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
-# [MODIFIED v10.0.0 | 2026-08-23] Purpose: SECURITY HARDENING (HACS review).
-#   1. websocket_ai_chat now forwards the authenticated user's id to the
-#      agent loop. Without it the smart home agent has no identity to run
-#      a permission check against, which is the exact path frenck flagged.
-#   2. The chat session is now keyed per user instead of a single shared
-#      "web_session", so one user's conversation history can no longer be
-#      read by, or injected into, another user's turn.
-#   3. async_remove_entry no longer calls os.remove / shutil.rmtree on the
-#      event loop.
-# [MODIFIED v8.58.0 | 2026-08-02] Purpose: Removed local APK sync logic (migrated to GitHub Releases) and updated app references to HO_Mind_AI. Converted to full async/await using aiosqlite.
+# [MODIFIED v2026.9.20 | 2026-09-20] Purpose: A dish photo is deleted from
+#   disk at all three points where a recipe stops pointing at it: the photo
+#   is removed, a new photo replaces it, or the recipe itself is deleted.
+#   Each one used to leave the file behind. The row is cleared FIRST and the
+#   file removed second - an orphaned file is harmless, while a row pointing
+#   at a file that is gone shows a broken picture every time - and on a
+#   replace the old file only goes once the new one is safely written, so a
+#   failed write never costs the picture that was there. No file is touched
+#   while another recipe still references it.
+#   [FIXED] Two edits in a row undid each other. Approving a change wrote
+#   it to the database and the panel re-read the page, but the agent's
+#   cooking state was left holding the recipe as it stood BEFORE - and
+#   the binding is only rebuilt when the panel names a DIFFERENT recipe,
+#   which it does not while the user stays on the page. So the next
+#   proposal was built from the stale copy: adding anchovies and then
+#   changing the oil gave back more oil and no anchovies.
+#   _absorb_applied_edit is the missing half of recipe_edits.async_apply,
+#   called from both places an edit is applied so they cannot drift, and it
+#   now carries the title and language across too - a rewrite in another
+#   language moves both, and the assistant builds its next proposal from
+#   what it holds. Same release: the voice service keyed its conversation
+#   by conversation_id alone and fell back to a single "default_session",
+#   so two people cooking at once shared one recipe and one step position;
+#   the authenticated caller is part of the key now, and the device_id the
+#   schema already declared is finally read, so a timer set by voice has a
+#   phone to ring. Added the answer_timer action - a boolean and nothing
+#   else - for the buttons under an offered timer.
+#   [FIXED] Switching to a different recipe replaced the BINDING but left
+#   the whole conversation about the previous one in the session, so
+#   "translate this recipe" on the second was answered from the first -
+#   its full text was still the most recent recipe in the exchange. The
+#   turns are cleared on the switch, along with any change frozen against
+#   the old recipe and any timer offered for one of its steps. Another
+#   agent's state, such as a shopping draft, is left alone.
+# [MODIFIED v2026.9.19 | 2026-09-19] Purpose: Three recipe fixes. Declared
+#   "assume_available" on the recipes schema and passed it to
+#   async_check_ingredients, so the pantry staples the panel names are
+#   never reported as missing - an undeclared key is rejected before the
+#   handler runs, which is why the declaration matters as much as the call.
+#   The save path now relays the agent's HO_RECIPE_SAVED marker as
+#   saved_recipe_id, which is what lets a request typed on the contents
+#   page open the finished recipe instead of leaving it in the chat. And
+#   the recipe binding hands the agent the open recipe's id, so filling in
+#   an empty page writes back into that page rather than creating a twin.
+#   [FIXED] A recipe_id sent as null - the cookbook saying nothing is open -
+#   used to fall straight through the binding block, leaving the binding from
+#   the last recipe in place. A question typed on the contents page was then
+#   understood as being about a recipe the user had closed, which is why
+#   "suggest something for dinner" never opened a page of its own. A key that
+#   is present and null now unbinds; a key that is absent still changes
+#   nothing, and a walkthrough in progress is never cleared.
+#   [FIXED] The saved_recipe_id relay itself sat inside the block that runs
+#   only when the panel names an OPEN recipe, so on the contents page - where
+#   by definition none is open - the marker was never read. The recipe was
+#   written and appeared in the cookbook, but the panel was never told to
+#   turn to it, which is why the answer only ever arrived as text in the
+#   chat. A recipe that has just been created cannot have an id the panel
+#   could have sent, so the scan belongs outside that guard.
+#   The emblem_choice relay is removed with the library it relayed a choice
+#   from. emblem_spec - the drawing the assistant DESIGNS - is untouched,
+#   and so is the set_emblem websocket action that stores the result
+#   through emblem_sanitizer.
 
 import logging
 from homeassistant.components import frontend
@@ -56,8 +108,12 @@ from .database import (
     # [MODIFIED v2026.9.9] Every page of a multi-image receipt is archived,
     # so the per-page helpers replace the single-file one here.
     async_store_receipt_pages, async_link_receipt_pages,
+    # [ADDED v2026.9.17] A photo of a finished dish, for the cookbook.
+    async_store_recipe_photo,
+    async_set_item_icon,
+    async_delete_recipe_photo,
     async_list_receipts, async_get_receipt_pages, async_get_receipt_items,
-    async_get_categories,
+    async_get_categories, async_check_ingredients,
 )
 from .services import register_services
 from .ai_logic import (
@@ -65,7 +121,22 @@ from .ai_logic import (
     safe_universal_agent_loop,
 )
 from .reminders_scheduler import async_register_startup_restore
+# [ADDED v2026.9.17] The module itself, for async_speak_to_user. Importing the
+# module rather than adding a second `from ... import` keeps one obvious place
+# to look when asking what this file uses from the scheduler.
+from . import reminders_scheduler
 from . import recipes_db
+# [ADDED v2026.9.17] Recipe-edit confirmation: the pending-proposal store and
+# the cooking state the chat is bound to.
+from . import recipe_edits
+from .ai_core import state_manager
+# [ADDED v2026.9.20] Answering an offered timer goes through the same
+# function the chat and voice paths use.
+from .agents import cooking_agent
+# [ADDED v2026.9.17] Reads a model's JSON reply, code fence and all.
+from .ai_core.json_utils import safe_parse_json
+# [ADDED v2026.9.17] One gate for every emblem that reaches the database.
+from .emblem_sanitizer import sanitize_emblem_svg
 from .prompt_core import get_intent_resolve_prompt
 from .prompt_inventory import get_barcode_prompt, get_invoice_prompt
 
@@ -78,11 +149,75 @@ WS_GET_ALL_ITEMS = "home_organizer/get_all_items"
 WS_AI_CHAT = "home_organizer/ai_chat" 
 # [ADDED v2026.9.12] Backing command for the receipts table.
 WS_LIST_RECEIPTS = "home_organizer/list_receipts"
+# [ADDED v2026.10.9] Cookbook UI.
+WS_RECIPES = "home_organizer/recipes"
 WS_LOOKUP_BARCODE = "home_organizer/lookup_barcode"
 WS_SAVE_AVATAR = "home_organizer/save_avatar"
+# [ADDED v2026.9.20] Store an icon the panel drew for an item.
+WS_SET_ITEM_ICON = "home_organizer/set_item_icon"
 
 STATIC_PATH_URL = "/home_organizer_static"
 ACTIVE_SESSIONS = {}
+
+
+def _absorb_applied_edit(user_id, recipe_id, outcome):
+    """Put an applied change into the assistant's own copy of the recipe.
+
+    [ADDED v2026.9.20] Two edits in a row used to undo each other.
+
+    Approving a change writes it to the DATABASE, and the panel re-reads the
+    page, so the user sees it land. The agent's cooking state was left alone -
+    and the binding is only rebuilt when the panel names a DIFFERENT recipe,
+    which it does not, because the user is still on the same page. So the next
+    proposal was built from the recipe as it stood BEFORE the first change:
+    adding anchovies and then changing the oil gave back a recipe with more
+    oil and no anchovies.
+
+    This is the missing half of async_apply. It cannot live there - recipe_edits
+    knows nothing about chat sessions - so it lives here, and both places that
+    apply an edit call it, so the two cannot drift apart (RULE 33d).
+
+    What it does NOT do is move a cook who is walking through the recipe: the
+    step they are standing on is kept, clamped to the new length if the change
+    made the recipe shorter.
+    """
+    if not user_id or not recipe_id or not outcome:
+        return
+    session_key = f"web_session_{user_id}"
+    session = ACTIVE_SESSIONS.get(session_key)
+    if not session:
+        return
+    state = state_manager.read_state(
+        session, state_manager.COOKING_STATE_KEY) or {}
+    # Only the recipe that was actually edited. A session pointing somewhere
+    # else must not be quietly rewritten (RULE 31).
+    if str(state.get("recipe_id") or "") != str(recipe_id):
+        return
+
+    new_steps = outcome.get("steps") or []
+    new_ingredients = outcome.get("ingredients") or []
+    # [ADDED v2026.9.20] A rewrite in another language moves the title and the
+    # language too, and the assistant builds its next proposal from these.
+    if outcome.get("name"):
+        state["recipe_title"] = outcome["name"]
+    if outcome.get("language"):
+        state["language"] = outcome["language"]
+    if new_ingredients:
+        state["ingredients"] = new_ingredients
+    if new_steps:
+        state["reference_steps"] = new_steps
+        if state.get("steps"):
+            # A walkthrough is running. Follow the new text, but keep the
+            # cook's place rather than sending them back to step 1.
+            state["steps"] = new_steps
+            state["current_idx"] = min(
+                int(state.get("current_idx") or 0), len(new_steps) - 1)
+    state_manager.write_state(
+        session, state_manager.COOKING_STATE_KEY, state)
+    _LOGGER.info(
+        "[HO-EDIT] Assistant's copy of recipe %s updated: %d ingredients, "
+        "%d steps", recipe_id, len(new_ingredients), len(new_steps),
+    )
 
 # [MODIFIED v2026.8.28] The local copies of FallbackMockEntry,
 # safe_smart_router and safe_universal_agent_loop that used to live here have
@@ -121,6 +256,20 @@ class HOCameraUploadView(HomeAssistantView):
         except Exception as e:
             _LOGGER.error(f"External camera upload failed: {e}")
             return self.json({"status": "error", "message": str(e)}, status_code=500)
+
+# [ADDED v2026.9.17] The browser URL for a stored recipe photo.
+#
+# The row holds a bare filename; the prefix depends on whether the user chose
+# www or media storage, which only the integration's config knows. Built here
+# rather than in the panel for the same reason every other screen does it
+# here: the panel must not have to know where files live.
+def _recipe_image_url(hass, filename):
+    if not filename:
+        return None
+    prefix = hass.data.get(DOMAIN, {}).get("config", {}).get(
+        "url_prefix", f"/local/{IMG_DIR}")
+    return f"{prefix}/{filename}"
+
 
 @websocket_api.async_response
 async def websocket_get_data(hass, connection, msg):
@@ -755,6 +904,147 @@ async def websocket_ai_chat(hass, connection, msg):
         if session_key not in ACTIVE_SESSIONS:
             ACTIVE_SESSIONS[session_key] = []
 
+        # [ADDED v2026.9.17] Bind the conversation to the open recipe.
+        #
+        # The cookbook used to bind by sending the sentence "Let's cook X" and
+        # letting the model find the dish by name. Anything typed afterwards
+        # was just text, so "make it 1000g of flour" could be read as a
+        # request for a brand-new recipe rather than a change to the one on
+        # screen.
+        #
+        # The panel now names the recipe outright, and it is loaded into the
+        # cooking state HERE, deterministically, from the database. The model
+        # is told which recipe it is talking about; it does not get to decide.
+        ws_recipe_id = msg.get("recipe_id")
+
+        # [ADDED v2026.9.19] Nothing open means nothing bound.
+        #
+        # The cookbook sends recipe_id on every message and sends it as null
+        # when no recipe is open. That null used to fall through this whole
+        # block, leaving the binding from the LAST recipe in place - so a
+        # question typed on the contents page was still understood as being
+        # about a recipe the user had closed. "Suggest something for dinner"
+        # was read as a change to that recipe, which is why it never opened a
+        # page of its own.
+        #
+        # The distinction is between a key that is PRESENT and null - the
+        # cookbook stating that nothing is open - and a key that is absent,
+        # which is every other caller saying nothing about recipes at all.
+        # Only the first clears anything.
+        #
+        # A walkthrough in progress is left alone. Someone cooking from the
+        # book may well go back to the contents page mid-recipe, and losing
+        # their place there would be worse than the bug this fixes.
+        if "recipe_id" in msg and not ws_recipe_id:
+            current = state_manager.read_state(
+                ACTIVE_SESSIONS[session_key], state_manager.COOKING_STATE_KEY
+            ) or {}
+            if current.get("recipe_id") and not current.get("steps"):
+                state_manager.clear_state(
+                    ACTIVE_SESSIONS[session_key],
+                    state_manager.COOKING_STATE_KEY,
+                )
+                _LOGGER.info(
+                    "[HO-COOKING] Nothing open in the cookbook - unbound from "
+                    "recipe %s", current.get("recipe_id"),
+                )
+
+        if ws_recipe_id:
+            try:
+                bound = await recipes_db.async_get_by_id(hass, ws_recipe_id)
+            except Exception as bind_err:
+                bound = None
+                _LOGGER.warning("Could not bind recipe %s: %s",
+                                ws_recipe_id, bind_err)
+            if bound:
+                current = state_manager.read_state(
+                    ACTIVE_SESSIONS[session_key], state_manager.COOKING_STATE_KEY
+                ) or {}
+                # Only rebuilt when the conversation is not already on this
+                # recipe, so re-binding on every message cannot reset the
+                # step the user has walked to, or undo a change they have
+                # already approved for this cook.
+                if str(current.get("recipe_id") or "") != str(ws_recipe_id):
+                    # [ADDED v2026.9.20] A different recipe starts a different
+                    # conversation.
+                    #
+                    # The binding was replaced but the TALK was not. The whole
+                    # exchange about the previous recipe stayed in the session,
+                    # so asking "translate this recipe" on the second one was
+                    # answered from the first: its full text was still the most
+                    # recent recipe in the conversation, and the model had no
+                    # reason to think the request was about anything else. The
+                    # translation then landed on the page the user was actually
+                    # looking at, which is how one recipe ended up wearing
+                    # another's words.
+                    #
+                    # Everything said about the old recipe goes. What survives
+                    # is another agent's state - a shopping draft is not part
+                    # of this conversation and must not be collateral (RULE 31:
+                    # clear what you meant to clear, nothing else).
+                    previous_id = current.get("recipe_id")
+                    ACTIVE_SESSIONS[session_key] = [
+                        m for m in ACTIVE_SESSIONS[session_key]
+                        if m.get("role") == "system"
+                        and isinstance(m.get("content"), str)
+                        and m["content"].startswith(
+                            state_manager.SHOPPING_DRAFT_KEY + ":")
+                    ]
+                    # A change frozen against the old recipe, and a timer
+                    # offered for a step of it, are both answers to questions
+                    # that are no longer on screen.
+                    if previous_id:
+                        recipe_edits.clear(ws_user_id, previous_id)
+                    _LOGGER.info(
+                        "[HO-COOKING] Switched from recipe %s to %s - the "
+                        "previous conversation was cleared.",
+                        previous_id, ws_recipe_id,
+                    )
+                    # [FIXED v2026.9.17] Binding is CONTEXT, not a cooking
+                    # session. "steps" must stay empty.
+                    #
+                    # This used to copy the recipe's steps in. The agent reads
+                    # has_active_steps = bool(state["steps"]) as "a
+                    # step-by-step walkthrough is running", and its FIX FIRST
+                    # safety rule then treats EVERY message as an adjustment
+                    # to that walkthrough. So merely opening a recipe made
+                    # "Cook this with me" get coerced into fix_recipe - the
+                    # full recipe was never printed - and every save or update
+                    # was rerouted the same way.
+                    #
+                    # The steps are still handed over, under a name that says
+                    # what they are for: the agent can quote them when it
+                    # proposes a change, and nothing treats them as a session
+                    # in progress. Pressing "Cook this with me" is what starts
+                    # one, which is what that button is for.
+                    state_manager.write_state(
+                        ACTIVE_SESSIONS[session_key],
+                        state_manager.COOKING_STATE_KEY,
+                        {
+                            "steps": [],
+                            "current_idx": 0,
+                            "timers": bound.get("timers") or [],
+                            "ingredients": bound.get("ingredients") or [],
+                            "reference_steps": bound.get("steps") or [],
+                            "recipe_title": bound.get("name") or "Saved recipe",
+                            "language": bound.get("language") or "en",
+                            # Deliberately the SAME value the agent's own
+                            # loader uses. _auto_save_completed_recipe treats
+                            # anything else as a recipe that needs saving,
+                            # which for a recipe that came out of the database
+                            # would re-save it under its own name and stamp a
+                            # new source_type on it (RULE 33a.8). This is a
+                            # recipe loaded from the database; saying so keeps
+                            # that path correct.
+                            "source_type": "loaded_from_db",
+                            "recipe_id": bound.get("id"),
+                        },
+                    )
+                    _LOGGER.info(
+                        "[HO-COOKING] Chat bound to recipe %s (%s)",
+                        ws_recipe_id, bound.get("name"),
+                    )
+
         ACTIVE_SESSIONS[session_key].append({"role": "user", "content": user_message})
 
         final_reply = await safe_universal_agent_loop(
@@ -765,7 +1055,194 @@ async def websocket_ai_chat(hass, connection, msg):
         if len(ACTIVE_SESSIONS[session_key]) > 10:
             ACTIVE_SESSIONS[session_key] = ACTIVE_SESSIONS[session_key][-10:]
 
-        connection.send_result(msg["id"], {"response": final_reply})
+        # [ADDED v2026.9.17] Speak the reply on the caller's own phone when
+        # the panel has asked for it, which it does only when its own engine
+        # is unavailable. Targeted at the authenticated websocket user, so a
+        # reply can never be read aloud in somebody else's house.
+        if msg.get("speak") and ws_user_id and final_reply:
+            try:
+                reminders_scheduler.async_speak_to_user(
+                    hass, ws_user_id, final_reply
+                )
+            except Exception as speak_err:
+                # Never fail the reply because the audio could not be sent.
+                _LOGGER.warning("Could not speak reply: %s", speak_err)
+
+        # [ADDED v2026.9.17] Hand back any change the agent has PROPOSED.
+        #
+        # Read here rather than plumbed out through the agent loop: the agent
+        # froze it in recipe_edits as a side effect, and this is the one place
+        # that knows both the authenticated user and the recipe in hand.
+        #
+        # Nothing has been written to the recipe at this point. This is the
+        # question, not the answer.
+        result = {"response": final_reply}
+
+        # [MOVED v2026.9.19] A recipe the assistant has just written.
+        #
+        # Asking from the contents page - "suggest something for dinner from
+        # what is in the fridge" - should end with that recipe OPEN, not with
+        # its text scrolling past in the chat. The panel is told which one so
+        # it can turn to the page.
+        #
+        # [FIXED v2026.9.19] This used to sit inside the block below, which
+        # runs only when the panel names an open recipe. On the contents page
+        # there is no open recipe - that is the whole point - so the marker
+        # was never read and the panel was never told. The recipe WAS being
+        # written; it just appeared in the cookbook silently while the chat
+        # showed the text, which is exactly what was reported.
+        #
+        # It belongs outside: a recipe that has only just been created cannot
+        # have an id the panel could have sent.
+        for m in ACTIVE_SESSIONS[session_key]:
+            content = m.get("content")
+            if (m.get("role") == "system" and isinstance(content, str)
+                    and content.startswith("HO_RECIPE_SAVED:")):
+                result["saved_recipe_id"] = content.split(":", 1)[1]
+        if result.get("saved_recipe_id"):
+            # Consumed, so one save cannot reopen the page on every later turn.
+            ACTIVE_SESSIONS[session_key] = [
+                m for m in ACTIVE_SESSIONS[session_key]
+                if not (m.get("role") == "system"
+                        and isinstance(m.get("content"), str)
+                        and m["content"].startswith("HO_RECIPE_SAVED:"))
+            ]
+
+        # [ADDED v2026.9.20] An icon the assistant drew for an item it just
+        # added. Outside the recipe block on purpose: this has nothing to do
+        # with a recipe being open, and the item was created in this same
+        # turn - so nothing the panel sent could have named it.
+        #
+        # The SPEC travels, not a picture. The panel draws it and stores the
+        # result through set_item_icon, which sanitises on the way in - the
+        # same path a recipe emblem takes (RULE 7, RULE 15).
+        for m in ACTIVE_SESSIONS[session_key]:
+            content = m.get("content")
+            if (m.get("role") == "system" and isinstance(content, str)
+                    and content.startswith("HO_ITEM_ICON:")):
+                try:
+                    result["item_icon"] = json.loads(content[len("HO_ITEM_ICON:"):])
+                except ValueError:
+                    _LOGGER.warning("An item icon spec could not be read back.")
+        if result.get("item_icon"):
+            ACTIVE_SESSIONS[session_key] = [
+                m for m in ACTIVE_SESSIONS[session_key]
+                if not (m.get("role") == "system"
+                        and isinstance(m.get("content"), str)
+                        and m["content"].startswith("HO_ITEM_ICON:"))
+            ]
+
+        if ws_recipe_id and ws_user_id:
+            # [ADDED v2026.9.17] A typed approval - "yes", "save it" - reaches
+            # the SAME execution boundary the buttons use. The agent leaves a
+            # marker naming the scope it understood; the write happens here,
+            # from the frozen proposal, never from anything in this turn's
+            # model output.
+            session = ACTIVE_SESSIONS[session_key]
+            approved_scope = None
+            for m in session:
+                content = m.get("content")
+                if (m.get("role") == "system" and isinstance(content, str)
+                        and content.startswith("HO_EDIT_APPROVED:")):
+                    approved_scope = content.split(":", 1)[1]
+            if approved_scope:
+                # Consumed immediately, so one approval can never apply twice.
+                ACTIVE_SESSIONS[session_key] = [
+                    m for m in session
+                    if not (m.get("role") == "system"
+                            and isinstance(m.get("content"), str)
+                            and m["content"].startswith("HO_EDIT_APPROVED:"))
+                ]
+                outcome = await recipe_edits.async_apply(
+                    hass, ws_user_id, ws_recipe_id, approved_scope
+                )
+                if not outcome.get("error"):
+                    result["applied_edit"] = outcome
+                    _absorb_applied_edit(ws_user_id, ws_recipe_id, outcome)
+
+            # [ADDED v2026.9.17] An emblem the user asked to have redrawn.
+            # Both values were validated against the allow-lists in the agent
+            # before the marker was written; the panel does the drawing.
+            # [MODIFIED v2026.9.17] An emblem the assistant DESIGNED, as a
+            # drawing spec. Shapes and numbers only - it was rebuilt field by
+            # field against a fixed list in the agent - so nothing that could
+            # carry markup travels here. The panel draws it.
+            emblem_spec = None
+            for m in ACTIVE_SESSIONS[session_key]:
+                content = m.get("content")
+                if (m.get("role") == "system" and isinstance(content, str)
+                        and content.startswith("HO_EMBLEM_SPEC:")):
+                    emblem_spec = content[len("HO_EMBLEM_SPEC:"):]
+            if emblem_spec:
+                ACTIVE_SESSIONS[session_key] = [
+                    m for m in ACTIVE_SESSIONS[session_key]
+                    if not (m.get("role") == "system"
+                            and isinstance(m.get("content"), str)
+                            and m["content"].startswith("HO_EMBLEM_SPEC:"))
+                ]
+                try:
+                    result["emblem_spec"] = json.loads(emblem_spec)
+                except ValueError:
+                    _LOGGER.warning("Emblem spec could not be read back.")
+
+            # [ADDED v2026.9.20] A timer the assistant has offered.
+            #
+            # Only announced on the turn it was offered, for the same reason
+            # a proposal is: an unanswered offer that came back after every
+            # later message would read as the assistant nagging.
+            #
+            # The minutes and label are sent so the panel can SAY what it is
+            # offering. They are not what gets scheduled - that is read back
+            # from this same state when the answer arrives - so nothing the
+            # panel returns can change the timer.
+            offered_now = any(
+                m.get("role") == "system"
+                and isinstance(m.get("content"), str)
+                and m["content"].startswith("HO_TIMER_ASKED:")
+                for m in ACTIVE_SESSIONS[session_key]
+            )
+            if offered_now:
+                ACTIVE_SESSIONS[session_key] = [
+                    m for m in ACTIVE_SESSIONS[session_key]
+                    if not (m.get("role") == "system"
+                            and isinstance(m.get("content"), str)
+                            and m["content"].startswith("HO_TIMER_ASKED:"))
+                ]
+                offer = state_manager.read_state(
+                    ACTIVE_SESSIONS[session_key],
+                    state_manager.TIMER_OFFER_KEY)
+                if offer:
+                    result["pending_timer"] = {
+                        "minutes": offer.get("minutes"),
+                        "label": offer.get("label") or "",
+                    }
+
+            # [FIXED v2026.9.17] Only a proposal made on THIS turn is sent.
+            #
+            # This used to hand over whatever was still pending, every time
+            # the user said anything. An unanswered proposal then came back
+            # on screen after each later message - the "previous save
+            # message popping up again" that was reported. The proposal
+            # itself still waits in recipe_edits for its answer; it just
+            # stops re-announcing itself.
+            proposed_now = any(
+                m.get("role") == "system"
+                and isinstance(m.get("content"), str)
+                and m["content"].startswith("HO_EDIT_PROPOSED:")
+                for m in ACTIVE_SESSIONS[session_key]
+            )
+            if proposed_now:
+                ACTIVE_SESSIONS[session_key] = [
+                    m for m in ACTIVE_SESSIONS[session_key]
+                    if not (m.get("role") == "system"
+                            and isinstance(m.get("content"), str)
+                            and m["content"].startswith("HO_EDIT_PROPOSED:"))
+                ]
+                pending = recipe_edits.get(ws_user_id, ws_recipe_id)
+                if pending:
+                    result["pending_edit"] = pending
+
+        connection.send_result(msg["id"], result)
         return
 
     except asyncio.TimeoutError:
@@ -902,8 +1379,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         user_message = call.data.get("text", "")
         lang_code = call.data.get("language", hass.config.language)
         
-        conv_id = call.data.get("conversation_id")
-        if not conv_id: conv_id = "default_session"
+        # [FIXED v2026.9.20] One session per PERSON, not one for the house.
+        #
+        # This keyed the conversation by conversation_id alone, and fell back
+        # to the literal "default_session" when the caller gave none - which
+        # most callers do. Two people cooking at once therefore shared one
+        # conversation and one cooking state: the step one of them was
+        # standing on, and the recipe itself, belonged to whoever spoke last.
+        #
+        # The authenticated caller is part of the key now, so the fallback is
+        # per person rather than global.
+        conv_id = call.data.get("conversation_id") or "default_session"
+        voice_user_id = getattr(getattr(call, "context", None), "user_id", None)
+        session_key = f"voice_{voice_user_id or 'anonymous'}_{conv_id}"
+        # Declared in the schema below and never read, so a timer set by voice
+        # had no phone to ring and nobody to ring it for.
+        voice_device_id = call.data.get("device_id")
         
         if not user_message: return {"response": "Error: No text provided."}
 
@@ -972,15 +1463,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         lang_map = {"en": "English", "he": "Hebrew", "it": "Italian", "es": "Spanish", "fr": "French", "ar": "Arabic"}
         target_lang = lang_map.get(lang_code, "English")
 
-        if conv_id not in ACTIVE_SESSIONS:
-            ACTIVE_SESSIONS[conv_id] = []
-            
-        ACTIVE_SESSIONS[conv_id].append({"role": "user", "content": user_message})
-        
+        if session_key not in ACTIVE_SESSIONS:
+            ACTIVE_SESSIONS[session_key] = []
+
+        ACTIVE_SESSIONS[session_key].append(
+            {"role": "user", "content": user_message})
+
         final_reply = await safe_universal_agent_loop(
-            hass, entry, mode, ACTIVE_SESSIONS[conv_id], target_lang, existing_locs_str, loc_hierarchy_map, is_voice=True
+            hass, entry, mode, ACTIVE_SESSIONS[session_key], target_lang,
+            existing_locs_str, loc_hierarchy_map, is_voice=True,
+            device_id=voice_device_id, user_id=voice_user_id,
         )
-        ACTIVE_SESSIONS[conv_id].append({"role": "assistant", "content": final_reply})
+        ACTIVE_SESSIONS[session_key].append(
+            {"role": "assistant", "content": final_reply})
 
         return {"response": final_reply}
 
@@ -1029,6 +1524,488 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
     except Exception: pass
     
+    # [ADDED v2026.10.9] Cookbook: list, read, save, annotate and delete.
+    #
+    # One command with an "action" rather than five separate commands. These
+    # all operate on the same small record and are only ever called by the
+    # cookbook screen, so five registrations would be five things to keep in
+    # step for no benefit.
+    #
+    # It hooks into recipes_db, which already stores the recipes the voice
+    # assistant generates - a manually written recipe and a spoken one land in
+    # exactly the same table and render in the same cookbook.
+    @websocket_api.websocket_command({
+        vol.Required("type"): WS_RECIPES,
+        vol.Required("action"): vol.In(
+            # [FIXED v2026.10.12] "update" and "check_stock" were added to
+            # the handler but never to this list, so voluptuous rejected
+            # them before the handler ran. The button appeared to do
+            # nothing at all.
+            # [ADDED v2026.9.16] "add_category" registers a chapter that has
+            # no recipe in it yet. Declared here at the same time as the
+            # handler and the caller, which is the whole point of this list.
+            # [ADDED v2026.9.17] "confirm_edit" / "cancel_edit" answer a
+            # change the assistant proposed. They carry no recipe content of
+            # their own - see recipe_edits.
+            ["list", "get", "save", "update", "save_notes", "delete",
+             "check_stock", "add_category", "confirm_edit", "cancel_edit",
+             # [ADDED v2026.9.20] "answer_timer" says yes or no to a timer
+             # the assistant offered. It carries a boolean and nothing else.
+             "answer_timer",
+             # [ADDED v2026.9.17] Persist a recipe's emblem, and a photo
+             # of the finished dish that is shown in its place.
+             "set_emblem", "set_photo",
+             # [ADDED v2026.9.17] Chapter housekeeping from the contents
+             # page. Deleting a chapter never deletes its recipes.
+             "rename_category", "delete_category",
+             # [ADDED v2026.9.17] Show a recipe in the panel's language.
+             "translate"]
+        ),
+        vol.Optional("recipe_id"): vol.Any(str, None),
+        vol.Optional("language"): vol.Any(str, None),
+        vol.Optional("name"): vol.Any(str, None),
+        vol.Optional("prep_time"): vol.Any(str, None),
+        vol.Optional("ingredients"): vol.Any(list, None),
+        vol.Optional("steps"): vol.Any(list, None),
+        vol.Optional("timers"): vol.Any(list, None),
+        vol.Optional("tags"): vol.Any(list, None),
+        vol.Optional("notes"): vol.Any(str, None),
+        vol.Optional("handwritten_notes"): vol.Any(str, None),
+        # [FIXED v2026.9.16] The same defect as the "update"/"check_stock" one
+        # above, one level down: the save handler already read msg["category"]
+        # and the shelf already sent it, but the key was never declared here.
+        # A websocket schema rejects undeclared keys, so creating a recipe
+        # inside a chapter failed before the handler ran. Declared now, and
+        # "" is a meaningful value - it files a recipe back under Other.
+        vol.Optional("category"): vol.Any(str, None),
+        # [ADDED v2026.9.17] Which way a proposed change is being answered.
+        # Validated against recipe_edits.ALLOWED_SCOPES in the handler; the
+        # schema only says it is a string.
+        vol.Optional("scope"): vol.Any(str, None),
+        # [ADDED v2026.9.17] The emblem markup, and whether this write is the
+        # first-open fill or a deliberate replacement.
+        vol.Optional("emblem_svg"): vol.Any(str, None),
+        # [ADDED v2026.9.17] A dish photo as a data URL, or null to
+        # remove the one that is there.
+        vol.Optional("photo"): vol.Any(str, None),
+        # [ADDED v2026.9.17] Which language to translate a recipe into.
+        vol.Optional("to_language"): vol.Any(str, None),
+        # [ADDED v2026.9.19] Ingredients to treat as always in the house.
+        vol.Optional("assume_available"): vol.Any([str], None),
+        vol.Optional("stopwords"): vol.Any([str], None),
+        vol.Optional("accept"): bool,
+    })
+    @websocket_api.async_response
+    async def websocket_recipes(hass, connection, msg):
+        action = msg.get("action")
+        try:
+            if action == "list":
+                recipes = await recipes_db.async_list_all(hass, msg.get("language"))
+                # The drawing can be a large base64 image. The list view only
+                # needs to know whether one exists, so it is stripped here
+                # rather than sending several megabytes to render a shelf.
+                slim = []
+                for rec in recipes:
+                    entry = dict(rec)
+                    entry["has_handwritten_notes"] = bool(entry.pop("handwritten_notes", None))
+                    entry["image_url"] = _recipe_image_url(hass, entry.get("image_path"))
+                    slim.append(entry)
+                # [ADDED v2026.9.16] Chapters travel with the recipes rather
+                # than on a second round trip, because the contents page
+                # cannot be drawn correctly without both: a chapter holding
+                # nothing appears only in this list.
+                categories = await recipes_db.async_list_categories(hass)
+                connection.send_result(
+                    msg["id"], {"recipes": slim, "categories": categories}
+                )
+                return
+
+            # [ADDED v2026.9.17] Store a recipe's emblem.
+            #
+            # The markup is accepted from the panel because the PANEL is what
+            # draws it - recipe-emblem.js builds it from a fixed set of motifs
+            # and palettes, and no recipe text goes into it. It is rejected
+            # unless it looks like exactly that, so this can never become a
+            # way to park arbitrary markup in the database and have it
+            # rendered back later (RULE 15).
+            if action == "set_emblem":
+                # [MODIFIED v2026.9.17] The same sanitiser the drawn emblems
+                # go through, rather than a second hand-rolled check here.
+                # One gate, so the two paths cannot drift apart and the weaker
+                # of them become the way in (RULE 33d).
+                clean_svg = sanitize_emblem_svg(msg.get("emblem_svg"))
+                if not clean_svg:
+                    _LOGGER.warning("Rejected an emblem that could not be cleaned.")
+                    connection.send_result(msg["id"], {"error": "Bad emblem."})
+                    return
+                wrote = await recipes_db.async_set_emblem(
+                    hass, msg.get("recipe_id"), clean_svg)
+                connection.send_result(msg["id"], {"stored": wrote})
+                return
+
+            # [ADDED v2026.9.17] A photo of the finished dish, which is
+            # shown instead of the drawn emblem. The bytes are written to
+            # disk and only the PATH is stored, so a large photo never sits
+            # in the database or travels in a recipe listing.
+            if action == "set_photo":
+                photo = msg.get("photo")
+                if not photo:
+                    # [MODIFIED v2026.9.20] Removing it takes the FILE too.
+                    #
+                    # This used to clear the column and leave the picture on
+                    # disk for ever. On an install where people photograph
+                    # what they cook, that folder only ever grows, holding
+                    # images nothing refers to any more.
+                    #
+                    # Order matters, and it is the same order the rest of this
+                    # integration uses: the row is cleared FIRST and the file
+                    # removed second. If the delete fails the result is an
+                    # orphaned file, which is harmless. The other way round
+                    # leaves a row pointing at a file that is gone, which
+                    # shows a broken picture on the recipe every time.
+                    rec_id = msg.get("recipe_id")
+                    old = await recipes_db.async_get_by_id(hass, rec_id)
+                    old_name = (old or {}).get("image_path")
+                    await recipes_db.async_set_photo(hass, rec_id, None)
+                    if old_name and not await recipes_db.async_photo_in_use(
+                            hass, old_name, exclude_id=rec_id):
+                        await async_delete_recipe_photo(hass, old_name)
+                    hass.bus.async_fire("home_organizer_db_update")
+                    connection.send_result(msg["id"], {"cleared": True})
+                    return
+                rec_id = msg.get("recipe_id")
+                previous = await recipes_db.async_get_by_id(hass, rec_id)
+                previous_name = (previous or {}).get("image_path")
+                stored_path = await async_store_recipe_photo(hass, photo)
+                if not stored_path:
+                    connection.send_result(
+                        msg["id"], {"error": "Could not store that photo."})
+                    return
+                await recipes_db.async_set_photo(hass, rec_id, stored_path)
+                # [ADDED v2026.9.20] Setting a photo over an existing one is
+                # a deletion of the old one, and leaks the same way. Only
+                # after the new file is safely written and recorded, so a
+                # failed write never costs the picture that was there.
+                if (previous_name and previous_name != stored_path
+                        and not await recipes_db.async_photo_in_use(
+                            hass, previous_name, exclude_id=rec_id)):
+                    await async_delete_recipe_photo(hass, previous_name)
+                hass.bus.async_fire("home_organizer_db_update")
+                connection.send_result(msg["id"], {"path": stored_path})
+                return
+
+            # [ADDED v2026.9.17] A recipe in the language the panel is set to,
+            # translated once and then cached.
+            #
+            # THE ORIGINAL IS NEVER OVERWRITTEN. A translation is a separate
+            # row that can be thrown away; what the user or the assistant
+            # actually wrote stays exactly as it was (RULE 5).
+            #
+            # Four ways this declines, and every one of them answers with the
+            # original rather than with nothing (RULE 31):
+            #   - the recipe is already in that language
+            #   - the user has edited it by hand, which locks it
+            #   - the model is unavailable
+            #   - the reply does not match the shape of this recipe
+            if action == "translate":
+                rec = await recipes_db.async_get_by_id(hass, msg.get("recipe_id"))
+                if not rec:
+                    connection.send_result(msg["id"], {"error": "Recipe not found."})
+                    return
+                target = (msg.get("to_language") or "").strip().lower()[:5]
+                source = (rec.get("language") or "en").strip().lower()
+
+                if not target or target == source:
+                    connection.send_result(msg["id"], {"same_language": True})
+                    return
+                if rec.get("translate_lock"):
+                    connection.send_result(msg["id"], {"locked": True})
+                    return
+
+                cached = await recipes_db.async_get_translation(
+                    hass, rec["id"], target)
+                if cached:
+                    connection.send_result(msg["id"], {"translation": cached})
+                    return
+
+                lang_names = {
+                    "en": "English", "he": "Hebrew", "it": "Italian",
+                    "es": "Spanish", "fr": "French", "ar": "Arabic",
+                    "ru": "Russian",
+                }
+                target_name = lang_names.get(target, target)
+                payload = {
+                    "name": rec.get("name"),
+                    "prep_time": rec.get("prep_time"),
+                    "ingredients": rec.get("ingredients") or [],
+                    "steps": rec.get("steps") or [],
+                }
+                prompt = (
+                    "Translate this recipe into " + target_name + ". "
+                    "Return ONLY a JSON object with exactly these keys: "
+                    "name, prep_time, ingredients, steps. "
+                    "ingredients is a list of objects with name and qty. "
+                    "steps is a list of strings - the SAME number of steps, "
+                    "in the same order. "
+                    "Translate the WORDS only. Never change a number, a "
+                    "measurement, a temperature or a time: 200 g stays 200 g "
+                    "and 180C stays 180C. Translate a unit word only where "
+                    + target_name + " normally writes it differently. "
+                    "No commentary and no code fence."
+                    "\n\n" + json.dumps(payload, ensure_ascii=False)
+                )
+
+                res_text, err = await safe_smart_router(hass, entry, prompt)
+                if err or not res_text:
+                    _LOGGER.info("Recipe translation unavailable: %s", err)
+                    connection.send_result(msg["id"], {"unavailable": True})
+                    return
+
+                parsed = safe_parse_json(res_text)
+                # Checked before anything is stored. A reply that drops or
+                # invents steps is not a translation of THIS recipe, and a
+                # recipe with steps missing is worse than one in the wrong
+                # language (RULE 11 - model output is not trusted).
+                if (not isinstance(parsed, dict)
+                        or not isinstance(parsed.get("steps"), list)
+                        or len(parsed["steps"]) != len(payload["steps"])):
+                    _LOGGER.warning(
+                        "Recipe translation refused: the reply did not match "
+                        "the recipe's shape."
+                    )
+                    connection.send_result(msg["id"], {"unavailable": True})
+                    return
+
+                clean = {
+                    "name": str(parsed.get("name") or rec["name"]),
+                    "prep_time": parsed.get("prep_time") or rec.get("prep_time"),
+                    "ingredients": parsed.get("ingredients") or [],
+                    "steps": [str(x) for x in parsed["steps"]],
+                }
+                await recipes_db.async_put_translation(
+                    hass, rec["id"], target, clean)
+                clean["translated"] = True
+                connection.send_result(msg["id"], {"translation": clean})
+                return
+
+            if action == "rename_category":
+                ok = await recipes_db.async_rename_category(
+                    hass, msg.get("category"), msg.get("name"))
+                hass.bus.async_fire("home_organizer_db_update")
+                connection.send_result(msg["id"], {"renamed": ok})
+                return
+
+            # Removing a chapter moves its recipes to "Other". It never
+            # deletes them - a shelf is a label, the recipes are the data.
+            if action == "delete_category":
+                moved = await recipes_db.async_delete_category(
+                    hass, msg.get("category"))
+                hass.bus.async_fire("home_organizer_db_update")
+                connection.send_result(msg["id"], {"moved": moved})
+                return
+
+            if action == "add_category":
+                ok = await recipes_db.async_add_category(hass, msg.get("category"))
+                connection.send_result(msg["id"], {"added": ok})
+                return
+
+            # [ADDED v2026.9.17] Answer a change the assistant proposed.
+            #
+            # This is the execution boundary. Note what it does NOT do: it
+            # takes no ingredients and no steps from the caller. The content
+            # comes only from the proposal frozen when it was suggested, so
+            # what gets written is exactly what the user was shown, and a
+            # crafted message cannot smuggle different content past the
+            # confirmation (RULE 7, RULE 11).
+            if action in ("confirm_edit", "cancel_edit"):
+                ws_user = getattr(connection, "user", None)
+                edit_user_id = getattr(ws_user, "id", None)
+                recipe_id = msg.get("recipe_id")
+                if not edit_user_id or not recipe_id:
+                    connection.send_result(
+                        msg["id"], {"error": "Unknown user or recipe."})
+                    return
+
+                if action == "cancel_edit":
+                    recipe_edits.clear(edit_user_id, recipe_id)
+                    connection.send_result(msg["id"], {"cancelled": True})
+                    return
+
+                outcome = await recipe_edits.async_apply(
+                    hass, edit_user_id, recipe_id, msg.get("scope")
+                )
+                if not outcome.get("error"):
+                    _absorb_applied_edit(edit_user_id, recipe_id, outcome)
+                connection.send_result(msg["id"], outcome)
+                return
+
+            if action == "get":
+                rec = await recipes_db.async_get_by_id(hass, msg.get("recipe_id"))
+                if rec:
+                    rec = dict(rec)
+                    rec["image_url"] = _recipe_image_url(hass, rec.get("image_path"))
+                connection.send_result(msg["id"], {"recipe": rec})
+                return
+
+            if action == "save":
+                name = (msg.get("name") or "").strip()
+                if not name:
+                    connection.send_result(
+                        msg["id"], {"error": "A recipe needs a name."}
+                    )
+                    return
+                rid, result = await recipes_db.async_save(
+                    hass,
+                    name,
+                    msg.get("ingredients") or [],
+                    msg.get("steps") or [],
+                    msg.get("timers") or [],
+                    language=msg.get("language") or "en",
+                    tags=msg.get("tags") or [],
+                    notes=msg.get("notes"),
+                    # Written by hand in the panel, so this is the one place
+                    # source_type is 'manual'.
+                    source_type="manual",
+                    recipe_id=msg.get("recipe_id"),
+                    prep_time=msg.get("prep_time"),
+                    category=msg.get("category"),
+                )
+                # [ADDED v2026.9.17] Written by hand, so automatic translation
+                # stops here for good. What the user typed is the recipe now,
+                # and no machine may rewrite it afterwards.
+                await recipes_db.async_lock_translation(hass, rid)
+                hass.bus.async_fire("home_organizer_db_update")
+                connection.send_result(msg["id"], {"recipe_id": rid, "result": result})
+                return
+
+            if action == "update":
+                # Editing an existing recipe: ingredients and steps replace
+                # what was there, everything else is preserved.
+                #
+                # Separate from "save" because save always writes
+                # source_type='manual' - a user adding a step to a recipe the
+                # assistant generated should not have it relabelled as theirs,
+                # and the drawing must survive the edit.
+                rec = await recipes_db.async_get_by_id(hass, msg.get("recipe_id"))
+                if not rec:
+                    connection.send_result(msg["id"], {"error": "Recipe not found."})
+                    return
+                rid, result = await recipes_db.async_save(
+                    hass,
+                    (msg.get("name") or rec["name"]).strip(),
+                    msg.get("ingredients") if msg.get("ingredients") is not None
+                        else rec["ingredients"],
+                    msg.get("steps") if msg.get("steps") is not None
+                        else rec["steps"],
+                    rec["timers"],
+                    language=rec["language"],
+                    tags=rec["tags"],
+                    notes=msg.get("notes") if msg.get("notes") is not None
+                        else rec["notes"],
+                    source_type=rec["source_type"],
+                    recipe_id=rec["id"],
+                    prep_time=msg.get("prep_time"),
+                    category=msg.get("category"),
+                )
+                # [ADDED v2026.9.17] An edit locks the recipe against
+                # automatic translation, and drops the cached translations -
+                # they describe text that no longer exists.
+                #
+                # Only a CONTENT edit does this. Moving a recipe to another
+                # chapter also comes through here, so the lock is skipped
+                # when neither the words nor the steps were touched.
+                if (msg.get("ingredients") is not None
+                        or msg.get("steps") is not None
+                        or msg.get("name") is not None
+                        or msg.get("notes") is not None
+                        or msg.get("prep_time") is not None):
+                    await recipes_db.async_lock_translation(hass, rec["id"])
+                hass.bus.async_fire("home_organizer_db_update")
+                connection.send_result(msg["id"], {"recipe_id": rid, "result": result})
+                return
+
+            if action == "check_stock":
+                # Which ingredients are in the house, and where.
+                rec = await recipes_db.async_get_by_id(hass, msg.get("recipe_id"))
+                ingredients = (msg.get("ingredients")
+                               if msg.get("ingredients") is not None
+                               else (rec or {}).get("ingredients") or [])
+                # [ADDED v2026.9.19] The staples the panel says to assume.
+                # They arrive as words in the user's own language, read from
+                # the translation file, because an English list here could
+                # never recognise the ingredient names people actually write.
+                report = await async_check_ingredients(
+                    hass, ingredients, msg.get("assume_available"),
+                    msg.get("stopwords"))
+                connection.send_result(msg["id"], {"report": report})
+                return
+
+            if action == "save_notes":
+                # The drawing layer only. Saved on its own so scribbling in the
+                # kitchen never rewrites the recipe text.
+                rec = await recipes_db.async_get_by_id(hass, msg.get("recipe_id"))
+                if not rec:
+                    connection.send_result(msg["id"], {"error": "Recipe not found."})
+                    return
+                await recipes_db.async_save(
+                    hass, rec["name"], rec["ingredients"], rec["steps"],
+                    rec["timers"], language=rec["language"], tags=rec["tags"],
+                    notes=rec["notes"], source_type=rec["source_type"],
+                    recipe_id=rec["id"],
+                    handwritten_notes=msg.get("handwritten_notes"),
+                )
+                connection.send_result(msg["id"], {"saved": True})
+                return
+
+            if action == "answer_timer":
+                # [ADDED v2026.9.20] The buttons under an offered timer.
+                #
+                # The panel sends a boolean. The minutes and the label are
+                # read back from the session the offer was written into, so
+                # the answer cannot change what it is answering (RULE 7) -
+                # the same shape as confirm_edit.
+                timer_user = getattr(getattr(connection, "user", None), "id", None)
+                timer_session = ACTIVE_SESSIONS.get(
+                    f"web_session_{timer_user or 'anonymous'}")
+                if not timer_session:
+                    connection.send_result(
+                        msg["id"], {"error": "Nothing to answer."})
+                    return
+                if not msg.get("accept"):
+                    state_manager.clear_state(
+                        timer_session, state_manager.TIMER_OFFER_KEY)
+                    connection.send_result(msg["id"], {"timer": "declined"})
+                    return
+                text = await cooking_agent.async_schedule_offered_timer(
+                    hass, timer_session, timer_user)
+                connection.send_result(
+                    msg["id"], {"timer": "set", "message": text})
+                return
+
+            if action == "delete":
+                # [MODIFIED v2026.9.20] The recipe's photo goes with it.
+                # Deleting the recipe is the clearest case of all: nothing
+                # will ever refer to that picture again.
+                rec_id = msg.get("recipe_id")
+                doomed = await recipes_db.async_get_by_id(hass, rec_id)
+                doomed_photo = (doomed or {}).get("image_path")
+                await recipes_db.async_delete(hass, rec_id)
+                if doomed_photo and not await recipes_db.async_photo_in_use(
+                        hass, doomed_photo, exclude_id=rec_id):
+                    await async_delete_recipe_photo(hass, doomed_photo)
+                hass.bus.async_fire("home_organizer_db_update")
+                connection.send_result(msg["id"], {"deleted": True})
+                return
+
+        except Exception as err:
+            _LOGGER.error("recipes '%s' failed: %s", action, err)
+            connection.send_result(msg["id"], {"error": str(err)})
+
+    try:
+        websocket_api.async_register_command(hass, websocket_recipes)
+    except Exception:
+        pass
+
     # [ADDED v2026.9.12] Receipts table.
     #
     # A read-only query, so it is a websocket command rather than a service:
@@ -1067,6 +2044,45 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.error("list_receipts failed: %s", err)
             connection.send_result(msg["id"], {"receipts": [], "vendors": [], "totals": {}})
 
+    # [ADDED v2026.9.20] An item's drawn icon, on its way to the database.
+    #
+    # The panel built this from a spec that ai_core.draw_spec had already
+    # rebuilt field by field, so the markup is ours twice over - but it still
+    # goes through the sanitiser, because this is the one door into the
+    # column and a door that trusts its caller is not a door (RULE 33d: one
+    # gate, so the weaker path cannot become the way in).
+    @websocket_api.websocket_command({
+        vol.Required("type"): WS_SET_ITEM_ICON,
+        vol.Required("item_id"): vol.Any(int, str),
+        vol.Required("icon_svg"): vol.Any(str, None),
+    })
+    @websocket_api.async_response
+    async def websocket_set_item_icon(hass, connection, msg):
+        try:
+            raw = msg.get("icon_svg")
+            if not raw:
+                # Clearing it is allowed: the item falls back to the library
+                # icon or the default, which is what it had before.
+                await async_set_item_icon(hass, msg["item_id"], None)
+                connection.send_result(msg["id"], {"cleared": True})
+                return
+            clean = sanitize_emblem_svg(raw)
+            if not clean:
+                _LOGGER.warning("Rejected an item icon that could not be cleaned.")
+                connection.send_result(msg["id"], {"error": "Bad icon."})
+                return
+            stored = await async_set_item_icon(hass, msg["item_id"], clean)
+            hass.bus.async_fire("home_organizer_db_update")
+            connection.send_result(msg["id"], {"stored": stored})
+        except Exception as err:
+            _LOGGER.error("set_item_icon failed: %s", err)
+            connection.send_result(msg["id"], {"error": str(err)})
+
+    try:
+        websocket_api.async_register_command(hass, websocket_set_item_icon)
+    except Exception:
+        pass
+
     try:
         websocket_api.async_register_command(hass, websocket_list_receipts)
     except Exception:
@@ -1086,7 +2102,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 # sends a single image needs to change.
                 vol.Optional("image_data"): vol.Any(str, [str], None),
                 vol.Optional("mime_type", default="image/jpeg"): str,
-                vol.Optional("language", default="en"): str 
+                vol.Optional("language", default="en"): str,
+                # [ADDED v2026.9.17] "speak this reply on my phone".
+                #
+                # Set by the panel only when its own speech engine is
+                # missing, which on Android is always - the WebView has no
+                # window.speechSynthesis. The panel speaks locally when it
+                # can, so this never doubles up.
+                vol.Optional("speak", default=False): bool,
+                # [ADDED v2026.9.17] Which saved recipe this chat is about.
+                # Declared here at the same time as the handler and the
+                # caller: an undeclared key is rejected before the handler
+                # runs, which is how the same defect shipped once before.
+                vol.Optional("recipe_id"): vol.Any(str, None),
             })
         )
     except Exception: pass
