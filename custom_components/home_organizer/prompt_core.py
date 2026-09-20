@@ -12,6 +12,14 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
+# [MODIFIED v2026.9.20 | 2026-09-20] Purpose: ICON_DRAW_RULES asks for a
+#   FILLED, COLOURED drawing. It used to say the opposite in as many words
+#   - 'OUTLINES, NOT BLOCKS' and 'ONE COLOUR ... do not try to colour it' -
+#   which is why every icon came out as a single-colour line drawing. The
+#   model names a colour ROLE and the panel decides what it is, so nothing
+#   about the boundary moved: it still cannot send a colour, only a name
+#   from a fixed list. Paint order is stated too, because SVG paints in
+#   list order and a filled body listed last covers the detail on top of it.
 # [MODIFIED v2026.9.20 | 2026-09-20] Purpose: ICON_LIB_PROMPT_CONTEXT
 #   restores the shipped icon list to the two prompts that still CHOOSE
 #   an icon - the receipt scan and the barcode lookup. They were left
@@ -123,7 +131,7 @@ ICON_LIB_ITEM|Toys|Arts|Play-Doh, Coloring books, Paint sets
 # its own literal braces, and inserted text is NOT re-processed - a brace
 # here would arrive at the model as a brace and break the JSON example
 # around it. The tool-shaped example stays with each caller for that reason.
-ICON_DRAW_RULES = '   THE FIELD IS DRAWN ON A 0-120 GRID. 0,0 is the top left, 120,120 the\n   bottom right. Keep the drawing inside roughly 8..112 so nothing is clipped.\n\n   Shapes: circle (cx, cy, r) - ellipse (cx, cy, rx, ry) - rect (x, y, width,\n   height, rx) - line (x1, y1, x2, y2) - path (d) - polyline (points) -\n   polygon (points). "w" is the line thickness, 0.5 to 6; 2.5 to 3.5 reads\n   well. "fill" defaults to none, which is what you want for nearly\n   everything: these are OUTLINE drawings.\n\n   RULES THAT MAKE AN ICON WORK:\n   - DRAW THE THING ITSELF. A guitar is a body, a neck, a headstock and a\n     sound hole. Not a music note, not a box.\n   - AT MOST 28 SHAPES. Anything past that is dropped. An icon is read at\n     40px in a list and enlarged to 140px when the user taps it, so it needs\n     enough shapes to be recognisable and few enough not to turn into mud.\n   - OUTLINES, NOT BLOCKS. No background, no frame, no border, no plate. The\n     item floats on nothing.\n   - ONE COLOUR. The drawing takes the colour of the text beside it, so it\n     reads on a light theme and a dark one. Do not try to colour it.\n'
+ICON_DRAW_RULES = '   THE FIELD IS DRAWN ON A 0-120 GRID. 0,0 is the top left, 120,120 the\n   bottom right. Keep the drawing inside roughly 8..112 so nothing is clipped.\n\n   Shapes: circle (cx, cy, r) - ellipse (cx, cy, rx, ry) - rect (x, y, width,\n   height, rx) - line (x1, y1, x2, y2) - path (d) - polyline (points) -\n   polygon (points). "w" is the line thickness, 0.5 to 6; 2.5 to 3.5 reads\n   well.\n\n   COLOUR. Every shape takes "fill" and "stroke". You never send a colour -\n   you send the NAME of one of these and the application decides what it is:\n\n     ink     the outline colour; follows the theme\n     red  green  brown  gold  accent  cream  white\n     wash    a faint neutral tint, for a shadow or for glass\n     none    no paint at all\n\n   FILL THE DRAWING IN. A tomato is a red circle with a green leaf, not the\n   outline of one. Set "fill" on every shape that is part of the object.\n   "stroke" is ink unless you say otherwise, and that is what gives each\n   shape its edge - leave it alone unless you want a different one.\n\n   PAINT ORDER IS LIST ORDER. The large filled body goes FIRST and the\n   details are listed after it, so they land on top of it.\n\n   RULES THAT MAKE AN ICON WORK:\n   - DRAW THE THING ITSELF. A guitar is a body, a neck, a headstock and a\n     sound hole. Not a music note, not a box.\n   - USE THE REAL COLOUR. A banana is gold, a cucumber is green, a chair is\n     brown, a milk carton is white. When nothing fits, leave fill out and\n     the shape is an outline, which is still better than a wrong colour.\n   - AT MOST 28 SHAPES. Anything past that is dropped. An icon is read at\n     40px in a list and enlarged to 140px when the user taps it, so it needs\n     enough shapes to be recognisable and few enough not to turn into mud.\n   - NO BACKGROUND. No frame, no border, no plate, no circle behind it. The\n     item floats on nothing.\n'
 
 
 # [ADDED v2026.9.20] The one-item drawing prompt, for the AI button on the
@@ -152,9 +160,9 @@ the description wins - it is the user correcting the name.
      not a useful answer. Draw the closest real object you can picture.
 
 Return ONLY this JSON object and no other text, no markdown, no fence:
-{{"shapes": [{{"t": "rect", "x": 40, "y": 30, "width": 40, "height": 60,
-  "rx": 6, "w": 3}}, {{"t": "circle", "cx": 60, "cy": 44, "r": 4,
-  "w": 2.5}}]}}
+{{"shapes": [{{"t": "rect", "x": 34, "y": 28, "width": 52, "height": 64,
+  "rx": 6, "fill": "red", "w": 3}}, {{"t": "circle", "cx": 60, "cy": 46,
+  "r": 7, "fill": "white", "w": 2.5}}]}}
 """
 
 def get_intent_resolve_prompt(hint_text, existing_locs_str, target_lang):

@@ -12,6 +12,10 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
+# // [MODIFIED v2026.9.20 | 2026-09-20] Purpose: Rule 4b's examples carry
+# // fills, because the model copies the example far more reliably than it
+# // follows the prose above it. Same release as the ICON_DRAW_RULES rewrite
+# // in prompt_core - an example showing bare outlines would have undone it.
 # // [MODIFIED v2026.9.20 | 2026-09-20] Purpose: A receipt scan never stops
 # // to ask about a category. Rule 3a files an item nothing fits under the
 # // NEAREST existing category and returns the name it WOULD have opened in
@@ -92,9 +96,9 @@ CRITICAL RULES:
    markup - you send a list of shapes and the application draws them.
 
    {{"icon_spec": [
-     {{"t": "ellipse", "cx": 60, "cy": 84, "rx": 26, "ry": 24, "w": 3}},
-     {{"t": "rect", "x": 55, "y": 14, "width": 10, "height": 26, "rx": 2, "w": 2.5}},
-     {{"t": "circle", "cx": 60, "cy": 70, "r": 8, "w": 2.5}}
+     {{"t": "path", "d": "M46 34 h28 v58 a6 6 0 0 1 -6 6 h-16 a6 6 0 0 1 -6 -6 z", "fill": "white", "w": 3}},
+     {{"t": "path", "d": "M46 34 l14 -16 l14 16 z", "fill": "cream", "w": 2.5}},
+     {{"t": "rect", "x": 52, "y": 58, "width": 16, "height": 12, "fill": "accent", "w": 2}}
    ]}}
 
 {ICON_DRAW_RULES}   - Leave icon_spec out entirely if you cannot picture the item. An item
@@ -112,7 +116,7 @@ AVAILABLE TOOLS (Use "intent": "tool", then specify "tool_name"):
 2. "add_item_to_ho" - Adds an item to the home inventory.
    - You MUST supply the EXACT `location_id` from the existing locations list if it exists.
    - If the user wants to place the item in a NEW sub-location (e.g., a new shelf or drawer that doesn't exist yet), provide it in the `sub_location` argument.
-   - kwargs: {{"item_name": "Milk", "qty": 2, "location_id": "A1.2", "sub_location": "", "category": "Food", "sub_category": "Dairy", "icon_spec": [{{"t": "path", "d": "M50 26 h20 v10 l8 14 v46 a6 6 0 0 1 -6 6 h-24 a6 6 0 0 1 -6 -6 v-46 l8 -14 z", "w": 3}}, {{"t": "line", "x1": 46, "y1": 66, "x2": 74, "y2": 66, "w": 2.5}}]}}
+   - kwargs: {{"item_name": "Milk", "qty": 2, "location_id": "A1.2", "sub_location": "", "category": "Food", "sub_category": "Dairy", "icon_spec": [{{"t": "path", "d": "M50 26 h20 v10 l8 14 v46 a6 6 0 0 1 -6 6 h-24 a6 6 0 0 1 -6 -6 v-46 l8 -14 z", "fill": "white", "w": 3}}, {{"t": "line", "x1": 46, "y1": 66, "x2": 74, "y2": 66, "stroke": "accent", "w": 2.5}}]}}
 
 3. "create_sub_location" - Creates a NEW, empty sub-location (folder, drawer, shelf) inside an existing location, without adding an item to it.
    - kwargs: {{"location_id": "A1", "new_sub_location": "Vegetable Drawer"}}
@@ -142,10 +146,10 @@ Example 2 (Missing Sub-Location Clarification - MUST DO THIS IF NO LOGICAL SUB-L
 {{"intent": "clarify", "question": "I don't see a specific place for the remote in the TV Cabinet. Should I open a new sub-location called 'Top Drawer'?"}}
 
 Example 3 (Continuing after Clarification - User explicitly confirmed a completely NEW location!):
-{{"intent": "tool", "tool_name": "add_item_to_ho", "kwargs": {{"item_name": "Remote", "qty": 1, "location_id": "A1", "sub_location": "Top Drawer", "category": "Electronics", "sub_category": "Computing", "icon_spec": [{{"t": "rect", "x": 40, "y": 30, "width": 40, "height": 60, "rx": 6, "w": 3}}, {{"t": "circle", "cx": 60, "cy": 44, "r": 4, "w": 2.5}}]}}}}
+{{"intent": "tool", "tool_name": "add_item_to_ho", "kwargs": {{"item_name": "Remote", "qty": 1, "location_id": "A1", "sub_location": "Top Drawer", "category": "Electronics", "sub_category": "Computing", "icon_spec": [{{"t": "rect", "x": 40, "y": 30, "width": 40, "height": 60, "rx": 6, "fill": "ink", "w": 3}}, {{"t": "circle", "cx": 60, "cy": 44, "r": 4, "fill": "red", "w": 2.5}}]}}}}
 
 Example 4 (Continuing after Clarification - User named an EXISTING location, so use its exact location_id and leave sub_location empty!):
-{{"intent": "tool", "tool_name": "add_item_to_ho", "kwargs": {{"item_name": "Cucumbers", "qty": 4, "location_id": "A1.2.3", "sub_location": "", "category": "Food", "sub_category": "Vegetables", "icon_spec": [{{"t": "ellipse", "cx": 60, "cy": 60, "rx": 16, "ry": 40, "w": 3}}, {{"t": "line", "x1": 52, "y1": 34, "x2": 52, "y2": 86, "w": 1.5}}]}}}}
+{{"intent": "tool", "tool_name": "add_item_to_ho", "kwargs": {{"item_name": "Cucumbers", "qty": 4, "location_id": "A1.2.3", "sub_location": "", "category": "Food", "sub_category": "Vegetables", "icon_spec": [{{"t": "ellipse", "cx": 60, "cy": 60, "rx": 16, "ry": 40, "fill": "green", "w": 3}}, {{"t": "line", "x1": 52, "y1": 34, "x2": 52, "y2": 86, "stroke": "ink", "w": 1.5}}]}}}}
 
 Example 5 (Reply after a tool succeeds):
 {{"intent": "reply", "message": "I have successfully added the items. Anything else?"}}

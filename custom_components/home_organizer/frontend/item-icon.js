@@ -11,6 +11,14 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [MODIFIED v2026.9.20 | 2026-09-20] Purpose: The icon has COLOUR and is
+//   FILLED. Every role in the palette resolved to currentColor, which made
+//   each drawing a single-colour outline - cyan on a list row, white on the
+//   enlarge overlay, because currentColor is whatever the container's text
+//   colour happens to be. Only ink stays currentColor now, because a
+//   contour is the one part that has to flip with the background; the rest
+//   are fixed mid-tones chosen to read on the light theme, the dark theme
+//   and the overlay's near-black scrim alike.
 // [ADDED v2026.9.20 | 2026-09-20] Purpose: An item's icon, drawn from a spec
 //   the assistant designed, instead of picked from the shipped library.
 //
@@ -31,11 +39,13 @@
 // 1. TRANSPARENT. An icon sits on a list row, a folder tile, a chat bubble
 //    and a dark overlay. It carries no background of its own.
 //
-// 2. ONE COLOUR, INHERITED. Everything is drawn in currentColor, so the icon
-//    is whatever colour the text beside it is - which is the only way one
-//    drawing reads on both the light and the dark theme. The assistant still
-//    names colour ROLES; they all resolve to the same thing here. It cannot
-//    send a colour value in either case.
+// 2. COLOUR BY NAME, NEVER BY VALUE. The assistant names a colour ROLE and
+//    the palette below decides what that is. It cannot send a colour, the
+//    same way it cannot send markup - a name from a fixed list carries
+//    nothing. The fills are fixed mid-tones that read on the light theme,
+//    the dark theme and the near-black enlarge overlay alike; only the
+//    contour is currentColor, because a contour is the one part that has to
+//    flip with the background behind it.
 //
 // 3. ONE DRAWING, TWO SIZES. The same icon is shown at about 40px in a list
 //    and at 140px in the enlarge overlay. It is a vector, so that costs no
@@ -44,23 +54,39 @@
 
 import { shapesFromSpec } from './spec-draw.js?v=2026.9.20';
 
-// Every role resolves to the same thing, except "none". The assistant is
-// still free to name any of them; an icon simply has one colour.
+// THE PALETTE. A role name in, a colour out.
 //
-// currentColor is the whole trick: the icon inherits the colour of the text
-// around it, so a theme change needs no redraw and nothing stored has to
-// know which theme was in use when it was drawn.
+// The assistant never sends a colour. It sends the NAME of a role, and this
+// table decides what that is - which is the same boundary as everything
+// else here: a name from a fixed list cannot carry anything (RULE 7).
+//
+// [MODIFIED v2026.9.20] These were all currentColor, which made every icon a
+// single-colour line drawing - cyan in a list, white on the enlarge overlay,
+// because currentColor is whatever the container's text colour happens to
+// be. A tomato came out the same colour as a hammer.
+//
+// TWO KINDS OF ENTRY, and the difference matters:
+//
+//   ink is still currentColor. It is the CONTOUR, and a contour has to be
+//   dark on the light theme and light on the dark one - which is exactly
+//   what currentColor gives for free, with nothing stored knowing which
+//   theme was in use when the drawing was made.
+//
+//   Everything else is a fixed mid-tone. Mid-tone on purpose: these sit on
+//   a #2c2c2e card, on a white card, and on the overlay's near-black scrim,
+//   and one value has to read on all three. Every shape also carries the ink
+//   stroke by default, so even the palest fill keeps a visible edge.
 const ICON_ROLES = Object.freeze({
   none: 'none',
   ink: 'currentColor',
-  accent: 'currentColor',
-  wash: 'none',
-  cream: 'none',
-  white: 'none',
-  red: 'currentColor',
-  green: 'currentColor',
-  brown: 'currentColor',
-  gold: 'currentColor',
+  accent: '#3fa9dd',
+  wash: 'rgba(128,128,128,0.22)',
+  cream: '#ead9ae',
+  white: '#f2f2f2',
+  red: '#e2574c',
+  green: '#52a447',
+  brown: '#a5714a',
+  gold: '#dfa42a',
 });
 
 // Fewer than an emblem gets. An emblem is decoration at 132px and can carry
