@@ -12,6 +12,12 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
+# [MODIFIED v2026.9.20 | 2026-09-20] Purpose: "type" is accepted as a
+#   spelling of "t". The value still has to be one of the seven shape
+#   names and every field is still rebuilt from the allow-list, so the
+#   boundary is exactly where it was - but a model that wrote "type" had
+#   its whole drawing discarded in silence, which reached the user as a
+#   button that did nothing.
 # [ADDED v2026.9.20 | 2026-09-20] Purpose: The drawing-spec validator, moved
 #   out of agents/cooking_agent.py. It was written for recipe emblems and has
 #   nothing to do with cooking: the inventory agent now draws item icons the
@@ -81,7 +87,16 @@ def validate_spec(raw_shapes, max_shapes=EMBLEM_MAX_SHAPES):
     for item in raw_shapes[:max(1, int(max_shapes or EMBLEM_MAX_SHAPES))]:
         if not isinstance(item, dict):
             continue
-        kind = str(item.get("t") or "").strip().lower()
+        # [MODIFIED v2026.9.20] "type" is accepted as a spelling of "t".
+        #
+        # This is NOT a loosening of the boundary - whatever the key is
+        # called, the VALUE still has to be one of the seven names below, and
+        # everything else about the shape is rebuilt field by field exactly
+        # as before. It is only that models write "type" about as often as
+        # "t", and a spec that used it was discarded in full and in silence:
+        # every shape failed this line, the list came back empty, and the
+        # user saw a button that did nothing.
+        kind = str(item.get("t") or item.get("type") or "").strip().lower()
         if kind not in EMBLEM_SPEC_SHAPES:
             continue
         shape = {"t": kind}

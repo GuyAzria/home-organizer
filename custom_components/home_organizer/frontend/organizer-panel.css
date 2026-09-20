@@ -1,11 +1,13 @@
 /* Home Organizer CSS - Ver 7.7.33 */
+/* [ADDED v2026.9.20 | 2026-09-20] Purpose: A phone block for the Change
+   Icon window. It had three nested scrolling areas and 165px of category
+   tiles above the first icon; it is now a fixed 92vh box whose icon grid
+   is the only thing that scrolls. Same release: the AI button stopped
+   taking a row of its own, because its label is two letters now. */
 /* [ADDED v2026.9.20 | 2026-09-20] Purpose: .ai-icon-row - the Draw with
    AI row on the Change Icon window. min-width:0 on the input is what
    stops a flex child refusing to shrink below its content and pushing
-   the button off a phone screen; below 450px the two stack instead. */
-/* [MODIFIED v2026.9.16 | 2026-09-16] Purpose: Added the --ho-chrome-h token,
-   the combined height of .top-bar and .sub-bar, so a fixed overlay can start
-   below the panel chrome instead of covering the Home and Edit buttons. */
+   the button off a phone screen. */
 
 :host { 
     --primary: #03a9f4; --accent: #4caf50; --danger: #f44336; --warning: #ffeb3b; --icon-btn-bg: #444;
@@ -199,17 +201,69 @@ svg { width: 24px; height: 24px; fill: currentColor; }
    and physical padding would be wrong in one of the two directions. */
 .ai-icon-row { display: flex; gap: 10px; margin-top: 10px; border-top: 1px solid #444; padding-top: 10px; align-items: stretch; }
 .ai-icon-row input { flex: 1; min-width: 0; padding: 8px; background: #111; color: white; border: 1px solid #444; border-radius: 4px; }
-.ai-icon-row .action-btn { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; white-space: nowrap; flex: 0 0 auto; }
+/* A chip, not a bar. The label is two letters, so the button never
+   needs a row of its own at any width - which is what it used to take
+   on a phone when it read 'Draw with AI'. */
+.ai-icon-row .action-btn { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; white-space: nowrap; flex: 0 0 auto; min-width: 62px; padding-inline: 10px; }
 .ai-icon-glyph { display: inline-flex; width: 20px; height: 20px; }
 .ai-icon-glyph svg { width: 100%; height: 100%; fill: currentColor; }
-/* Phone: the label alone would make the row too tall to leave the grid
-   usable, so the two children stack only below the panel's own 450px
-   breakpoint - the one this file already uses (RULE 36). */
-@media (max-width: 450px) {
-  .ai-icon-row { flex-wrap: wrap; }
-  .ai-icon-row .action-btn { flex: 1 0 100%; }
-}
+/* [ADDED v2026.9.20 | 2026-09-20] The Change Icon window, on a phone only.
 
+   WHAT WAS WRONG. The window had THREE scrolling areas inside each other -
+   the content box, the icon grid with its own 350px cap, and two category
+   bars scrolling sideways - and 165px of the screen was gone to category
+   tiles before the first icon appeared. On a 640px phone that left almost
+   nothing for the icons and made every swipe a guess about which of the
+   three would move.
+
+   WHAT IT IS NOW. The window is a fixed 92vh box that does NOT scroll. The
+   icon grid is the one thing that does, and it takes whatever height is
+   left over. Everything else - the title, the two bars, the AI row, the URL
+   row, the upload button - is always where the user left it.
+
+   450px is this file's own phone breakpoint (RULE 36: the two widths here
+   are 450 and 768; nothing new is invented). Above it not one of these
+   rules applies, so the tablet and desktop window is untouched. */
+@media (max-width: 450px) {
+
+  /* One box, one height, no scroll of its own. min-height: 0 on a column
+     flex parent is what lets a child scroll instead of growing - without it
+     the grid expands to its content and pushes the rows below it off the
+     bottom of the screen, which is the bug this whole block is about. */
+  #icon-modal .modal-content { height: 92vh; max-height: 92vh; overflow: hidden;
+    padding: 14px; gap: 10px; min-height: 0; }
+
+  /* The bars keep their own size and never get squeezed by the grid. */
+  #icon-modal #picker-main-categories,
+  #icon-modal #picker-sub-categories { flex: 0 0 auto; }
+
+  /* Smaller tiles. 85 and 80 square were sized for a desktop window; at
+     64 and 58 the two bars together give back about 45px of vertical space
+     and stay well above a 40px touch target. */
+  #icon-modal .cat-btn { width: 64px; height: 64px;
+    min-width: 64px; min-height: 64px; font-size: 9px; padding: 4px; }
+  #icon-modal .subcat-btn { width: 58px; height: 58px;
+    min-width: 58px; min-height: 58px; font-size: 8px; padding: 4px; }
+  #icon-modal .cat-svg-wrapper { width: 24px; height: 24px; }
+  #icon-modal .subcat-svg-wrapper { width: 22px; height: 22px; }
+
+  /* THE one scroller. flex:1 takes the leftover height; the fixed 350px cap
+     is dropped so it neither overflows the window nor leaves a gap. */
+  #icon-modal .icon-grid { flex: 1 1 auto; min-height: 90px; max-height: none;
+    padding: 6px; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); }
+  #icon-modal .lib-icon { padding: 6px; }
+  #icon-modal .lib-icon svg { width: 28px; height: 28px; }
+  #icon-modal .lib-icon span { width: 52px; }
+
+  /* The three action rows are pinned by being last in a box that does not
+     scroll. Tighter margins, and a touch height on every control. */
+  #icon-modal .ai-icon-row,
+  #icon-modal .url-input-row { flex: 0 0 auto; margin-top: 0; padding-top: 8px; }
+  #icon-modal .ai-icon-row input,
+  #icon-modal .url-input-row input { min-height: 40px; }
+  #icon-modal .url-input-row .action-btn { min-height: 40px; min-width: 52px; }
+  #icon-modal .modal-title { font-size: 16px; }
+}
 .url-input-row { display: flex; gap: 10px; margin-top: 10px; border-top: 1px solid #444; padding-top: 10px; }
 #camera-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: center; }
 #camera-video { width: 100%; height: 80%; object-fit: cover; }

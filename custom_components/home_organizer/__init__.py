@@ -31,6 +31,10 @@
 #   sends an id and a sentence; the NAME is read from the database and
 #   what comes back is rebuilt field by field by validate_icon_spec
 #   before anything is stored (RULE 7, RULE 11, RULE 33a.2).
+#   _parse_drawing_reply finds the shape list wherever the model put it -
+#   a bare array, or under icon_spec or spec - because the prompt asking
+#   for one key is not the same as getting it, and nine reply shapes out
+#   of ten were being read as 'nothing came back', silently.
 
 import logging
 from homeassistant.components import frontend
@@ -1288,6 +1292,57 @@ def _clean_category_suggestion(raw, existing_names):
         return None
     return name
 
+# [ADDED v2026.9.20] Find the shape list in whatever the model answered.
+#
+# The prompt asks for {"shapes": [...]}, and asking is not getting. Models
+# reply with a bare list, or wrap it under the name the OTHER drawing prompt
+# uses (icon_spec), or under spec. Every one of those was read as 'nothing
+# came back', and the user saw a button that did nothing - with the reason
+# nowhere but a debug line.
+#
+# This only LOCATES the list. It does not validate a single value: whatever
+# it finds still goes through validate_icon_spec, which rebuilds the spec
+# field by field from a fixed allow-list (RULE 7, RULE 11). Reading a
+# different key cannot widen what is accepted.
+def _shapes_from_reply(parsed):
+    if isinstance(parsed, list):
+        return parsed
+    if not isinstance(parsed, dict):
+        return None
+    for key in ("shapes", "icon_spec", "spec", "icon", "drawing"):
+        value = parsed.get(key)
+        if isinstance(value, list):
+            return value
+        # One level of nesting, for {"icon_spec": {"shapes": [...]}}.
+        if isinstance(value, dict) and isinstance(value.get("shapes"), list):
+            return value["shapes"]
+    return None
+
+
+# [ADDED v2026.9.20] The model's answer as a shape LIST, or None.
+#
+# safe_parse_json looks for the first balanced OBJECT, which is right for
+# every other caller and wrong for this one: a reply that is a bare array
+# comes back as its FIRST ELEMENT, so a drawing of twelve shapes arrived as
+# one circle - or, once the wrapper was missing too, as nothing.
+#
+# The array is read here instead. Still only a search for the list; every
+# value inside it goes through validate_icon_spec exactly as before.
+def _parse_drawing_reply(raw_text):
+    shapes = _shapes_from_reply(safe_parse_json(raw_text))
+    if shapes is not None:
+        return shapes
+    cleaned = re.sub(r"```json\s*|```\s*", "", str(raw_text or "")).strip()
+    start, end = cleaned.find("["), cleaned.rfind("]")
+    if start == -1 or end <= start:
+        return None
+    try:
+        value = json.loads(cleaned[start:end + 1])
+    except Exception:
+        return None
+    return value if isinstance(value, list) else None
+
+
 DRAW_ICON_MAX_DESCRIPTION = 200
 
 
@@ -1323,12 +1378,20 @@ async def websocket_draw_item_icon(hass, connection, msg):
         connection.send_result(msg["id"], {"error": "no_ai"})
         return
 
-    parsed = safe_parse_json(res_text)
-    spec = validate_icon_spec((parsed or {}).get("shapes"))
+    spec = validate_icon_spec(_parse_drawing_reply(res_text))
     if not spec:
         # Nothing drawable came back. The item keeps whatever it had rather
         # than losing its picture to a blank one (RULE 31, fail closed).
-        _LOGGER.debug("[HO-ICON] No drawable shapes for item %s.", item_id)
+        #
+        # [MODIFIED v2026.9.20] WARNING, with the reply. This was debug and
+        # silent, so a model that answered in a shape nobody expected looked
+        # from the outside like a button that did nothing at all. The text is
+        # the model's own words about a drawing - no key, no URL, no user
+        # data - and it is capped so a runaway answer cannot fill the log.
+        _LOGGER.warning(
+            "[HO-ICON] Nothing drawable for item %s. The model answered: %s",
+            item_id, str(res_text)[:400],
+        )
         connection.send_result(msg["id"], {"error": "not_drawable"})
         return
 

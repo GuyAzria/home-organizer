@@ -19,7 +19,9 @@
 //   release: openIconPicker shows the row for items only, and every other
 //   way of setting a picture now clears the drawing (see services.py) -
 //   a drawn icon outranks image_path, so without that the first drawing
-//   would have been permanent.
+//   would have been permanent. A failure now names its reason - the code
+//   rides on the end of the message - because every one of them used to
+//   read as the same single sentence.
 
 import { ICONS, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.10';
 
@@ -296,13 +298,27 @@ export const IconsMixin = (Base) => class extends Base {
         this.refreshImageVersion(itemId);
         this.fetchData();
       } else {
-        const key = (res && res.error === 'not_drawable')
+        // [MODIFIED v2026.9.20] The reason travels with the message.
+        //
+        // Every failure looked identical from the outside - one sentence
+        // that could mean the AI is unreachable, or that the item is gone,
+        // or that the drawing came back unreadable. The code is three words
+        // of English on the end of a translated sentence, and it is the
+        // difference between a bug report and a shrug.
+        const code = (res && res.error) ? String(res.error) : 'no_reply';
+        const key = (code === 'not_drawable')
           ? 'ai_icon_not_drawable' : 'ai_icon_failed';
-        alert(this.t(key) || 'The assistant could not draw this item.');
+        const text = this.t(key) || 'The assistant could not draw this item.';
+        alert(text + '\n\n[' + code + ']');
       }
     } catch (e) {
+      // A rejected callWS is the websocket refusing the command outright -
+      // an unregistered type, or a key the schema was never told about
+      // (RULE 33a.2). That is a different fault from a drawing that came
+      // back unusable, and it now says so.
       console.error(e);
-      alert(this.t('ai_icon_failed') || 'The assistant could not draw this item.');
+      const text = this.t('ai_icon_failed') || 'The assistant could not draw this item.';
+      alert(text + '\n\n[' + ((e && (e.message || e.code)) || 'call_failed') + ']');
     } finally {
       this.setLoading(itemId, false);
       if (btn) btn.disabled = false;

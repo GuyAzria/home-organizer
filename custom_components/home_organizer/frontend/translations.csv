@@ -49,6 +49,7 @@ delete_photo_confirm,Delete this photo?,למחוק את התמונה?,Eliminare 
 cat_suggest_msg,Nothing here fits this item. Open a new category?,אין קטגוריה מתאימה לפריט הזה. לפתוח קטגוריה חדשה?,Nessuna categoria adatta a questo articolo. Aprirne una nuova?,Ninguna categoría encaja con este artículo. ¿Abrir una nueva?,Aucune catégorie ne convient à cet article. En ouvrir une nouvelle ?,لا توجد فئة مناسبة لهذا العنصر. هل نفتح فئة جديدة؟,Нет подходящей категории для этого предмета. Открыть новую?
 cat_suggest_yes,Create,צור,Crea,Crear,Créer,إنشاء,Создать
 cat_suggest_no,Not now,לא עכשיו,Non ora,Ahora no,Pas maintenant,ليس الآن,Не сейчас
+ai_short,AI,AI,AI,AI,AI,AI,AI
 ai_draw_icon,Draw with AI,צייר עם AI,Disegna con l'IA,Dibujar con IA,Dessiner avec l'IA,ارسم بالذكاء الاصطناعي,Нарисовать с ИИ
 ai_icon_hint,Describe the item...,תארו את הפריט...,Descrivi l'oggetto...,Describe el artículo...,Décrivez l'article...,صف العنصر...,Опишите предмет...
 ai_icon_failed,The assistant could not draw this item.,העוזר לא הצליח לצייר את הפריט הזה.,L'assistente non è riuscito a disegnare questo oggetto.,El asistente no pudo dibujar este artículo.,L'assistant n'a pas pu dessiner cet article.,لم يتمكن المساعد من رسم هذا العنصر.,Ассистент не смог нарисовать этот предмет.

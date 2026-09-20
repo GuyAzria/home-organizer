@@ -12,12 +12,15 @@
 // more details. <https://www.gnu.org/licenses/>.
 //
 // [MODIFIED v2026.9.20 | 2026-09-20] Purpose: The Change Icon window
-//   carries a Draw with AI row for items: a sentence describing the
-//   thing, and a button that asks the assistant to draw it. It is the
-//   repair for an icon that landed wrong on a receipt or a barcode
-//   scan, where the library is still what gets picked - and it makes
-//   the drawing the user's own choice rather than something that
-//   happens to their data unasked.
+//   carries an AI row for items: a sentence describing the thing, and a
+//   button that asks the assistant to draw it. It is the repair for an
+//   icon that landed wrong on a receipt or a barcode scan, where the
+//   library is still what gets picked - and it makes the drawing the
+//   user's own choice rather than something that happens to their data
+//   unasked. The button's label is the two letters and nothing more:
+//   'Draw with AI' translates to a phrase longer than the chip in every
+//   language here and overflowed it on a phone. The sentence moved to
+//   title=, via the new setTitle helper, where it costs no width.
 // [MODIFIED v2026.9.20 | 2026-09-20] Purpose: getItemIcon is the one
 //   place that decides what an item shows - a photograph, then an icon
 //   the assistant drew for it, then the shipped library, then the
@@ -399,9 +402,14 @@ export const UIMixin = (Base) => class extends Base {
                hint - the name comes from the database, not from here. -->
           <div class="ai-icon-row" id="ai-icon-row" style="display:none;">
             <input type="text" id="ai-icon-desc" maxlength="200">
-            <button class="action-btn" id="btn-ai-icon">
+            <!-- [MODIFIED v2026.9.20] The label is the two letters and
+                 nothing more. "Draw with AI" translates to a phrase longer
+                 than the button in every language this panel ships, and on
+                 a phone it overflowed its own chip. The full sentence moved
+                 to title=, where it costs no width. -->
+            <button class="action-btn" id="btn-ai-icon" title="Draw with AI">
               <span class="ai-icon-glyph">${ICONS.wand}</span>
-              <span id="lbl-ai-icon">Draw with AI</span>
+              <span id="lbl-ai-icon">AI</span>
             </button>
           </div>
           <div class="url-input-row">
@@ -484,6 +492,16 @@ export const UIMixin = (Base) => class extends Base {
             e.placeholder = this._t(key, def); 
         } 
     };
+    // [ADDED v2026.9.20] A translated tooltip. Some controls are too narrow
+    // to carry their own sentence - the AI button is two letters wide - and
+    // title= is where the full wording lives for them. textContent, not
+    // innerHTML: a title attribute is plain text and never markup.
+    const setTitle = (id, key, def) => {
+        const e = el(id);
+        if (e) {
+            e.title = this._t(key, def);
+        }
+    };
 
     set('lbl-lang',        'language', 'Language');
     set('lbl-theme',       'theme', 'Theme');
@@ -494,7 +512,8 @@ export const UIMixin = (Base) => class extends Base {
     set('lbl-dark',        'dark', 'Dark');
     set('lbl-change-icon', 'change_icon', 'Change Icon');
     set('lbl-upload-file', 'upload_file', 'Upload File');
-    set('lbl-ai-icon',     'ai_draw_icon', 'Draw with AI');
+    set('lbl-ai-icon',     'ai_short', 'AI');
+    setTitle('btn-ai-icon', 'ai_draw_icon', 'Draw with AI');
     set('lbl-close',       'back', 'Back');
     set('lbl-loading',     'loading', 'Loading...');
     set('lbl-fab-stylist', 'stylist', 'Stylist');
