@@ -80,6 +80,13 @@ home_organizer_images/
 *.zip
 *.tar.gz
 
+# Release notes and announcement drafts, written per version and pasted into
+# the GitHub release page or a forum post. They are working documents: the
+# published copy lives on GitHub, and a second copy in the repository root
+# would only ever go stale. README.md is the file that IS maintained here.
+RELEASE-*.md
+ANNOUNCEMENT-*.md
+
 # ---------------------------------------------------------------------------
 # Secrets - belt and braces. Nothing here should ever be committed.
 # ---------------------------------------------------------------------------
