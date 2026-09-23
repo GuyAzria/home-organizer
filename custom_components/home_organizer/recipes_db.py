@@ -522,6 +522,38 @@ async def async_get_by_id(hass, recipe_id):
         return None
 
 
+async def async_dashboard_stats(hass, top=6):
+    """How many recipes there are, and the ones actually cooked.
+
+    [ADDED v2026.9.22] Lives here because the recipes are in their own
+    database file - the main one cannot see this table, and a JOIN across
+    two files is not something to introduce for a tile.
+
+    use_count is incremented by async_touch every time a recipe is opened
+    to cook, so 'most used' is a real measurement and not a guess from the
+    order they were added.
+    """
+    out = {"count": 0, "top": []}
+    try:
+        db_path = _db_path(hass)
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}") as cur:
+                out["count"] = (await cur.fetchone())[0]
+            # Only recipes that have been cooked at least once. A shelf of
+            # zeros in insertion order is not a 'most used' list.
+            async with db.execute(
+                f"SELECT id, name, emblem_svg, COALESCE(use_count, 0) AS use_count "
+                f"FROM {TABLE_NAME} WHERE COALESCE(use_count, 0) > 0 "
+                f"ORDER BY use_count DESC, last_used_at DESC LIMIT ?",
+                (int(top),),
+            ) as cur:
+                out["top"] = [dict(r) for r in await cur.fetchall()]
+    except Exception as err:
+        _LOGGER.error("[HO-RECIPES] dashboard stats failed: %s", err)
+    return out
+
+
 async def async_touch(hass, recipe_id):
     try:
         db_path = _db_path(hass)

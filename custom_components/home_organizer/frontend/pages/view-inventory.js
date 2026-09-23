@@ -11,6 +11,15 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [FIXED v2026.9.22 | 2026-09-22] Purpose: The rooms screen rebuilt every
+//   room as { originalName, displayName, img } and dropped the rest of the
+//   row. A drawn room icon was stored, the window closed as though it had
+//   worked, and the tile still showed the old picture - the field simply
+//   never reached the renderer. It spreads the row now, so the next field
+//   added to a folder arrives without anyone remembering this line exists.
+// [MODIFIED v2026.9.22 | 2026-09-22] Purpose: Both folder loops call
+//   folderIcon instead of repeating the same four-way choice, so a drawn
+//   room icon appears in both without being added twice.
 // [MODIFIED v2026.9.20 | 2026-09-20] Purpose: The expanded item card's
 //   boxes carry class names - exp-top, exp-media, exp-name-row and the
 //   rest. NOTHING ELSE CHANGED HERE: every inline style is exactly what it
@@ -110,7 +119,17 @@ export const InventoryMixin = (Base) => class extends Base {
         if (m) { zone = m[1]; displayName = m[2]; }
         else if (f.zone) zone = f.zone;
         if (!groupedRooms[zone]) groupedRooms[zone] = [];
-        groupedRooms[zone].push({ originalName: f.name, displayName, img: f.img });
+        // [FIXED v2026.9.22] Spread the row, do not copy three fields off it.
+        //
+        // This rebuilt each room as { originalName, displayName, img } and
+        // dropped everything else the backend sent. When folder rows started
+        // carrying icon_spec, a drawn room icon was stored correctly, the
+        // window closed as if it had worked, and the tile still showed the
+        // old picture - because the field never reached the renderer.
+        //
+        // Spreading means the next field added to a folder row arrives here
+        // without anyone remembering this line exists (RULE 33a.6).
+        groupedRooms[zone].push({ ...f, originalName: f.name, displayName });
       });
     }
 
@@ -154,17 +173,10 @@ export const InventoryMixin = (Base) => class extends Base {
         if (typeof this.setupRoomDragSource === 'function') this.setupRoomDragSource(el, folder.originalName);
         el.onclick = () => { if (!this.isEditMode) this.navigate('down', folder.originalName, catalogID); };
 
-        let folderContent = ICONS.folder;
-        if (folder.img) {
-          if (folder.img.startsWith('ICON_LIB')) folderContent = this.getIconByKey(folder.img);
-          else {
-            let cleanPath = folder.img.split('?')[0]; 
-            const ver = this.imageVersions[folder.originalName] || 'ok';
-            const src = `${cleanPath}?v=${ver}`;
-            const loader = this.loadingSet.has(folder.originalName) ? `<div class="loader-container"><span class="loader"></span></div>` : '';
-            folderContent = `<div style="position:relative;width:100%;height:100%"><img src="${src}" style="width:100%;height:100%;object-fit:contain;border-radius:4px">${loader}</div>`;
-          }
-        }
+        // [MODIFIED v2026.9.22] One resolver, in organizer-utils.js. This
+        // block and its twin below each had their own copy, so a drawn
+        // folder icon would have had to be added to both (RULE 33a.6).
+        const folderContent = this.folderIcon(folder, folder.originalName);
         const deleteBtnHtml = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation();this.getRootNode().host.deleteFolder('${escapeHtml(this.escapeJSArg(folder.originalName))}')">✕</div>` : '';
         const editBtnHtml   = this.isEditMode ? `<div class="folder-edit-btn"   onclick="event.stopPropagation();this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'),'${escapeHtml(this.escapeJSArg(folder.originalName))}')">${ICONS.edit}</div>` : '';
         const imgBtnHtml    = this.isEditMode ? `<div class="folder-img-btn"    onclick="event.stopPropagation();this.getRootNode().host.openIconPicker('${escapeHtml(this.escapeJSArg(folder.originalName))}','room')">${ICONS.image}</div>` : '';
@@ -202,17 +214,10 @@ export const InventoryMixin = (Base) => class extends Base {
           const catalogID = parentID + rawID;
           const el = document.createElement('div'); el.className = 'folder-item';
           el.onclick = () => this.navigate('down', folder.name, catalogID);
-          let folderContent = ICONS.folder;
-          if (folder.img) {
-            if (folder.img.startsWith('ICON_LIB')) folderContent = this.getIconByKey(folder.img);
-            else {
-              let cleanPath = folder.img.split('?')[0]; 
-              const ver = this.imageVersions[folder.name] || 'ok';
-              const src = `${cleanPath}?v=${ver}`;
-              const loader = this.loadingSet.has(folder.name) ? `<div class="loader-container"><span class="loader"></span></div>` : '';
-              folderContent = `<div style="position:relative;width:100%;height:100%"><img src="${src}" style="width:100%;height:100%;object-fit:contain;border-radius:4px">${loader}</div>`;
-            }
-          }
+          // [MODIFIED v2026.9.22] One resolver, in organizer-utils.js. This
+          // block and its twin below each had their own copy, so a drawn
+          // folder icon would have had to be added to both (RULE 33a.6).
+          const folderContent = this.folderIcon(folder, folder.name);
           const ctx = attrs.depth === 0 ? 'room' : 'location';
           const del = this.isEditMode ? `<div class="folder-delete-btn" onclick="event.stopPropagation();this.getRootNode().host.deleteFolder('${escapeHtml(this.escapeJSArg(folder.name))}')">✕</div>` : '';
           const edt = this.isEditMode ? `<div class="folder-edit-btn"   onclick="event.stopPropagation();this.getRootNode().host.enableFolderRename(this.closest('.folder-item').querySelector('.folder-label'),'${escapeHtml(this.escapeJSArg(folder.name))}')">${ICONS.edit}</div>` : '';

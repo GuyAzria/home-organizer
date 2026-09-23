@@ -470,7 +470,7 @@ export const CameraMixin = (Base) => class extends Base {
           // The app may have been launched from any screen; the result belongs
           // on the receipts screen.
           this.isReviewMode = true;
-          this.isChatMode = false; this.isReceiptsMode = false;
+          this.isChatMode = false; this.isReceiptsMode = false; this.isDashboardMode = false;
           this.isShopMode = false; this.isSearch = false;
           this.isEditMode = false; this.isStylistMode = false;
 
@@ -558,7 +558,7 @@ export const CameraMixin = (Base) => class extends Base {
             this.chatImage = dataUrl;
             this.chatMimeType = finalMime;
             this.isReviewMode = true;
-            this.isChatMode = false; this.isReceiptsMode = false;
+            this.isChatMode = false; this.isReceiptsMode = false; this.isDashboardMode = false;
             this.isShopMode = false; this.isSearch = false;
             this.isEditMode = false; this.isStylistMode = false;
             if (this.receiptPageMode) {

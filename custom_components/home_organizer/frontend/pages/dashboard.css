@@ -1,0 +1,738 @@
+/* pages/dashboard.css | v2026.9.22 */
+/* [MODIFIED v2026.9.22] The page is a GRID, and the chart has a scale.
+
+   It was one column at every width - a phone screen enlarged onto a
+   monitor, with a chart stretched a metre wide and 280px tall and eight
+   information tiles reduced to a strip. Twelve columns now, the spending
+   taking eight of them and the counts taking the four beside it; a tablet
+   stacks that top row and keeps the pair below it; a phone is one column
+   as before.
+
+   The chart got the things that make one readable rather than decorative:
+   gridlines at the four readings on its scale, columns capped at 24px so
+   twelve of them read as a series instead of a wall, and ONE hero figure
+   at 46px in the ordinary text ink - the colour on this screen belongs to
+   the marks, where it means something. */
+/* [MODIFIED v2026.9.22] The chart is a year, so it has twelve columns and
+   two colours, and the two colours are declared here as tokens.
+
+   Twice, once per theme, and not one lightened from the other: a fill that
+   clears 3:1 against the white card cannot also clear it against the
+   near-black one, because those two requirements pull in opposite
+   directions. Each pair was measured against its own surface.
+
+   Blue against orange on purpose - it is the pair that survives both
+   common kinds of colour blindness. That matters here and did not before,
+   because a legend makes the colour carry the meaning. */
+/* [ADDED v2026.9.22 | 2026-09-22] Purpose: The home dashboard.
+
+   THE CHART IS DIVS, NOT AN SVG. A column is a box with a height percentage
+   and its label is a sibling underneath it. Nothing is positioned by
+   coordinate, so it resizes without arithmetic.
+
+   The chart is the ONE thing here that does not follow the reading
+   direction: its scale is pinned to the right in both languages. A scale is
+   read against the columns beside it rather than as a sentence, and a
+   number column that changes sides with the interface is one more thing to
+   re-find. Everything else on the screen still reverses on its own.
+
+   Logical properties only. This panel signals direction with a .ltr CLASS
+   and never a dir attribute, so [dir="rtl"] selectors match nothing here -
+   padding-left and a right-to-left override would both be wrong (RULE 33b).
+
+   Breakpoints: 450 and 768 from organizer-panel.css, and 1200 from
+   recipes.css - which is also the width RULE 36 itself calls desktop.
+   Three widths taken from the two stylesheets this project already has,
+   rather than a fourth set invented here. The base rules are the DESKTOP
+   ones and every block at the end takes something away. */
+
+:host {
+  --dash-bar: #3987e5;
+  --dash-bar-now: #d95926;
+  --dash-manual: #199e70;
+  /* Depth has to be built twice. A dark shadow on a near-black card is
+     invisible and the card floats on nothing; on white it is the only thing
+     separating the card from the page. Two shadows in each, a tight one for
+     the edge and a wide soft one for the lift. */
+  --dash-shadow: 0 1px 2px rgba(0, 0, 0, .34), 0 12px 32px rgba(0, 0, 0, .26);
+}
+.light-mode {
+  --dash-bar: #2a78d6;
+  --dash-bar-now: #eb6834;
+  --dash-manual: #1baf7a;
+  --dash-shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 12px 32px rgba(16, 24, 40, .09);
+}
+
+/* ---- the page is a GRID, not a stack ------------------------------------
+   [MODIFIED v2026.9.22] It was one column at every width, which is a phone
+   screen enlarged: the chart stretched to a metre wide and 280px tall, and
+   eight information tiles became a single thin strip across the top of a
+   monitor. Nothing was wrong with it on a phone and nothing was right with
+   it anywhere else.
+
+   Twelve columns, and each section claims a span. The base rules are the
+   DESKTOP ones and the blocks at the end of this file take columns away, so
+   a narrow screen is the special case rather than the assumption.
+
+   minmax(0, 1fr) and not 1fr: a grid track's default minimum is its
+   content, so a twelve-column chart inside a grid column would refuse to
+   shrink and push the whole row wider than the screen. */
+.dash-wrap {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 16px;
+  padding: 18px;
+  box-sizing: border-box;
+  align-content: start;
+}
+
+/* Two thirds to the spending, which is what this screen is for, and the
+   remaining third to the counts beside it rather than under it. */
+.area-spend { grid-column: span 8; }
+.area-tiles { grid-column: span 4; }
+.area-attention { grid-column: span 6; }
+.area-prices { grid-column: span 6; }
+/* Nothing went up in price this year, so its neighbour takes the row. An
+   empty half would read as a card that failed to load. */
+.area-attention.alone { grid-column: span 12; }
+.area-nav { grid-column: span 12; }
+
+.dash-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  padding: 18px 20px;
+  box-shadow: var(--dash-shadow);
+}
+
+.dash-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.dash-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-sub);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+/* THE hero figure, and there is exactly one on this screen.
+   [MODIFIED v2026.9.22] It was 22px and the same cyan as every button in
+   the panel. A dashboard leads with one number and it has to look like the
+   thing you came for; the colour went with the size, because a figure is
+   text and text wears text ink - the colour on this screen belongs to the
+   marks in the chart, which is where it means something. */
+.dash-total { display: flex; align-items: baseline; gap: 7px; white-space: nowrap; }
+.dash-total-n {
+  font-size: 46px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-main);
+  letter-spacing: -.02em;
+  /* Proportional digits on purpose. tabular-nums gives every digit the
+     width of a zero, which at this size opens visible gaps inside a number
+     like 1,211. It belongs in COLUMNS of figures, and those keep it. */
+  font-variant-numeric: proportional-nums;
+}
+.dash-total-c { font-size: 14px; font-weight: 600; color: var(--text-sub); }
+.dash-empty { padding: 18px 4px; color: var(--text-sub); font-size: 13px; text-align: center; }
+
+/* The title and the year picker travel together - the picker says what the
+   title is ABOUT, and a header that puts them at opposite ends lets the
+   user read a year total under someone else's year. */
+.dash-head-l { display: flex; align-items: center; gap: 10px; min-width: 0; }
+
+/* A dropdown, not two arrows. An arrow has to point somewhere and
+   "earlier" points the other way in Hebrew; a list of years reads the same
+   in both, and shows at a glance how far back the receipts go. 40px tall
+   because it is a touch target (RULE 36). */
+.dash-year {
+  height: 40px;
+  min-width: 82px;
+  padding: 0 10px;
+  border-radius: 10px;
+  background: var(--bg-input-edit);
+  color: var(--text-main);
+  border: 1px solid var(--border-light);
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.dash-year:focus { outline: 2px solid var(--primary); outline-offset: 1px; }
+
+/* ---- the column chart --------------------------------------------------
+   A fixed height rather than a ratio: the columns have to be tall enough to
+   compare at a glance, and a percentage of an unknown parent is not a
+   promise of anything. */
+/* [MODIFIED v2026.9.22] direction: ltr, on the chart only.
+
+   The scale belongs on the right in BOTH languages. It is read against the
+   columns next to it, not as a sentence, and a number column that jumps
+   sides with the interface is one more thing to re-find. Pinning the
+   direction here is what makes that true without a rule per language - and
+   it means the logical properties INSIDE the chart resolve the same way
+   every time, which is the part that would otherwise need two of each. */
+.dash-chart { display: flex; gap: 10px; height: 340px; direction: ltr; margin-top: 4px; }
+
+/* The scale. space-between spreads the four readings from the top of the
+   plot to its floor, so they line up with the track beside them. */
+.dash-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  /* The axis sits to the RIGHT of the plot, so its numbers hug the plot
+     edge - reading them against a column means being next to it. */
+  align-items: flex-start;
+  flex: 0 0 auto;
+  /* These two numbers are not decoration - they are what makes a reading
+     line up with the gridline beside it. They are the exact heights of the
+     printed value above a column and the label below it, both of which are
+     fixed further down for that reason. Change one and change all four. */
+  padding-bottom: 24px;      /* .dash-col-label 18px + its 6px margin */
+  padding-top: 15px;         /* .dash-col-val 12px + its 3px margin */
+  font-size: 10px;
+  color: var(--text-sub);
+  font-variant-numeric: tabular-nums;
+}
+
+/* [MODIFIED v2026.9.22] gap 6px, because there are twelve columns now and
+   not five or six. The gaps between twelve columns add up to more than two
+   whole columns on a phone. */
+.dash-plot {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
+  gap: 6px;
+  min-width: 0;
+  border-inline-end: 1px solid var(--border-light);
+  padding-inline-end: 8px;
+}
+/* [ADDED v2026.9.22] Gridlines, so a column can be read against the scale
+   instead of guessed at from the number beside it.
+
+   Hairline and solid, one step off the surface - never dashed, and never
+   loud enough to compete with the bars. Four lines for the four readings
+   on the axis: the repeat draws the baseline and the two between, and the
+   border draws the top.
+
+   The inset IS the alignment. It is the height of the printed value above
+   a column and the label under it, which is why both of those are fixed
+   heights and why the axis carries the same two numbers as padding.
+
+   The border-bottom that used to be on .dash-plot has gone with this: it
+   drew the axis line UNDER the month labels, a row below the baseline the
+   bars actually stand on. */
+.dash-plot::before {
+  content: '';
+  position: absolute;
+  inset: 15px 0 24px 0;
+  border-top: 1px solid var(--border-color);
+  background-image: repeating-linear-gradient(
+    to top, var(--border-color) 0 1px, transparent 1px 33.334%);
+  pointer-events: none;
+}
+/* Above the gridlines. Without this the bars are painted first and the
+   lines run across their faces. */
+.dash-col { position: relative; }
+
+.dash-col {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  /* A column is pressable: on a phone its value is hidden until it is. */
+  cursor: pointer;
+}
+/* [MODIFIED v2026.9.22] Twelve numbers, two of them louder.
+   The two worth finding without looking - the current month and the
+   biggest one - carry the main ink; the other ten stay recessive so the
+   shape of the year is read before any single figure. */
+/* A fixed height, because the gridlines are inset by exactly this plus its
+   margin. See .dash-plot::before. */
+.dash-col-val {
+  font-size: 10px;
+  line-height: 12px;
+  height: 12px;
+  color: var(--text-sub);
+  margin-bottom: 3px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.dash-col.key .dash-col-val { color: var(--text-main); font-weight: 700; }
+.dash-col.now .dash-col-label { color: var(--text-main); font-weight: 700; }
+/* The track is the full height the column can reach; the bar inside it is
+   the share. Two elements, so a 3% value still draws something visible
+   instead of collapsing to nothing. */
+/* [MODIFIED v2026.9.22] 24px, not 54.
+   A column caps at 24px and never fills its slot: the leftover is what
+   makes twelve of them read as a series rather than as a wall. At 54 the
+   bars touched on a tablet and the chart became a solid block. */
+.dash-col-track {
+  flex: 1;
+  width: 100%;
+  max-width: 24px;
+  display: flex;
+  align-items: flex-end;
+}
+.dash-col-bar {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  min-height: 3px;
+  transition: height .35s cubic-bezier(.2, .8, .3, 1), filter .15s;
+}
+.dash-col:hover .dash-col-bar { filter: brightness(1.15); }
+/* A month name is one short word now, not a wrapped category, so the row
+   is one line high and the chart gets the rest. */
+.dash-col-label {
+  font-size: 10px;
+  color: var(--text-sub);
+  margin-top: 6px;
+  height: 18px;
+  line-height: 18px;
+  text-align: center;
+  overflow: hidden;
+  width: 100%;
+  white-space: nowrap;
+}
+/* Twelve month names do not fit across a phone in any language, and twelve
+   numbers do. Both are rendered and the width picks one. */
+.dash-m-short { display: none; }
+
+/* ---- the legend --------------------------------------------------------
+   Two colours mean the colour carries meaning, and meaning carried by
+   colour alone is meaning some readers do not get. The swatch is the only
+   coloured thing here - the words beside it wear the ordinary text ink. */
+.dash-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-sub);
+}
+.dash-legend-item { display: inline-flex; align-items: center; gap: 7px; }
+.dash-legend-sw {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex: 0 0 auto;
+}
+
+/* ---- what the year went ON ---------------------------------------------
+   A list, not a second chart. The card already carries one scale, and a
+   second set of columns beside the first invites two different
+   measurements to be read against each other.
+
+   One hue for every row. The bar is a SHARE, which is a magnitude - length
+   says it all - and a colour per topic would be a second code to learn for
+   something the name beside it already says. */
+.dash-topics {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+.dash-topics-cap {
+  font-size: 11px;
+  color: var(--text-sub);
+  margin-bottom: 8px;
+}
+.dash-topic {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 13px;
+}
+.dash-topic-name {
+  flex: 0 1 30%;
+  min-width: 0;
+  color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The track fills from the start of the line, so it turns round with the
+   interface on its own - no second rule for Hebrew (RULE 33b). */
+.dash-topic-track {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--bg-input-edit);
+  overflow: hidden;
+}
+.dash-topic-fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--dash-bar);
+}
+.dash-topic-amt {
+  flex: 0 0 auto;
+  color: var(--text-main);
+  font-weight: 600;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* The two rows that are NOT categories, below a rule.
+
+   The remainder is discounts, deposits and lines nobody approved - the gap
+   between the receipt total and what the products add up to. The other is
+   money with no receipt behind it at all. Neither gets a share bar: a share
+   bar claims a proportion of the rows above it, and neither of these is one
+   of them. The rule belongs to whichever comes first, so the adjacent
+   selector takes it back off the second. */
+.dash-topic.diff,
+.dash-topic.manual {
+  margin-top: 4px;
+  padding-top: 9px;
+  border-top: 1px dashed var(--border-light);
+}
+.dash-topic.diff + .dash-topic.manual {
+  margin-top: 0;
+  padding-top: 5px;
+  border-top: 0;
+}
+.dash-topic.diff .dash-topic-name,
+.dash-topic.diff .dash-topic-amt {
+  color: var(--text-sub);
+  font-weight: 500;
+  font-style: italic;
+}
+/* The third colour, and the ONLY coloured thing on the row - the words and
+   the figure keep the ordinary text ink, because a number wearing a series
+   colour is one more thing to decode. Logical margin, so the marker leads
+   the name in both directions. */
+.dash-topic.manual .dash-topic-name::before {
+  content: '';
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--dash-manual);
+  margin-inline-end: 7px;
+  flex: 0 0 auto;
+}
+.dash-topic-n {
+  color: var(--text-sub);
+  font-size: 11px;
+  margin-inline-start: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- the money this card is not showing --------------------------------
+   Warning-coloured but not alarming, and it is a button: the answer to
+   "what is missing" is a list of receipts, so it goes to them. */
+.dash-gap {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: transparent;
+  border: 1px dashed var(--warning);
+  color: var(--text-sub);
+  font-size: 12px;
+  text-align: start;
+  cursor: pointer;
+  font-family: inherit;
+}
+.dash-gap:hover { color: var(--text-main); }
+
+.dash-other-cur {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border-light);
+  font-size: 11px;
+  color: var(--text-sub);
+  text-align: center;
+}
+
+/* ---- the tiles --------------------------------------------------------- */
+/* ---- the tiles ---------------------------------------------------------
+   [MODIFIED v2026.9.22] Two across, in the column beside the chart, instead
+   of eight across the full width of a monitor. Eight tiles in a row are a
+   strip of numbers nobody reads; two columns of four are a panel.
+
+   The rows stretch to the height of the card beside them, which is what
+   makes the two halves of the top row line up. */
+.dash-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  gap: 12px;
+  align-content: stretch;
+}
+.dash-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 84px;
+  padding: 14px 8px;
+  border-radius: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--dash-shadow);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: transform .15s, border-color .15s, background .15s;
+}
+.dash-tile:hover {
+  transform: translateY(-2px);
+  border-color: var(--primary);
+  background: var(--bg-card-hover);
+}
+.dash-tile-n {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -.02em;
+  font-variant-numeric: proportional-nums;
+}
+.dash-tile-l {
+  font-size: 11px;
+  color: var(--text-sub);
+  text-align: center;
+  line-height: 1.25;
+}
+/* The only tile that ever asks for something to be done today. */
+.dash-tile.warn { border-color: var(--warning); }
+.dash-tile.warn .dash-tile-n { color: var(--warning); }
+
+/* ---- needs attention ---------------------------------------------------
+   A chip is a count and a name, and it is a button. urgent gets the warning
+   colour; the other two are ordinary work rather than a problem, and
+   colouring all four the same would have made none of them mean anything. */
+.dash-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 22px;
+  background: var(--bg-input-edit);
+  border: 1px solid var(--border-light);
+  color: var(--text-main);
+  font-size: 13px;
+  cursor: pointer;
+  transition: transform .15s, border-color .15s;
+}
+.dash-chip:hover { transform: translateY(-2px); border-color: var(--primary); }
+.dash-chip-n {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.dash-chip-l { color: var(--text-sub); font-size: 12px; }
+.dash-chip.urgent { border-color: var(--warning); }
+.dash-chip.urgent .dash-chip-n { color: var(--warning); }
+
+/* ---- what got more expensive -------------------------------------------
+   Four columns on one line: the product, what it was, what it is, and the
+   change. The name is the only one allowed to shrink - the numbers are the
+   point and must not be the thing that gets an ellipsis. */
+.dash-price {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 13px;
+}
+.dash-price:last-child { border-bottom: 0; }
+.dash-price-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-main);
+}
+.dash-price-was {
+  flex: 0 0 auto;
+  color: var(--text-sub);
+  font-size: 12px;
+  text-decoration: line-through;
+  font-variant-numeric: tabular-nums;
+}
+.dash-price-now {
+  flex: 0 0 auto;
+  color: var(--text-main);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.dash-price-pct {
+  flex: 0 0 auto;
+  min-width: 48px;
+  text-align: center;
+  color: var(--danger);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- the chip strip ----------------------------------------------------
+   Shared by the attention band. The buttons that used to live here belonged
+   to a most-cooked list that was replaced; their rules went with it, in the
+   same change that orphaned them (RULE 33d). */
+.dash-quick { display: flex; flex-wrap: wrap; gap: 8px; }
+/* ---- navigation -------------------------------------------------------- */
+.dash-nav { display: flex; flex-direction: column; gap: 10px; }
+.dash-nav-first { display: flex; }
+.dash-nav-rest { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.dash-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 0 14px;
+  border-radius: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, transform .15s;
+}
+.dash-nav-btn:hover { border-color: var(--primary); transform: translateY(-2px); }
+/* Locations gets the whole first row, because it is the one everything else
+   used to be reached through. */
+.dash-nav-btn.wide {
+  flex: 1;
+  min-height: 64px;
+  font-size: 15px;
+  background: var(--bg-card-hover);
+  border-color: var(--primary);
+}
+.dash-nav-icon { display: inline-flex; width: 22px; height: 22px; flex: 0 0 auto; }
+.dash-nav-icon svg { width: 100%; height: 100%; fill: var(--primary); }
+.dash-nav-btn.wide .dash-nav-icon { width: 26px; height: 26px; }
+.dash-nav-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- the expiry list --------------------------------------------------- */
+#dash-list-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .8);
+  z-index: 2600;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+.dash-list-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  width: 100%;
+  max-width: 520px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.dash-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-light);
+  font-weight: 600;
+  color: var(--text-main);
+}
+.dash-list-body { overflow-y: auto; padding: 6px 0; }
+.dash-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 13px;
+}
+.dash-row:last-child { border-bottom: 0; }
+.dash-row-name { flex: 1 1 auto; min-width: 0; color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-row-loc { flex: 0 1 auto; min-width: 0; color: var(--text-sub); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-row-date { flex: 0 0 auto; color: var(--warning); font-size: 11px; font-variant-numeric: tabular-nums; }
+
+/* ---- tablet: 1200px is where the side column stops fitting --------------
+   The base rules above are the DESKTOP ones; every block below takes
+   columns away.
+
+   1200px is the third width in this file and it is deliberate. RULE 36
+   defines desktop as 1200px and up, recipes.css already flips its docked
+   column there, and the two widths this file had - 450 and 768 - have
+   nothing to say about the moment a 4-column side panel stops fitting
+   beside an 8-column chart. That moment is 1200.
+
+   A tablet is not a small desktop: it has the width for a full chart, and
+   for two cards side by side underneath, but not for a chart with a panel
+   beside it. So the top row unstacks and everything below it stays paired. */
+@media (max-width: 1199px) {
+  .dash-wrap { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; padding: 16px; }
+  .area-spend { grid-column: span 6; }
+  .area-tiles { grid-column: span 6; }
+  .area-attention { grid-column: span 3; }
+  .area-prices { grid-column: span 3; }
+  .area-attention.alone { grid-column: span 6; }
+  .area-nav { grid-column: span 6; }
+  .dash-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .dash-chart { height: 280px; }
+  .dash-total-n { font-size: 40px; }
+}
+
+/* ---- narrow tablet and large phone -------------------------------------
+   Two cards side by side stop working here: "Needs attention" is a row of
+   chips and "Went up in price" is four columns of numbers, and neither
+   survives half of 768px. */
+@media (max-width: 768px) {
+  .dash-wrap { grid-template-columns: minmax(0, 1fr); }
+  .area-spend, .area-tiles, .area-attention, .area-prices,
+  .area-attention.alone, .area-nav { grid-column: 1 / -1; }
+  .dash-nav-rest { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .dash-chart { height: 230px; }
+  .dash-plot { gap: 4px; }
+  .dash-topic-name { flex: 0 1 36%; }
+}
+
+/* ---- phone: fewer columns, smaller type --------------------------------
+   Twelve columns still, because a year that is only nine months long is
+   not a year - but the names become numbers, and the printed values give
+   way to the two that matter until a column is tapped. */
+@media (max-width: 450px) {
+  .dash-wrap { padding: 12px; gap: 12px; }
+  .dash-card { padding: 14px; border-radius: 14px; }
+  .dash-chart { height: 200px; }
+  /* Still the largest thing on the screen, and still the one number the
+     user came for - a hero that shrinks to the size of a label stops being
+     one. 34px is what fits beside the title on a 320px card. */
+  .dash-total-n { font-size: 34px; }
+  .dash-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .dash-tile { min-height: 76px; padding: 12px 6px; }
+  .dash-tile-n { font-size: 26px; }
+  .dash-nav-rest { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dash-plot { gap: 2px; padding-inline-end: 5px; }
+  .dash-col-label { font-size: 9px; }
+  .dash-m-long { display: none; }
+  .dash-m-short { display: inline; }
+  /* visibility, not display: the hidden numbers keep their line, so every
+     column still starts its bar at the same height. */
+  .dash-col-val { visibility: hidden; }
+  .dash-col.key .dash-col-val { visibility: visible; }
+  .dash-head { flex-wrap: wrap; }
+  .dash-topic { font-size: 12px; }
+  .dash-topic-name { flex: 0 1 34%; }
+}

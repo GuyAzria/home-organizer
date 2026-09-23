@@ -2,11 +2,11 @@
   "domain": "home_organizer",
   "stats": {
     "domain": "home_organizer",
-    "python_files": 35,
-    "javascript_files": 19,
-    "python_lines": 16859,
+    "python_files": 36,
+    "javascript_files": 21,
+    "python_lines": 19206,
     "integration_path": "custom_components\\home_organizer",
-    "project_functions_indexed": 331
+    "project_functions_indexed": 355
   },
   "checks": [
     {
@@ -27,7 +27,7 @@
     {
       "check": "Python AST parse",
       "status": "PASS",
-      "detail": "35 files parsed"
+      "detail": "36 files parsed"
     },
     {
       "check": "Python compileall",
@@ -72,7 +72,7 @@
     {
       "check": "frontend security scan",
       "status": "PASS",
-      "detail": "19 JS files, 0 findings"
+      "detail": "21 JS files, 0 findings"
     },
     {
       "check": "frontend asset isolation",

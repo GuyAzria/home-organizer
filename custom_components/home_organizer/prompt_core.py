@@ -12,6 +12,16 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
+# [MODIFIED v2026.9.22 | 2026-09-22] Purpose: Drawings were coming back too
+#   abstract to read. The shape rule said 'AT MOST 28' with no floor, which
+#   invites economy; it now asks for 12 to 28 and says what detail is for.
+#   And a PLACE gets a line of its own - the rules are written about
+#   objects, so without it a room came back as a square or a door outline.
+#   A place is drawn as the thing that stands for it.
+# [MODIFIED v2026.9.22 | 2026-09-22] Purpose: get_icon_draw_prompt takes a
+#   kind, so the same drawing rules can be pointed at a room or a shelf
+#   instead of an item. Anything but the two known words falls back to
+#   "item" - this reaches a prompt, so it is a fixed choice (RULE 11).
 # [MODIFIED v2026.9.20 | 2026-09-20] Purpose: ICON_DRAW_RULES asks for a
 #   FILLED, COLOURED drawing. It used to say the opposite in as many words
 #   - 'OUTLINES, NOT BLOCKS' and 'ONE COLOUR ... do not try to colour it' -
@@ -131,7 +141,7 @@ ICON_LIB_ITEM|Toys|Arts|Play-Doh, Coloring books, Paint sets
 # its own literal braces, and inserted text is NOT re-processed - a brace
 # here would arrive at the model as a brace and break the JSON example
 # around it. The tool-shaped example stays with each caller for that reason.
-ICON_DRAW_RULES = '   THE FIELD IS DRAWN ON A 0-120 GRID. 0,0 is the top left, 120,120 the\n   bottom right. Keep the drawing inside roughly 8..112 so nothing is clipped.\n\n   Shapes: circle (cx, cy, r) - ellipse (cx, cy, rx, ry) - rect (x, y, width,\n   height, rx) - line (x1, y1, x2, y2) - path (d) - polyline (points) -\n   polygon (points). "w" is the line thickness, 0.5 to 6; 2.5 to 3.5 reads\n   well.\n\n   COLOUR. Every shape takes "fill" and "stroke". You never send a colour -\n   you send the NAME of one of these and the application decides what it is:\n\n     ink     the outline colour; follows the theme\n     red  green  brown  gold  accent  cream  white\n     wash    a faint neutral tint, for a shadow or for glass\n     none    no paint at all\n\n   FILL THE DRAWING IN. A tomato is a red circle with a green leaf, not the\n   outline of one. Set "fill" on every shape that is part of the object.\n   "stroke" is ink unless you say otherwise, and that is what gives each\n   shape its edge - leave it alone unless you want a different one.\n\n   PAINT ORDER IS LIST ORDER. The large filled body goes FIRST and the\n   details are listed after it, so they land on top of it.\n\n   RULES THAT MAKE AN ICON WORK:\n   - DRAW THE THING ITSELF. A guitar is a body, a neck, a headstock and a\n     sound hole. Not a music note, not a box.\n   - USE THE REAL COLOUR. A banana is gold, a cucumber is green, a chair is\n     brown, a milk carton is white. When nothing fits, leave fill out and\n     the shape is an outline, which is still better than a wrong colour.\n   - AT MOST 28 SHAPES. Anything past that is dropped. An icon is read at\n     40px in a list and enlarged to 140px when the user taps it, so it needs\n     enough shapes to be recognisable and few enough not to turn into mud.\n   - NO BACKGROUND. No frame, no border, no plate, no circle behind it. The\n     item floats on nothing.\n'
+ICON_DRAW_RULES = '   THE FIELD IS DRAWN ON A 0-120 GRID. 0,0 is the top left, 120,120 the\n   bottom right. Keep the drawing inside roughly 8..112 so nothing is clipped.\n\n   Shapes: circle (cx, cy, r) - ellipse (cx, cy, rx, ry) - rect (x, y, width,\n   height, rx) - line (x1, y1, x2, y2) - path (d) - polyline (points) -\n   polygon (points). "w" is the line thickness, 0.5 to 6; 2.5 to 3.5 reads\n   well.\n\n   COLOUR. Every shape takes "fill" and "stroke". You never send a colour -\n   you send the NAME of one of these and the application decides what it is:\n\n     ink     the outline colour; follows the theme\n     red  green  brown  gold  accent  cream  white\n     wash    a faint neutral tint, for a shadow or for glass\n     none    no paint at all\n\n   FILL THE DRAWING IN. A tomato is a red circle with a green leaf, not the\n   outline of one. Set "fill" on every shape that is part of the object.\n   "stroke" is ink unless you say otherwise, and that is what gives each\n   shape its edge - leave it alone unless you want a different one.\n\n   PAINT ORDER IS LIST ORDER. The large filled body goes FIRST and the\n   details are listed after it, so they land on top of it.\n\n   RULES THAT MAKE AN ICON WORK:\n   - DRAW THE THING ITSELF. A guitar is a body, a neck, a headstock and a\n     sound hole. Not a music note, not a box.\n   - USE THE REAL COLOUR. A banana is gold, a cucumber is green, a chair is\n     brown, a milk carton is white. When nothing fits, leave fill out and\n     the shape is an outline, which is still better than a wrong colour.\n   - USE 12 TO 28 SHAPES. Past 28 they are dropped; under about ten the\n     drawing stops being the thing and becomes a pictogram of it. The\n     icon is read at 40px in a list AND enlarged to 140px when the user\n     taps it, so it has to hold up close.\n   - DETAIL IS WHAT MAKES IT READABLE. Draw the parts that identify this\n     thing and no other: a fridge\'s separate doors and their handles, a\n     cot\'s bars and its blanket, a guitar\'s sound hole and its tuning\n     pegs. An outlined box with a line across it could be anything, and\n     anything is what the user will see.\n   - NO BACKGROUND. No frame, no border, no plate, no circle behind it. The\n     item floats on nothing.\n'
 
 
 # [ADDED v2026.9.20] The one-item drawing prompt, for the AI button on the
@@ -146,13 +156,31 @@ ICON_DRAW_RULES = '   THE FIELD IS DRAWN ON A 0-120 GRID. 0,0 is the top left, 1
 # untrusted text going into a prompt, which is exactly why the ANSWER is
 # constrained rather than the question: whatever the description talks the
 # model into saying, the only thing that survives validation is numbers.
-def get_icon_draw_prompt(item_name, description):
-    return f"""You draw ONE icon for ONE household item. Nothing else.
+def get_icon_draw_prompt(item_name, description, kind="item"):
+    # [MODIFIED v2026.9.22] A room and a shelf are drawn the same way an
+    # item is, and the only thing that changes is the noun. Anything but
+    # the two known words falls back to "item" - this reaches a prompt,
+    # so it is a fixed choice and not a string from the caller (RULE 11).
+    kind = kind if kind in ("item", "place") else "item"
+    kind_upper = kind.upper()
+    # [ADDED v2026.9.22] A place is not an object, and the rules below are
+    # written about objects. Without this the model answers a room with
+    # something abstract - a square, a door outline, a letter - which is
+    # unrecognisable at any size. A place is drawn as the THING that stands
+    # for it, and that is a normal drawing again.
+    place_hint = "" if kind != "place" else (
+        "A PLACE IS DRAWN AS THE THING THAT STANDS FOR IT. A kitchen is a\n"
+        "cooker with a pan on it. A garage is a car under a roller door. A\n"
+        "nursery is a cot. A wine rack is bottles on their sides. Never a\n"
+        "floor plan, never an empty room, never an abstract shape or a\n"
+        "letter - those tell the reader nothing about which place this is.\n\n"
+    )
+    return f"""You draw ONE icon for ONE household {kind}. Nothing else.
 
-THE ITEM: {item_name}
+THE {kind_upper}: {item_name}
 WHAT THE USER SAYS IT LOOKS LIKE: {description}
 
-Draw the item the user described. If the description and the name disagree,
+{place_hint}Draw the {kind} the user described. If the description and the name disagree,
 the description wins - it is the user correcting the name.
 
 {ICON_DRAW_RULES}

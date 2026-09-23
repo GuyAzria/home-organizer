@@ -49,6 +49,40 @@ delete_photo_confirm,Delete this photo?,למחוק את התמונה?,Eliminare 
 cat_suggest_msg,Nothing here fits this item. Open a new category?,אין קטגוריה מתאימה לפריט הזה. לפתוח קטגוריה חדשה?,Nessuna categoria adatta a questo articolo. Aprirne una nuova?,Ninguna categoría encaja con este artículo. ¿Abrir una nueva?,Aucune catégorie ne convient à cet article. En ouvrir une nouvelle ?,لا توجد فئة مناسبة لهذا العنصر. هل نفتح فئة جديدة؟,Нет подходящей категории для этого предмета. Открыть новую?
 cat_suggest_yes,Create,צור,Crea,Crear,Créer,إنشاء,Создать
 cat_suggest_no,Not now,לא עכשיו,Non ora,Ahora no,Pas maintenant,ليس الآن,Не сейчас
+stylist,Stylist,סטייליסט,Stilista,Estilista,Styliste,مصمم الأزياء,Стилист
+dash_attention,Needs attention,דורש טיפול,Da gestire,Requiere atencion,A traiter,يتطلب انتباها,Требует внимания
+dash_awaiting,Awaiting review,ממתינים לאישור,In attesa,Pendientes,En attente,بانتظار المراجعة,Ждут проверки
+dash_all_clear,Nothing needs attention,הכל תקין,Tutto a posto,Todo en orden,Tout va bien,كل شيء على ما يرام,Все в порядке
+dash_price_up,Went up in price,מוצרים שהתייקרו,Aumentati di prezzo,Subieron de precio,Ont augmente,ارتفعت أسعارها,Подорожали
+dash_spend_year,Spending by month,הוצאות לפי חודש,Spese per mese,Gastos por mes,Depenses par mois,الإنفاق حسب الشهر,Расходы по месяцам
+dash_no_spend_year,No receipts recorded in this year,אין חשבוניות בשנה זו,Nessuna ricevuta in questo anno,Sin recibos en este ano,Aucun recu cette annee,لا توجد فواتير في هذه السنة,Нет чеков за этот год
+dash_legend_month,Monthly total,סך החודש,Totale mensile,Total del mes,Total du mois,إجمالي الشهر,Итог за месяц
+dash_legend_now,Current month,החודש הנוכחי,Mese corrente,Mes actual,Mois en cours,الشهر الحالي,Текущий месяц
+dash_by_topic,By topic,לפי נושא,Per categoria,Por categoria,Par categorie,حسب الفئة,По категориям
+dash_topic_diff,Discounts and rounding,הנחות ועיגולים,Sconti e arrotondamenti,Descuentos y redondeo,Remises et arrondis,خصومات وتقريب,Скидки и округление
+dash_topic_manual,Items with no receipt,פריטים ללא חשבונית,Articoli senza ricevuta,Articulos sin recibo,Articles sans recu,أصناف بدون فاتورة,Товары без чека
+dash_year,Year,שנה,Anno,Ano,Annee,السنة,Год
+dash_gap,Not counted here,לא נספר כאן,Non conteggiato,No contabilizado,Non compte,غير محتسب هنا,Не учтено здесь
+dash_gap_review,awaiting review,ממתין לאישור,in attesa,pendiente,en attente,بانتظار المراجعة,ждёт проверки
+dash_gap_undated,with no date,ללא תאריך,senza data,sin fecha,sans date,بدون تاريخ,без даты
+dash_untagged,Untagged,ללא תיוג,Senza categoria,Sin categoria,Sans categorie,Untagged,Untagged
+dash_items,Items,פריטים,Articoli,Articulos,Articles,Items,Items
+dash_cosmetics,Cosmetics,קוסמטיקה,Cosmetici,Cosmetica,Cosmetiques,Cosmetics,Cosmetics
+dash_out_of_stock,Out of stock,חסר במלאי,Esauriti,Agotados,En rupture,Out of stock,Out of stock
+dash_expiring,Expiring soon,פג תוקף בקרוב,In scadenza,Por caducar,Bientot perimes,Expiring soon,Expiring soon
+dash_nothing_expiring,Nothing expiring soon,אין מוצרים שפג תוקפם,Nulla in scadenza,Nada por caducar,Rien a perimer,Nothing expiring soon,Nothing expiring soon
+exp_Groceries,Groceries,מזון,Alimentari,Alimentacion,Alimentation,Groceries,Groceries
+exp_Cosmetics,Cosmetics,קוסמטיקה,Cosmetici,Cosmetica,Cosmetiques,Cosmetics,Cosmetics
+exp_Fuel,Fuel,דלק,Carburante,Combustible,Carburant,Fuel,Fuel
+exp_Restaurants,Restaurants,מסעדות,Ristoranti,Restaurantes,Restaurants,Restaurants,Restaurants
+exp_Travel,Travel,חופשה,Viaggi,Viajes,Voyages,Travel,Travel
+exp_Health,Health,בריאות,Salute,Salud,Sante,Health,Health
+exp_Home,Home,בית,Casa,Hogar,Maison,Home,Home
+exp_Utilities,Utilities,חשבונות,Utenze,Servicios,Services,Utilities,Utilities
+exp_Clothing,Clothing,הלבשה,Abbigliamento,Ropa,Vetements,Clothing,Clothing
+exp_Other,Other,אחר,Altro,Otros,Autres,Other,Other
+barcode_scanner,Barcode Scanner,סורק ברקוד,Scanner codici,Escaner de codigos,Scanner de codes,ماسح الباركود,Сканер штрихкодов
+locations,Locations,מיקומים,Posizioni,Ubicaciones,Emplacements,المواقع,Расположения
 ai_short,AI,AI,AI,AI,AI,AI,AI
 ai_draw_icon,Draw with AI,צייר עם AI,Disegna con l'IA,Dibujar con IA,Dessiner avec l'IA,ارسم بالذكاء الاصطناعي,Нарисовать с ИИ
 ai_icon_hint,Describe the item...,תארו את הפריט...,Descrivi l'oggetto...,Describe el artículo...,Décrivez l'article...,صف العنصر...,Опишите предмет...
@@ -766,6 +800,7 @@ sub_Dietary_Supplements,Dietary Supplements,תוספי תזונה,Integratori al
 sub_Vitamins,Vitamins,ויטמינים,Vitamine,Vitaminas,Vitamines,فيتامينات,Витамины
 cat_Cleaning,Cleaning,ניקיון,Pulizia,Limpieza,Nettoyage,تنظيف,Уборка
 cat_Home_Maintenance,Home Maintenance,תחזוקת הבית,Manutenzione casa,Mantenimiento del hogar,Entretien de la maison,صيانة المنزل,Обслуживание дома
+cat_First_Aid,First Aid,עזרה ראשונה,Primo soccorso,Primeros auxilios,Premiers secours,الإسعافات الأولية,Первая помощь
 cat_Toiletries,Toiletries,טואלטיקה,Articoli da toeletta,Artículos de aseo,Articles de toilette,لوازم الاستحمام,Туалетные принадлежности
 cat_Pharmacy,Pharmacy,פארמה,Farmacia,Farmacia,Pharmacie,صيدلية,Аптека
 sub_OTC_Medicines,OTC Medicines,תרופות ללא מרשם,Farmaci da banco,Medicamentos de venta libre,Médicaments en vente libre,أدوية بدون وصفة,"Лекарства, отпускаемые без рецепта"

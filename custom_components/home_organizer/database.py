@@ -12,22 +12,24 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
-# // [MODIFIED v2026.9.20 | 2026-09-20] Purpose: Items carry
-# // suggested_category - what a scan WOULD have called a new top-level
-# // category for an item nothing on the shelf fits. It is a note, not a
-# // category: the item is filed under the nearest existing one either way,
-# // so a scan never stops to ask and never creates a category on its own
-# // (RULE 22). Only the pending_list row carries it to the panel - a
-# // proposal is a question about an item nobody has confirmed yet, and the
-# // review tab is the one screen that can answer it. Purely additive;
-# // every existing row gets NULL and shows nothing.
-# // [MODIFIED v2026.9.20 | 2026-09-20] Purpose: async_get_item_naming
-# // reads the name, category and sub-category of ONE item. The Change
-# // Icon window can ask for an icon to be redrawn, and what it sends is
-# // an id and a sentence - the NAME of the thing being drawn is read
-# // here, from the database, and never taken from the message. Three
-# // columns and no more: building a drawing prompt is no reason to see
-# // a price, a barcode or a location.
+# // [MODIFIED v2026.9.22 | 2026-09-22] Purpose: Spending is broken down BY
+# // PRODUCT LINE, not by receipt. One trip to the supermarket is tomatoes,
+# // a toy and a bottle of sunscreen, so no single answer at the receipt
+# // level is a true one - purchase_history now carries the item's own
+# // category, backfilled once from the items each row came from. Receipts
+# // with NO lines (fuel, a hotel) keep answering through their own
+# // expense_category, because nothing else can speak for them, and what is
+# // left of the receipt totals after both is reported as its own row
+# // rather than spread across the categories. receipts.lines_total records
+# // what the lines added up to at scan time, which is how a receipt that
+# // does not balance can be found again.
+# // [MODIFIED v2026.9.22 | 2026-09-22] Purpose: async_get_dashboard_data
+# // reports a YEAR. It took a months window and returned a rolling trend
+# // and a vendor list that nothing ever drew; it now takes the year to
+# // show, returns that year month by month, the same year broken down by
+# // topic, and the list of years that actually have receipts. One month on
+# // its own is a number with nothing to compare it against - the first
+# // house to open the screen had ten receipts and a chart with one bar.
 
 import logging
 import aiosqlite
@@ -328,6 +330,21 @@ async def async_init_db(hass):
                 "status": "TEXT DEFAULT 'active'",
                 "superseded_by": "INTEGER",
                 "item_count": "INTEGER DEFAULT 0",
+                # [ADDED v2026.9.22] What the money was spent ON. Every
+                # receipt carries one, not only the ones with no items -
+                # a grocery run is 'Groceries'. Validated against
+                # db_expense_categories before it is written; a value that
+                # is not on that list is stored as NULL rather than
+                # inventing a bucket the chart would then show.
+                "expense_category": "TEXT",
+                # [ADDED v2026.9.22] What the product lines added up to when
+                # the receipt was scanned, against total_amount, which is
+                # what was paid. They disagree when a line was read without
+                # its discount, and that disagreement is the whole reason
+                # this column exists: it is the record of the check, so a
+                # receipt that did not balance can be found later instead
+                # of quietly making every category total too high.
+                "lines_total": "REAL",
             }.items():
                 if col not in receipt_cols:
                     try:
@@ -362,6 +379,42 @@ async def async_init_db(hass):
                     UNIQUE(category, sub_category)
                 )
             ''')
+
+            # [ADDED v2026.9.22] What money was spent on, as a closed list.
+            #
+            # Free text here would give 'Restaurant', 'Restaurants' and
+            # 'Dining' inside a week, and the chart would show them as three
+            # separate bars for one thing. That is the exact failure
+            # db_items_categories was built to prevent, so this copies its
+            # shape: seeded once, a source column, never re-seeded.
+            await db.execute('''
+                CREATE TABLE IF NOT EXISTS db_expense_categories (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    category   TEXT NOT NULL,
+                    cat_order  INTEGER DEFAULT 999,
+                    source     TEXT DEFAULT 'default',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(category)
+                )
+            ''')
+            async with db.execute(
+                "SELECT COUNT(*) FROM db_expense_categories"
+            ) as cur:
+                have_expense = (await cur.fetchone())[0]
+            if not have_expense:
+                try:
+                    from .category_seed import DEFAULT_EXPENSE_CATEGORIES
+                    await db.executemany(
+                        "INSERT OR IGNORE INTO db_expense_categories "
+                        "(category, cat_order, source) VALUES (?, ?, 'default')",
+                        DEFAULT_EXPENSE_CATEGORIES,
+                    )
+                    _LOGGER.info(
+                        "Seeded %s default expense categories.",
+                        len(DEFAULT_EXPENSE_CATEGORIES),
+                    )
+                except Exception as seed_err:
+                    _LOGGER.error("Expense seeding failed: %s", seed_err)
 
             # Seeded only when empty. Re-seeding a populated table would undo
             # a rename the user made, which is exactly the failure this table
@@ -506,6 +559,56 @@ async def async_init_db(hass):
                 )
             except Exception:
                 pass
+
+            # [ADDED v2026.9.22] A purchase remembers WHAT KIND of thing it
+            # was, not only what it cost.
+            #
+            # A receipt is not one kind of spending. One trip to the
+            # supermarket is tomatoes, eggs, a toy and a bottle of
+            # sunscreen, and filing the whole receipt under 'Groceries' is
+            # simply the wrong answer - it was tried and it was wrong. The
+            # ITEM carries the category, so the purchase of that item is
+            # where the category belongs, and a spending breakdown is a
+            # sum over product lines rather than over receipts.
+            #
+            # Written at approval time from the item's own category, which
+            # is the value the user saw and could correct in the review tab
+            # - not the model's raw guess.
+            async with db.execute("PRAGMA table_info(purchase_history)") as cursor:
+                ph_cols = [col[1] for col in await cursor.fetchall()]
+            if "category" not in ph_cols:
+                try:
+                    await db.execute(
+                        "ALTER TABLE purchase_history ADD COLUMN category TEXT")
+                except Exception:
+                    pass
+                # Backfill, once, for every purchase already recorded. A
+                # year of history is exactly what the breakdown needs, and
+                # without this every one of those rows would read 'Other'
+                # for ever.
+                #
+                # Only rows that are still NULL, matched on the receipt AND
+                # the name, so nothing already answered is overwritten and
+                # no row gets a category from a different receipt (RULE 5).
+                # It is inside the "column did not exist" branch, so it runs
+                # on the upgrade and never again (RULE 6).
+                try:
+                    await db.execute(
+                        "UPDATE purchase_history SET category = ("
+                        "  SELECT i.category FROM items i "
+                        "  WHERE i.receipt_id = purchase_history.receipt_id "
+                        "    AND i.name = purchase_history.name "
+                        "    AND TRIM(COALESCE(i.category, '')) != '' "
+                        "  LIMIT 1) "
+                        "WHERE category IS NULL AND receipt_id IS NOT NULL"
+                    )
+                    _LOGGER.info(
+                        "[HO-DB] purchase_history.category added and "
+                        "backfilled from the items it came from.")
+                except Exception as backfill_err:
+                    _LOGGER.warning(
+                        "purchase_history category backfill skipped: %s",
+                        backfill_err)
 
             # [ADDED v2026.9.3 | STAGE 1] Per-sub-location shelf life.
             #
@@ -828,6 +931,26 @@ def _coerce_amount(value):
     return round(amount, 2)
 
 
+def _clean_level(value):
+    """A level column as a place name, with the internal markers gone.
+
+    [ADDED v2026.9.22] A level can hold '[ORDER_MARKER_010] Kitchen' or
+    '[Floor 1] Kitchen'; the first is ours and the second is the user's own
+    zone prefix. Neither belongs in a sentence that says where the milk is.
+
+    Extracted because a second reader needed it - the dashboard's expiry
+    list - and two copies of a regular expression is two things to keep in
+    step (RULE 33d).
+    """
+    if not value:
+        return ""
+    cleaned = re.sub(
+        r"\[?\s*(?:ORDER_MARKER|ZONE_MARKER)_\d+\s*\]?[_\s]*", "", str(value)
+    ).strip()
+    cleaned = re.sub(r"^\s*\[[^\]]*\]\s*", "", cleaned).strip()
+    return cleaned
+
+
 def _coerce_date(value):
     """Return a 'YYYY-MM-DD' string, or None.
 
@@ -952,6 +1075,451 @@ async def async_count_receipt_items(hass, receipt_id):
         return 0
 
 
+async def async_get_dashboard_data(hass, year=None, expiry_days=30,
+                                   min_price=2.0):
+    """Everything the home dashboard shows, in one connection.
+
+    [ADDED v2026.9.22] One call, not eight. The dashboard is the first thing
+    the panel renders, and eight round trips to the same file is eight chances
+    to be half-drawn.
+
+    WHAT IS SUMMED, AND WHY IT IS receipts AND NOT purchase_history.
+
+    purchase_history holds a row per PRODUCT. A tank of fuel has no products,
+    so it would be invisible there - and even on a shopping receipt the lines
+    rarely add up to the total, because of tax, deposits and discounts. The
+    receipt total is what actually left the account, so that is what a
+    spending chart has to show.
+
+    status='active' excludes two things on purpose: a scan whose lines nobody
+    has confirmed yet, and a receipt superseded by a re-scan. Neither is
+    money spent twice.
+
+    Currencies are grouped, never converted. There is no exchange rate here
+    and Home Assistant is often run with no internet at all (RULE 16), so a
+    single number mixing two currencies would be a lie.
+
+    [MODIFIED v2026.9.22] A YEAR, not a month. One month of receipts is a
+    single number with nothing to compare it against - the first user to see
+    it had ten receipts on file and a chart with one bar on it. The window
+    is now a calendar year, the caller picks which, and the current month is
+    marked so it can be drawn apart from the other eleven.
+    """
+    out = {
+        "spend": [], "year_months": [], "years": [],
+        "expiring": [], "counts": {}, "month": "", "year": 0,
+        "price_watch": [], "uncounted": [], "undated": 0,
+    }
+    try:
+        db_path = get_db_path(hass)
+        today = dt_util.now().date()
+        month = today.strftime("%Y-%m")
+        out["month"] = month
+        horizon = (today + timedelta(days=int(expiry_days))).strftime("%Y-%m-%d")
+
+        # The year on show. Anything unreadable or out of range falls back to
+        # the current one rather than failing: whatever arrives here, the
+        # only thing it is ever allowed to become is a year (RULE 31).
+        try:
+            shown = int(year)
+        except (TypeError, ValueError):
+            shown = today.year
+        if shown < 1970 or shown > today.year + 1:
+            shown = today.year
+        out["year"] = shown
+        like_year = f"{shown:04d}-%"
+        # The house currency, for the one figure here that has no currency
+        # of its own: an item carries a price and nothing else, so the
+        # money it is counted in is whatever Home Assistant is set to. It
+        # is reported per-currency like every other row, so if the house is
+        # set to one currency and the receipts are in another, the panel
+        # keeps them apart instead of adding them together (RULE 16).
+        house_currency = getattr(hass.config, "currency", None) or ""
+
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            db.row_factory = aiosqlite.Row
+
+            # 1. The selected year, by what the money went ON.
+            #
+            #    [MODIFIED v2026.9.22] BY PRODUCT LINE, not by receipt.
+            #
+            #    A receipt is not one kind of spending. One trip to the
+            #    supermarket is tomatoes, eggs, a toy for a child and a
+            #    bottle of sunscreen; filing the whole receipt under
+            #    'Groceries' answers a question nobody asked. The item
+            #    carries the category, so the breakdown sums product lines.
+            #
+            #    THREE SOURCES, and all three are needed for the list to add
+            #    up to the total on the same card:
+            #
+            #      items    - purchase_history, by the item's own category.
+            #      services - a receipt with NO product lines at all: fuel,
+            #                 a hotel, a restaurant. Nothing about those is
+            #                 in purchase_history and never will be, so the
+            #                 receipt's own expense_category is the only
+            #                 thing that can speak for them.
+            #      the rest - what is left of the receipt totals after both.
+            #                 Discounts read onto one line and not another,
+            #                 deposits, tax, and lines nobody has approved.
+            #                 Reported as its own row rather than spread
+            #                 across the categories, because spreading it
+            #                 would make every category slightly false.
+            #
+            #    kind travels with each row: the panel translates an item
+            #    category through cat_ keys and a service bucket through
+            #    exp_ keys, and they are different vocabularies.
+            rows = []
+            async with db.execute(
+                "SELECT COALESCE(NULLIF(TRIM(ph.category), ''), '') AS cat, "
+                "       COALESCE(ph.currency, '') AS cur, "
+                "       SUM(COALESCE(ph.unit_price, 0) "
+                "           * COALESCE(NULLIF(ph.quantity, 0), 1)) AS total, "
+                "       COUNT(*) AS n "
+                "FROM purchase_history ph "
+                "JOIN receipts r ON r.id = ph.receipt_id "
+                "WHERE r.status = 'active' AND ph.unit_price IS NOT NULL "
+                "  AND r.purchase_date LIKE ? "
+                "GROUP BY cat, cur",
+                (like_year,),
+            ) as cur:
+                for r in await cur.fetchall():
+                    row = dict(r)
+                    row["kind"] = "item"
+                    rows.append(row)
+
+            async with db.execute(
+                "SELECT COALESCE(r.expense_category, '') AS cat, "
+                "       COALESCE(r.currency, '') AS cur, "
+                "       SUM(r.total_amount) AS total, COUNT(*) AS n "
+                "FROM receipts r "
+                "WHERE r.status = 'active' AND r.total_amount IS NOT NULL "
+                "  AND r.purchase_date LIKE ? "
+                "  AND NOT EXISTS (SELECT 1 FROM purchase_history ph "
+                "                  WHERE ph.receipt_id = r.id) "
+                "GROUP BY cat, cur",
+                (like_year,),
+            ) as cur:
+                for r in await cur.fetchall():
+                    row = dict(r)
+                    row["kind"] = "service"
+                    rows.append(row)
+
+            # The remainder, per currency. Computed against the same receipt
+            # totals the chart above is drawn from, so the list and the
+            # column agree by construction rather than by luck.
+            async with db.execute(
+                "SELECT COALESCE(r.currency, '') AS cur, "
+                "       SUM(r.total_amount) AS total "
+                "FROM receipts r "
+                "WHERE r.status = 'active' AND r.total_amount IS NOT NULL "
+                "  AND r.purchase_date LIKE ? "
+                "  AND EXISTS (SELECT 1 FROM purchase_history ph "
+                "              WHERE ph.receipt_id = r.id) "
+                "GROUP BY cur",
+                (like_year,),
+            ) as cur:
+                receipts_with_lines = {r["cur"]: (r["total"] or 0.0)
+                                       for r in await cur.fetchall()}
+            lines_by_cur = {}
+            for row in rows:
+                if row["kind"] != "item":
+                    continue
+                lines_by_cur[row["cur"]] = (lines_by_cur.get(row["cur"], 0.0)
+                                            + (row["total"] or 0.0))
+            for code, paid in receipts_with_lines.items():
+                gap = round(paid - lines_by_cur.get(code, 0.0), 2)
+                # A gap under a unit of currency is rounding, not a
+                # discount, and a row saying "0" teaches the eye to skip
+                # the whole list.
+                if abs(gap) < 1:
+                    continue
+                rows.append({"cat": "", "cur": code, "total": gap,
+                             "n": 0, "kind": "diff"})
+
+            # [ADDED v2026.9.22] Things bought with no receipt behind them.
+            #
+            # An item added by hand, or by voice, or from a barcode, can
+            # carry a price the user typed in. Nothing about it reaches
+            # purchase_history - that table is written only when a receipt
+            # line is approved - so until now that money appeared nowhere
+            # on this screen at all.
+            #
+            # It is its OWN row and is never folded into a category, for
+            # the reason that decides everything else on this card: the
+            # chart above is receipt totals, this money has no receipt, and
+            # adding it to a category would make that category disagree
+            # with the column it sits under.
+            #
+            # CURRENT YEAR ONLY, and this is the honest limit of it. An
+            # item has no purchase date to file it under: item_date is
+            # rewritten to today every time the quantity changes, so it
+            # says when the item was last touched, and created_at does not
+            # survive ALTER TABLE on a database that already has rows. So
+            # this is a figure about what is in the house NOW, and it is
+            # not offered for a past year where it would be a guess.
+            #
+            # price * quantity, because purchase_price is the UNIT price
+            # everywhere in this schema and quantity is what is on the
+            # shelf. Discarded items are out: this is what the house holds.
+            if shown == today.year:
+                # typeof(), because SQLite sorts TEXT above every number:
+                # a price stored as 'not a number' passes "> 0" happily,
+                # contributes nothing to the sum and still lands in the
+                # count - so the row would have read "(2)" beside the value
+                # of one item. The column is REAL and the panel coerces,
+                # but a declared type is not a constraint in SQLite.
+                #
+                # The quantity guard makes the count and the money agree:
+                # a priced item at quantity zero is worth nothing on the
+                # shelf, so counting it would inflate the number beside a
+                # figure it did not contribute to.
+                async with db.execute(
+                    "SELECT SUM(purchase_price * COALESCE(quantity, 1)) AS total, "
+                    "       COUNT(*) AS n "
+                    "FROM items "
+                    "WHERE type = 'item' AND receipt_id IS NULL "
+                    "  AND typeof(purchase_price) IN ('integer', 'real') "
+                    "  AND purchase_price > 0 "
+                    "  AND (quantity IS NULL "
+                    "       OR (typeof(quantity) IN ('integer', 'real') "
+                    "           AND quantity > 0)) "
+                    "  AND COALESCE(discarded, 0) = 0"
+                ) as cur:
+                    manual = await cur.fetchone()
+                if manual and (manual["total"] or 0) > 0:
+                    rows.append({
+                        "cat": "", "cur": house_currency,
+                        "total": round(manual["total"], 2),
+                        "n": manual["n"] or 0, "kind": "manual",
+                    })
+
+            # Real categories by size, then the two rows that are not
+            # categories, in a fixed order at the bottom. Sorting those two
+            # by value would drop the remainder into the middle of the list
+            # where it reads as one more kind of shopping.
+            TAIL = {"diff": 1, "manual": 2}
+            rows.sort(key=lambda r: (TAIL.get(r.get("kind"), 0),
+                                     -(r.get("total") or 0.0)))
+            out["spend"] = rows
+
+            # 2. Every month of that year that has anything in it. A month
+            #    with no receipts does not come back at all; the panel draws
+            #    the twelve columns and leaves that one empty, which is the
+            #    truth and costs no row here.
+            async with db.execute(
+                "SELECT substr(purchase_date, 1, 7) AS ym, "
+                "       COALESCE(currency, '') AS cur, "
+                "       SUM(total_amount) AS total, COUNT(*) AS n "
+                "FROM receipts "
+                "WHERE status = 'active' AND total_amount IS NOT NULL "
+                "  AND purchase_date LIKE ? "
+                "GROUP BY ym, cur ORDER BY ym ASC",
+                (like_year,),
+            ) as cur:
+                out["year_months"] = [dict(r) for r in await cur.fetchall()]
+
+            # 3. Which years the picker may offer: the ones that HAVE
+            #    receipts, plus the current one and the one being shown. A
+            #    list built from anything else can take the user to an empty
+            #    screen that has no way back to a full one.
+            years = {today.year, shown}
+            async with db.execute(
+                "SELECT DISTINCT substr(purchase_date, 1, 4) AS y "
+                "FROM receipts "
+                "WHERE status = 'active' AND total_amount IS NOT NULL "
+                "  AND purchase_date IS NOT NULL "
+                "  AND length(purchase_date) >= 4 "
+                "ORDER BY y DESC"
+            ) as cur:
+                for r in await cur.fetchall():
+                    try:
+                        y = int(r["y"])
+                    except (TypeError, ValueError):
+                        continue
+                    if 1970 <= y <= today.year + 1:
+                        years.add(y)
+            out["years"] = sorted(years, reverse=True)
+
+            # 3b. [ADDED v2026.9.22] Money the chart does NOT show.
+            #
+            # A user adding up the receipts they can see in the archive and
+            # comparing it with the chart total found 74.33 missing, and the
+            # screen said nothing at all. Two ways money goes quiet:
+            #
+            #   draft   - scanned, no line confirmed yet, so it is in no
+            #             total anywhere by design. It is still money spent.
+            #   undated - active, but with no readable purchase date, so it
+            #             belongs to no year and cannot appear under any
+            #             setting of the picker.
+            #
+            # Reported rather than folded in. Counting a draft would defeat
+            # the review step, and guessing a year for an undated receipt is
+            # worse than saying it has none (RULE 31) - but a gap the user
+            # can see and the app cannot explain is the actual defect.
+            async with db.execute(
+                "SELECT COALESCE(currency, '') AS cur, "
+                "       SUM(total_amount) AS total, COUNT(*) AS n "
+                "FROM receipts "
+                "WHERE COALESCE(status, 'draft') = 'draft' "
+                "  AND total_amount IS NOT NULL "
+                "  AND purchase_date LIKE ? "
+                "GROUP BY cur ORDER BY total DESC",
+                (like_year,),
+            ) as cur:
+                out["uncounted"] = [dict(r) for r in await cur.fetchall()]
+            async with db.execute(
+                "SELECT COUNT(*) FROM receipts "
+                "WHERE COALESCE(status, 'draft') != 'superseded' "
+                "  AND total_amount IS NOT NULL "
+                "  AND (purchase_date IS NULL "
+                "       OR length(TRIM(COALESCE(purchase_date, ''))) < 7)"
+            ) as cur:
+                out["undated"] = (await cur.fetchone())[0]
+
+            # 4. Running out. The only part of this screen that asks for
+            #    something to be done today, so it carries the location -
+            #    knowing the yoghurt expires is no use without the shelf.
+            async with db.execute(
+                "SELECT id, name, expiry_date, quantity, category, "
+                "       level_1, level_2, level_3 "
+                "FROM items "
+                "WHERE type = 'item' AND expiry_date IS NOT NULL "
+                "  AND TRIM(expiry_date) != '' AND expiry_date <= ? "
+                "ORDER BY expiry_date ASC LIMIT 60",
+                (horizon,),
+            ) as cur:
+                for r in await cur.fetchall():
+                    row = dict(r)
+                    parts = [_clean_level(row.get(f"level_{i}")) for i in range(1, 4)]
+                    row["location"] = " / ".join(p for p in parts if p and p.strip())
+                    for i in range(1, 4):
+                        row.pop(f"level_{i}", None)
+                    out["expiring"].append(row)
+
+            # 5. The tiles.
+            async with db.execute(
+                "SELECT COALESCE(category, '') AS cat, COUNT(*) AS n "
+                "FROM items WHERE type = 'item' GROUP BY cat"
+            ) as cur:
+                by_cat = {r["cat"]: r["n"] for r in await cur.fetchall()}
+            out["counts"] = {
+                "items": sum(by_cat.values()),
+                "by_category": by_cat,
+                "out_of_stock": 0,
+                "shopping": 0,
+                "receipts": 0,
+            }
+            async with db.execute(
+                "SELECT COUNT(*) FROM items WHERE type='item' AND quantity <= 0"
+            ) as cur:
+                out["counts"]["out_of_stock"] = (await cur.fetchone())[0]
+            async with db.execute(
+                "SELECT COUNT(*) FROM items "
+                "WHERE type='item' AND COALESCE(order_qty, 0) > 0"
+            ) as cur:
+                out["counts"]["shopping"] = (await cur.fetchone())[0]
+            async with db.execute(
+                "SELECT COUNT(*) FROM receipts "
+                "WHERE COALESCE(status,'draft') != 'superseded'"
+            ) as cur:
+                out["counts"]["receipts"] = (await cur.fetchone())[0]
+            # [ADDED v2026.9.22] Scanned but never confirmed.
+            #
+            # These are NOT in stock and are in no total on this screen -
+            # which is correct, and also why nothing showed them. A house
+            # whose receipts are all still sitting in the review tab looks
+            # empty to every other part of the app, including the cook.
+            async with db.execute(
+                "SELECT COUNT(*) FROM items WHERE type = 'pending'"
+            ) as cur:
+                out["counts"]["pending"] = (await cur.fetchone())[0]
+            # [ADDED v2026.9.22] What got more expensive, per PRODUCT.
+            #
+            # purchase_history holds one row per product with its unit
+            # price, so this compares a jar of coffee with the same jar of
+            # coffee. It can never compare two holidays: a service receipt
+            # has no product lines at all, so nothing about it is in this
+            # table - one trip at 6,000 and another at 9,000 are two
+            # different purchases, not a price rise, and they are simply
+            # not here to be confused.
+            #
+            # Four guards, each one a way of being wrong:
+            #   same currency  - a percentage across two currencies is noise
+            #   different days - two lines on one receipt are not a history
+            #   a real floor   - a 0.20 item going to 0.30 is +50% and means
+            #                    nothing; small change, large percentage
+            #   at least 5%    - below that it is rounding, not a rise
+            #
+            # Its own try: window functions are ancient but this is the one
+            # query here that uses them, and a dashboard should lose a
+            # panel rather than fail whole.
+            try:
+                async with db.execute(
+                    "WITH ranked AS ("
+                    "  SELECT product_key, name, unit, currency, unit_price, "
+                    "         purchase_date, vendor, "
+                    "         ROW_NUMBER() OVER (PARTITION BY product_key "
+                    "           ORDER BY purchase_date DESC, id DESC) rn "
+                    "  FROM purchase_history "
+                    "  WHERE unit_price IS NOT NULL AND unit_price > 0 "
+                    "    AND TRIM(COALESCE(purchase_date, '')) != '') "
+                    "SELECT a.name AS name, a.currency AS cur, "
+                    "       a.unit_price AS now_price, b.unit_price AS was_price, "
+                    "       a.purchase_date AS now_date, b.purchase_date AS was_date, "
+                    "       a.vendor AS vendor, "
+                    "       (a.unit_price - b.unit_price) * 100.0 / b.unit_price AS pct "
+                    "FROM ranked a JOIN ranked b ON a.product_key = b.product_key "
+                    "WHERE a.rn = 1 AND b.rn = 2 "
+                    "  AND COALESCE(a.currency,'') = COALESCE(b.currency,'') "
+                    "  AND a.purchase_date > b.purchase_date "
+                    "  AND b.unit_price >= ? "
+                    "  AND (a.unit_price - b.unit_price) * 100.0 / b.unit_price >= 5 "
+                    "ORDER BY pct DESC LIMIT 3",
+                    (float(min_price),),
+                ) as cur:
+                    out["price_watch"] = [dict(r) for r in await cur.fetchall()]
+            except Exception as watch_err:
+                _LOGGER.warning("Price watch unavailable: %s", watch_err)
+    except Exception as err:
+        _LOGGER.error("Dashboard data failed: %s", err)
+    return out
+
+
+async def async_get_expense_categories(hass):
+    """The expense buckets, in their own order. A list of names."""
+    try:
+        db_path = get_db_path(hass)
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            async with db.execute(
+                "SELECT category FROM db_expense_categories "
+                "ORDER BY cat_order ASC, category COLLATE NOCASE ASC"
+            ) as cur:
+                return [r[0] for r in await cur.fetchall()]
+    except Exception as err:
+        _LOGGER.error("Loading expense categories failed: %s", err)
+        return []
+
+
+def resolve_expense_category(choice, allowed):
+    """Map a proposed bucket onto one that exists, or None.
+
+    [ADDED v2026.9.22] THE gate. The model proposes and this decides, the
+    same shape as the cookbook's chapter resolver: a name that is not
+    already a category is refused rather than created, because a bucket
+    nobody chose is a bar on a chart nobody can explain (RULE 22).
+
+    Matched case-insensitively and returned in the table's OWN spelling, so
+    'fuel' does not become a second 'Fuel'.
+    """
+    wanted = str(choice or '').strip().lower()
+    if not wanted:
+        return None
+    for name in allowed or []:
+        if str(name).strip().lower() == wanted:
+            return name
+    return None
+
+
 async def async_insert_receipt(hass, data):
     """Insert a receipt row and return its id, or None.
 
@@ -970,19 +1538,38 @@ async def async_insert_receipt(hass, data):
             _coerce_currency(data.get("currency"), default_currency),
             _coerce_text(data.get("file_path"), 500),
             int(data.get("item_count") or 0),
+            _coerce_text(data.get("expense_category"), 60) or None,
+            # [ADDED v2026.9.22] What the lines added up to at scan time,
+            # against total_amount, which is what was paid. Appended at the
+            # END of both the tuple and the column list, and the two are
+            # read side by side rather than counted: a column inserted in
+            # the middle of one of them shifts every field after it, which
+            # is how _row_to_dict went wrong once already (RULE 33a.3).
+            _coerce_amount(data.get("lines_total")),
         )
+
+        # [ADDED v2026.9.22] A receipt with no lines is active at once.
+        #
+        # 'draft' means 'no human has confirmed a line yet', and it is
+        # promoted by async_activate_receipt on the first approval. A tank
+        # of fuel or a night in a hotel HAS no lines - there is nothing to
+        # approve, so it would have sat in draft for ever and never been
+        # counted in a single spending total. The header is the whole
+        # record for those, and the user took the photograph on purpose.
+        status = 'active' if int(data.get('item_count') or 0) == 0 else 'draft'
         async with aiosqlite.connect(db_path, timeout=10.0) as db:
             cur = await db.execute(
                 "INSERT INTO receipts "
                 "(receipt_number, vendor, purchase_date, total_amount, "
-                " currency, file_path, item_count, status) "
-                # 'draft', not 'active'. The money left the account, so the
-                # receipt is recorded either way - but until a human has
-                # confirmed at least one line, nothing here should be
-                # counted in spending reports. Promoted by
+                " currency, file_path, item_count, expense_category, "
+                " lines_total, status) "
+                # Status is decided above: 'draft' when there are lines to
+                # confirm, 'active' when there are none. The money left the
+                # account either way, but a scan whose lines nobody has
+                # looked at must not reach a spending total. Promoted by
                 # async_activate_receipt on the first approval.
-                "VALUES (?, ?, ?, ?, ?, ?, ?, 'draft')",
-                values,
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                values + (status,),
             )
             await db.commit()
             return cur.lastrowid
@@ -1646,10 +2233,7 @@ async def async_check_ingredients(hass, ingredients, assume_available=None,
             if not lvl:
                 continue
             # Strip the internal markers so a location reads as a place.
-            cleaned = re.sub(
-                r"\[?\s*(?:ORDER_MARKER|ZONE_MARKER)_\d+\s*\]?[_\s]*", "", str(lvl)
-            ).strip()
-            cleaned = re.sub(r"^\s*\[[^\]]*\]\s*", "", cleaned).strip()
+            cleaned = _clean_level(lvl)
             if cleaned:
                 parts.append(cleaned)
         stock.append({
@@ -2030,13 +2614,18 @@ async def async_record_purchase(hass, entry_data):
             _coerce_date(entry_data.get("purchase_date")),
             _coerce_text(entry_data.get("vendor")),
             entry_data.get("receipt_id"),
+            # [ADDED v2026.9.22] What kind of thing this was. It comes from
+            # the ITEM at approval time - the category the user saw and
+            # could change - so a supermarket receipt contributes to food,
+            # to toys and to cosmetics separately, which is what it was.
+            _coerce_text(entry_data.get("category"), 60) or None,
         )
         async with aiosqlite.connect(db_path, timeout=10.0) as db:
             await db.execute(
                 "INSERT INTO purchase_history "
                 "(product_key, barcode, name, unit, unit_price, quantity, "
-                " currency, purchase_date, vendor, receipt_id) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " currency, purchase_date, vendor, receipt_id, category) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 values,
             )
             await db.commit()
@@ -2377,19 +2966,33 @@ async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping)
                         found_folders = [r[0] for r in await cursor.fetchall()]
                     
                     for f_name in found_folders:
-                        marker_sql = f"SELECT image_path FROM items WHERE type='folder_marker' AND name=? {sql_where} AND {col}=?"
+                        # [MODIFIED v2026.9.22] The marker also carries a DRAWN icon.
+                        #
+                        # A room or a shelf can be drawn by the assistant from a sentence,
+                        # the same way an item can. The spec lives in the same column on
+                        # the folder's marker row, so nothing new was needed to store it -
+                        # only this SELECT, which was reading image_path alone and
+                        # therefore hid every drawing that had been saved.
+                        marker_sql = (f"SELECT image_path, icon_spec FROM items "
+                                      f"WHERE type='folder_marker' AND name=? {sql_where} AND {col}=?")
                         marker_params = [f"[Folder] {f_name}"] + params + [f_name]
-                        
+
                         async with db.execute(marker_sql, tuple(marker_params)) as cursor:
                             row = await cursor.fetchone()
-                        
+
                         img = None
-                        if row and row[0]:
+                        folder_spec = None
+                        if row:
                             raw_path = row[0]
-                            if raw_path.startswith("ICON_LIB"): img = raw_path
-                            else: img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
-                            
-                        folders.append({"name": f_name, "img": img})
+                            if raw_path:
+                                if raw_path.startswith("ICON_LIB"):
+                                    img = raw_path
+                                else:
+                                    img = f"{url_prefix}/{raw_path}?v={int(time.time())}"
+                            folder_spec = row[1] or None
+
+                        folders.append({"name": f_name, "img": img,
+                                        "icon_spec": folder_spec})
                     
                     sql = f"SELECT * FROM items WHERE type='item' AND (level_{depth+1} IS NULL OR level_{depth+1} = '') {sql_where} ORDER BY name ASC"
                     async with db.execute(sql, tuple(params)) as cursor:
@@ -2615,6 +3218,73 @@ async def async_get_item_naming(hass, item_id):
         }
     except Exception as err:
         _LOGGER.error("Reading an item for its icon failed: %s", err)
+        return None
+
+
+async def async_folder_marker_id(hass, folder_name, path_parts):
+    """The id of a folder's marker row, or None.
+
+    [ADDED v2026.9.22] A room or a shelf has no id of its own - it is a
+    NAME that appears in a level_N column, and its picture lives on a
+    hidden 'folder_marker' row called '[Folder] <name>'. Everything that
+    sets a folder icon reaches it by that name.
+
+    The path is matched as well as the name. update_image has always
+    matched on the name alone, which quietly writes to every shelf called
+    'Top' in the house; this is the same lookup done properly, and it
+    returns None rather than a guess when the marker is not there
+    (RULE 31).
+    """
+    name = str(folder_name or '').strip()
+    if not name:
+        return None
+    parts = [str(p) for p in (path_parts or []) if str(p).strip()]
+    if len(parts) > 9:
+        return None
+
+    # [FIXED v2026.9.22] The path has to be the STORED one, not the one on
+    # screen. A level column can hold '[ORDER_MARKER_010] Kitchen' while the
+    # panel shows and sends 'Kitchen', so an exact match found nothing and
+    # every location failed. Rooms worked only because they sit at depth 0
+    # and had no path to mismatch. These are the same two helpers every
+    # other write path runs first.
+    if parts:
+        parts = await async_normalize_zone_path(hass, parts)
+        parts = await async_repair_path_against_db(hass, parts)
+    try:
+        db_path = get_db_path(hass)
+        sql = ("SELECT id FROM items WHERE type='folder_marker' "
+               "AND name = ?")
+        args = [f"[Folder] {name}"]
+        for i, part in enumerate(parts):
+            sql += f" AND level_{i + 1} = ?"
+            args.append(part)
+        sql += " LIMIT 1"
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            async with db.execute(sql, tuple(args)) as cursor:
+                row = await cursor.fetchone()
+            if row:
+                return row[0]
+            # Nothing at that exact path. Fall back to the name alone, which
+            # is what update_image has always done - so this is no less
+            # precise than the rest of the panel, and a folder whose path
+            # cannot be reconstructed still gets its picture. Logged,
+            # because a match found this way is a guess between namesakes.
+            if parts:
+                async with db.execute(
+                    "SELECT id FROM items WHERE type='folder_marker' "
+                    "AND name = ? LIMIT 1",
+                    (f"[Folder] {name}",),
+                ) as cursor:
+                    row = await cursor.fetchone()
+                if row:
+                    _LOGGER.info(
+                        "[HO-ICON] Folder %r matched by name; its path %s did not.", name, parts,
+                    )
+                    return row[0]
+        return None
+    except Exception as err:
+        _LOGGER.error("Looking up a folder marker failed: %s", err)
         return None
 
 

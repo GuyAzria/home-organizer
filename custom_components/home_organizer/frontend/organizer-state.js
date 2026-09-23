@@ -11,6 +11,15 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [FIXED v2026.9.22 | 2026-09-22] Purpose: A refresh put the user back on
+//   the locations screen instead of the dashboard. isDashboardMode was a
+//   view mode this file had never been told about - absent from initState,
+//   from applyNavMode and from currentNavState - so the dashboard saved
+//   itself as 'home' and came back as the old screen. It worked at all
+//   only because an undefined property is falsy. applyNavMode now clears
+//   it like the other eight, which is the half of RULE 33a.1 that had no
+//   symptom yet: the one function whose job is to leave exactly one flag
+//   true could not turn off a flag it did not name.
 // [ADDED v2026.9.20 | 2026-09-20] Purpose: The panel remembers which screen
 //   the user was on. A Home Assistant panel is destroyed on navigating away
 //   and rebuilt from nothing on return, so answering a phone call dropped
@@ -22,7 +31,6 @@
 //   every failure ends at the home screen. applyNavMode sets all eight view
 //   flags in ONE place, so a restored screen cannot leave two of them true
 //   (RULE 33a.1). The barcode scanner is deliberately not restored.
-// [MODIFIED v7.7.56 | 2026-04-20] Purpose: Removed obsolete adjustShopQty method and shopQuantities state object. The shopping list qty is now persisted directly to DB via updateOrderQty (see organizer-api.js v7.7.50), so the transient client-side counter is no longer needed.
 
 // [ADDED v2026.9.20] Where the user was, kept between visits.
 //
@@ -52,6 +60,13 @@ export const StateMixin = (Base) => class extends Base {
   // function is only ever used to restore.
   applyNavMode(mode) {
     this.isRecipesMode  = mode === 'recipes';
+    // [ADDED v2026.9.22] The dashboard is a view mode like the other eight
+    // and was missing from all three places in this file. The visible cost
+    // was that a refresh threw the user off the home screen and back onto
+    // the locations view; the quieter one is the line below - this function
+    // exists to leave exactly ONE flag true, and a flag it never touched
+    // could not be turned off by it (RULE 33a.1).
+    this.isDashboardMode = mode === 'dashboard';
     this.isReceiptsMode = mode === 'receipts';
     this.isReviewMode   = mode === 'review';
     this.isChatMode     = mode === 'chat';
@@ -62,8 +77,12 @@ export const StateMixin = (Base) => class extends Base {
   }
 
   currentNavState() {
+    // The order mirrors the dispatch in renderView: whichever flag that
+    // function would honour is the one recorded here, so a restore puts
+    // back the screen that was actually on show.
     const mode =
         this.isRecipesMode  ? 'recipes'
+      : this.isDashboardMode ? 'dashboard'
       : this.isReceiptsMode ? 'receipts'
       : this.isReviewMode   ? 'review'
       : this.isChatMode     ? 'chat'
@@ -160,6 +179,11 @@ export const StateMixin = (Base) => class extends Base {
     this.isChatMode = false;
     this.isStylistMode = false;
     this.isReviewMode = false;
+    // [ADDED v2026.9.22] It was never declared here at all, and worked only
+    // because an undefined property is falsy. A flag this file does not know
+    // about is a flag it cannot save or clear, which is exactly what went
+    // wrong: see applyNavMode and currentNavState below.
+    this.isDashboardMode = false;
 
     this.useExternalCamera = localStorage.getItem('ho_use_ext_camera') === 'true';
 

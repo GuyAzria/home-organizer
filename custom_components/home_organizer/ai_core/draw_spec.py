@@ -12,6 +12,12 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
+# [MODIFIED v2026.9.22 | 2026-09-22] Purpose: The path and points caps go
+#   from 900/600 to 3000/2000, and the validator now says what it threw
+#   away. The length was never the security control - the character class
+#   is - so a longer run of digits and path commands is no more dangerous
+#   than a short one, it is just a longer curve. Anything with real detail
+#   was over the old cap, dropped in full, and silent.
 # [MODIFIED v2026.9.20 | 2026-09-20] Purpose: "type" is accepted as a
 #   spelling of "t". The value still has to be one of the seven shape
 #   names and every field is still rebuilt from the allow-list, so the
@@ -70,8 +76,18 @@ EMBLEM_SPEC_NUMBERS = frozenset({
 EMBLEM_MAX_SHAPES = 60
 # An icon is read at 40px. See validate_icon_spec.
 MAX_ICON_SHAPES = 28
-_PATH_DATA_RE = re.compile(r"^[\s\d.,+\-eEmMzZlLhHvVcCsSqQtTaA]{1,900}$")
-_POINTS_RE = re.compile(r"^[\s\d.,+\-]{1,600}$")
+# [MODIFIED v2026.9.22] 900 and 600 were too short for a detailed drawing.
+#
+# The LENGTH is a size bound, not the security control - that is the
+# character class, which permits digits, separators and path commands and
+# nothing else. A longer run of those cannot express more than a longer
+# curve. A path over the old cap was dropped in full and in silence, so a
+# subject the model had drawn carefully came back as nothing at all.
+#
+# The real ceiling on size is elsewhere and unchanged: 28 shapes for an
+# icon, 60 for an emblem.
+_PATH_DATA_RE = re.compile(r"^[\s\d.,+\-eEmMzZlLhHvVcCsSqQtTaA]{1,3000}$")
+_POINTS_RE = re.compile(r"^[\s\d.,+\-]{1,2000}$")
 
 
 def validate_spec(raw_shapes, max_shapes=EMBLEM_MAX_SHAPES):
@@ -84,6 +100,7 @@ def validate_spec(raw_shapes, max_shapes=EMBLEM_MAX_SHAPES):
     if not isinstance(raw_shapes, list):
         return []
     out = []
+    dropped = []
     for item in raw_shapes[:max(1, int(max_shapes or EMBLEM_MAX_SHAPES))]:
         if not isinstance(item, dict):
             continue
@@ -129,6 +146,22 @@ def validate_spec(raw_shapes, max_shapes=EMBLEM_MAX_SHAPES):
         # A shape with no geometry draws nothing and is not worth sending.
         if len(shape) > 1:
             out.append(shape)
+        else:
+            dropped.append(kind)
+
+    # [ADDED v2026.9.22] Say what was thrown away, and why it matters.
+    #
+    # An empty result reaches the user as a button that did nothing. The two
+    # ways to get one are opposite and the log could not tell them apart: the
+    # model sent nothing usable, or it sent a careful drawing whose path data
+    # was longer than a cap here. One is the model's doing and the other is
+    # ours, and only one of them is worth changing a limit for.
+    if dropped:
+        _LOGGER.warning(
+            "[HO-DRAW] %d of %d shapes had no usable geometry and were "
+            "dropped (%s). Path data longer than the cap is the usual cause.",
+            len(dropped), len(list(raw_shapes)), ", ".join(dropped[:8]),
+        )
     return out
 
 

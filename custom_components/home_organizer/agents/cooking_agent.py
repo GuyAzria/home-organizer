@@ -12,6 +12,24 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
+# // [FIXED v2026.9.22 | 2026-09-22] Purpose: STATE S0 needs the user to have
+# // NAMED a dish. Its trigger said saved recipes must 'clearly match the
+# // dish' - but 'what can I make for dinner' names no dish, so there was
+# // nothing to match and the model matched anyway. Asking what to cook
+# // returned a recipe already in the cookbook, for a dish whose main
+# // ingredient the user did not have. A request with no dish named is
+# // STATE 1 and the larder decides, however full the cookbook is - and
+# // the saved list may not be copied into recipe_full either.
+# // [MODIFIED v2026.9.22 | 2026-09-22] Purpose: The INVENTORY chooses the
+# // dish when the user asks what they can make. The prompt handed over the
+# // larder and described the have/missing split, but nothing ever said the
+# // stock should decide WHICH dish - so the model picked a familiar one and
+# // honestly reported its main ingredient as missing, every time, the same
+# // one. The new rule reads the inventory first, refuses a dish whose main
+# // ingredient is absent, says so plainly when there is nothing to cook
+# // with, and does not repeat a suggestion. Same release: the number of
+# // items the cook could see is logged, because an empty larder and an
+# // ignored larder produce the same answer.
 # // [MODIFIED v2026.9.19 | 2026-09-19] Purpose: Three fixes to how the
 # //   assistant treats the page in front of it. (1) An open recipe with no
 # //   steps is an EMPTY PAGE, not a recipe to amend: the model fills it in
@@ -250,6 +268,34 @@ as available in every "missing" array, every recipe_overview and every
 shopping_sync. This applies in every language. Flour, butter and sugar are
 NOT staples - those really do run out and must be reported honestly.
 
+WHEN THE USER ASKS WHAT THEY CAN MAKE, THE INVENTORY CHOOSES THE DISH.
+
+"What can I make for lunch", "a recipe from what I have", "something with
+what is in the fridge" - in any language - is not a request for a recipe you
+like. It is a request for a dish that RAW INVENTORY DATA can actually
+produce.
+
+  - READ THE INVENTORY FIRST, THEN PICK THE DISH. Never pick a dish you
+    know and check the inventory afterwards. That is how every answer ends
+    up being the same familiar dish with a shopping list attached.
+  - THE MAIN INGREDIENT MUST BE IN THE INVENTORY. A pasta dish when there
+    is no pasta is the wrong answer even if the sauce is possible. The
+    thing the dish is named after has to be on the list.
+  - AIM FOR AN EMPTY "missing" ARRAY. One or two missing side items is
+    acceptable. A missing main is not.
+  - IF THE INVENTORY IS "(empty)" OR HAS NOTHING THAT MAKES A MEAL, SAY SO
+    and ask what they would like to cook or buy. Do not invent a dish and
+    list every ingredient as missing - that is a shopping list pretending
+    to be a recipe, and it tells the user nothing they did not know.
+  - DO NOT TAKE THE DISH FROM SAVED RECIPES. That list is there so you can
+    recognise a dish the user NAMES, and for nothing else. Do not offer one
+    with suggest_saved and do not copy one into recipe_full either - a
+    saved recipe reused here is a recipe the user already had, for a dish
+    they cannot cook tonight. Write a new one from the larder.
+  - DO NOT OFFER THE SAME DISH TWICE. CHAT HISTORY shows what you already
+    suggested; if the user asks again they are asking for something ELSE.
+    Pick a different dish from what is actually there.
+
 FILE EVERY RECIPE YOU WRITE.
 
 When you return recipe_full or save_recipe, also return "recipe_category":
@@ -271,7 +317,20 @@ Classify the user's latest intent into EXACTLY ONE of these states and return th
 =====================================================================
 [STATE S0 - SUGGEST SAVED RECIPE]
 =====================================================================
-Trigger: The user asked for a recipe AND one or more entries in SAVED RECIPES clearly match the dish AND CURRENT RECIPE STATE is "None".
+Trigger: The user NAMED A DISH, one or more entries in SAVED RECIPES are that
+same dish, and CURRENT RECIPE STATE is "None".
+
+THE USER MUST HAVE NAMED THE DISH. This state answers "do you have a recipe
+for shakshuka" - a request with a dish in it. It does NOT answer "what can I
+make for dinner", "something from what I have", "suggest a lunch" - those
+name no dish, so nothing in SAVED RECIPES can match one, and reaching for a
+saved recipe there is guessing.
+
+A request with no dish named is STATE 1 and the inventory chooses, even when
+the cookbook is full. Being saved is not a reason to serve it, and it is
+certainly not a reason to serve one whose main ingredient the user does not
+have.
+
 Action: Offer the best saved match and ask if they want to use it.
 {{"intent": "suggest_saved", "saved_id": "<id from SAVED RECIPES>", "saved_name": "<name from SAVED RECIPES>", "spoken_question": "<Ask in {target_lang}: I have a saved recipe for X. Want to use it, or should I build a fresh one?>"}}
 
@@ -1741,6 +1800,17 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
 
     rows = await _async_get_all_inventory(hass)
     inventory_context = _build_inventory_context(rows)
+    # [ADDED v2026.9.22] Say how much the cook could actually see.
+    #
+    # 'Suggest something from what I have' answering with a dish the user
+    # has none of has two possible causes that look identical from outside:
+    # the model ignored a full larder, or the larder it was given was empty.
+    # Only confirmed items count - anything still waiting in the review tab
+    # is type='pending' and is deliberately not in stock yet - so a house
+    # full of unconfirmed receipts reads here as nothing at all.
+    _LOGGER.info(
+        "[HO-COOKING] Inventory visible to the cook: %d item(s).", len(rows),
+    )
 
     state_str = "None"
     if recipe_state:

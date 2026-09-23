@@ -11,56 +11,21 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
-// [MODIFIED v2026.9.20 | 2026-09-20] Purpose: The recipe toolbar had grown
-//   to five controls. Edit title, move to another chapter and delete are
-//   now behind one three-dot button - renderRecipeMenu - leaving the row
-//   holding what people actually press. The shelf the recipe sits on is
-//   shown beside the item that changes it, so moving the chip off the
-//   toolbar did not also hide what it was telling you. recipeMenu is a UI
-//   mode and is cleared everywhere its siblings are (RULE 33a.1).
-//   Same release: absorbAppliedEdit takes the new title and language
-//   as well, so approving a rewrite in another language updates the
-//   heading and clears the "Translated" badge - the recipe IS in that
-//   language now, so it is not a translation of anything.
-//   Same release: a timer for a step with a wait is OFFERED with two
-//   buttons instead of being set silently. The buttons send yes or no;
-//   the minutes and label stay in the session, so the answer cannot
-//   change what it is answering.
-//   Same release: opening a recipe from the contents page now resets the
-//   assistant panel, which only the page arrows used to do - the reply
-//   about the previous recipe stayed on screen beside the new one.
-// [MODIFIED v2026.9.19 | 2026-09-19] Purpose: A recipe page created with
-//   only a title could not be filled in: the assistant read the open page
-//   as a recipe to amend and kept re-showing it instead of saving. The
-//   page now hands the assistant its recipe id, and openRecipeById opens
-//   whatever the assistant saved - which is also how a request typed on
-//   the contents page ("something for lunch from what is in the fridge")
-//   arrives as a recipe page rather than as a chat reply. check_stock now
-//   sends pantryStaples(): water, salt, oil and pepper are assumed to be
-//   in the house and are never reported missing. The words come from the
-//   translation file, not from this file, because an ingredient is written
-//   in whatever language the recipe is written in.
-//   Same release: a recipe built for a blank page is now OFFERED rather than
-//   written - the approval box asks a question fitted to an empty page. A
-//   chosen photo is re-encoded here to a long edge of 1280px instead of being
-//   refused over 6 MB, which had made the picture people had just taken the
-//   one picture they could not use; see shrinkRecipePhoto for why it decodes
-//   through an <img> and why the canvas is target-sized.
-//   Same release: the contents page keeps its place. Opening a chapter
-//   redraws the view, which rebuilt the scrolling element and sent the
-//   reader back to the top of a long list; the position is now remembered
-//   per screen, and revealOpenedChapter scrolls the minimum needed to bring
-//   the opened chapter's recipes into view without pushing its heading off.
-//   Same release: the local emblem library is GONE. Nothing is drawn
-//   speculatively any more - a plate shows a photo, or an emblem the
-//   assistant designed for that dish, or a camera inviting one. See the
-//   plate in renderCookbookPage for why a plausible drawing of the wrong
-//   dish is worse than none.
-//   Same release: pressing a photograph opens it full screen, with a
-//   delete button - a 130px plate is not where anyone looks at a picture
-//   of their own dinner. Deleting one asks the assistant to design an
-//   emblem so the recipe is not left on an empty plate; if it cannot, the
-//   camera plate is what remains.
+// [MODIFIED v2026.9.22 | 2026-09-22] Purpose: _voiceLang delegates to
+//   UtilsMixin.localeTag. The language-to-BCP-47 table lived here for the
+//   speech engines, and the dashboard needed the same mapping for month
+//   names and money. Two copies of a language table drift, and then one
+//   screen speaks Russian while another dates itself in English (RULE 33d).
+// [FIXED v2026.9.22 | 2026-09-22] Purpose: 'Cannot read properties of null
+//   (reading reply)' after the assistant wrote a recipe. saved_recipe_id
+//   opens the new page, openRecipeById clears the conversation because the
+//   recipe changed, and the speak() two lines later still read .reply off
+//   it. The throw was caught by the handler's own catch and rendered as the
+//   chat's error banner - so the bug reported itself in the panel, and the
+//   refreshes after it never ran. The reply is captured into a local before
+//   anything can change the page, and put back afterwards: this recipe is
+//   what the reply is about, so the panel should not come up empty beside
+//   the page it just wrote.
 //
 // THE COOKBOOK SCREEN - architecture.
 // (Kept as permanent documentation, not a history entry: RULE 28 caps the
@@ -85,7 +50,7 @@ import { escapeHtml } from '../organizer-utils.js?v=2026.10.9';
 // [MODIFIED v2026.9.19] Only the assistant's drawing is built here now. The
 // local part library that composed emblems from the recipe's chapter has been
 // removed - see the plate in renderCookbookPage for why.
-import { emblemFromSpec } from './recipe-emblem.js?v=2026.9.19';
+import { emblemFromSpec } from './recipe-emblem.js?v=2026.9.21';
 
 const CHEF_HAT_SVG =
   '<svg viewBox="0 0 24 24"><path d="M12 3a5 5 0 0 0-4.9 4.02A4 4 0 0 0 6 15v1h12v-1a4 4 0 0 0-1.1-7.98A5 5 0 0 0 12 3zM6 18h12v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-2z"/></svg>';
@@ -1560,6 +1525,17 @@ export const RecipesMixin = (Base) => class extends Base {
         // translation arrives. Waiting would hold a blank page behind a
         // model call that may be slow or may never answer.
         this.ensureRecipeTranslation(res.recipe);
+        // [ADDED v2026.9.22] And a symbol, if it has neither one nor a photo.
+        //
+        // A recipe used to get its picture from a local part library the
+        // moment it was opened. That library is gone - the assistant designs
+        // the emblem now - but nothing was ever wired to ASK on open, so a
+        // brand new recipe opened onto an empty camera plate and stayed
+        // there. This is the one place every recipe passes through.
+        //
+        // Not awaited, for the same reason the translation is not: the page
+        // appears at once and the drawing lands when it lands.
+        this.ensureRecipeEmblem(res.recipe);
         this.recipeDrawing = false;
         // Opening a different recipe must not inherit the previous one's
         // open category sheet, its tools menu, or a change proposed for it
@@ -1883,6 +1859,15 @@ export const RecipesMixin = (Base) => class extends Base {
         reply: (res && res.response) || '',
         error: (res && res.error) ? String(res.error) : null,
       };
+      // [FIXED v2026.9.22] Keep the words before the page can be replaced.
+      //
+      // What follows can open a DIFFERENT recipe - that is the whole point
+      // of saved_recipe_id - and openRecipeById calls resetSousChef, which
+      // sets this.sousChef to null. Reading .reply off it afterwards threw
+      // 'Cannot read properties of null', and it threw on the one path
+      // everything else about this feature was built for: ask for a recipe,
+      // land on its page.
+      const spokenReply = this.sousChef.reply;
       // [ADDED v2026.9.17] A change the assistant is PROPOSING. Nothing has
       // been written yet; this is what the confirmation box renders.
       this.pendingEdit = (res && res.pending_edit) || null;
@@ -1903,6 +1888,16 @@ export const RecipesMixin = (Base) => class extends Base {
       if (res && res.saved_recipe_id) {
         await this.loadRecipes();
         await this.openRecipeById(res.saved_recipe_id);
+        // [FIXED v2026.9.22] Put the answer back after the page change.
+        //
+        // openRecipeById clears the conversation when the recipe changes,
+        // which is right when the user turns a page - the reply was about
+        // the one they left. It is wrong here: this recipe is what the
+        // reply is ABOUT, and the panel came up empty beside the page it
+        // had just written.
+        if (!this.sousChef) {
+          this.sousChef = { busy: false, reply: spokenReply, error: null };
+        }
       }
       // [MODIFIED v2026.9.17] The assistant DESIGNED one. What arrives is a
       // list of shapes and numbers, never markup: the picture is built here,
@@ -1910,7 +1905,7 @@ export const RecipesMixin = (Base) => class extends Base {
       if (res && res.emblem_spec && this.openRecipe) {
         await this.applyEmblemSpec(this.openRecipe, res.emblem_spec);
       }
-      this.speak(this.sousChef.reply);
+      this.speak(spokenReply);
       // [ADDED v2026.10.18] The assistant can create or change a recipe in
       // the course of answering - "save it as Chocolate Cake", "add an egg to
       // the shakshuka". Reloading here is what makes that appear on the shelf
@@ -1976,10 +1971,12 @@ export const RecipesMixin = (Base) => class extends Base {
   }
 
   // Map the panel language onto a BCP-47 tag for the speech engines.
+  // [MODIFIED v2026.9.22] The table moved to UtilsMixin.localeTag, because
+  // the dashboard needs the same mapping for month names and money. Two
+  // copies of a language table drift, and then one screen speaks Russian
+  // while another formats its dates in English (RULE 33d).
   _voiceLang() {
-    const MAP = { he: 'he-IL', en: 'en-US', it: 'it-IT', es: 'es-ES',
-                  fr: 'fr-FR', ar: 'ar-SA', ru: 'ru-RU' };
-    return MAP[this.currentLang] || 'en-US';
+    return this.localeTag();
   }
 
   // [ADDED v2026.9.17] Redraw the emblem, because the user asked.
@@ -2067,25 +2064,54 @@ export const RecipesMixin = (Base) => class extends Base {
     root.appendChild(viewer);
   }
 
-  // [ADDED v2026.9.19] Take the photograph off, then ask for a drawing.
+  // [MODIFIED v2026.9.22] Take the photograph off, then let the open path
+  // fill the plate.
   //
   // A recipe that loses its photo would otherwise drop to the empty camera
   // plate, which is right when nothing has ever been set but reads as a loss
-  // straight after a deletion. So the assistant is asked to design one. If it
-  // cannot - no AI configured, no answer, a design that draws nothing - the
-  // camera plate is what remains, which is the honest fallback rather than an
-  // error (RULE 31).
+  // straight after a deletion.
+  //
+  // This used to carry its own copy of the checks and its own call. It does
+  // not any more: setRecipePhoto re-opens the recipe, and openRecipeById
+  // asks for an emblem whenever there is neither a photo nor a drawing - so
+  // one function decides, and the two paths cannot drift (RULE 33d). All
+  // that is left here is to forget a previous refusal, because a deletion is
+  // the moment it is worth asking again.
+  //
+  // If the assistant cannot answer - no AI configured, no reply, a design
+  // that draws nothing - the camera plate remains, which is the honest
+  // fallback rather than an error (RULE 31).
   async removeRecipePhoto(rec) {
+    if (rec && rec.id && this._emblemTried) this._emblemTried.delete(rec.id);
     await this.setRecipePhoto(rec, null);
-    const current = (this.openRecipe && this.openRecipe.id === rec.id)
-      ? this.openRecipe : rec;
-    if (current.emblem_svg) return;      // it already has one to fall back to
-    if (await this.requestEmblemFromAI(current)) {
-      // storeEmblem updates the record in place but deliberately does not
-      // redraw - it is called from paths where a render is already coming.
-      // This is not one of them.
+  }
+
+  // [ADDED v2026.9.22] Fill an empty plate, once per recipe.
+  //
+  // THE THREE REASONS TO DO NOTHING, in order:
+  //   a photograph is showing  - it IS the picture
+  //   an emblem is stored      - a design nobody asked to replace
+  //   it has been tried before - a model that refused once will refuse
+  //                              again, and this runs on every open
+  //
+  // That last one is what keeps this from becoming a model call per page
+  // turn. The set is per session and holds ids, so it costs nothing and
+  // dies with the panel. removeRecipePhoto clears the recipe's entry,
+  // which is what makes a deletion ask again rather than give up.
+  async ensureRecipeEmblem(rec) {
+    if (!rec || !rec.id) return false;
+    if (rec.image_url) return false;
+    if (rec.emblem_svg) return false;
+    this._emblemTried = this._emblemTried || new Set();
+    if (this._emblemTried.has(rec.id)) return false;
+    this._emblemTried.add(rec.id);
+    if (await this.requestEmblemFromAI(rec)) {
+      // storeEmblem updates the record in place and deliberately does not
+      // redraw; nothing else is coming after this one.
       this.render();
+      return true;
     }
+    return false;
   }
 
   // Ask the assistant to design an emblem for a recipe.

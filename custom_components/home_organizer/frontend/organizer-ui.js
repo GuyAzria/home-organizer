@@ -11,23 +11,22 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
-// [MODIFIED v2026.9.20 | 2026-09-20] Purpose: The Change Icon window
-//   carries an AI row for items: a sentence describing the thing, and a
-//   button that asks the assistant to draw it. It is the repair for an
-//   icon that landed wrong on a receipt or a barcode scan, where the
-//   library is still what gets picked - and it makes the drawing the
-//   user's own choice rather than something that happens to their data
-//   unasked. The button's label is the two letters and nothing more:
-//   'Draw with AI' translates to a phrase longer than the chip in every
-//   language here and overflowed it on a phone. The sentence moved to
-//   title=, via the new setTitle helper, where it costs no width.
-// [MODIFIED v2026.9.20 | 2026-09-20] Purpose: getItemIcon is the one
-//   place that decides what an item shows - a photograph, then an icon
-//   the assistant drew for it, then the shipped library, then the
-//   default. Seven render sites each had their own copy of that order.
-//   The enlarge overlay now shows a drawn icon too, and carries a delete
-//   control for a photograph, from the place the user is already looking
-//   at it.
+// [MODIFIED v2026.9.22 | 2026-09-22] Purpose: The FAB starts in the TOP
+//   bar instead of floating over the content near the bottom. Only the
+//   anchor moved: column-reverse already lays the stack out as
+//   button-then-menu, so pinning the container by its top puts the button
+//   in the bar and the menu falls below it, and the button still does not
+//   shift when the menu opens. 66px in from the edge rather than 30,
+//   because both corners of that bar are already taken - the settings
+//   button in Hebrew, the sidebar toggle in English. The menu's entrance
+//   flips with it, arriving from above rather than rising from below. It
+//   is still draggable: this is a starting point, not a cage.
+// [MODIFIED v2026.9.22 | 2026-09-22] Purpose: The Home button opens the
+//   DASHBOARD. The room list is untouched and is the dashboard's first
+//   button, so nothing that worked before moved - it is only no longer the
+//   first thing seen. isDashboardMode is a new view mode, which means every
+//   other entry point had to learn to clear it: 13 sites, found by the
+//   audit in CLAUDE.md rather than by eye (RULE 33a.1).
 
 import { ICONS } from './organizer-icon.js?v=10.3.0';
 import { escapeHtml } from './organizer-utils.js?v=2026.8.26';
@@ -147,6 +146,7 @@ export const UIMixin = (Base) => class extends Base {
       <link rel="stylesheet" href="/home_organizer_static/pages/barcode.css?v=${timestamp}">
       <link rel="stylesheet" href="/home_organizer_static/pages/inventory.css?v=${timestamp}">
       <link rel="stylesheet" href="/home_organizer_static/pages/chat.css?v=${timestamp}">
+      <link rel="stylesheet" href="/home_organizer_static/pages/dashboard.css?v=${timestamp}">
       <link rel="stylesheet" href="/home_organizer_static/pages/shopping.css?v=${timestamp}">
       <link rel="stylesheet" href="/home_organizer_static/pages/search.css?v=${timestamp}">
       <!-- [ADDED v2026.10.9] The cookbook has its own stylesheet: it is the
@@ -154,19 +154,139 @@ export const UIMixin = (Base) => class extends Base {
            a recipe book should read as paper in dark mode too. -->
       <link rel="stylesheet" href="/home_organizer_static/pages/recipes.css?v=${timestamp}">
       <style>
-        .fab-container { position:fixed; bottom:30px; right:30px; z-index:1000; display:flex; flex-direction:column-reverse; align-items:flex-end; gap:15px; pointer-events:none; }
-        :host-context(.rtl) .fab-container, .rtl .fab-container, [dir="rtl"] .fab-container { right:auto; left:30px; align-items:flex-start; }
-        .fab-main { width:60px; height:60px; border-radius:50%; background:var(--primary,#03a9f4); color:white; border:none; font-size:28px; box-shadow:0 4px 15px rgba(0,0,0,0.4); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:transform .3s cubic-bezier(.175,.885,.32,1.275),background .3s; outline:none; pointer-events:auto; }
-        .fab-container.open .fab-main { transform:rotate(45deg); background:var(--danger,#F44336); }
-        .fab-menu { display:flex; flex-direction:column; align-items:flex-end; gap:12px; opacity:0; visibility:hidden; transform:translateY(20px) scale(.8); transition:all .3s cubic-bezier(.175,.885,.32,1.275); transform-origin:bottom center; pointer-events:none; }
-        :host-context(.rtl) .fab-menu, .rtl .fab-menu, [dir="rtl"] .fab-menu { align-items:flex-start; }
+        /* [FIXED v2026.9.22] absolute, not fixed - see .app-container in
+           organizer-panel.css. fixed is measured against the window, and the
+           window's left edge is Home Assistant's sidebar, so left:30px put
+           the button behind it. #app does not scroll, so this pins to the
+           screen exactly as fixed did, but inside the panel. */
+        /* [MODIFIED v2026.9.22] The button's default place is the TOP bar.
+
+           Only the ANCHOR changed. column-reverse already lays this stack
+           out as button-then-menu, so pinning the container by its top
+           instead of its bottom puts the button in the bar and lets the
+           menu fall below it - the flex direction and the DOM order are
+           untouched, and the button still does not move when the menu
+           opens, which is what column-reverse was for.
+
+           top:6px centres a 48px button in the 60px bar.
+
+           66px in from the edge, not 30: at 30 it would sit on the settings
+           button in Hebrew and on the sidebar toggle in English, since both
+           corners are already occupied. 66 leaves 16px of clear space
+           beside a 40px corner button on a 320px screen, which is the
+           narrowest this panel is used at (RULE 36).
+
+           It is still draggable from here - makeFabDraggable applies a
+           translate on top of whatever this rule sets, so this is a
+           starting point and not a cage. */
+        .fab-container { position:absolute; top:6px; right:66px; z-index:1000; display:flex; flex-direction:column-reverse; align-items:flex-start; gap:15px; pointer-events:none; }
+        /* [ADDED v2026.9.22] The button sits on the GLYPH side, and the whole
+           stack is flush to that one edge.
+
+           align-items:flex-start above does the alignment for both languages
+           at once - the cross axis of a column follows the inherited
+           direction, so it is the left in English and the right in Hebrew,
+           which is the side the glyph is on in each.
+
+           The ANCHOR cannot follow direction, because left and right are
+           physical. Hebrew keeps right:30px from the base rule; English gets
+           this one. #app.ltr and not :not(.ltr) on purpose: a positive match
+           on a class that is definitely added (initUI and changeLanguage
+           both set it for English). If it somehow failed to match, the
+           button stays bottom-right and visible - the safe direction to
+           fail, which the previous attempt at this rule was not.
+
+           .rtl and [dir=rtl] select nothing in this panel - direction is
+           signalled by .ltr on #app, added for English and removed for
+           Hebrew (RULE 33b). Any rule written against them is dead. */
+        #app.ltr .fab-container { right:auto; left:66px; }
+        /* [MODIFIED v2026.9.22] A ring, not a disc. 48px is the 60px it was
+           less twenty per cent; the icon is scaled with it so it keeps the
+           same share of the button.
+
+           position:relative + the ::after below keep the TOUCH target at the
+           old size while the drawn button shrinks. The ring is drawn inside
+           those 48px, so nothing moves on screen, but the thumb still gets
+           the 60px it had. It matters more here than on a fixed control:
+           makeFabDraggable wires touch and mouse dragging onto this element,
+           so those 48px are a grab handle as well as a button (RULE 36).
+
+           The open state used to be a red FILL. There is no fill any more, so
+           it moved to the BORDER, and to the glyph with it. */
+        .fab-main { position:relative; width:48px; height:48px; border-radius:50%; background:transparent; color:var(--fab-ring,#5ddf8a); border:2px solid var(--fab-ring,#5ddf8a); font-size:22px; box-shadow:0 2px 10px rgba(0,0,0,0.25),0 0 0 1px var(--fab-ring-soft,rgba(93,223,138,0.28)); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:transform .3s cubic-bezier(.175,.885,.32,1.275),border-color .3s,color .3s,box-shadow .3s,opacity .4s; outline:none; pointer-events:auto; }
+        .fab-main::after { content:''; position:absolute; inset:-6px; border-radius:50%; }
+        /* The glyph is an SVG, not an emoji, so its size and colour are ours
+           to set - an emoji is a colour font and ignores both. Yellow, which
+           is what the emoji looked like, and 26px inside the 44px the ring
+           leaves. The RING carries the open and busy states; the glyph stays
+           the same colour throughout, exactly as the emoji did. */
+        .fab-main svg { width:26px; height:26px; fill:var(--warning,#ffeb3b); display:block; pointer-events:none; }
+        .fab-main:hover { box-shadow:0 2px 10px rgba(0,0,0,0.25),0 0 0 1px var(--fab-ring-soft,rgba(93,223,138,0.28)),0 0 14px var(--fab-ring-soft,rgba(93,223,138,0.28)); }
+        .fab-container.open .fab-main { transform:rotate(45deg); border-color:var(--danger,#F44336); color:var(--danger,#F44336); }
+
+        /* The ring fades when nothing has been touched for a few seconds, so
+           the button stops competing with the content under it. Any pointer
+           or scroll brings it straight back; see bindEvents. */
+        .fab-container.idle .fab-main { opacity:.45; }
+
+        /* A receipt scan turns the ring into the progress indicator, so the
+           wait costs no extra space on the screen. A rotating BORDER ARC
+           rather than a masked conic gradient: mask on a pseudo-element is
+           the kind of thing that fails to a filled disc where it is not
+           supported, while a border arc simply stops spinning.
+
+           Listed AFTER the open rule on purpose - same specificity, so this
+           one wins if the menu happens to be open while a scan is running. */
+        .fab-main.busy { border-color:var(--fab-ring-soft,rgba(93,223,138,0.28)); }
+        .fab-main.busy::before { content:''; position:absolute; inset:-2px; border-radius:50%; border:2px solid transparent; border-top-color:var(--fab-ring,#5ddf8a); animation:ho-fab-spin .9s linear infinite; }
+        @keyframes ho-fab-spin { to { transform:rotate(360deg); } }
+        @media (prefers-reduced-motion: reduce) { .fab-main.busy::before { animation:none; } }
+        /* [FIXED v2026.9.22] The GLYPH side is the flush edge, not the text.
+
+           Each entry is only as wide as its own label, so one edge lines up
+           and the other is ragged. It was the text edge, which put the icons
+           in a staircase - and the icons are the part the eye scans.
+
+           flex-start, once, for both directions: the cross axis of a column
+           follows the inherited direction, so it is the left in English and
+           the right in Hebrew - which is the side the glyph is on in each,
+           since the glyph leads in reading order. */
+        /* [MODIFIED v2026.9.22] The menu drops DOWN from the button now that
+           the button is in the top bar, so it grows from its own top edge
+           and arrives from above. Reversing the sign and the origin is the
+           whole change: a menu that still rose from below would appear to
+           come from behind the thing it belongs to. */
+        .fab-menu { display:flex; flex-direction:column; align-items:flex-start; gap:6px; opacity:0; visibility:hidden; transform:translateY(-20px) scale(.8); transition:all .3s cubic-bezier(.175,.885,.32,1.275); transform-origin:top center; pointer-events:none; }
+        /* The menu's own RTL rule is gone with it, and not replaced: it only
+           set align-items, which direction already handles. */
         .fab-container.open .fab-menu { opacity:1; visibility:visible; transform:translateY(0) scale(1); pointer-events:auto; }
-        .fab-item-wrapper { display:flex; align-items:center; gap:10px; }
-        :host-context(.rtl) .fab-item-wrapper, .rtl .fab-item-wrapper, [dir="rtl"] .fab-item-wrapper { flex-direction:row-reverse; }
-        .fab-tooltip { background:var(--bg-card,#333); color:var(--text-main,#fff); padding:6px 12px; border-radius:6px; font-size:14px; font-weight:500; box-shadow:0 2px 8px rgba(0,0,0,.2); white-space:nowrap; border:1px solid var(--border-light,#444); }
-        .fab-item { width:50px; height:50px; border-radius:50%; background:var(--bg-card,#2a2a2a); color:var(--text-main,#fff); border:1px solid var(--border-light,#444); font-size:20px; box-shadow:0 3px 10px rgba(0,0,0,.2); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:transform .2s,background .2s,color .2s; outline:none; pointer-events:auto; }
-        .fab-item:hover { transform:scale(1.1); background:var(--primary,#03a9f4); color:white; border-color:var(--primary,#03a9f4); }
-        .fab-item svg { width:24px; height:24px; fill:currentColor; }
+        .fab-item-wrapper { display:flex; }
+
+        /* [MODIFIED v2026.9.22] One rectangle per entry, and the whole
+           rectangle is the button.
+
+           It used to be a 50px circle with the label floating beside it as an
+           absolutely positioned tooltip - so the text was decoration and only
+           the circle could be pressed. Merging them makes the label part of
+           the target, which is the difference between a 50px hit area and a
+           160px one on a phone (RULE 36).
+
+           DOM order is GLYPH then label, with no direction rule of its own.
+           The glyph leads in reading order, which is how every icon+text
+           control is read: left in English, right in Hebrew. flex-direction
+           row does that by itself because flex follows the inherited
+           direction - the one thing RULE 33b says IS reliable here, unlike
+           the physical properties and the [dir] selectors around it. */
+        .fab-item { display:flex; align-items:center; gap:10px; height:44px; padding:0 12px; border-radius:10px; background:var(--bg-card,#2a2a2a); color:var(--text-main,#fff); border:1px solid var(--border-light,#444); box-shadow:0 3px 10px rgba(0,0,0,.2); font-size:14px; font-weight:500; white-space:nowrap; max-width:calc(100vw - 80px); overflow:hidden; cursor:pointer; transition:transform .2s,background .2s,color .2s,border-color .2s; outline:none; pointer-events:auto; }
+        .fab-item:hover { transform:scale(1.04); background:var(--primary,#03a9f4); color:white; border-color:var(--primary,#03a9f4); }
+        /* A long translation truncates instead of pushing the rectangle
+           off the screen - the stack is anchored by one edge, so the other
+           end has nothing to stop it (RULE 36). */
+        .fab-label { pointer-events:none; overflow:hidden; text-overflow:ellipsis; }
+        /* font-size is here as well as width/height: one entry is still an
+           emoji, and an emoji is sized by font-size, not by the svg rule. */
+        .fab-glyph { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; flex:0 0 auto; font-size:20px; line-height:1; pointer-events:none; }
+        .fab-glyph svg { width:100%; height:100%; fill:currentColor; }
         
         .mockup-panel { background:#222; border: 2px solid #555; border-radius: 15px; padding: 20px; margin: 15px 0; font-family: sans-serif; direction:ltr; }
         :host-context(.light-mode) .mockup-panel { background:#fff; border-color:#ccc; box-shadow:0 4px 10px rgba(0,0,0,0.1); }
@@ -246,32 +366,50 @@ export const UIMixin = (Base) => class extends Base {
         <div class="fab-container" id="fab-container">
           <div class="fab-menu" id="fab-menu">
             <div class="fab-item-wrapper">
-              <span class="fab-tooltip" id="lbl-fab-shop">Shopping</span>
-              <button class="fab-item" id="btn-fab-shop">${ICONS.cart}</button>
+              <button class="fab-item" id="btn-fab-shop">
+                <span class="fab-glyph">${ICONS.cart}</span>
+                <span class="fab-label" id="lbl-fab-shop">Shopping</span>
+              </button>
             </div>
             <div class="fab-item-wrapper">
-              <span class="fab-tooltip" id="lbl-fab-search">Search</span>
-              <button class="fab-item" id="btn-fab-search">${ICONS.search}</button>
+              <button class="fab-item" id="btn-fab-search">
+                <span class="fab-glyph">${ICONS.search}</span>
+                <span class="fab-label" id="lbl-fab-search">Search</span>
+              </button>
+            </div>
+            <div class="fab-item-wrapper">
+              <button class="fab-item" id="btn-fab-locations">
+                <span class="fab-glyph">${ICONS.home}</span>
+                <span class="fab-label" id="lbl-fab-locations">Locations</span>
+              </button>
             </div>
             <div class="fab-item-wrapper" id="wrap-fab-chat">
-              <span class="fab-tooltip" id="lbl-fab-chat">Receipts AI</span>
-              <button class="fab-item" id="btn-fab-chat">${ICONS.robot}</button>
+              <button class="fab-item" id="btn-fab-chat">
+                <span class="fab-glyph">${ICONS.robot}</span>
+                <span class="fab-label" id="lbl-fab-chat">Receipts AI</span>
+              </button>
             </div>
             <!-- [ADDED v2026.10.9] Cookbook. -->
             <div class="fab-item-wrapper" id="wrap-fab-recipes">
-              <span class="fab-tooltip" id="lbl-fab-recipes">My Recipes</span>
-              <button class="fab-item" id="btn-fab-recipes">${ICONS.chef || ICONS.cooking || ICONS.item}</button>
+              <button class="fab-item" id="btn-fab-recipes">
+                <span class="fab-glyph">${ICONS.chef || ICONS.cooking || ICONS.item}</span>
+                <span class="fab-label" id="lbl-fab-recipes">My Recipes</span>
+              </button>
             </div>
             <div class="fab-item-wrapper" id="wrap-fab-barcode">
-              <span class="fab-tooltip" id="lbl-fab-barcode">Barcode Scanner</span>
-              <button class="fab-item" id="btn-fab-barcode">${ICONS.barcode}</button>
+              <button class="fab-item" id="btn-fab-barcode">
+                <span class="fab-glyph">${ICONS.barcode}</span>
+                <span class="fab-label" id="lbl-fab-barcode">Barcode Scanner</span>
+              </button>
             </div>
             <div class="fab-item-wrapper" id="wrap-fab-stylist" >
-              <span class="fab-tooltip" id="lbl-fab-stylist">Stylist</span>
-              <button class="fab-item" id="btn-fab-stylist">👗</button>
+              <button class="fab-item" id="btn-fab-stylist">
+                <span class="fab-glyph">👗</span>
+                <span class="fab-label" id="lbl-fab-stylist">Stylist</span>
+              </button>
             </div>
           </div>
-          <button class="fab-main" id="btn-fab-main">✨</button>
+          <button class="fab-main" id="btn-fab-main">${ICONS.sparkles}</button>
         </div>
       </div>
 
@@ -437,6 +575,20 @@ export const UIMixin = (Base) => class extends Base {
         <canvas id="camera-canvas"></canvas>
       </div>
 
+      <!-- [ADDED v2026.9.22] The dashboard's expiry list. Its own overlay
+           rather than the image one: this is rows of text, and it is
+           dismissed by its own button so a stray tap cannot lose the list
+           while the user is reading a shelf name off it. -->
+      <div id="dash-list-overlay" onclick="if(event.target===this)this.style.display='none'">
+        <div class="dash-list-box">
+          <div class="dash-list-head">
+            <span id="dash-list-title">Expiring soon</span>
+            <button class="action-btn" style="min-height:36px;padding:0 12px;" onclick="this.closest('#dash-list-overlay').style.display='none'">${ICONS.close}</button>
+          </div>
+          <div class="dash-list-body" id="dash-list-body"></div>
+        </div>
+      </div>
+
       <div class="overlay" id="img-overlay" onclick="this.style.display='none'">
         <div style="display:flex;flex-direction:column;align-items:center;max-width:90%;max-height:90%;width:100%">
           <img id="overlay-img">
@@ -521,6 +673,7 @@ export const UIMixin = (Base) => class extends Base {
     set('lbl-fab-recipes', 'recipes_title', 'My Recipes');
     set('lbl-fab-shop',    'shopping_list', 'Shopping List');
     set('lbl-fab-search',  'search_placeholder', 'Search...');
+    set('lbl-fab-locations', 'locations', 'Locations');
     set('lbl-fab-barcode', 'barcode_scanner', 'Barcode Scanner');
     
     setPh('search-input',  'search_placeholder', 'Search...');
@@ -608,23 +761,76 @@ export const UIMixin = (Base) => class extends Base {
 
     click('btn-ha-menu', () => this.dispatchEvent(new Event('hass-toggle-menu', { bubbles: true, composed: true })));
     click('btn-up',   () => this.navigate('up'));
+    // [MODIFIED v2026.9.22] Home opens the dashboard, not the room list.
+    //
+    // The rooms screen is untouched and is the dashboard's first button.
+    // navigate('root') is still called, so the path underneath is reset -
+    // leaving Home on a dashboard while the breadcrumb still says
+    // Kitchen > Fridge would show the wrong place on the way back.
     click('btn-home', () => {
-      this.isShopMode = false; this.isSearch = false; this.isChatMode = false; this.isStylistMode = false; this.isReviewMode = false; this.isBarcodeMode = false; this.isReceiptsMode=false; this.isRecipesMode=false;
-      this.clearSearchInput(); this.navigate('root');
+      this.isShopMode = false; this.isSearch = false; this.isChatMode = false;
+      this.isStylistMode = false; this.isReviewMode = false;
+      this.isBarcodeMode = false; this.isReceiptsMode = false; this.isDashboardMode = false;
+      this.isRecipesMode = false; this.isEditMode = false;
+      this.isDashboardMode = true;
+      this.clearSearchInput();
+      this.navigate('root');
+      if (typeof this.loadDashboard === 'function') this.loadDashboard(true);
     });
 
     click('btn-fab-main', () => root.getElementById('fab-container')?.classList.toggle('open'));
+
+    // [ADDED v2026.9.22] The FAB fades out of the way when it is not wanted.
+    //
+    // Three seconds of no pointer and no scroll and the ring drops to 45%,
+    // so it stops sitting on top of the content; anything the user does
+    // brings it back before they can reach for it.
+    //
+    // pointerdown and scroll, both in the CAPTURE phase - scroll does not
+    // bubble, and a capture listener on the root sees it wherever it starts.
+    // pointermove is deliberately NOT listened for: on a desktop it fires
+    // hundreds of times a second and would rearm the timer on every one.
+    //
+    // One timer at a time, always cleared before it is re-armed, and never
+    // armed while the menu is open - a half-transparent button over an open
+    // menu reads as broken rather than as quiet.
+    const fabBox = root.getElementById('fab-container');
+    if (fabBox) {
+      const wakeFab = () => {
+        fabBox.classList.remove('idle');
+        clearTimeout(this._fabIdleTimer);
+        this._fabIdleTimer = setTimeout(() => {
+          if (!fabBox.classList.contains('open')) fabBox.classList.add('idle');
+        }, 3000);
+      };
+      root.addEventListener('pointerdown', wakeFab, true);
+      root.addEventListener('scroll', wakeFab, true);
+      wakeFab();
+    }
     const closeFab = () => root.getElementById('fab-container')?.classList.remove('open');
 
-    click('btn-fab-shop',   () => { this.isReceiptsMode=false; this.isShopMode=true;  this.isSearch=false; this.isEditMode=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isBarcodeMode=false; this.isRecipesMode=false; closeFab(); this.fetchData(); });
-    click('btn-fab-search', () => { this.isReceiptsMode=false; this.isSearch=true;    this.isShopMode=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isBarcodeMode=false; this.isRecipesMode=false; closeFab(); this.render(); });
-    click('btn-fab-recipes', () => { this.isChatMode=false; this.isReviewMode=false; this.isReceiptsMode=false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isStylistMode=false; this.isBarcodeMode=false; this.isRecipesMode=true; closeFab(); this.render(); });
-    click('btn-fab-chat',   () => { this.isChatMode=false; this.isReceiptsMode=false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isStylistMode=false; this.isBarcodeMode=false; this.isRecipesMode=false; this.isReviewMode=true; closeFab(); this.fetchData(); });
-    click('btn-fab-stylist',() => { this.isReceiptsMode=false; this.isStylistMode=true; this.isChatMode=false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isReviewMode=false; this.isBarcodeMode=false; this.isRecipesMode=false; closeFab(); this.render(); });
-    click('btn-fab-review', () => { this.isReceiptsMode=false; this.isReviewMode=true; this.isChatMode=false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isStylistMode=false; this.isBarcodeMode=false; this.isRecipesMode=false; closeFab(); this.fetchData(); });
+    click('btn-fab-shop',   () => { this.isReceiptsMode=false; this.isDashboardMode = false; this.isShopMode=true;  this.isSearch=false; this.isEditMode=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isBarcodeMode=false; this.isRecipesMode=false; closeFab(); this.fetchData(); });
+    click('btn-fab-search', () => { this.isReceiptsMode=false; this.isDashboardMode = false; this.isSearch=true;    this.isShopMode=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isBarcodeMode=false; this.isRecipesMode=false; closeFab(); this.render(); });
+    // [ADDED v2026.9.22] Locations, from the speed dial.
+    //
+    // This is btn-home's destination, so it clears what btn-home clears -
+    // ALL of them. A view mode left on here would win the next render and
+    // the user would land somewhere else entirely; that has shipped three
+    // times in this panel already (RULE 33a.1).
+    click('btn-fab-locations', () => {
+      this.isShopMode = false; this.isSearch = false; this.isChatMode = false;
+      this.isStylistMode = false; this.isReviewMode = false;
+      this.isBarcodeMode = false; this.isReceiptsMode = false; this.isDashboardMode = false;
+      this.isRecipesMode = false; this.isEditMode = false;
+      this.clearSearchInput(); closeFab(); this.navigate('root');
+    });
+    click('btn-fab-recipes', () => { this.isChatMode=false; this.isReviewMode=false; this.isReceiptsMode=false; this.isDashboardMode = false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isStylistMode=false; this.isBarcodeMode=false; this.isRecipesMode=true; closeFab(); this.render(); });
+    click('btn-fab-chat',   () => { this.isChatMode=false; this.isReceiptsMode=false; this.isDashboardMode = false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isStylistMode=false; this.isBarcodeMode=false; this.isRecipesMode=false; this.isReviewMode=true; closeFab(); this.fetchData(); });
+    click('btn-fab-stylist',() => { this.isReceiptsMode=false; this.isDashboardMode = false; this.isStylistMode=true; this.isChatMode=false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isReviewMode=false; this.isBarcodeMode=false; this.isRecipesMode=false; closeFab(); this.render(); });
+    click('btn-fab-review', () => { this.isReceiptsMode=false; this.isDashboardMode = false; this.isReviewMode=true; this.isChatMode=false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isStylistMode=false; this.isBarcodeMode=false; this.isRecipesMode=false; closeFab(); this.fetchData(); });
     
     click('btn-fab-barcode', () => { 
-      this.isShopMode=false; this.isSearch=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isEditMode=false; this.isReceiptsMode=false;
+      this.isShopMode=false; this.isSearch=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isEditMode=false; this.isReceiptsMode=false; this.isDashboardMode = false;
       this.isRecipesMode=false;
       this.isBarcodeMode=true;
       
@@ -662,7 +868,7 @@ export const UIMixin = (Base) => class extends Base {
       this.isEditMode = !this.isEditMode;
       if (!this.isRecipesMode) {
         this.isShopMode=false; this.isChatMode=false; this.isStylistMode=false;
-        this.isReviewMode=false; this.isBarcodeMode=false; this.isReceiptsMode=false;
+        this.isReviewMode=false; this.isBarcodeMode=false; this.isReceiptsMode=false; this.isDashboardMode = false;
       }
       if (!this.isEditMode) this.selectedItems.clear();
       this.render();
@@ -758,6 +964,33 @@ export const UIMixin = (Base) => class extends Base {
     root.getElementById('paste-bar').style.display   = attrs.clipboard ? 'flex' : 'none';
     if (attrs.clipboard) root.getElementById('clipboard-name').innerText = attrs.clipboard;
 
+    // [ADDED v2026.9.22] The ring doubles as the scan's progress indicator.
+    //
+    // Synced HERE rather than toggled at the call site: view-chat.js already
+    // sets scanInProgress and re-renders on every way out of a scan - the
+    // success, the duplicate, the error and the throw - so reading the flag
+    // once per render covers all four, and no future exit path can forget to
+    // turn the spinner off.
+    // [ADDED v2026.9.22] #content becomes the frame the cookbook docks into.
+    //
+    // The Sous-Chef column is position:fixed, and fixed is measured against
+    // the WINDOW - which on a desktop starts behind Home Assistant's own
+    // sidebar, so the column covered it. An ancestor carrying a transform
+    // becomes the containing block for fixed descendants instead, and
+    // #content is exactly the right box: it begins where the panel's own
+    // bars end and where the sidebar stops.
+    //
+    // A class rather than :has(.cookbook-wrap) on purpose - this has to be
+    // deterministic and checkable without a browser, and :has is silently
+    // absent on older webviews. Toggled on every render, so leaving the
+    // cookbook takes it off again and no other screen inherits a transform
+    // it never asked for (RULE 33a.1).
+    const contentBox = root.getElementById('content');
+    if (contentBox) contentBox.classList.toggle('dock-host', !!this.isRecipesMode);
+
+    const fabMain = root.getElementById('btn-fab-main');
+    if (fabMain) fabMain.classList.toggle('busy', !!this.scanInProgress);
+
     const wrapChat    = root.getElementById('wrap-fab-chat');
     const wrapStylist = root.getElementById('wrap-fab-stylist');
     if (wrapChat)    wrapChat.style.display    = attrs.enable_ai ? 'flex' : 'none';
@@ -817,6 +1050,12 @@ export const UIMixin = (Base) => class extends Base {
     // [ADDED v2026.10.9] Cookbook. Checked before the receipts branch so
     // the two cannot both claim a render.
     if (this.isRecipesMode && typeof this.renderRecipesView === 'function') return this.renderRecipesView(content, attrs);
+    // [ADDED v2026.9.22] The dashboard is checked first. It is the screen
+    // the Home button now opens, and its flag is cleared by every other
+    // entry point, so reaching here with it on means it is the one wanted.
+    if (this.isDashboardMode && typeof this.renderDashboardView === 'function') {
+      return this.renderDashboardView(content);
+    }
     if ((this.isChatMode || this.isReviewMode || this.isReceiptsMode) && typeof this.renderChatAndReviewView === 'function') return this.renderChatAndReviewView(content, attrs);
     if (this.isShopMode && typeof this.renderShoppingView === 'function') return this.renderShoppingView(content, attrs);
     if ((this.isSearch || attrs.path_display?.startsWith('Search')) && attrs.items && typeof this.renderSearchView === 'function') return this.renderSearchView(content, attrs);

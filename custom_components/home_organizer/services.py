@@ -12,17 +12,18 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
+# [MODIFIED v2026.9.22 | 2026-09-22] Purpose: handle_confirm_pending passes
+#   the item's category into the purchase record. The spending breakdown is
+#   summed from product lines now, not from receipts - one supermarket
+#   receipt is food AND a toy AND sunscreen, and only its lines can say so.
+#   The category is taken at APPROVAL, so the value the user corrected in
+#   the review tab is the one that reaches the chart.
 # [MODIFIED v2026.9.20 | 2026-09-20] Purpose: update_item_details accepts
 #   clear_suggestion, which answers the scanner's category proposal by
 #   clearing suggested_category. Explicit rather than implied: setting a
 #   category could have counted as an answer, but the icon picker also
 #   writes a category, and choosing a picture is not a decision about
 #   shelves (RULE 33a.8).
-# [MODIFIED v2026.9.20 | 2026-09-20] Purpose: Choosing a library icon or
-#   uploading a picture now CLEARS icon_spec. A drawn icon wins over
-#   image_path when the panel renders, so without this an item the
-#   assistant had drawn could never be given a different picture - the
-#   choice was stored and nothing changed on screen.
 
 import logging
 import os
@@ -690,6 +691,14 @@ async def register_services(hass, entry):
                         "purchase_date": receipt.get("purchase_date"),
                         "vendor": receipt.get("vendor"),
                         "receipt_id": receipt_id,
+                        # [ADDED v2026.9.22] The item's own category, read
+                        # above with the rest of the row. This is what the
+                        # spending breakdown sums by: one supermarket
+                        # receipt is food AND a toy AND sunscreen, and the
+                        # receipt cannot say that - only its lines can.
+                        # Taken at approval, so a category the user fixed
+                        # in the review tab is the one recorded.
+                        "category": cat,
                     })
                 # The first approved line promotes the receipt out of 'draft',
                 # which is what lets it count towards spending totals. Later

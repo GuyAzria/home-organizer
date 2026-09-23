@@ -58,6 +58,13 @@ class FallbackMockEntry:
 
 
 # ==========================================
+# [FIXED v2026.9.22 | 2026-09-22] Purpose: Claude's max_tokens was 1024,
+#   which truncated this integration's longest answers - and a truncated
+#   answer is not a short one, it is broken JSON that every caller reads as
+#   'the model returned nothing'. A plain TV cabinet fitted inside it and a
+#   five-door fridge did not, so the drawing button looked as though it
+#   worked only sometimes. A long receipt is past it too. 4096 is a ceiling,
+#   not a target: nothing is generated because the ceiling is higher.
 # [ADDED v10.0.0] SECRET SCRUBBING
 # ==========================================
 def _scrub_secrets(text, *secrets):
@@ -211,7 +218,22 @@ async def async_universal_ai_router(hass, provider, base_url, api_key, model,
                 content = prompt
             payload = {
                 "model": model,
-                "max_tokens": 1024,
+                # [FIXED v2026.9.22] 1024 was not enough for this
+                # integration's longest answers, and a truncated answer is
+                # not a short answer - it is broken JSON, which every caller
+                # reads as 'the model returned nothing'.
+                #
+                # It cut off a drawing of anything with detail: a plain TV
+                # cabinet fitted and a five-door fridge did not, which from
+                # the outside looked like the button working only sometimes.
+                # A fifty-line receipt is well past it too.
+                #
+                # This is a CEILING, not a target. Nothing is generated or
+                # charged because the ceiling is higher; it only stops the
+                # answer being cut mid-sentence. Claude is the only provider
+                # here that requires the field - Gemini and OpenAI use their
+                # own defaults, which are far above this.
+                "max_tokens": 4096,
                 "messages": [{"role": "user", "content": content}],
             }
             async with session.post(url, headers=headers, json=payload,

@@ -11,16 +11,21 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
-// [ADDED v2026.9.20 | 2026-09-20] Purpose: getItemIcon and drawnItemIcon.
-//   An item can now carry a drawing the assistant designed for it, stored
-//   as the SPEC it sent. This builds it through item-icon.js, and every
-//   value is coerced again on the way - neither end trusts the other.
+// [MODIFIED v2026.9.22 | 2026-09-22] Purpose: localeTag maps the panel
+//   language onto a BCP-47 tag, in ONE place. view-recipes had the table
+//   for the speech engines and the dashboard was about to grow a second
+//   one for month names and money; two copies drift and then one language
+//   formats its dates in another's (RULE 33d).
+// [ADDED v2026.9.22 | 2026-09-22] Purpose: folderIcon decides what a folder
+//   tile shows - photo, then drawing, then library key, then the plain
+//   folder. The two loops in view-inventory.js each had their own copy of
+//   that order, which is the shape RULE 33a.6 warns about.
 
 import { ICONS, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.10';
 // [ADDED v2026.9.20] Item icons the assistant designed, drawn from the
 // spec it sent. See item-icon.js for why they carry no background and
 // inherit their colour.
-import { itemIconFromSpec } from './item-icon.js?v=2026.9.20';
+import { itemIconFromSpec } from './item-icon.js?v=2026.9.22';
 
 // [ADDED v2026.8.26] HTML escaping for any value that reaches innerHTML.
 //
@@ -56,6 +61,23 @@ export function formatAiText(text) {
 }
 
 export const UtilsMixin = (Base) => class extends Base {
+
+  // [ADDED v2026.9.22] The panel language as a BCP-47 tag.
+  //
+  // Everything that formats a number, a date or a month name needs one, and
+  // so do the speech engines. There was already a table of these inside
+  // view-recipes for the voice; a second copy for the dashboard is how one
+  // of them ends up with six entries and the other with seven (RULE 33d).
+  //
+  // Anything unknown falls back to en-US rather than to the raw code:
+  // Intl will accept a two-letter tag, but the region is what decides the
+  // date order and the digits, and guessing the region is worse than
+  // being plainly English.
+  localeTag() {
+    const MAP = { he: 'he-IL', en: 'en-US', it: 'it-IT', es: 'es-ES',
+                  fr: 'fr-FR', ar: 'ar-SA', ru: 'ru-RU' };
+    return MAP[this.currentLang] || 'en-US';
+  }
 
   escapeJSArg(str) {
     if (!str) return '';
@@ -117,6 +139,34 @@ export const UtilsMixin = (Base) => class extends Base {
   itemHasPhoto(item) {
     const img = item && item.img;
     return !!img && !String(img).startsWith('ICON_LIB');
+  }
+
+  // [ADDED v2026.9.22] What a folder tile shows, decided in ONE place.
+  //
+  // The two folder loops in view-inventory.js each carried their own copy of
+  // this, and adding the drawn branch to one and not the other is exactly
+  // the shape RULE 33a.6 warns about - it has already cost this project a
+  // screen that showed nothing.
+  //
+  // Same order of preference as an item: a photograph the user chose, then a
+  // drawing the assistant designed, then the shipped library key, then the
+  // plain folder. `key` is what the loading spinner and the cache-buster are
+  // filed under, which differs between the two callers.
+  folderIcon(folder, key) {
+    const drawn = this.drawnItemIcon(folder);
+    const img = folder && folder.img;
+    if (img && !String(img).startsWith('ICON_LIB')) {
+      const cleanPath = String(img).split('?')[0];
+      const ver = this.imageVersions[key] || 'ok';
+      const loader = this.loadingSet.has(key)
+        ? '<div class="loader-container"><span class="loader"></span></div>' : '';
+      return `<div style="position:relative;width:100%;height:100%">`
+        + `<img src="${escapeHtml(cleanPath)}?v=${escapeHtml(ver)}" `
+        + `style="width:100%;height:100%;object-fit:contain;">${loader}</div>`;
+    }
+    if (drawn) return drawn;
+    if (img) return this.getIconByKey(img);
+    return ICONS.folder;
   }
 
   getIconByKey(keyString) {

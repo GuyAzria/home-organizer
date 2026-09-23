@@ -12,6 +12,17 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
+# [MODIFIED v2026.9.22 | 2026-09-22] Purpose: A scan is filed under what the
+#   money was spent on. The buckets are read from the database on each scan,
+#   so one the user adds is offered on the very next one, and what comes
+#   back goes through resolve_expense_category - which refuses a name that
+#   is not already a category rather than creating it (RULE 22, RULE 31).
+# [MODIFIED v2026.9.22 | 2026-09-22] Purpose: draw_item_icon takes a room or
+#   a location as well as an item. An item is named by its id; a place has
+#   none, so it arrives as a name plus its path and is resolved here to the
+#   marker row that holds its picture. Everything after that point is the
+#   same code for both - one place talks to the model, one writes the
+#   result. The prompt's only difference is the noun (RULE 33d).
 # [MODIFIED v2026.9.20 | 2026-09-20] Purpose: A receipt scan no longer stops
 #   to ask where an odd product belongs. _clean_category_suggestion checks
 #   the name the model proposes - a length, a character whitelist, and that
@@ -75,7 +86,10 @@ from .database import (
     async_list_receipts, async_get_receipt_pages, async_get_receipt_items,
     async_get_categories, async_check_ingredients,
     # [ADDED v2026.9.20] Redrawing one item's icon from the item card.
-    async_get_item_naming, async_set_item_icon,
+    async_get_item_naming, async_set_item_icon, async_folder_marker_id,
+    # [ADDED v2026.9.22] What money was spent on, as a closed list.
+    async_get_expense_categories, resolve_expense_category,
+    async_get_dashboard_data,
 )
 from .services import register_services
 from .ai_logic import (
@@ -105,6 +119,11 @@ from .prompt_core import get_intent_resolve_prompt, get_icon_draw_prompt
 # that arrives with an add_item call.
 from .ai_core.draw_spec import validate_icon_spec
 from .prompt_inventory import get_barcode_prompt, get_invoice_prompt
+# [ADDED v2026.9.22] Straight from the agent module, not through
+# prompt_inventory: that file says in its own header that it is a
+# compatibility shim for two legacy imports and that no new logic belongs
+# there. This prompt has no legacy caller to be compatible with.
+from .agents.inventory_agent import get_reconcile_prompt
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -121,6 +140,8 @@ WS_LOOKUP_BARCODE = "home_organizer/lookup_barcode"
 WS_SAVE_AVATAR = "home_organizer/save_avatar"
 # [ADDED v2026.9.20] Draw one item an icon, on request from its card.
 WS_DRAW_ICON = "home_organizer/draw_item_icon"
+# [ADDED v2026.9.22] Everything the home dashboard shows, in one call.
+WS_DASHBOARD = "home_organizer/dashboard"
 
 STATIC_PATH_URL = "/home_organizer_static"
 ACTIVE_SESSIONS = {}
@@ -563,7 +584,16 @@ async def websocket_ai_chat(hass, connection, msg):
                     connection.send_result(msg["id"], {"error": "Failed to parse garment data."})
                     return
             else:
-                invoice_prompt = get_invoice_prompt(target_lang, existing_locs_str, existing_cats_str, user_message)
+                # [ADDED v2026.9.22] The spending buckets the model may pick
+                # from. Read here rather than baked into the prompt so a
+                # category the user adds is offered on the very next scan.
+                expense_cats = await async_get_expense_categories(hass)
+                expense_cats_str = (
+                    "\n".join(f"- {c}" for c in expense_cats)
+                    if expense_cats else "(none)")
+                invoice_prompt = get_invoice_prompt(
+                    target_lang, existing_locs_str, existing_cats_str,
+                    user_message, expense_cats_str)
 
                 hass.bus.async_fire("home_organizer_chat_progress", {
                     "step": "Scanning Document...",
@@ -607,6 +637,88 @@ async def websocket_ai_chat(hass, connection, msg):
                         receipt_data = parsed.get("receipt") or {}
                         receipt_id = None
 
+                        # [ADDED v2026.9.22] Do the lines add up to the total?
+                        #
+                        # A discount printed on its own line, or under the
+                        # item, is easy to read past - the line keeps the
+                        # shelf price and the basket costs more than the
+                        # till charged. Nothing downstream can catch that
+                        # later: the breakdown is summed from product lines,
+                        # so one missed discount inflates a category for
+                        # ever, and purchase_history is append-only, so the
+                        # wrong unit price becomes the price trend.
+                        #
+                        # The receipt total is the one number on the page
+                        # that is not in dispute, so it is the test. When
+                        # they disagree by more than a unit of currency the
+                        # same images go back with the arithmetic shown, and
+                        # what comes back is kept ONLY if it moves the sum
+                        # closer to the printed total. The model proposes;
+                        # subtraction decides (RULE 7, RULE 11).
+                        recon_note = ""
+                        scanned_items = parsed.get("items") or []
+                        try:
+                            paid = float(receipt_data.get("total_amount"))
+                        except (TypeError, ValueError):
+                            paid = 0.0
+                        lines_sum = _lines_total(scanned_items)
+                        if paid and scanned_items:
+                            gap = round(lines_sum - float(paid), 2)
+                            if abs(gap) > RECONCILE_TOLERANCE:
+                                _LOGGER.info(
+                                    "[HO-SCAN] Receipt does not balance: "
+                                    "lines %.2f vs total %.2f (%.2f).",
+                                    lines_sum, float(paid), gap)
+                                summary = "\n".join(
+                                    "  [%d] %s x%s @ %s" % (
+                                        i,
+                                        str(it.get("name") or "?")[:60],
+                                        it.get("qty"),
+                                        it.get("price"))
+                                    for i, it in enumerate(scanned_items)
+                                    if isinstance(it, dict))
+                                fix_text, fix_err = await safe_smart_router(
+                                    hass, entry,
+                                    get_reconcile_prompt(
+                                        summary, lines_sum, float(paid),
+                                        receipt_data.get("currency")),
+                                    image_pages, mime_val)
+                                fixes = []
+                                if fix_text and not fix_err:
+                                    try:
+                                        fix_json = json.loads(re.sub(
+                                            r'```json\s*|```\s*', '',
+                                            fix_text).strip())
+                                        fixes = fix_json.get("fixes") or []
+                                        recon_note = str(
+                                            fix_json.get("note") or "")[:200]
+                                    except Exception as fix_parse:
+                                        _LOGGER.debug(
+                                            "[HO-SCAN] Reconcile reply "
+                                            "unreadable: %s", fix_parse)
+                                candidate, applied = _apply_price_fixes(
+                                    scanned_items, fixes, paid)
+                                if applied:
+                                    new_sum = _lines_total(candidate)
+                                    new_gap = round(new_sum - float(paid), 2)
+                                    # THE gate. Closer to the printed total
+                                    # or it did not happen - a "correction"
+                                    # that makes the basket wronger is a
+                                    # guess wearing a number (RULE 31).
+                                    if abs(new_gap) < abs(gap):
+                                        parsed["items"] = candidate
+                                        scanned_items = candidate
+                                        lines_sum = new_sum
+                                        _LOGGER.info(
+                                            "[HO-SCAN] %d price(s) corrected: "
+                                            "%.2f -> %.2f against total "
+                                            "%.2f. %s", applied, gap, new_gap,
+                                            float(paid), recon_note)
+                                    else:
+                                        _LOGGER.info(
+                                            "[HO-SCAN] Correction rejected: "
+                                            "gap %.2f would become %.2f.",
+                                            gap, new_gap)
 
                         # Duplicate detection runs BEFORE a single item row is
                         # written. Writing first and asking afterwards would
@@ -681,6 +793,28 @@ async def websocket_ai_chat(hass, connection, msg):
                             "currency": receipt_data.get("currency"),
                             "file_path": stored_file,
                             "item_count": len(parsed.get("items") or []),
+                            # What the lines added up to AFTER the
+                            # reconciliation above, so the stored figure is
+                            # the corrected one and a receipt that still
+                            # does not balance can be found later.
+                            #
+                            # None, not 0, when there were no lines at all.
+                            # A tank of fuel HAS no products, so zero is
+                            # not a sum that disagrees with its total by
+                            # the whole amount - there is simply nothing to
+                            # compare, and storing 0 would make every
+                            # service receipt look like the worst
+                            # discrepancy in the database.
+                            "lines_total": (lines_sum if scanned_items
+                                            else None),
+                            # THE gate. The model proposes a bucket and
+                            # resolve_expense_category decides: a name that
+                            # is not already a category is refused, not
+                            # created, so the chart can never grow a bar
+                            # nobody chose (RULE 22, RULE 31).
+                            "expense_category": resolve_expense_category(
+                                receipt_data.get("expense_category"),
+                                expense_cats),
                         })
 
                         # Linked after the receipt exists, since page rows need
@@ -1281,6 +1415,106 @@ async def websocket_save_avatar(hass, connection, msg):
 _CATEGORY_NAME = re.compile(r"\A[^\W\d_][\w \-&'/]{0,59}\Z", re.UNICODE)
 
 
+# [ADDED v2026.9.22] DOES THE RECEIPT ADD UP?
+#
+# A scanned line sometimes carries the shelf price instead of the price
+# actually paid - the discount is printed on its own line, or below the
+# item, and the reader takes the larger number. Add the lines up and the
+# basket costs more than the till charged.
+#
+# That error is invisible until it is looked for, and it poisons everything
+# downstream: the spending breakdown is summed from product lines, so one
+# missed discount inflates a category for ever, and purchase_history is
+# append-only, so the wrong unit price becomes the price trend.
+#
+# So the sum is checked against the total on the receipt, which is the one
+# number on the page that is not in dispute.
+#
+# These two functions are pure arithmetic and hold no opinion about where
+# the numbers came from. The model's proposal is checked by _apply_price_fixes
+# and accepted only if it moves the sum CLOSER to the printed total - the
+# prompt asks for honesty and this is what enforces it (RULE 7, RULE 11).
+
+# Under a whole unit of currency is rounding, a deposit or a bag, not a
+# missed discount. Chasing it would mean a model call per receipt.
+RECONCILE_TOLERANCE = 1.0
+
+
+def _lines_total(items):
+    """What the product lines add up to, in the receipt's own currency.
+
+    price is the price of ONE UNIT - the invoice prompt is explicit about
+    that - so a line is price * qty. A line with no readable price adds
+    nothing rather than guessing, which keeps the sum an UNDER-estimate and
+    never an over-estimate built out of invented numbers.
+    """
+    total = 0.0
+    for entry in items or []:
+        if not isinstance(entry, dict):
+            continue
+        try:
+            price = float(entry.get("price"))
+        except (TypeError, ValueError):
+            continue
+        if price < 0:
+            continue
+        try:
+            qty = float(entry.get("qty"))
+        except (TypeError, ValueError):
+            qty = 1.0
+        if qty <= 0:
+            qty = 1.0
+        total += price * qty
+    return round(total, 2)
+
+
+def _apply_price_fixes(items, fixes, receipt_total):
+    """Rebuild the item list with corrected unit prices.
+
+    Returns (new_items, applied_count). The original list is never mutated:
+    the caller compares the two sums and keeps whichever is closer to the
+    printed total, which it cannot do if the first one has been overwritten.
+
+    Every fix is checked before it is used:
+
+      - the index must point at a line that exists
+      - the price must be a real, non-negative number
+      - the price must not exceed the receipt total, because a single unit
+        costing more than the whole basket is a misread, not a correction
+      - one fix per line; a second one for the same index is ignored
+
+    None of this decides whether the fixes are RIGHT. That is the caller's
+    job and it has an arithmetic test for it.
+    """
+    if not isinstance(items, list) or not fixes:
+        return items, 0
+    try:
+        ceiling = abs(float(receipt_total))
+    except (TypeError, ValueError):
+        ceiling = 0.0
+    out = [dict(it) if isinstance(it, dict) else it for it in items]
+    seen = set()
+    applied = 0
+    for fix in fixes if isinstance(fixes, list) else []:
+        if not isinstance(fix, dict):
+            continue
+        try:
+            idx = int(fix.get("index"))
+            price = float(fix.get("price"))
+        except (TypeError, ValueError):
+            continue
+        if idx < 0 or idx >= len(out) or idx in seen:
+            continue
+        if price < 0 or (ceiling and price > ceiling):
+            continue
+        if not isinstance(out[idx], dict):
+            continue
+        seen.add(idx)
+        out[idx]["price"] = price
+        applied += 1
+    return out, applied
+
+
 def _clean_category_suggestion(raw, existing_names):
     """The name the scanner would open, or None if it is not usable."""
     name = str(raw or "").strip()
@@ -1346,11 +1580,70 @@ def _parse_drawing_reply(raw_text):
 DRAW_ICON_MAX_DESCRIPTION = 200
 
 
+# [ADDED v2026.9.22 | 2026-09-22] The home dashboard's data, in one round trip.
+#
+# Not part of get_data: that is called on every navigation and is about the
+# shelf you are standing in front of. This is about the house, it is read
+# once when the dashboard opens, and it touches two different database files.
+#
+# Read-only from end to end. The only argument that changes what comes back
+# is the year to show, and it is clamped on the way in and again in the
+# query - a caller can move the window, never widen it.
+@websocket_api.async_response
+async def websocket_dashboard(hass, connection, msg):
+    # [MODIFIED v2026.9.22] The year is the one thing a caller may steer.
+    #
+    # It is clamped here and clamped again in the query, because this is a
+    # number the panel puts in a dropdown and the query builds a LIKE
+    # pattern from it. Two gates on the same value is not waste when one of
+    # them is the last thing before SQL (RULE 31).
+    year = msg.get("year")
+    try:
+        days = max(1, min(365, int(msg.get("expiry_days") or 30)))
+    except (TypeError, ValueError):
+        days = 30
+    try:
+        data = await async_get_dashboard_data(hass, year=year, expiry_days=days)
+        # The recipes live in their own file, so they are fetched by the
+        # module that owns them rather than joined across two databases.
+        data["recipes"] = await recipes_db.async_dashboard_stats(hass)
+        # [REMOVED v2026.9.22] The expense-category list went out with this
+        # payload for an editor on the receipts screen that was never built.
+        # Nothing read it, so it was a database round trip per dashboard
+        # open for a key no code touched (RULE 33d). async_get_expense_
+        # categories itself stays - the scan path uses it on every receipt.
+        connection.send_result(msg["id"], data)
+    except Exception as err:
+        _LOGGER.error("[HO-DASH] %s", err)
+        connection.send_result(msg["id"], {"error": "dashboard_failed"})
+
+
 @websocket_api.async_response
 async def websocket_draw_item_icon(hass, connection, msg):
+    # [MODIFIED v2026.9.22] Two kinds of target, one drawing path.
+    #
+    # An item is named by its id. A room or a shelf has no id - it is a name
+    # in a level column, and its picture lives on a hidden marker row - so it
+    # arrives as a name and a path and is resolved here. Everything after
+    # this point is identical for both, which is the point: there is one
+    # place that talks to the model and one that writes the result.
     item_id = msg.get("item_id")
-    naming = await async_get_item_naming(hass, item_id)
-    if not naming:
+    folder_name = str(msg.get("folder_name") or "").strip()
+    if item_id:
+        kind = "item"
+        naming = await async_get_item_naming(hass, item_id)
+        subject = (naming or {}).get("name") or ""
+    elif folder_name:
+        kind = "place"
+        item_id = await async_folder_marker_id(hass, folder_name,
+                                               msg.get("current_path"))
+        naming = {"name": folder_name} if item_id else None
+        subject = folder_name
+    else:
+        naming = None
+        subject = ""
+        kind = "item"
+    if not naming or not item_id:
         connection.send_result(msg["id"], {"error": "unknown_item"})
         return
 
@@ -1361,14 +1654,14 @@ async def websocket_draw_item_icon(hass, connection, msg):
     description = str(msg.get("description") or "").strip()
     description = description[:DRAW_ICON_MAX_DESCRIPTION]
     if not description:
-        description = naming["name"]
+        description = subject
 
     entries = hass.config_entries.async_entries(DOMAIN)
     if not entries:
         connection.send_result(msg["id"], {"error": "no_ai"})
         return
 
-    prompt = get_icon_draw_prompt(naming["name"], description)
+    prompt = get_icon_draw_prompt(subject, description, kind)
     res_text, err = await safe_smart_router(hass, entries[0], prompt)
     if err or not res_text:
         # The message is logged, not returned. A provider error can carry a
@@ -2169,12 +2462,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             connection.send_result(msg["id"], data)
         except Exception as err:
             _LOGGER.error("list_receipts failed: %s", err)
-            connection.send_result(msg["id"], {"receipts": [], "vendors": [], "totals": {}})
+            connection.send_result(msg["id"], {"receipts": [], "vendors": [],
+                                               "totals": {}})
 
     try:
         websocket_api.async_register_command(hass, websocket_list_receipts)
     except Exception:
         pass
+
 
     try:
         websocket_api.async_register_command(
@@ -2244,8 +2539,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             websocket_draw_item_icon,
             websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend({
                 vol.Required("type"): WS_DRAW_ICON,
-                vol.Required("item_id"): vol.Any(int, cv.string),
+                vol.Optional("item_id"): vol.Any(int, cv.string),
+                vol.Optional("folder_name"): vol.Any(str, None),
+                vol.Optional("current_path"): vol.Any([str], None),
                 vol.Optional("description"): vol.Any(str, None),
+            })
+        )
+    except Exception: pass
+
+    # [ADDED v2026.9.22] Declared, handled and called together (RULE 33a.2).
+    try:
+        websocket_api.async_register_command(
+            hass,
+            WS_DASHBOARD,
+            websocket_dashboard,
+            websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend({
+                vol.Required("type"): WS_DASHBOARD,
+                vol.Optional("year"): vol.Any(int, None),
+                vol.Optional("expiry_days"): vol.Any(int, None),
             })
         )
     except Exception: pass

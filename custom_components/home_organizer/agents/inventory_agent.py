@@ -12,27 +12,20 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
-# // [MODIFIED v2026.9.20 | 2026-09-20] Purpose: Rule 4b's examples carry
-# // fills, because the model copies the example far more reliably than it
-# // follows the prose above it. Same release as the ICON_DRAW_RULES rewrite
-# // in prompt_core - an example showing bare outlines would have undone it.
-# // [MODIFIED v2026.9.20 | 2026-09-20] Purpose: A receipt scan never stops
-# // to ask about a category. Rule 3a files an item nothing fits under the
-# // NEAREST existing category and returns the name it WOULD have opened in
-# // "suggest_category"; rule 3c forbids answering "clarify" for anything to
-# // do with filing, which used to replace a fifty-line receipt with one
-# // question about one guitar. Nothing is created by the scan - the review
-# // tab shows the proposal with a button, and pressing it is the explicit
-# // user action RULE 22 requires.
-# // [MODIFIED v2026.9.20 | 2026-09-20] Purpose: The receipt prompt gets
-# // the shipped icon list back. It still CHOOSES an icon rather than
-# // drawing one - a receipt is read in one call carrying every line on
-# // the page, so a drawing per line multiplies the size of the single
-# // answer the whole scan depends on - but the list it chooses from had
-# // been cut down to categories for the drawing path above, leaving it
-# // picking from nothing. Same release: the drawing rules moved to
-# // prompt_core.ICON_DRAW_RULES, so the Change Icon button and this
-# // prompt cannot drift apart (RULE 33d).
+# // [ADDED v2026.9.22 | 2026-09-22] Purpose: get_reconcile_prompt - the
+# // second pass, used only when the product lines and the printed total
+# // disagree. A discount on its own line is easy to read past, and then
+# // the basket costs more than the till charged; that error is permanent
+# // once it reaches purchase_history. The prompt carries the arithmetic
+# // already done and asks for index/price pairs and nothing else. What
+# // comes back is kept only if it moves the sum closer to the total, so
+# // the rule telling it not to invent a price is guidance and the
+# // subtraction in __init__.py is the control (RULE 7, RULE 11).
+# // [MODIFIED v2026.9.22 | 2026-09-22] Purpose: The receipt prompt asks
+# // what the money went ON, chosen from the expense list and nothing else,
+# // and says plainly that a receipt with no products is still a receipt -
+# // fuel, a meal, a hotel - so it must return an empty items array rather
+# // than inventing lines to fill it.
 
 import json
 import logging
@@ -196,7 +189,60 @@ You MUST return ONLY a JSON object in this format:
 JSON ONLY:"""
 
 
-def get_invoice_prompt(target_lang, existing_locs_str, existing_cats_str, user_message):
+# [ADDED v2026.9.22] Second pass: the lines do not add up to the total.
+#
+# A discount is often printed on its own line, or under the item, and a
+# reader that takes the larger number gives the basket a price the till
+# never charged. The receipt total is the one figure on the page that is
+# not in dispute, so it is the test.
+#
+# This prompt goes back to the SAME images with the arithmetic already
+# done, because "check your work" without the numbers produces another
+# guess. What comes back is a list of index/price pairs and nothing else -
+# no items, no receipt, no free text that could become an instruction. The
+# reply is then checked by arithmetic before any of it is used: the rule
+# below asking it not to invent a price is guidance, not the control
+# (RULE 7, RULE 11).
+def get_reconcile_prompt(lines_summary, lines_total, receipt_total, currency):
+    """Ask what is wrong when the product lines and the total disagree."""
+    code = currency or ""
+    gap = round(float(lines_total) - float(receipt_total), 2)
+    direction = (
+        "The lines add up to MORE than was paid, so at least one line is "
+        "missing its discount or was read at the shelf price."
+        if gap > 0 else
+        "The lines add up to LESS than was paid, so a line is missing "
+        "entirely or one was read too cheaply."
+    )
+    return (
+        "You read this receipt a moment ago. The numbers do not balance.\n\n"
+        f"Your product lines add up to {lines_total} {code}.\n"
+        f"The receipt total is {receipt_total} {code}.\n"
+        f"The difference is {abs(gap)} {code}. {direction}\n\n"
+        "These are the lines you returned, by index:\n"
+        f"{lines_summary}\n\n"
+        "Look at the document again and find WHICH LINE is wrong. A "
+        "discount printed on its own line belongs to the item above it. A "
+        "multi-buy price replaces the shelf price, it is not subtracted "
+        "from it.\n\n"
+        "RULES:\n"
+        "1. price is the corrected price of ONE UNIT, after the discount.\n"
+        "2. index is the number shown beside the line above.\n"
+        "3. Correct only lines you can actually SEE are wrong on the "
+        "document. Never adjust a price merely to make the total match - a "
+        "wrong answer here is written into the price history permanently "
+        "and is worse than no answer.\n"
+        "4. If the difference is not a line price at all - a deposit, a "
+        "carrier bag, a rounding, a coupon applied to the whole basket - "
+        "return an empty list and say so in the note.\n\n"
+        "OUTPUT JSON ONLY, no markdown, exactly this shape:\n"
+        '   {"fixes": [{"index": <number>, "price": <number>}], '
+        '"note": "<one short sentence>"}\n'
+    )
+
+
+def get_invoice_prompt(target_lang, existing_locs_str, existing_cats_str,
+                       user_message, expense_cats_str="(none)"):
     """Build the receipt-analysis prompt.
 
     [MODIFIED v2026.9.4 | STAGE 2] The prompt now asks for two levels instead
@@ -273,6 +319,25 @@ def get_invoice_prompt(target_lang, existing_locs_str, existing_cats_str, user_m
         # model would have called a new one travels with it as a note. Nothing
         # is created here - the user presses a button in the review tab, which
         # is the explicit action RULE 22 requires.
+        "3d. WHAT THE MONEY WENT ON. Every receipt gets one "
+        "\"expense_category\", chosen from this list and nothing else:\n"
+        f"{expense_cats_str}\n"
+
+        "This is not the shelf the items sit on - it is what the spending was "
+        "FOR. A supermarket run is Groceries even though its items go to six "
+        "different shelves. A tank of fuel is Fuel, a hotel night is Travel, a "
+        "meal out is Restaurants, face creams and make-up are Cosmetics.\n"
+
+        "Copy a value EXACTLY as it is listed. If none fits, return an empty "
+        "string - it is filed as unknown and the user can set it. Never invent "
+        "one: two spellings of the same thing become two bars on a chart that "
+        "should have been one.\n"
+
+        "3e. A RECEIPT WITH NO PRODUCTS IS STILL A RECEIPT. Fuel, a meal, a "
+        "hotel, a service call - there is nothing to put on a shelf, so return "
+        "\"items\": [] and fill in the receipt object as usual. Do NOT invent "
+        "line items to fill an empty array.\n"
+
         "3c. NEVER ASK ABOUT A CATEGORY. Do not return \"clarify\" because a "
         "category or a sub-category is missing or unclear, and do not ask the "
         "user anything about filing. ALWAYS return the items. \"clarify\" is "
@@ -359,7 +424,7 @@ def get_invoice_prompt(target_lang, existing_locs_str, existing_cats_str, user_m
         '       "message": "<Short success sentence>",\n'
         '       "receipt": {"receipt_number": "<string|null>", "vendor": "<store name|null>", '
         '"purchase_date": "<YYYY-MM-DD|null>", "total_amount": <number|null>, '
-        '"currency": "<ISO 4217 code|null>"},\n'
+        '"currency": "<ISO 4217 code|null>", "expense_category": "<exactly one value from the list above, or empty>"},\n'
         '       "items": [{"name": "...", "qty": <number>, "price": <number|null>, '
         '"barcode": "<string|null>", "category": "...", "sub_category": "...", '
         '"location_id": "...", "icon_key": "...", "new_sub_category": <true|false>, '

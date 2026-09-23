@@ -1,3 +1,6 @@
+# [ADDED v2026.9.22 | 2026-09-22] Purpose: DEFAULT_EXPENSE_CATEGORIES, the
+#   seed for db_expense_categories. Separate from the item shelves on
+#   purpose: a tank of fuel is not a place anything sits.
 # [ADDED v2026.9.19] Seed data for db_items_categories.
 #
 # This is the exact content and ordering of the old frontend
@@ -161,4 +164,39 @@ DEFAULT_CATEGORIES = [
     ('Toys', 'Stuffed Animals', 'Units', 22, 13),
     ('Toys', 'Educational', 'Units', 22, 14),
     ('Toys', 'STEM Toys', 'Units', 22, 15),
+]
+
+
+# [ADDED v2026.9.22] Seed data for db_expense_categories.
+#
+# WHAT THESE ARE, AND WHY THEY ARE NOT THE OTHER LIST.
+#
+# db_items_categories holds SHELVES - Food > Dairy - and every row is a
+# place an object can sit. These are what money was spent ON, and most of
+# them hold nothing at all: a tank of fuel and a night in a hotel leave no
+# object behind. Two taxonomies that look alike and answer different
+# questions; merging them would put 'Fuel' in a location picker.
+#
+# Every receipt gets one, not only the ones with no items - a grocery run
+# is 'Groceries'. A breakdown that covers only the service receipts looks
+# complete and is not, which is worse than no chart at all.
+#
+# The order is the order they appear in. Cosmetics sits second because in
+# this house it is second, and a list whose top is wrong gets re-sorted by
+# hand on the first day.
+#
+# Written once, on first run. After that the table is the source of truth
+# and this list is never read again, so an update cannot overwrite a
+# category the user renamed (RULE 21, RULE 22).
+DEFAULT_EXPENSE_CATEGORIES = [
+    ('Groceries', 0),
+    ('Cosmetics', 1),
+    ('Fuel', 2),
+    ('Restaurants', 3),
+    ('Travel', 4),
+    ('Health', 5),
+    ('Home', 6),
+    ('Utilities', 7),
+    ('Clothing', 8),
+    ('Other', 9),
 ]

@@ -1,13 +1,13 @@
 /* Home Organizer CSS - Ver 7.7.33 */
-/* [ADDED v2026.9.20 | 2026-09-20] Purpose: A phone block for the Change
-   Icon window. It had three nested scrolling areas and 165px of category
-   tiles above the first icon; it is now a fixed 92vh box whose icon grid
-   is the only thing that scrolls. Same release: the AI button stopped
-   taking a row of its own, because its label is two letters now. */
-/* [ADDED v2026.9.20 | 2026-09-20] Purpose: .ai-icon-row - the Draw with
-   AI row on the Change Icon window. min-width:0 on the input is what
-   stops a flex child refusing to shrink below its content and pushing
-   the button off a phone screen. */
+/* [MODIFIED v2026.9.22 | 2026-09-22] Purpose: .title-box keeps room for
+   the FAB, which now starts in the top bar. Padding on the side the
+   button is anchored to, plus min-width:0 and an ellipsis - without those
+   a long room name ignores the padding and runs under the button. */
+/* [ADDED v2026.9.22 | 2026-09-22] Purpose: The pale fills take a darker
+   value on the dark theme. The contour is drawn in currentColor, which is
+   WHITE there, so a white-filled shape had a white outline on a white body
+   and every interior line disappeared - a fridge became a blob. The fill
+   was never fighting the page; it was fighting its own outline. */
 
 :host { 
     --primary: #03a9f4; --accent: #4caf50; --danger: #f44336; --warning: #ffeb3b; --icon-btn-bg: #444;
@@ -21,6 +21,11 @@
     --bg-icon-box: #3c4043; --text-icon-box: #8ab4f8;
     --catalog-bg: #ff9800; --catalog-text: #fff;
     --chat-bg: #111; --chat-msg-user: #004d40; --chat-msg-ai: #263238;
+    /* [ADDED v2026.9.22] The FAB's ring while it is CLOSED. Two values, not
+       one: a light green that reads on the dark body is too pale on the
+       white one, so the light theme takes it a couple of steps deeper. The
+       open and busy states keep their own colours and do not use these. */
+    --fab-ring: #5ddf8a; --fab-ring-soft: rgba(93,223,138,0.28);
 }
 .light-mode {
     --bg-body: #f5f5f5; --bg-bar: #ffffff; --bg-sub-bar: #f0f0f0;
@@ -31,6 +36,7 @@
     --border-color: #ddd; --border-light: #ccc; --border-input: #ccc;
     --icon-btn-bg: #e0e0e0;
     --bg-badge: #e0e0e0; --text-badge: #000000;
+    --fab-ring: #2f9e52; --fab-ring-soft: rgba(47,158,82,0.30);
     --bg-icon-box: #e0e0e0; --text-icon-box: #03a9f4;
     --chat-bg: #fff; --chat-msg-user: #e0f2f1; --chat-msg-ai: #eceff1;
 }
@@ -38,13 +44,33 @@
 
 /* [ADDED v2026.9.16] Combined height of .top-bar (60px) + .sub-bar (30px).
    Both are border-box, so these are their full heights including borders.
-   Any position:fixed panel must start BELOW this, or it covers the Home and
-   Edit buttons - which is exactly what the docked Sous-Chef column did. It
-   lives here, next to the two rules it is derived from, so the number cannot
-   drift away from them unnoticed. */
+   Any position:fixed panel measured against the VIEWPORT must start below
+   this, or it covers the Home and Edit buttons.
+
+   [MODIFIED v2026.9.22] Its one reader has gone. The Sous-Chef column is
+   measured against #content now rather than the viewport - #content already
+   begins under both bars - so the offset is zero and no token is needed.
+   The value is kept because it is the correct answer for the next overlay
+   that IS viewport-measured, and it lives beside the two rules it is
+   derived from so the number cannot drift away from them unnoticed. */
 :host { --ho-chrome-h: 90px; }
 
-.app-container { background: var(--bg-body); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; font-family: sans-serif; }
+/* [ADDED v2026.9.22] position:relative, so the FAB can be measured against
+   the PANEL instead of the browser window.
+
+   The FAB was position:fixed, and fixed is measured against the viewport -
+   whose left edge is Home Assistant's sidebar. left:30px put the button
+   behind it and it vanished; right:30px happened to clear it, which is why
+   only one of the two sides ever worked, in either language.
+
+   relative and NOT a transform: relative re-parents ABSOLUTE descendants
+   only. Every modal in this panel is position:fixed and keeps covering the
+   whole window exactly as it does today - a transform here would have
+   quietly re-homed all of them too.
+
+   #app does not scroll - .content inside it does - so an absolute child
+   stays put on screen just as a fixed one did. */
+.app-container { position: relative; background: var(--bg-body); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; font-family: sans-serif; }
 svg { width: 24px; height: 24px; fill: currentColor; }
 .top-bar { background: var(--bg-bar); padding: 10px; border-bottom: 1px solid var(--border-color); display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-shrink: 0; height: 60px; position: relative; }
 .sub-bar { background: var(--bg-sub-bar); height: 30px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
@@ -68,9 +94,24 @@ svg { width: 24px; height: 24px; fill: currentColor; }
 .dropdown-item svg { width: 18px; height: 18px; opacity: 0.8; }
 .back-btn { font-weight: bold; color: var(--primary); }
 .back-btn:hover { color: white; }
-.title-box { flex: 1; text-align: center; }
-.main-title { font-weight: bold; font-size: 16px; }
-.sub-title { font-size: 11px; color: var(--text-sub); direction: ltr; } 
+/* [MODIFIED v2026.9.22] Room kept for the FAB, which now starts its life in
+   this bar.
+
+   The padding is on the side the button is on, and that side is physical:
+   the FAB is anchored right in Hebrew and left in English, the same
+   #app.ltr pattern it uses itself (RULE 33b - .rtl and [dir] select nothing
+   in this panel). The text is centred inside what is left, so it moves away
+   from the button instead of under it.
+
+   min-width:0 and the ellipsis go with it. A flex child will not shrink
+   below its content unless told it may, so without them a long room name
+   ignores the padding, overflows the box and runs under the button anyway
+   (RULE 36). The FAB is draggable, so this only guards its starting place -
+   which is the one place it is guaranteed to be. */
+.title-box { flex: 1; text-align: center; min-width: 0; padding-right: 56px; }
+#app.ltr .title-box { padding-right: 0; padding-left: 56px; }
+.main-title { font-weight: bold; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sub-title { font-size: 11px; color: var(--text-sub); direction: ltr; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .content { flex: 1; padding: 15px; overflow-y: auto; }
 
 /* [ADDED v2026.9.20] An icon the assistant drew for an item.
@@ -78,7 +119,55 @@ svg { width: 24px; height: 24px; fill: currentColor; }
    of whatever text sits beside it, which is the only way one drawing reads
    on the light theme and the dark one. The box sizes it; the drawing fills
    the box. */
-.ho-item-icon { width: 100%; height: 100%; display: block; }
+/* [MODIFIED v2026.9.20] The drawn icon carries its own INK colour.
+
+   A drawn icon inherited currentColor from .item-icon, which is
+   var(--primary) - so every contour came out cyan, and a red tomato got a
+   cyan edge. --text-main is the right one: it is the colour text is drawn
+   in, dark on the light theme and light on the dark one, which is exactly
+   what a contour needs. Only the FILLS are fixed colours; see item-icon.js.
+
+   This is a rule on the SVG itself, not on the box around it, so it beats
+   inheritance from .item-icon whatever that says - .ho-item-icon is put
+   there by itemIconFromSpec and appears on nothing else, so no library icon
+   is touched. */
+.ho-item-icon { width: 100%; height: 100%; display: block; color: var(--text-main); }
+/* The enlarge overlay is rgba(0,0,0,0.95) in BOTH themes, so its contour is
+   white in both - the one place --text-main would be wrong on light. */
+#overlay-icon-big .ho-item-icon { color: #fff; }
+
+/* [ADDED v2026.9.22] The pale fills get a darker value on the dark theme.
+
+   WHY AN ICON BECAME A WHITE BLOB. The contour is drawn in the ink role,
+   which is currentColor - white on the dark theme. A shape filled 'white'
+   therefore had a WHITE outline on a WHITE body, and every interior line
+   that made it a fridge rather than a box vanished into the fill. On the
+   light theme the same drawing is fine, because there the contour is dark.
+
+   So the problem was never the fill against the page - it was the fill
+   against its own outline. These values are mid-tone enough for the white
+   contour to read on them and still say 'a pale object' to the eye.
+
+   Done in CSS rather than in the SVG because a presentation attribute is
+   the weakest thing in the cascade: any selector beats it, with no var()
+   and nothing that can fail to parse. spec-draw.js puts the role on the
+   shape as data-f; the colour itself stays on the element as the value
+   that works when no rule here applies.
+
+   Dark is this panel's default - .light-mode is the opt-in - so the dark
+   values are the base and the light theme puts its own back. */
+.ho-item-icon [data-f="white"] { fill: #8e979e; }
+.ho-item-icon [data-f="cream"] { fill: #a8945f; }
+.ho-item-icon [data-f="gold"]  { fill: #c08f1d; }
+.light-mode .ho-item-icon [data-f="white"] { fill: #f2f2f2; }
+.light-mode .ho-item-icon [data-f="cream"] { fill: #ead9ae; }
+.light-mode .ho-item-icon [data-f="gold"]  { fill: #dfa42a; }
+
+/* The enlarge overlay is near-black in BOTH themes, so it takes the dark
+   values even when the panel is on the light theme. */
+#overlay-icon-big .ho-item-icon [data-f="white"] { fill: #8e979e; }
+#overlay-icon-big .ho-item-icon [data-f="cream"] { fill: #a8945f; }
+#overlay-icon-big .ho-item-icon [data-f="gold"]  { fill: #c08f1d; }
 
 /* The delete control under an enlarged photograph. Sized for a thumb, and
    marked as destructive without shouting - it sits over the picture it is
@@ -386,62 +475,19 @@ summary.debug-summary:hover { background: #222244; }
 .fab-draggable-active { cursor: grab; touch-action: none; user-select: none; }
 .fab-draggable-active:active { cursor: grabbing; }
 
-/* --- [MODIFIED v7.7.38] Perfect FAB Button Alignment and Logic --- */
+/* [MODIFIED v2026.9.22] The FAB's layout lives in ONE place now, and it is
+   the <style> block in organizer-ui.js, next to the rest of the button.
 
-.fab-menu {
-    display: flex;
-    flex-direction: column;
-    align-items: center; 
-    width: 60px;         
-    gap: 12px;
-    opacity: 0;
-    visibility: hidden;
-    transform: translateY(20px) scale(0.8);
-    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    transform-origin: bottom center;
-}
+   What was here fought it. .fab-menu pinned the column to width:60px and
+   centred it, .fab-item-wrapper was a fixed 50x50 box, and .fab-tooltip
+   floated the label beside the circle with position:absolute - all of it
+   sized for a column of circles. The menu is a stack of rectangles now, each
+   one as wide as its own label, so none of those measurements can hold.
 
-.fab-item-wrapper {
-    position: relative; 
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    width: 50px;
-    height: 50px;
-}
+   .fab-tooltip is gone from the markup too: the label is inside the button
+   as .fab-label, which is what makes the whole rectangle pressable. Three
+   rules for a class that no element carries would have sat here looking
+   authoritative and doing nothing (RULE 33d).
 
-/* Tooltip Base */
-.fab-tooltip {
-    background: var(--bg-card, #333);
-    color: var(--text-main, #fff);
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 500;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    white-space: nowrap;
-    border: 1px solid var(--border-light, #444);
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    pointer-events: none;
-    z-index: 1001;
-}
-
-/* 5. Tooltip Positioning: RTL (Hebrew - Default) */
-/* FAB is on the left side of screen -> Text goes on the RIGHT side of the button */
-.fab-tooltip {
-    right: 100%;
-    left: auto;
-    margin-left: 15px;
-    margin-right: 0;
-}
-
-/* 6. Tooltip Positioning: LTR (English) */
-/* FAB is on the right side of screen -> Text goes on the LEFT side of the button */
-.ltr .fab-tooltip, #app.ltr .fab-tooltip {
-    left: 100%;
-    right: auto;
-    margin-right: 15px;
-    margin-left: 0;
-}
+   The two rules that survive are about DRAGGING, not layout, and they stay
+   above this comment where they were. */

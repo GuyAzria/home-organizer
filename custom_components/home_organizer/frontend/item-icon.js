@@ -52,7 +52,7 @@
 //    quality - but it means the drawing has to be designed for the LARGE
 //    view, and stroke widths are in viewBox units so they shrink with it.
 
-import { shapesFromSpec } from './spec-draw.js?v=2026.9.20';
+import { shapesFromSpec } from './spec-draw.js?v=2026.9.22';
 
 // THE PALETTE. A role name in, a colour out.
 //

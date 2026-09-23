@@ -11,14 +11,23 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
-// [MODIFIED v2026.9.20 | 2026-09-20] Purpose: A review card shows the
-//   scanner's category proposal as a note with two answers - Create, which
-//   opens the category and files the item into it, and Not now, which only
-//   clears the note. The scan itself no longer asks: one guitar on a
-//   fifty-line receipt used to replace the whole list with a question
-//   (RULE 22). Only the item id travels through the handler string; the
-//   proposed name is read from the item by the method.
-// [MODIFIED v10.0.10 | 2026-04-17] Purpose: Stripped ?v= backend timestamps from pending review card renders to prevent caching loops.
+// [FIXED v2026.9.22 | 2026-09-22] Purpose: A store header in the receipts
+//   archive was cut off on a phone. The caller builds the tab body as a
+//   flex COLUMN, so every header and every row in it is a flex item, and a
+//   flex item shrinks when the column overflows - which the scrolling list
+//   always does. Only a phone showed it: that is the width where a chain
+//   name wraps to a second line, so the header wants about 45px, is
+//   squeezed back to the 35px .group-separator sets as its minimum, and
+//   loses the bottom of both lines. The list is a stack of blocks that
+//   scrolls and never wanted a flex context at all, so it no longer has
+//   one; the column belongs to the review tab and stays there.
+// [MODIFIED v2026.9.22 | 2026-09-22] Purpose: The receipts archive is left
+//   alone on purpose. A per-store spending bucket was built here and then
+//   removed in the same release: one supermarket receipt is tomatoes AND a
+//   toy AND sunscreen, so no single answer at the receipt level is a true
+//   one. The breakdown is summed from the product lines instead, where the
+//   category already lives. Receipts keep being stored without a bucket
+//   and grouped by store, which is what this screen was already doing.
 
 import { ICONS } from '../organizer-icon.js?v=10.0.10';
 import { escapeHtml, formatAiText } from '../organizer-utils.js?v=2026.8.26';
@@ -47,7 +56,7 @@ export const ChatMixin = (Base) => class extends Base {
       // queue and the receipts archive.
       tabContainer.innerHTML = `<div class="shop-tab ${!this.isReceiptsMode ? 'active' : ''}" id="ai-tab-review">${escapeHtml(this._t('review_tab', 'AI Receipts Exports'))} ${pendingCount > 0 ? `<span class="shop-badge">${pendingCount}</span>` : ''}</div><div class="shop-tab ${this.isReceiptsMode ? 'active' : ''}" id="ai-tab-receipts">${escapeHtml(this._t('receipts_tab', 'Receipts'))}</div>`;
       content.appendChild(tabContainer);
-      tabContainer.querySelector('#ai-tab-review').onclick = () => { this.isReviewMode = true; this.isChatMode = false; this.isReceiptsMode = false; this.fetchData(); };
+      tabContainer.querySelector('#ai-tab-review').onclick = () => { this.isReviewMode = true; this.isChatMode = false; this.isReceiptsMode = false; this.isDashboardMode = false; this.fetchData(); };
       tabContainer.querySelector('#ai-tab-receipts').onclick = () => {
         this.isReceiptsMode = true; this.isChatMode = false; this.isReviewMode = false;
         this.loadReceipts();
@@ -625,6 +634,24 @@ export const ChatMixin = (Base) => class extends Base {
   renderReceiptsTable(container) {
     container.style.padding = '0 15px 15px 15px';
     container.style.overflowY = 'auto';
+    // [FIXED v2026.9.22] block, because the caller made this a flex COLUMN.
+    //
+    // Every child of a column flex container is a flex ITEM, and a flex item
+    // shrinks when the column overflows - which this one always does, since
+    // it is the scrolling list. So each store header and each receipt row
+    // was being squeezed below the height its own text needed, and the text
+    // was cut off inside it.
+    //
+    // It only showed on a phone: that is the width where a chain name wraps
+    // onto a second line, so the header needs about 45px, gets squeezed back
+    // to the 35px min-height .group-separator sets, and loses the bottom of
+    // both lines. On a wider screen the name fits on one line, the natural
+    // height is under 35px, and there was nothing to squeeze.
+    //
+    // Nothing here wants to be a flex item - this is a list of blocks that
+    // scrolls. The column belongs to the review tab, which uses margin-top
+    // auto to push its bar to the bottom.
+    container.style.display = 'block';
     const data = this.receiptsData || { receipts: [], vendors: [], totals: {} };
     const f = this.receiptFilters || {};
 
@@ -697,9 +724,13 @@ export const ChatMixin = (Base) => class extends Base {
         .map(([cur, amt]) => `${escapeHtml(String(amt))} ${escapeHtml(this.currencySymbol(cur))}`)
         .join(' · ');
       gHeader.innerHTML = `
-        <span style="font-size:14px;">${gCollapsed ? '&#9656;' : '&#9662;'}</span>
-        <span style="flex:1;font-weight:bold;">${escapeHtml(group.label || this._t('receipt_no_vendor', 'Unnamed receipt'))}</span>
-        <span style="font-size:11px;color:var(--text-sub);white-space:nowrap;">${escapeHtml(String(group.rows.length))}${totalsHtml ? ' · ' + totalsHtml : ''}</span>`;
+        <span style="font-size:14px;flex:0 0 auto;">${gCollapsed ? '&#9656;' : '&#9662;'}</span>
+        <!-- min-width:0, or this refuses to shrink below its longest word and
+             pushes the count off the end of the row. line-height, because a
+             chain name that wraps to two lines on a phone is two lines that
+             have to be read, not a squeeze. -->
+        <span style="flex:1 1 auto;min-width:0;font-weight:bold;line-height:1.35;">${escapeHtml(group.label || this._t('receipt_no_vendor', 'Unnamed receipt'))}</span>
+        <span style="font-size:11px;color:var(--text-sub);white-space:nowrap;flex:0 0 auto;">${escapeHtml(String(group.rows.length))}${totalsHtml ? ' · ' + totalsHtml : ''}</span>`;
       gHeader.onclick = () => {
         this.collapsedVendors[gkey] = !this.collapsedVendors[gkey];
         this.render();

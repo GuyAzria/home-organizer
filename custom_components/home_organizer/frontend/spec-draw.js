@@ -11,6 +11,12 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [MODIFIED v2026.9.22 | 2026-09-22] Purpose: Each shape carries its colour
+//   ROLE as data-f, not only the colour it resolved to, so a stylesheet can
+//   answer the same role differently per theme. fill= keeps the value that
+//   works when no rule applies - deliberately not a var(), because an
+//   unsupported var() invalidates the whole attribute and the shape falls
+//   back to black.
 // [ADDED v2026.9.20 | 2026-09-20] Purpose: The drawing spec, in one place.
 //   Extracted from pages/recipe-emblem.js, which was the only thing that
 //   could draw one. Item icons need the same core and nothing else about a
@@ -118,7 +124,23 @@ export function shapesFromSpec(spec, palette, limit = MAX_SPEC_SHAPES) {
       ? pal[strokeKey] : (pal.ink || 'currentColor');
     const width = Math.max(0.5, Math.min(6, Number(raw.w) || 2.2));
 
+    // [ADDED v2026.9.22] The ROLE travels with the shape, not just its
+    // colour, so a stylesheet can answer a role differently per theme.
+    //
+    // A presentation attribute is the weakest thing in the cascade - any
+    // real selector beats it - so fill= below stays as the value that
+    // works everywhere and CSS may override it where a theme needs to.
+    // No var() in the attribute: an unsupported var() invalidates the whole
+    // attribute and the shape falls back to black, which is a far worse
+    // failure than a colour that is merely not ideal.
+    //
+    // The role name is one of SPEC_COLOR_KEYS, checked above - it is never
+    // a string that arrived from the model.
+    const fillRole = Object.prototype.hasOwnProperty.call(pal, fillKey)
+      ? fillKey : 'none';
+
     attrs.push(`fill="${fill}"`, `stroke="${stroke}"`,
+      `data-f="${fillRole}"`,
       `stroke-width="${width}"`, 'stroke-linecap="round"',
       'stroke-linejoin="round"');
     out.push(`<${kind} ${attrs.join(' ')}/>`);

@@ -1287,15 +1287,35 @@ button.cookbook-emblem-plate:focus-visible {
   /* The wrap becomes the positioning context for the docked column. */
   .cookbook-wrap { position: relative; }
 
+  /* [FIXED v2026.9.22] The column docks into the PANEL, not the window.
+
+     position:fixed is measured against the viewport, and on a desktop the
+     viewport starts behind Home Assistant's sidebar - so a column at
+     inset-inline-start:0 sat on top of it. An ancestor carrying a transform
+     becomes the containing block for its fixed descendants, and #content is
+     the box we want: it starts where the panel's bars end and where the
+     sidebar stops, so the column now begins level with the bar above it.
+
+     translateZ(0) and not `position:relative`: relative only re-parents
+     ABSOLUTE descendants. A fixed one needs a transform, a filter or
+     containment to be caught.
+
+     .dock-host is put on #content by updateUI while the cookbook is the
+     open screen and taken off when it is not, so no other view carries a
+     transform - and with it a new stacking context - that it never needed.
+
+     #content is also the scroller. A fixed element held by a transformed
+     scroll container does NOT scroll with the content, which is the whole
+     point of a dock. */
+  .content.dock-host { transform: translateZ(0); }
+
   .cookbook-souschef {
     position: fixed;
-    /* [FIXED v2026.9.16] Was top: 0, which put the column over the whole
-       viewport height - it covered the main bar and the sub-bar, hiding the
-       Home button on one side and the Edit button on the other. The column
-       now starts below the panel chrome. The fallback matters: if the token
-       ever goes missing the column drops below the bars rather than back on
-       top of them. */
-    top: var(--ho-chrome-h, 90px);
+    /* Against #content's padding box now, so zero is the top of the panel's
+       content area - the bars are already above it and --ho-chrome-h is no
+       longer the right measurement. The 15px of padding on .content shows
+       as a small gap around the column, which reads as deliberate. */
+    top: 0;
     bottom: 0;
     /* Logical, not left/right: Home Assistant sets dir="rtl" on the document
        and the shadow tree inherits it, so this resolves to the RIGHT in

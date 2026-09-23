@@ -11,6 +11,13 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [MODIFIED v2026.9.22 | 2026-09-22] Purpose: Rooms and locations can be
+//   drawn from a sentence too, not only items. The row was hidden for them
+//   on the reasoning that a place has no object to draw - but a workshop, a
+//   nursery and a wine rack are not in the shipped set either, and the
+//   drawing path does not care what the subject is. A folder has no id, so
+//   it is sent as a name and the path it sits on and the backend resolves
+//   that to the marker row that holds its picture.
 // [MODIFIED v2026.9.20 | 2026-09-20] Purpose: drawIconWithAi asks the
 //   assistant to draw THIS item, from a sentence the user typed. It is the
 //   repair for an icon that landed wrong: the voice path draws as it adds,
@@ -58,16 +65,21 @@ export const IconsMixin = (Base) => class extends Base {
     this.pickerContext = context;
     this.renderIconPickerGrid();
 
-    // [ADDED v2026.9.20] The AI row belongs to items only. A room or a shelf
-    // is a place; there is no object to draw, and the folder icons are a
-    // small closed set the library covers properly.
+    // [MODIFIED v2026.9.22] Rooms and locations can be drawn too.
+    //
+    // The row was items only, on the reasoning that a place has no object to
+    // draw and the shipped folder icons cover it. They do not: a workshop, a
+    // nursery, a wine rack are not in that set either, and the drawing path
+    // does not care what the subject is - it takes a sentence and returns
+    // shapes. The only thing that changes is the noun the prompt uses.
     const aiRow = this.shadowRoot.getElementById('ai-icon-row');
     if (aiRow) {
-      aiRow.style.display = (context === 'item') ? 'flex' : 'none';
+      aiRow.style.display = 'flex';
       const desc = this.shadowRoot.getElementById('ai-icon-desc');
       // Prefilled, and left editable. "Milk" draws a carton; the user typing
       // "glass bottle with a blue cap" is the whole point of the field.
-      if (desc) desc.value = this.pendingItemName || '';
+      // For a folder the name IS the subject, and it is all we have.
+      if (desc) desc.value = this.pendingItemName || this.pendingFolderIcon || '';
     }
 
     this.shadowRoot.getElementById('icon-modal').style.display = 'flex';
@@ -275,27 +287,35 @@ export const IconsMixin = (Base) => class extends Base {
   // rebuilds every field before storing it. What comes back is a spec that
   // item-icon.js draws, never markup (RULE 7, RULE 15).
   async drawIconWithAi() {
+    // An item is named by its id; a room or a shelf by its name and the path
+    // it sits on, because a folder has no id of its own - the backend
+    // resolves that to the marker row that holds its picture.
     const itemId = this.pendingItemId;
-    if (!itemId) return;
+    const folderName = itemId ? '' : (this.pendingFolderIcon || '');
+    if (!itemId && !folderName) return;
+    const target = itemId || folderName;
     const descEl = this.shadowRoot.getElementById('ai-icon-desc');
     const description = (descEl && descEl.value ? descEl.value : '').trim();
 
     const btn = this.shadowRoot.getElementById('btn-ai-icon');
     if (btn) btn.disabled = true;
-    this.setLoading(itemId, true);
+    this.setLoading(target, true);
 
     try {
-      const res = await this._hass.callWS({
-        type: 'home_organizer/draw_item_icon',
-        item_id: itemId,
-        description: description
-      });
+      const payload = { type: 'home_organizer/draw_item_icon',
+                        description: description };
+      if (itemId) payload.item_id = itemId;
+      else {
+        payload.folder_name = folderName;
+        payload.current_path = this.currentPath || [];
+      }
+      const res = await this._hass.callWS(payload);
       if (res && res.icon_spec) {
         // Only now is the window closed. A failure leaves it open with the
         // sentence still in the box, because the answer to a drawing that
         // did not work is usually a better description, not starting again.
         this.shadowRoot.getElementById('icon-modal').style.display = 'none';
-        this.refreshImageVersion(itemId);
+        this.refreshImageVersion(target);
         this.fetchData();
       } else {
         // [MODIFIED v2026.9.20] The reason travels with the message.
@@ -320,7 +340,7 @@ export const IconsMixin = (Base) => class extends Base {
       const text = this.t('ai_icon_failed') || 'The assistant could not draw this item.';
       alert(text + '\n\n[' + ((e && (e.message || e.code)) || 'call_failed') + ']');
     } finally {
-      this.setLoading(itemId, false);
+      this.setLoading(target, false);
       if (btn) btn.disabled = false;
     }
   }
