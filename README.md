@@ -112,13 +112,15 @@ Configure the voice keywords that will trigger specific AI actions.
 ### Step 8: Welcome to Home Organizer!
 Once the setup is complete, a new **HO-AI** icon will appear in your Home Assistant sidebar. 
 
+**You do not start from nothing.** A brand new install arrives with a starter layout already in place — *Floor A ➔ Kitchen ➔ Fridge*, with its shelves, the door and the freezer — and with two recipes in every chapter of the cookbook. Rename them, delete them, or build around them. They are written once, on a genuinely new database, and never again, so nothing is ever re-created after you have tidied up.
+
 **No Hidden Menus:** There are no complicated settings screens or hidden menus to learn! The entire interface is designed to be completely intuitive. Simply click the **Pencil icon (✏️)** in the top right corner to enter Edit Mode, and all your management options (adding, renaming, deleting, and changing icons) will instantly appear exactly where you need them. 
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst9.png" width="30%" alt="HO-AI Sidebar Icon">
-  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst10.png" width="60%" alt="Empty Home Organizer Dashboard">
+  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst10.png" width="60%" alt="Home Organizer on first launch">
 </p>
-<p align="center"><i>Click the new HO-AI sidebar icon. On your first launch, the screen will be empty. Click the <b>Pencil icon (✏️)</b> in the top right corner to start creating your rooms and adding items!</i></p>
+<p align="center"><i>Click the new HO-AI sidebar icon. Click the <b>Pencil icon (✏️)</b> in the top right corner to start shaping your rooms and adding items.</i></p>
 
  ### 2. Setting up Zones and Rooms
 To start building your home layout, click the **Pencil Icon (✏️)** in the top right corner of the navigation bar to enter **Edit Mode**.
@@ -145,7 +147,7 @@ While still in **Edit Mode (✏️)**, you can personalize the look of your room
 <p align="center">
   <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst13.png" width="45%" alt="Change Icon Modal">
 </p>
-<p align="center"><i>Click the picture icon (highlighted in red) to open the menu. You can select a beautiful built-in 3D icon, paste a direct image URL, or upload your own custom image!</i></p>
+<p align="center"><i>Click the picture icon (highlighted in red) to open the menu. Pick a built-in icon, paste an image URL, upload your own picture — or press <b>Draw with AI</b> and describe what you want in your own words.</i></p>
  
 ### 8. Setting up the Voice Assistant & HO_Mind_AI
 
@@ -219,9 +221,23 @@ While the core inventory database (SQLite) is 100% local and private, please not
 
 ## ✨ Core Features
 
+### 🏠 Your Home Screen
+* **Spending, a year at a time** — Twelve columns, one per month, with the month you are in drawn in its own colour so you can see whether this one is unusual. Pick a different year from a dropdown that only ever offers years you actually have receipts in.
+* **Where the money went** — A breakdown summed from the individual **product lines** on your receipts, not from the receipts themselves. One supermarket trip is food *and* a toy *and* sunscreen, and filing the whole receipt under "Groceries" would be a comfortable lie. A receipt with no products at all — fuel, a hotel, a restaurant — is filed under its own heading instead.
+* **Needs attention** — The things that are wrong *right now*: items expiring, scans waiting for approval, things out of stock. Rows showing zero are never drawn, so the strip is always worth reading.
+* **Nothing goes missing quietly** — If money is not in the total because a scan is unconfirmed or a receipt has no readable date, the screen says so and how much.
+
+### 👨‍🍳 The Cookbook
+* **A real recipe book** — Chapters, pages that turn, and your own photo of the finished dish on the plate.
+* **Cooks from your inventory** — Ask what you can make and the assistant builds the dish out of what is actually on your shelves, not a recipe you cannot cook tonight. It tells you what you are missing; water, salt, oil and pepper are assumed to be in the house.
+* **Cooks *with* you** — It reads the steps one at a time and **offers** to set a timer when a step has a wait in it. It asks; it never sets timers behind your back.
+* **Rewrite, shorten, translate** — Ask for any of them and you are shown the proposal before anything is saved. Your own handwritten notes are never overwritten.
+
 ### 🤖 Advanced AI Capabilities
 * **Receipt & Invoice Scanning (Visual)** — Snap a photo (multi-page supported) or upload a PDF of your grocery receipt. The AI extracts every item, quantity and price, maps them to your existing home locations, and keeps the receipt itself permanently archived and searchable in the **Receipts** tab.
-* **Auto-Categorization & Icons** — The AI automatically assigns the correct Main Category, Sub-category, Measurement Unit (Kg, Liter, Units), and a beautiful 3D icon to every item it processes.
+* **Receipts that add up** — A discount printed on its own line is easy to read past, and then your basket costs more than the till charged. The scanner adds up the product lines, compares them with the total printed on the receipt, and if they disagree it looks again and proposes a correction — which is only accepted if it brings the total **closer** to the printed one.
+* **Auto-Categorization** — The AI automatically assigns the correct Main Category, Sub-category and Measurement Unit (Kg, Liter, Units) to every item it processes. It never stops a fifty-line receipt to ask about one odd item, and it never creates a new top-level category on its own — it leaves a suggestion with a button, and pressing it is what creates one.
+* **Icons it draws for you** — Instead of picking the nearest thing from a small library, the assistant **draws** each item. Ask for a different one in your own words ("a red electric guitar") and it redraws it. It works for rooms and locations too, and every drawing takes its colours from your theme so it reads in light mode and dark.
 * **Smart "Review" Pipeline** — AI-extracted items go into a secure "Review Tab." Check, edit, confirm, or reject the AI's imports before they are permanently added.
 * **Native Multilingual Support** — The panel, the AI's replies, and everyday speech through Home Assistant's conversation agent all work in English, Hebrew, Arabic, or any other supported language.
 
@@ -240,6 +256,19 @@ While the core inventory database (SQLite) is 100% local and private, please not
 ## 📖 User Manual & Visual Guide
 
 Welcome to Home Organizer! This step-by-step guide will walk you through setting up your home, managing your items, and unleashing the power of the AI Assistant.
+
+### 0. Finding your way around
+
+The **Home button (🏠)** opens your dashboard — the spending chart, the tiles, and the way to every other screen.
+
+* **Change the year** from the dropdown next to *Spending by month*.
+* **On a phone, tap a column** to see that month's exact amount.
+* **Every tile is a button.** *Expiring soon* opens a list of the products **and the shelf each one is on** — knowing the yoghurt expires is no use without knowing where it is.
+* **The room list is still there.** It is the first, full-width button on the dashboard, and it is in the **⊕** menu as *Locations*. Nothing was taken away; it simply is not the first thing you see any more.
+
+The **⊕ button** in the top bar opens everything else: Shopping list, Search, Locations, Receipts, My Recipes, the Barcode scanner and the Stylist. Drag it somewhere else if it is in your way.
+
+The panel also **remembers the screen you were on**. Refresh the page, or answer a phone call and come back, and you are still where you left off.
 
 ### 1. Personalizing Your Settings (Language & Themes)
 Click the **Gear Icon (⚙️)** in the top right corner of the navigation bar.
@@ -265,7 +294,8 @@ Click the **Pencil Icon (✏️)** in the top right to enter **Edit Mode**.
 
 ### 3. Customizing Icons
 While still in **Edit Mode (✏️)**, click the picture icon on the corner of your room folders to open the **Icon Picker**.
-* Browse through hundreds of beautiful 3D icons, or use the **Upload File** button to paste an image URL directly!
+* Browse the built-in icons, or use the **Upload File** button to paste an image URL directly.
+* Or press **Draw with AI**, type what you want in your own words ("a workshop with a bench", "a wine rack"), and the assistant draws it and saves it. This works for rooms, storage locations and individual items alike — useful for anything the built-in set was never going to have.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/4.png" width="48%" alt="Room Editing Options">
@@ -307,12 +337,28 @@ Home Organizer keeps a permanent record of every receipt you scan — not just t
 4. Extracted items land in the **Review** tab for you to check, correct, or reject before they're added to your inventory. Prices and expiry/warranty dates are editable right there.
 5. Once approved, the receipt itself — image or PDF — stays archived and searchable in the **Receipts** tab, grouped by store, with the exact items, quantities and prices from that purchase always one tap away.
 
+**The scan checks its own arithmetic.** A discount is often printed on its own line, or underneath the item, and a reader can take the larger number — then your basket costs more than the till actually charged, and that mistake lives in your price history for good. So the lines are added up and compared with the total printed on the receipt. If they disagree, the document is read again with the sums in front of it and a correction is proposed — and kept **only if it brings the total closer** to the printed one. A "fix" that makes things worse is thrown away.
+
+**It does not interrupt you any more.** A fifty-line receipt used to stop on one odd item to ask where it belonged. Now that item is filed under the nearest category and a suggestion appears on its card in the **Review** tab with a button. Pressing the button is what creates a new top-level category; the scan never creates one by itself.
+
+**Receipts with no products count too.** A tank of fuel, a hotel night, a restaurant bill — there is nothing on them to approve, so they used to sit unconfirmed for ever and never reach a spending total. They are now complete records the moment they are scanned, and they appear on the dashboard under their own heading.
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/22.png" width="24%" alt="Original Receipt/Invoice">
   <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/12.png" width="24%" alt="Receipt ready to scan">
   <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/13.png" width="24%" alt="Sending the receipt for AI processing">
   <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/20.png" width="24%" alt="AI Processed Invoice">
 </p>
+
+### 7b. The Cookbook
+
+Open the **⊕** menu and choose **My Recipes**. A brand new install already has two recipes in every chapter, so there is something to look at from the first day.
+
+* **Browse** by chapter, and turn pages with the arrows.
+* **Ask for a recipe.** Press the assistant button and say what you feel like — *"something for lunch from what I have"*. The dish is built out of your **actual inventory**, so it is something you can cook tonight. It will tell you what you are missing; water, salt, oil and pepper are assumed to be in the house and are never reported missing.
+* **Cook along.** The assistant walks you through the steps one at a time. When a step has a wait in it, it **offers** a timer with a yes/no — it never sets one silently.
+* **Add your own photo.** Press the plate to put a picture of the finished dish on the recipe, and press the picture to see it full screen. A recipe with no photo gets an emblem the assistant designs for that specific dish.
+* **Rewrite, shorten or translate.** Ask, and you are shown the proposal before anything is saved. Your own handwritten notes, prep time and category are never overwritten.
 
 ### 8. Setting up the Voice Assistant & HO-Mind AI
 
