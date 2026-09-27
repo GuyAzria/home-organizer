@@ -1,4 +1,4 @@
-// Home Organizer for Home Assistant
+﻿// Home Organizer for Home Assistant
 // Copyright (C) 2026 Guy Azria
 //
 // This program is free software: you can redistribute it and/or modify it
@@ -11,6 +11,11 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [MODIFIED v2026.9.27 | 2026-09-27] Purpose: Only the cookbook is restored.
+//   A recipe is a place you are in the middle of; every other screen is one tap
+//   away, so coming back to it is at best neutral. Everything that is not the
+//   cookbook now opens the dashboard, with the location path cleared so the
+//   first tap out of it does not follow a stale breadcrumb.
 // [FIXED v2026.9.22 | 2026-09-22] Purpose: A refresh put the user back on
 //   the locations screen instead of the dashboard. isDashboardMode was a
 //   view mode this file had never been told about - absent from initState,
@@ -20,17 +25,6 @@
 //   it like the other eight, which is the half of RULE 33a.1 that had no
 //   symptom yet: the one function whose job is to leave exactly one flag
 //   true could not turn off a flag it did not name.
-// [ADDED v2026.9.20 | 2026-09-20] Purpose: The panel remembers which screen
-//   the user was on. A Home Assistant panel is destroyed on navigating away
-//   and rebuilt from nothing on return, so answering a phone call dropped
-//   the user at the front door with the whole path to walk again.
-//   saveNavState records mode, open recipe, inventory path, shopping tab
-//   and search text; restoreNavState puts them back. Kept in localStorage,
-//   because a position is not user data: it is per device, costs no round
-//   trip, and losing it costs nothing - every read and write is wrapped and
-//   every failure ends at the home screen. applyNavMode sets all eight view
-//   flags in ONE place, so a restored screen cannot leave two of them true
-//   (RULE 33a.1). The barcode scanner is deliberately not restored.
 
 // [ADDED v2026.9.20] Where the user was, kept between visits.
 //
@@ -139,15 +133,40 @@ export const StateMixin = (Base) => class extends Base {
       return;
     }
 
-    // The barcode screen is a live camera, not a view. Coming back from a
-    // phone call to a running scanner is a side effect nobody asked for, so
-    // it restores to the home screen instead.
-    const mode = saved.mode === 'barcode' ? 'home' : saved.mode;
+    // [MODIFIED v2026.9.27] Only the cookbook is worth coming back to.
+    //
+    // A recipe is a place you are in the middle of - half way down the method,
+    // with a pan on the heat - and losing it to a refresh costs something. No
+    // other screen is like that: a shelf, a search, the review queue and the
+    // receipts archive are all one tap from anywhere, so returning to them is
+    // at best neutral and usually not where the user now wants to be.
+    //
+    // Everything that is not the cookbook opens the dashboard. That includes
+    // the barcode screen, which was already excluded for its own reason: it is
+    // a live camera, and coming back from a phone call to a running scanner is
+    // a side effect nobody asked for.
+    //
+    // The cookbook covers both of its screens - the contents, and a recipe
+    // opened from it - because both are recipes mode; the open recipe is the
+    // recipeId picked up below.
+    const isCookbook = saved.mode === 'recipes';
+    const mode = isCookbook ? 'recipes' : 'dashboard';
     this.applyNavMode(mode);
 
-    if (Array.isArray(saved.path)) this.currentPath = saved.path.slice(0, 8);
-    if (Array.isArray(saved.catalogPath)) {
-      this.catalogPath = saved.catalogPath.slice(0, 8);
+    if (isCookbook) {
+      // Kept so that leaving the cookbook returns to where the user was
+      // standing before they opened it.
+      if (Array.isArray(saved.path)) this.currentPath = saved.path.slice(0, 8);
+      if (Array.isArray(saved.catalogPath)) {
+        this.catalogPath = saved.catalogPath.slice(0, 8);
+      }
+    } else {
+      // Cleared deliberately. The dashboard draws the same either way, but the
+      // path underneath it is what the FIRST tap out of the dashboard follows -
+      // and a restored Kitchen > Fridge would send the user somewhere they did
+      // not ask to go. btn-home calls navigate("root") for exactly this reason.
+      this.currentPath = [];
+      this.catalogPath = [];
     }
     if (saved.shopTab) this.shopTab = saved.shopTab;
 
@@ -156,17 +175,11 @@ export const StateMixin = (Base) => class extends Base {
     this._restoreRecipeId = (mode === 'recipes' && saved.recipeId)
       ? saved.recipeId : null;
 
-    // The search box holds its own text - it is a DOM value, not state - so
-    // putting the query back is what makes a restored search show results
-    // rather than an empty list.
-    if (mode === 'search' && saved.query) {
-      try {
-        const el = this.shadowRoot?.getElementById('search-input');
-        if (el) el.value = saved.query;
-      } catch {
-        // Then it restores as an empty search, which is still a search.
-      }
-    }
+    // [REMOVED v2026.9.27] Putting the search text back into the box lived
+    // here. A search is never restored any more, so its guard could not be
+    // true and the block was unreachable. currentNavState still records the
+    // query: it is what makes the saved state change when the text changes,
+    // which is how saveNavState knows something moved.
   }
 
 

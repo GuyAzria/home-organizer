@@ -12,6 +12,19 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
+# // [ADDED v2026.9.27 | 2026-09-27] Purpose: async_find_receipt records its
+# // near misses. When a re-scan is not recognised as the same receipt there is
+# // no way to tell afterwards whether the status filter excluded the row, the
+# // shop name was read differently, or the number was - so every row carrying
+# // that number is logged, whatever its vendor or status. Only the no-match
+# // case is logged, at debug level rather than info - a shop name, a receipt
+# // number and a total are a record of what somebody bought, and the default
+# // log is what gets pasted into bug reports. And a second chance: the
+# // same number with the same total, where one shop name contains the other,
+# // is the same receipt. The model does not transcribe a shop name identically
+# // every time, and because vendor is half the duplicate key neither the
+# // lookup nor the UNIQUE index behind it saw "Rami Levy" and "Rami Levy
+# // Shivuk HaShikma" as one shop - so the same PDF was stored twice.
 # // [MODIFIED v2026.9.22 | 2026-09-22] Purpose: Spending is broken down BY
 # // PRODUCT LINE, not by receipt. One trip to the supermarket is tomatoes,
 # // a toy and a bottle of sunscreen, so no single answer at the receipt
@@ -23,13 +36,6 @@
 # // rather than spread across the categories. receipts.lines_total records
 # // what the lines added up to at scan time, which is how a receipt that
 # // does not balance can be found again.
-# // [MODIFIED v2026.9.22 | 2026-09-22] Purpose: async_get_dashboard_data
-# // reports a YEAR. It took a months window and returned a rolling trend
-# // and a vendor list that nothing ever drew; it now takes the year to
-# // show, returns that year month by month, the same year broken down by
-# // topic, and the list of years that actually have receipts. One month on
-# // its own is a number with nothing to compare it against - the first
-# // house to open the screen had ten receipts and a chart with one bar.
 
 import logging
 import aiosqlite
@@ -992,7 +998,31 @@ def _coerce_text(value, limit=120):
     return text[:limit]
 
 
-async def async_find_receipt(hass, vendor, receipt_number):
+def _vendors_compatible(first, second):
+    """True when two readings of one shop name are plainly the same shop.
+
+    The model does not transcribe a shop name identically every time. The same
+    receipt was stored once as "Rami Levy Shivuk HaShikma" and once, from the
+    same PDF, as "Rami Levy" - and because vendor is half the duplicate key,
+    neither the lookup nor the UNIQUE index that backs it up saw a duplicate.
+
+    One name containing the other is the shape that happens: a suffix dropped,
+    a branch left off. Three characters is the floor, because a shorter string
+    is contained in almost anything.
+
+    This is never used on its own - see the caller, which also demands the same
+    receipt number and the same total before it will call two rows one receipt.
+    """
+    a = " ".join((first or "").split()).casefold()
+    b = " ".join((second or "").split()).casefold()
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    shorter, longer = (a, b) if len(a) <= len(b) else (b, a)
+    return len(shorter) >= 3 and shorter in longer
+
+async def async_find_receipt(hass, vendor, receipt_number, total_amount=None):
     """Return the active receipt matching vendor + number, or None.
 
     Duplicate detection runs in code before anything is written so the user
@@ -1030,6 +1060,81 @@ async def async_find_receipt(hass, vendor, receipt_number):
             ) as cur:
                 row = await cur.fetchone()
             if not row:
+                # [ADDED v2026.9.27] Why a re-scan was not recognised as the
+                # same receipt cannot be worked out afterwards, so the near
+                # misses are recorded: every row carrying this number, whatever
+                # its vendor or status. Only the no-match case is logged, so
+                # this stays silent in normal use.
+                #
+                # It separates the three things that can go wrong. A row here
+                # with the same vendor means the status filter excluded it. A
+                # row with a different vendor means the two readings of the
+                # shop name differ. Nothing here means the number itself was
+                # read differently.
+                #
+                # [MODIFIED v2026.9.27] Debug level, not info. A shop name,
+                # a receipt number and a total are not credentials, but they
+                # are a record of what somebody bought, and a line that
+                # writes them into the default log is a line that ends up
+                # pasted into a bug report. What is worth keeping is whether
+                # a match was found and why not, and that is worth turning
+                # debug on for rather than recording from every scan.
+                try:
+                    async with db.execute(
+                        "SELECT id, vendor, receipt_number, status "
+                        "FROM receipts WHERE receipt_number = ? "
+                        "COLLATE NOCASE LIMIT 5",
+                        (receipt_number,),
+                    ) as near_cur:
+                        near = [dict(r) for r in await near_cur.fetchall()]
+                    _LOGGER.debug(
+                        "[HO-SCAN] No duplicate found for vendor=%r "
+                        "number=%r. Rows carrying that number: %s",
+                        vendor, receipt_number, near,
+                    )
+                except Exception:
+                    pass
+
+                # [ADDED v2026.9.27] Second chance: the shop name was read
+                # differently.
+                #
+                # vendor is deliberately half the key, because a receipt number
+                # alone is not unique - two shops can both issue "0001". But the
+                # same document read twice can produce two different shop names,
+                # and then the exact match fails AND the UNIQUE index does not
+                # apply, so nothing at all stops a second copy being stored.
+                #
+                # So the number is matched with the TOTAL, and only then is the
+                # vendor allowed to be a looser fit. Number, total and a name
+                # that contains the other name is not something two different
+                # shops produce; a number on its own is.
+                total = _coerce_amount(total_amount)
+                if total is not None:
+                    try:
+                        async with db.execute(
+                            "SELECT * FROM receipts "
+                            "WHERE receipt_number = ? COLLATE NOCASE "
+                            "AND total_amount IS NOT NULL "
+                            # Floats, so a tolerance rather than equality.
+                            "AND ABS(total_amount - ?) < 0.01 "
+                            "AND COALESCE(status, 'active') IN ('active', 'draft')",
+                            (receipt_number, float(total)),
+                        ) as alt_cur:
+                            candidates = [dict(r) for r in await alt_cur.fetchall()]
+                        for candidate in candidates:
+                            if _vendors_compatible(vendor, candidate.get("vendor")):
+                                _LOGGER.debug(
+                                    "[HO-SCAN] Same receipt under a different "
+                                    "shop name: stored as %r, scanned as %r "
+                                    "(number=%r total=%s)",
+                                    candidate.get("vendor"), vendor,
+                                    receipt_number, total,
+                                )
+                                return candidate
+                    except Exception as alt_err:
+                        _LOGGER.error(
+                            "Receipt second-chance lookup failed: %s", alt_err)
+
                 return None
             found = dict(row)
 

@@ -1,4 +1,4 @@
-// Home Organizer for Home Assistant
+﻿// Home Organizer for Home Assistant
 // Copyright (C) 2026 Guy Azria
 //
 // This program is free software: you can redistribute it and/or modify it
@@ -11,41 +11,32 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
-// [MODIFIED v2026.9.22 | 2026-09-22] Purpose: Cache version 10.11.81.
-//   The dashboard is laid out as a grid and view-dashboard.js builds the
-//   hero figure it needs; organizer-state.js learned about isDashboardMode
-//   and organizer-ui.js moved the FAB. A browser still holding an older tag
-//   would have the old state module - which saves 'home' for the dashboard -
-//   beside the new shell, and the refresh this release exists to fix would
-//   still drop the user on the locations screen.
-//   Before that, 10.11.78: localeTag moved into UtilsMixin, and a class
-//   without it throws inside the cook's voice and every figure on the
-//   dashboard. A tag is bumped for the MODULE that changed, and every module
-//   that imports it under its own tag is bumped with it: an import URL is
-//   its own cache entry.
-// [MODIFIED v2026.9.22 | 2026-09-22] Purpose: Cache version 10.11.77.
-//   organizer-ui.js carries the panel's <style> block inline, so a change
-//   to the FAB is a change to that module and nothing else picks it up.
+// [MODIFIED v2026.9.27 | 2026-09-27] Purpose: Cache version 10.11.86.
+//   view-chat.js carries the receipts filter bar. A browser on an older tag
+//   would keep the two date boxes and never ask for the new period keys.
+// [MODIFIED v2026.9.27 | 2026-09-27] Purpose: Cache version 10.11.85.
+//   organizer-state.js decides which screen a reload comes back to. A browser
+//   holding an older tag would keep restoring whatever screen it was left on.
 
-import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=10.11.81';
-import { UtilsMixin }  from './organizer-utils.js?v=10.11.81';
-import { StateMixin }  from './organizer-state.js?v=10.11.81';
-import { APIMixin }    from './organizer-api.js?v=10.11.81';
-import { CameraMixin } from './organizer-camera.js?v=10.11.81';
-import { NavMixin }    from './organizer-nav.js?v=10.11.81';
-import { IconsMixin }  from './organizer-icons.js?v=10.11.81';
-import { UIMixin }     from './organizer-ui.js?v=10.11.81';
+import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=10.11.86';
+import { UtilsMixin }  from './organizer-utils.js?v=10.11.86';
+import { StateMixin }  from './organizer-state.js?v=10.11.86';
+import { APIMixin }    from './organizer-api.js?v=10.11.86';
+import { CameraMixin } from './organizer-camera.js?v=10.11.86';
+import { NavMixin }    from './organizer-nav.js?v=10.11.86';
+import { IconsMixin }  from './organizer-icons.js?v=10.11.86';
+import { UIMixin }     from './organizer-ui.js?v=10.11.86';
 
-import { StylistMixin }   from './pages/view-stylist.js?v=10.11.81';
-import { BarcodeMixin }   from './pages/view-barcode.js?v=10.11.81';
-import { InventoryMixin } from './pages/view-inventory.js?v=10.11.81';
-import { ChatMixin }      from './pages/view-chat.js?v=10.11.81';
+import { StylistMixin }   from './pages/view-stylist.js?v=10.11.86';
+import { BarcodeMixin }   from './pages/view-barcode.js?v=10.11.86';
+import { InventoryMixin } from './pages/view-inventory.js?v=10.11.86';
+import { ChatMixin }      from './pages/view-chat.js?v=10.11.86';
 // [ADDED v2026.9.22] The home dashboard.
-import { DashboardMixin } from './pages/view-dashboard.js?v=10.11.81';
+import { DashboardMixin } from './pages/view-dashboard.js?v=10.11.86';
 // [ADDED v10.11.45] The cookbook screen.
-import { RecipesMixin }   from './pages/view-recipes.js?v=10.11.81';
-import { ShoppingMixin }  from './pages/view-shopping.js?v=10.11.81';
-import { SearchMixin }    from './pages/view-search.js?v=10.11.81';
+import { RecipesMixin }   from './pages/view-recipes.js?v=10.11.86';
+import { ShoppingMixin }  from './pages/view-shopping.js?v=10.11.86';
+import { SearchMixin }    from './pages/view-search.js?v=10.11.86';
 
 class HomeOrganizerPanel extends APIMixin(CameraMixin(SearchMixin(ShoppingMixin(RecipesMixin(ChatMixin(DashboardMixin(InventoryMixin(BarcodeMixin(StylistMixin(UIMixin(NavMixin(IconsMixin(UtilsMixin(StateMixin(HTMLElement))))))))))))))) {
   set hass(hass) {
@@ -76,6 +67,14 @@ class HomeOrganizerPanel extends APIMixin(CameraMixin(SearchMixin(ShoppingMixin(
       this._hass.connection.subscribeEvents(e => { this.handleExternalCameraEvent(e.data); }, 'ho_ext_camera_event');
       this.fetchData();
       this._hass.connection.subscribeEvents(() => { this.fetchAllItems(); }, 'home_organizer_db_update');
+      // [ADDED v2026.9.27] The dashboard reads items, receipts and
+      // purchase_history, so anything that fires this event can have moved its
+      // figures. The stored copy is dropped; nothing is fetched here, because
+      // approving fifty lines of one receipt would otherwise run the whole
+      // dashboard query fifty times.
+      this._hass.connection.subscribeEvents(() => {
+        if (typeof this.markDashboardStale === 'function') this.markDashboardStale();
+      }, 'home_organizer_db_update');
     }
   }
   setConfig(config) { this._config = config; }

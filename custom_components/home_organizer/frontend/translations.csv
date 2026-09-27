@@ -1,4 +1,4 @@
-Key,en,he,it,es,fr,ar,ru
+﻿Key,en,he,it,es,fr,ar,ru
 _direction,ltr,rtl,ltr,ltr,ltr,rtl,ltr
 app_title,HO-AI,ארגונית,HO-AI,HO-AI,HO-AI,منظم,HO-AI
 default_path,Main,ראשי,Principale,Principal,Principal,رئيسي,Основной
@@ -963,6 +963,16 @@ receipts_tab,Receipts,חשבוניות,Ricevute,Recibos,Reçus,الفواتير,
 receipts_filter_vendor,Store,חנות,Negozio,Tienda,Magasin,المتجر,Магазин
 receipts_filter_from,From,מתאריך,Da,Desde,Du,من,С
 receipts_filter_to,To,עד תאריך,A,Hasta,Au,إلى,По
+receipts_period,Period,תקופה,Periodo,Período,Période,الفترة,Период
+receipts_period_this_year,This year,השנה,Quest'anno,Este año,Cette année,هذه السنة,Этот год
+receipts_period_last_year,Last year,שנה שעברה,Anno scorso,Año pasado,Année dernière,السنة الماضية,Прошлый год
+receipts_period_this_month,This month,החודש,Questo mese,Este mes,Ce mois,هذا الشهر,Этот месяц
+receipts_period_last_month,Last month,החודש הקודם,Mese scorso,Mes pasado,Mois dernier,الشهر الماضي,Прошлый месяц
+receipts_period_today,Today,היום,Oggi,Hoy,Aujourd'hui,اليوم,Сегодня
+receipts_period_custom,Choose dates,בחירה,Scegli date,Elegir fechas,Choisir les dates,اختيار التواريخ,Выбрать даты
+receipts_period_title,Choose a period,בחירת תקופה,Scegli un periodo,Elegir un período,Choisir une période,اختيار فترة,Выбор периода
+receipts_period_apply,Apply,אישור,Applica,Aplicar,Appliquer,تطبيق,Применить
+receipts_period_cancel,Cancel,ביטול,Annulla,Cancelar,Annuler,إلغاء,Отмена
 receipts_none,No receipts match these filters.,אין חשבוניות שתואמות את הסינון.,Nessuna ricevuta corrisponde ai filtri.,Ningún recibo coincide con los filtros.,Aucun reçu ne correspond aux filtres.,لا توجد فواتير مطابقة.,Нет чеков по этим фильтрам.
 receipts_clear_filters,Clear,נקה,Pulisci,Limpiar,Effacer,مسح,Сброс
 receipts_items_col,Items,פריטים,Articoli,Artículos,Articles,أصناف,Позиции

@@ -1,4 +1,4 @@
-// Home Organizer for Home Assistant
+﻿// Home Organizer for Home Assistant
 // Copyright (C) 2026 Guy Azria
 //
 // This program is free software: you can redistribute it and/or modify it
@@ -11,20 +11,17 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [MODIFIED v2026.9.27 | 2026-09-27] Purpose: The dashboard draws from the last
+//   answer it stored, so entering the panel no longer waits on fifteen queries
+//   before showing anything. The copy is dropped whenever the database says it
+//   changed, and one quiet request per visit confirms it in case the change
+//   happened while the panel was closed.
 // [MODIFIED v2026.9.22 | 2026-09-22] Purpose: The sections are grid AREAS
 //   rather than a stack, and the year total is built as a hero figure -
 //   two elements, so the currency code sits small beside a large number.
 //   renderDashboardView names each section so the stylesheet can place it,
 //   and gives the attention band the whole row when nothing went up in
 //   price, because an empty half reads as a card that failed to load.
-// [MODIFIED v2026.9.22 | 2026-09-22] Purpose: The chart is a YEAR, twelve
-//   columns, with the month we are living in drawn in a second colour and a
-//   legend that says which is which. A month on its own was a single number
-//   with nothing to compare it against: the first house to open this screen
-//   had ten receipts on file, nine of them in other months, and saw one bar.
-//   The year is chosen from a picker built only from years that HAVE
-//   receipts, and the topic breakdown under the chart answers to the same
-//   picker, because it sits directly beneath that year's total.
 
 import { ICONS } from '../organizer-icon.js?v=10.11.80';
 
@@ -53,6 +50,51 @@ export const DashboardMixin = (Base) => class extends Base {
   // the year that came BACK rather than the one that was asked for: the
   // backend clamps, and a picker sitting on a year the data is not from is
   // how a chart ends up labelled with the wrong total.
+  // [ADDED v2026.9.27] The last answer, kept so opening the tab is instant.
+  //
+  // Fifteen queries across three tables is not something to wait for when the
+  // numbers have not moved, and they only move when a receipt line is
+  // approved, an item is added or removed, or a stock or date is edited - all
+  // of which fire home_organizer_db_update, which is what clears this.
+  //
+  // localStorage, not a field, because entering the panel from Home Assistant
+  // builds this element again and a field starts empty. Every access is
+  // wrapped: storage throws in a private window and can come back empty at
+  // any time, and the dashboard has to draw either way.
+  dashCacheKey(year) { return `ho_dash_v1_${Number(year) || 0}`; }
+
+  readDashboardCache(year) {
+    try {
+      const raw = localStorage.getItem(this.dashCacheKey(year));
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      // An object with no keys is not a dashboard. [] and {} are both truthy,
+      // so the shape is checked rather than the value (RULE 33a.4).
+      return (data && typeof data === "object" && Object.keys(data).length)
+        ? data : null;
+    } catch (e) { return null; }
+  }
+
+  writeDashboardCache(year, data) {
+    try {
+      if (!data || typeof data !== "object") return;
+      localStorage.setItem(this.dashCacheKey(year), JSON.stringify(data));
+    } catch (e) { /* quota or blocked storage - the screen still works */ }
+  }
+
+  // Called when the database changes. The stored copy goes, and the check
+  // flag is lowered so a dashboard already on screen refreshes behind itself
+  // instead of blanking while it waits.
+  markDashboardStale() {
+    this.dashboardChecked = false;
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith("ho_dash_v1_")) localStorage.removeItem(k);
+      }
+    } catch (e) { }
+  }
+
   async loadDashboard(force, year) {
     if (this.dashboardBusy) return;
     const want = Number(year) || 0;
@@ -67,6 +109,10 @@ export const DashboardMixin = (Base) => class extends Base {
       if (want) msg.year = want;
       const res = await this._hass.callWS(msg);
       this.dashboardData = (res && !res.error) ? res : null;
+      if (this.dashboardData) {
+        this.writeDashboardCache(
+          Number(this.dashboardData.year) || want, this.dashboardData);
+      }
       this.dashboardError = (res && res.error) ? String(res.error) : null;
       if (this.dashboardData && this.dashboardData.year)
         this.dashboardYear = Number(this.dashboardData.year);
@@ -108,7 +154,28 @@ export const DashboardMixin = (Base) => class extends Base {
   renderDashboardView(content) {
     content.style.padding = '0';
     content.style.display = 'block';
-    if (!this.dashboardData && !this.dashboardBusy) this.loadDashboard();
+    // [MODIFIED v2026.9.27] Draw the stored copy first, check afterwards.
+    //
+    // Reaching the panel from Home Assistant used to mean waiting for the
+    // whole dashboard query before anything appeared. Now the last answer is
+    // on screen at once, and one quiet request confirms it - which matters
+    // because the database can change while this panel is shut, so the event
+    // that clears the cache is not always heard. A differing answer replaces
+    // what is drawn; an identical one changes nothing visible.
+    if (!this.dashboardData) {
+      const cached = this.readDashboardCache(this.dashboardYear);
+      if (cached) {
+        this.dashboardData = cached;
+        if (cached.year) this.dashboardYear = Number(cached.year);
+      }
+    }
+    if (!this.dashboardData && !this.dashboardBusy) {
+      this.loadDashboard();
+    } else if (this.dashboardData && !this.dashboardChecked && !this.dashboardBusy) {
+      // Set BEFORE the call: loadDashboard renders, which returns here.
+      this.dashboardChecked = true;
+      this.loadDashboard(true);
+    }
 
     const wrap = document.createElement('div');
     wrap.className = 'dash-wrap';

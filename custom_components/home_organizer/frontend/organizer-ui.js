@@ -1,4 +1,4 @@
-// Home Organizer for Home Assistant
+﻿// Home Organizer for Home Assistant
 // Copyright (C) 2026 Guy Azria
 //
 // This program is free software: you can redistribute it and/or modify it
@@ -775,7 +775,10 @@ export const UIMixin = (Base) => class extends Base {
       this.isDashboardMode = true;
       this.clearSearchInput();
       this.navigate('root');
-      if (typeof this.loadDashboard === 'function') this.loadDashboard(true);
+      // [MODIFIED v2026.9.27] No longer forced. Home used to re-run the whole
+      // dashboard query on every press; it now shows the stored copy at once
+      // and the render path checks it behind that.
+      if (typeof this.loadDashboard === 'function') this.loadDashboard();
     });
 
     click('btn-fab-main', () => root.getElementById('fab-container')?.classList.toggle('open'));

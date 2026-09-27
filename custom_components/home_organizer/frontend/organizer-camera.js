@@ -1,4 +1,4 @@
-// Home Organizer for Home Assistant
+﻿// Home Organizer for Home Assistant
 // Copyright (C) 2026 Guy Azria
 //
 // This program is free software: you can redistribute it and/or modify it
@@ -12,8 +12,8 @@
 // more details. <https://www.gnu.org/licenses/>.
 
 //
+// [MODIFIED v2026.9.24 | 2026-09-24] Purpose: A receipt arriving from the companion app may now be a PDF, and the two routes that handled one finally share a single implementation instead of two copies of the same twenty lines.
 // [MODIFIED v10.0.11 | 2026-08-02] Purpose: Changed barcode polyfill CDN URL to local static path to satisfy offline HACS requirements.
-// [MODIFIED v10.0.10 | 2026-04-17] Purpose: Added robust stream destruction to fix intermittent camera loading blocks. Added toggleWhiteBG implementation to resolve undefined boolean properties breaking canvas extraction. Sanitized canvas width/height integer rounding to prevent NaN rendering loops.
 
 export const CameraMixin = (Base) => class extends Base {
 
@@ -451,39 +451,62 @@ export const CameraMixin = (Base) => class extends Base {
     }
   }
 
-  // [ADDED v2026.9.23] One entry point for a receipt photo from the app.
+  // [MODIFIED v2026.9.24] The one entry point for a receipt document from the
+  // app. It is now genuinely one: the ctx === 'chat' route below used to hold
+  // a second copy of this whole body, under a comment claiming it did not.
   //
-  // Shared by the two ways a photo can arrive - the flag-based route above and
-  // the ctx === 'chat' route - so both behave identically and cannot drift.
-  handleReceiptPhotoFromApp(imageData, applyAiBg) {
-    const mimeMatch = String(imageData).match(/^data:(image\/\w+);base64,/);
+  // Two things had to change before a PDF could travel this way, and the
+  // panel already knew both of them one function over, in openFileUpload():
+  //
+  //   - the mime was read with a regex matching image/... only, so a PDF
+  //     arrived labelled image/jpeg and was sent to the model as a photograph
+  //   - compressImage() draws the file into a canvas to re-encode it, which a
+  //     PDF cannot survive: it is not decodable as an image
+  //
+  // The "any more pages?" prompt is skipped for a PDF for the same reason it
+  // is skipped there - a PDF is already a complete document.
+  handleReceiptPhotoFromApp(fileData, applyAiBg) {
+    const mimeMatch = String(fileData).match(/^data:(image\/\w+|application\/pdf);base64,/);
     const incomingMime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
-    const ext = incomingMime === 'image/png' ? 'png' : 'jpg';
 
-    fetch(imageData)
+    // The app may have been launched from any screen; the result belongs on
+    // the receipts screen either way.
+    const send = (dataUrl, finalMime, allowMorePages) => {
+      this.chatImage = dataUrl;
+      this.chatMimeType = finalMime;
+      this.isReviewMode = true;
+      this.isChatMode = false; this.isReceiptsMode = false; this.isDashboardMode = false;
+      this.isShopMode = false; this.isSearch = false;
+      this.isEditMode = false; this.isStylistMode = false;
+      // [FIXED v2026.9.24] isRecipesMode and isBarcodeMode were missing
+      // from this list (RULE 33a.1). isRecipesMode is tested BEFORE the
+      // review branch in renderView, so scanning a receipt from the app
+      // while the cookbook was open left the cookbook on screen and the
+      // receipt was never shown.
+      this.isRecipesMode = false; this.isBarcodeMode = false;
+
+      if (allowMorePages && this.receiptPageMode) {
+        this.receiptPages = this.receiptPages || [];
+        this.receiptPages.push({ data: dataUrl, mime: finalMime });
+        this.render();
+        this.askForMoreReceiptPages();
+        return;
+      }
+      this.render();
+      if (typeof this.sendReceiptScan === 'function') this.sendReceiptScan();
+    };
+
+    if (incomingMime === 'application/pdf') {
+      send(String(fileData), incomingMime, false);
+      return;
+    }
+
+    const ext = incomingMime === 'image/png' ? 'png' : 'jpg';
+    fetch(fileData)
       .then(r => r.blob())
       .then(blob => {
         const file = new File([blob], `ext_cam.${ext}`, { type: incomingMime });
-        this.compressImage(file, (dataUrl, finalMime) => {
-          this.chatImage = dataUrl;
-          this.chatMimeType = finalMime;
-          // The app may have been launched from any screen; the result belongs
-          // on the receipts screen.
-          this.isReviewMode = true;
-          this.isChatMode = false; this.isReceiptsMode = false; this.isDashboardMode = false;
-          this.isShopMode = false; this.isSearch = false;
-          this.isEditMode = false; this.isStylistMode = false;
-
-          if (this.receiptPageMode) {
-            this.receiptPages = this.receiptPages || [];
-            this.receiptPages.push({ data: dataUrl, mime: finalMime });
-            this.render();
-            this.askForMoreReceiptPages();
-            return;
-          }
-          this.render();
-          if (typeof this.sendReceiptScan === 'function') this.sendReceiptScan();
-        }, applyAiBg, 'chat');
+        this.compressImage(file, (dataUrl, finalMime) => send(dataUrl, finalMime, true), applyAiBg, 'chat');
       })
       .catch(err => alert("Error handling image from app: " + err.message));
   }
@@ -522,6 +545,14 @@ export const CameraMixin = (Base) => class extends Base {
 
     if (!data.image_data) return;
 
+    // [MODIFIED v2026.9.24] Taken BEFORE the blob conversion below, which
+    // assumes an image. Both receipt contexts now run the one implementation,
+    // so a PDF - or any later fix - reaches every route that needs it.
+    if (ctx === 'chat' || ctx === 'invoice') {
+      this.handleReceiptPhotoFromApp(data.image_data, applyAiBg);
+      return;
+    }
+
     const mimeMatch = data.image_data.match(/^data:(image\/\w+);base64,/);
     const incomingMime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
     const ext = incomingMime === 'image/png' ? 'png' : 'jpg';
@@ -550,30 +581,8 @@ export const CameraMixin = (Base) => class extends Base {
           }, applyAiBg, ctx);
           return;
         }
-        
-        if (ctx === 'chat' || ctx === 'invoice') {
-          // Same handling as the flag-based route above: one implementation,
-          // so the two entry points cannot behave differently.
-          this.compressImage(file, (dataUrl, finalMime) => {
-            this.chatImage = dataUrl;
-            this.chatMimeType = finalMime;
-            this.isReviewMode = true;
-            this.isChatMode = false; this.isReceiptsMode = false; this.isDashboardMode = false;
-            this.isShopMode = false; this.isSearch = false;
-            this.isEditMode = false; this.isStylistMode = false;
-            if (this.receiptPageMode) {
-              this.receiptPages = this.receiptPages || [];
-              this.receiptPages.push({ data: dataUrl, mime: finalMime });
-              this.render();
-              this.askForMoreReceiptPages();
-              return;
-            }
-            this.render();
-            if (typeof this.sendReceiptScan === 'function') this.sendReceiptScan();
-          }, applyAiBg, ctx);
-        } else {
-          this.compressImage(file, (dataUrl, finalMime) => this.processUploadedFile(dataUrl, ctx, finalMime), applyAiBg, ctx);
-        }
+
+        this.compressImage(file, (dataUrl, finalMime) => this.processUploadedFile(dataUrl, ctx, finalMime), applyAiBg, ctx);
       })
       .catch(err => alert("Error handling image from app: " + err.message));
   }

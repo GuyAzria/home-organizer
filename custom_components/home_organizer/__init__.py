@@ -12,40 +12,22 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
-# [MODIFIED v2026.9.22 | 2026-09-22] Purpose: A scan is filed under what the
-#   money was spent on. The buckets are read from the database on each scan,
-#   so one the user adds is offered on the very next one, and what comes
-#   back goes through resolve_expense_category - which refuses a name that
-#   is not already a category rather than creating it (RULE 22, RULE 31).
-# [MODIFIED v2026.9.22 | 2026-09-22] Purpose: draw_item_icon takes a room or
-#   a location as well as an item. An item is named by its id; a place has
-#   none, so it arrives as a name plus its path and is resolved here to the
-#   marker row that holds its picture. Everything after that point is the
-#   same code for both - one place talks to the model, one writes the
-#   result. The prompt's only difference is the noun (RULE 33d).
-# [MODIFIED v2026.9.20 | 2026-09-20] Purpose: A receipt scan no longer stops
-#   to ask where an odd product belongs. _clean_category_suggestion checks
-#   the name the model proposes - a length, a character whitelist, and that
-#   it does not already exist - and it is stored as a NOTE on the item
-#   while the item itself is filed under the nearest existing category.
-#   Nothing is created here; the review tab shows the proposal with a
-#   button, and pressing it is the explicit user action RULE 22 requires.
-#   One guitar on a fifty-line receipt used to replace the whole list with
-#   a question.
-# [MODIFIED v2026.9.20 | 2026-09-20] Purpose: home_organizer/draw_item_icon
-#   draws ONE item an icon on request, from the Change Icon window. The
-#   voice path already draws while it adds; a receipt and a barcode do
-#   not, and deliberately still do not - a receipt is read in one call
-#   carrying every line on the page, and a truncated answer loses the
-#   receipt, not just its pictures. So the drawing is offered where it
-#   costs one call and the user is looking at the result. The panel
-#   sends an id and a sentence; the NAME is read from the database and
-#   what comes back is rebuilt field by field by validate_icon_spec
-#   before anything is stored (RULE 7, RULE 11, RULE 33a.2).
-#   _parse_drawing_reply finds the shape list wherever the model put it -
-#   a bare array, or under icon_spec or spec - because the prompt asking
-#   for one key is not the same as getting it, and nine reply shapes out
-#   of ten were being read as 'nothing came back', silently.
+# [FIXED v2026.9.27 | 2026-09-27] Purpose: A receipt row that could not be
+#   stored no longer leaves its items behind. async_insert_receipt returns None
+#   on any failure, including the UNIQUE index that exists to stop the same
+#   receipt being stored twice, and nothing checked for it - the lines were
+#   written anyway with receipt_id = None and appeared in the review queue
+#   looking like a new receipt with a number that was already taken. The lookup
+#   is re-run first, so the usual case answers with the duplicate message it
+#   should have given in the first place.
+# [MODIFIED v2026.9.24 | 2026-09-24] Purpose: The receipt pipeline is now
+#   async_process_invoice_scan, a function, instead of 331 lines buried in a
+#   branch of websocket_ai_chat. Nothing about it changed: the body is
+#   byte-identical after dedenting and only the two exits differ - it returns
+#   the payload rather than calling connection.send_result, so the caller
+#   sends it. It was moved because the companion app has to scan a receipt
+#   when no browser has the panel open, and a second copy of this pipeline is
+#   the one duplication this project cannot afford (RULE 33d).
 
 import logging
 from homeassistant.components import frontend
@@ -214,6 +196,140 @@ def _absorb_applied_edit(user_id, recipe_id, outcome):
 # applied to the canonical router while this duplicate still logged the raw
 # exception string. The duplicate also took an extra leading `mode` argument
 # that the canonical version derives from the config entry itself.
+
+# [ADDED v2026.9.24 | 2026-09-24] Purpose: A receipt or a barcode sent by the
+# companion app, scanned here rather than in a browser.
+#
+# WHY THIS EXISTS.
+# ext_camera_upload does not scan anything. It fires ho_ext_camera_event and
+# the PANEL does the work, so a photo sent while no browser had the panel open
+# was answered with 200 OK and then silently dropped - the app could not even
+# tell. This endpoint runs the same handler the panel triggers and answers with
+# what actually happened.
+#
+# ext_camera_upload is deliberately left exactly as it is: the panel-driven
+# flow that works today does not change.
+class _CapturedConnection:
+    """Stands in for a websocket connection and keeps the reply.
+
+    The two handlers only ever call send_result and read .user, so this is the
+    whole surface. Nothing is sent anywhere - the reply is read back by the
+    view and returned as the HTTP response.
+    """
+
+    def __init__(self, user=None):
+        self.user = user
+        self.result = None
+
+    def send_result(self, _msg_id, result):
+        self.result = result
+
+    def send_error(self, _msg_id, code, message):
+        self.result = {"error": message}
+
+
+class HOAppScanView(HomeAssistantView):
+    url = "/api/home_organizer/app_scan"
+    name = "api:home_organizer:app_scan"
+    requires_auth = True
+
+    def __init__(self, hass):
+        self.hass = hass
+
+    async def post(self, request):
+        try:
+            data = await request.json()
+        except Exception:
+            return self.json({"status": "error", "message": "Body is not JSON"},
+                             status_code=400)
+
+        kind = str(data.get("kind") or "").strip().lower()
+        language = data.get("language") or self.hass.config.language
+        # Home Assistant has already authenticated the request; this is who it
+        # was, passed through so the handler sees the same user the panel would.
+        user = request.get("hass_user")
+        conn = _CapturedConnection(user)
+
+        if kind == "receipt":
+            image_data = data.get("image_data")
+            if not image_data:
+                return self.json(
+                    {"status": "error", "message": "No image_data provided"},
+                    status_code=400)
+            # The same message shape the panel sends. An empty message is what
+            # routes it down the receipt path rather than the garment one.
+            await _async_ai_chat(self.hass, conn, {
+                "id": 0,
+                "message": "",
+                "image_data": image_data,
+                "mime_type": data.get("mime_type") or "image/jpeg",
+                "language": language,
+            })
+
+        elif kind == "barcode":
+            barcode = str(data.get("barcode") or "").strip()
+            if not barcode:
+                return self.json(
+                    {"status": "error", "message": "No barcode provided"},
+                    status_code=400)
+            await _async_lookup_barcode(self.hass, conn, {
+                "id": 0,
+                "barcode": barcode,
+                "language": language,
+            })
+
+        elif kind == "resolve_barcode":
+            # [ADDED v2026.9.26] Step two of the barcode flow, and the reason
+            # step one alone accomplished nothing: the lookup only SUGGESTS a
+            # name. This is what actually creates the item, in the pending state
+            # the Review tab is for, and it is the same message the panel sends
+            # once the user has confirmed the name. No new logic - the handler
+            # already knows this prefix.
+            barcode = str(data.get("barcode") or "").strip()
+            name = str(data.get("name") or "").strip()
+            if not barcode or not name:
+                return self.json(
+                    {"status": "error",
+                     "message": "barcode and name are both required"},
+                    status_code=400)
+            await _async_ai_chat(self.hass, conn, {
+                "id": 0,
+                "message": f"RESOLVE_BARCODE:{barcode}-{name}",
+                "language": language,
+            })
+
+        else:
+            return self.json(
+                {"status": "error",
+                 "message": "kind must be receipt, barcode or resolve_barcode"},
+                status_code=400)
+
+        if conn.result is None:
+            # The handler returned without replying. Reported as a failure
+            # rather than as an empty success, because the caller has no other
+            # way to find out (RULE 10).
+            return self.json(
+                {"status": "error", "message": "Scan produced no result"},
+                status_code=502)
+
+        # [MODIFIED v2026.9.26] A handler that answered with an error is not a
+        # success. Every reply used to come back as 200 "success", so the app
+        # announced that a receipt was waiting in the Review tab when the model
+        # had failed - or when the receipt was a duplicate and nothing had been
+        # saved at all (RULE 10).
+        if isinstance(conn.result, dict) and conn.result.get("error"):
+            return self.json(
+                {"status": "error",
+                 "message": str(conn.result.get("error")),
+                 "result": conn.result},
+                status_code=502)
+
+        # Anything else really did happen, but WHAT happened is the handler's
+        # to say: it may have stored a receipt, refused a duplicate, or failed
+        # to read the document. Its own wording is passed through untouched
+        # rather than replaced with a cheerful guess.
+        return self.json({"status": "success", "result": conn.result})
+
 class HOCameraUploadView(HomeAssistantView):
     url = "/api/home_organizer/ext_camera_upload"
     name = "api:home_organizer:ext_camera_upload"
@@ -315,8 +431,11 @@ async def websocket_get_all_items(hass, connection, msg):
     except Exception as e:
         _LOGGER.error(f"websocket_get_all_items error: {e}")
 
-@websocket_api.async_response
-async def websocket_lookup_barcode(hass, connection, msg):
+# [MODIFIED v2026.9.24 | 2026-09-24] Purpose: Same treatment as _async_ai_chat
+# and for the same reason. THE LOOKUP ITSELF IS UNTOUCHED: it still reads
+# barcode_history, still asks the model only when there is no history, and
+# still returns a suggestion rather than creating anything.
+async def _async_lookup_barcode(hass, connection, msg):
     try:
         barcode = str(msg.get("barcode", ""))
         lang_code = msg.get("language", hass.config.language)
@@ -425,8 +544,427 @@ async def websocket_lookup_barcode(hass, connection, msg):
             "suggestion": {"name": f"Scanned Product ({msg.get('barcode', 'unknown')})"}
         })
 
+
 @websocket_api.async_response
-async def websocket_ai_chat(hass, connection, msg):
+async def websocket_lookup_barcode(hass, connection, msg):
+    """The websocket entry point. The work is in _async_lookup_barcode."""
+    await _async_lookup_barcode(hass, connection, msg)
+
+# [ADDED v2026.9.24 | 2026-09-24] Purpose: The receipt pipeline, lifted out of
+# websocket_ai_chat unchanged so a second caller can run it.
+#
+# WHY IT MOVED.
+# These 331 lines were the body of one branch inside a 900-line websocket
+# handler, which meant the only way to scan a receipt was to be a browser with
+# the panel open. The companion app needs the same pipeline without a panel,
+# and copying it would have left two versions of the one thing in this project
+# that must never disagree.
+#
+# WHAT CHANGED IN THE MOVE: nothing but the exits. The body is byte-identical
+# after dedenting; the two connection.send_result(msg["id"], {...}) calls became
+# "return {...}" and the caller sends what comes back. It no longer takes
+# `connection` or `msg`, because those two calls were their only use.
+async def async_process_invoice_scan(
+    hass, entry, parsed, clean_txt, image_pages, mime_val,
+    loc_hierarchy_map, expense_cats,
+):
+    """Store a scanned receipt and its items. Returns the panel payload."""
+    # [MOVED v2026.9.24] Initialised here rather than in the caller. Its only
+    # two uses - the increment and the message - both live in this function,
+    # and it was always 0 when the branch was entered.
+    added_count = 0
+    db_path = get_db_path(hass)
+
+    # [ADDED v2026.9.4 | STAGE 2] Receipt-level handling.
+    #
+    # The model now returns a "receipt" object alongside the
+    # items. Older responses will not have it, so an empty
+    # dict keeps this backwards compatible.
+    receipt_data = parsed.get("receipt") or {}
+    receipt_id = None
+
+    # [ADDED v2026.9.22] Do the lines add up to the total?
+    #
+    # A discount printed on its own line, or under the
+    # item, is easy to read past - the line keeps the
+    # shelf price and the basket costs more than the
+    # till charged. Nothing downstream can catch that
+    # later: the breakdown is summed from product lines,
+    # so one missed discount inflates a category for
+    # ever, and purchase_history is append-only, so the
+    # wrong unit price becomes the price trend.
+    #
+    # The receipt total is the one number on the page
+    # that is not in dispute, so it is the test. When
+    # they disagree by more than a unit of currency the
+    # same images go back with the arithmetic shown, and
+    # what comes back is kept ONLY if it moves the sum
+    # closer to the printed total. The model proposes;
+    # subtraction decides (RULE 7, RULE 11).
+    recon_note = ""
+    scanned_items = parsed.get("items") or []
+    try:
+        paid = float(receipt_data.get("total_amount"))
+    except (TypeError, ValueError):
+        paid = 0.0
+    lines_sum = _lines_total(scanned_items)
+    if paid and scanned_items:
+        gap = round(lines_sum - float(paid), 2)
+        if abs(gap) > RECONCILE_TOLERANCE:
+            _LOGGER.info(
+                "[HO-SCAN] Receipt does not balance: "
+                "lines %.2f vs total %.2f (%.2f).",
+                lines_sum, float(paid), gap)
+            summary = "\n".join(
+                "  [%d] %s x%s @ %s" % (
+                    i,
+                    str(it.get("name") or "?")[:60],
+                    it.get("qty"),
+                    it.get("price"))
+                for i, it in enumerate(scanned_items)
+                if isinstance(it, dict))
+            fix_text, fix_err = await safe_smart_router(
+                hass, entry,
+                get_reconcile_prompt(
+                    summary, lines_sum, float(paid),
+                    receipt_data.get("currency")),
+                image_pages, mime_val)
+            fixes = []
+            if fix_text and not fix_err:
+                try:
+                    fix_json = json.loads(re.sub(
+                        r'```json\s*|```\s*', '',
+                        fix_text).strip())
+                    fixes = fix_json.get("fixes") or []
+                    recon_note = str(
+                        fix_json.get("note") or "")[:200]
+                except Exception as fix_parse:
+                    _LOGGER.debug(
+                        "[HO-SCAN] Reconcile reply "
+                        "unreadable: %s", fix_parse)
+            candidate, applied = _apply_price_fixes(
+                scanned_items, fixes, paid)
+            if applied:
+                new_sum = _lines_total(candidate)
+                new_gap = round(new_sum - float(paid), 2)
+                # THE gate. Closer to the printed total
+                # or it did not happen - a "correction"
+                # that makes the basket wronger is a
+                # guess wearing a number (RULE 31).
+                if abs(new_gap) < abs(gap):
+                    parsed["items"] = candidate
+                    scanned_items = candidate
+                    lines_sum = new_sum
+                    _LOGGER.info(
+                        "[HO-SCAN] %d price(s) corrected: "
+                        "%.2f -> %.2f against total "
+                        "%.2f. %s", applied, gap, new_gap,
+                        float(paid), recon_note)
+                else:
+                    _LOGGER.info(
+                        "[HO-SCAN] Correction rejected: "
+                        "gap %.2f would become %.2f.",
+                        gap, new_gap)
+
+    # Duplicate detection runs BEFORE a single item row is
+    # written. Writing first and asking afterwards would
+    # leave a half-imported receipt behind if the user then
+    # declined.
+    existing = await async_find_receipt(
+        hass,
+        receipt_data.get("vendor"),
+        receipt_data.get("receipt_number"),
+        # [ADDED v2026.9.27] The total is what lets the lookup recognise the
+        # same receipt when the shop name came back written differently.
+        receipt_data.get("total_amount"),
+    )
+    if existing:
+        # The counts are the whole point of this message: a
+        # re-scan usually happens because the first pass read
+        # only part of the document. Without both numbers the
+        # user is choosing blind.
+        old_count = await async_count_receipt_items(
+            hass, existing.get("id")
+        )
+        new_count = len(parsed.get("items") or [])
+        return {
+            "response": (
+                f"This receipt is already saved.\n\n"
+                f"{existing.get('vendor') or '-'} | "
+                f"{existing.get('purchase_date') or '-'} | "
+                f"{existing.get('total_amount') or '-'} "
+                f"{existing.get('currency') or ''}\n"
+                f"Saved copy: {old_count} item(s). "
+                f"This scan found {new_count}."
+            ),
+            "duplicate_receipt": {
+                "existing_id": existing.get("id"),
+                "existing_items": old_count,
+                "new_items": new_count,
+            },
+            "debug": {"intent": "duplicate_receipt"},
+        }
+
+    # [ADDED v2026.9.5 | STAGE 2] Persist the scanned
+    # document first, then record the row that points at it.
+    #
+    # This order is deliberate. A receipts row whose
+    # file_path names a file that was never written gives a
+    # broken screen every time the user opens it. A file with
+    # no row is just an orphan on disk. If the write fails,
+    # this returns None and the receipt is still recorded -
+    # losing the image is much better than losing the amount.
+    # [MODIFIED v2026.9.9] Every page is archived, not just
+    # the first, so a receipt photographed in four parts can
+    # be reopened later as the whole document.
+    #
+    # Files are written before the receipt row exists,
+    # because a row pointing at a file that was never written
+    # produces a broken screen every time it is opened, while
+    # a file with no row is a harmless orphan.
+    stored_pages = await async_store_receipt_pages(
+        hass, image_pages, mime_val
+    )
+    # receipts.file_path stays as page one. It is what the
+    # list views use for a thumbnail, and it keeps receipts
+    # saved before receipt_pages existed working unchanged.
+    stored_file = stored_pages[0] if stored_pages else None
+
+    # Stored even when the item list is empty: a receipt whose
+    # header was read is still a record that money was spent,
+    # and items can be attached to it by hand later.
+    receipt_id = await async_insert_receipt(hass, {
+        "receipt_number": receipt_data.get("receipt_number"),
+        "vendor": receipt_data.get("vendor"),
+        "purchase_date": receipt_data.get("purchase_date"),
+        "total_amount": receipt_data.get("total_amount"),
+        "currency": receipt_data.get("currency"),
+        "file_path": stored_file,
+        "item_count": len(parsed.get("items") or []),
+        # What the lines added up to AFTER the
+        # reconciliation above, so the stored figure is
+        # the corrected one and a receipt that still
+        # does not balance can be found later.
+        #
+        # None, not 0, when there were no lines at all.
+        # A tank of fuel HAS no products, so zero is
+        # not a sum that disagrees with its total by
+        # the whole amount - there is simply nothing to
+        # compare, and storing 0 would make every
+        # service receipt look like the worst
+        # discrepancy in the database.
+        "lines_total": (lines_sum if scanned_items
+                        else None),
+        # THE gate. The model proposes a bucket and
+        # resolve_expense_category decides: a name that
+        # is not already a category is refused, not
+        # created, so the chart can never grow a bar
+        # nobody chose (RULE 22, RULE 31).
+        "expense_category": resolve_expense_category(
+            receipt_data.get("expense_category"),
+            expense_cats),
+    })
+
+    # [FIXED v2026.9.27] A receipt that could not be stored must not leave its
+    # items behind.
+    #
+    # async_insert_receipt returns None on any failure, including the UNIQUE
+    # index on (vendor, receipt_number) that exists to stop the same receipt
+    # being stored twice. Nothing checked for it, so the lines were written
+    # anyway with receipt_id = None: they appeared in the review queue looking
+    # like a brand new receipt, detached from any receipt row, and approving
+    # one would have recorded a purchase with nothing to attach it to.
+    #
+    # The lookup runs again first, because the most likely reason the insert
+    # failed is that the row is already there - and then the honest answer is
+    # the duplicate message, not an error.
+    if not receipt_id:
+        again = await async_find_receipt(
+            hass,
+            receipt_data.get("vendor"),
+            receipt_data.get("receipt_number"),
+            receipt_data.get("total_amount"),
+        )
+        if again:
+            old_count = await async_count_receipt_items(hass, again.get("id"))
+            return {
+                "response": (
+                    f"This receipt is already saved.\n\n"
+                    f"{again.get('vendor') or '-'} | "
+                    f"{again.get('purchase_date') or '-'} | "
+                    f"{again.get('total_amount') or '-'} "
+                    f"{again.get('currency') or ''}\n"
+                    f"Saved copy: {old_count} item(s). "
+                    f"This scan found {len(parsed.get('items') or [])}."
+                ),
+                "duplicate_receipt": {
+                    "existing_id": again.get("id"),
+                    "existing_items": old_count,
+                    "new_items": len(parsed.get("items") or []),
+                },
+                "debug": {"intent": "duplicate_receipt_on_insert"},
+            }
+        _LOGGER.error(
+            "[HO-SCAN] Receipt row could not be stored (vendor=%r number=%r); "
+            "no items were written.",
+            receipt_data.get("vendor"), receipt_data.get("receipt_number"),
+        )
+        return {
+            "error": (
+                "The receipt could not be saved, so nothing was added. "
+                "Check the Home Assistant log for the reason."
+            ),
+            "debug": {"intent": "receipt_insert_failed"},
+        }
+
+    # Linked after the receipt exists, since page rows need
+    # its id. If this fails the files are still on disk and
+    # page one still displays from receipts.file_path.
+    if receipt_id and stored_pages:
+        await async_link_receipt_pages(
+            hass, receipt_id, stored_pages, mime_val
+        )
+
+    # [ADDED v2026.9.20] Read once, for the suggestion
+    # check below - a name that already exists is not a
+    # proposal for a new one.
+    try:
+        known_cats = {
+            str(c).casefold()
+            for c in (await async_get_categories(hass))
+        }
+    except Exception:
+        known_cats = set()
+
+    for item in parsed["items"]:
+        bcode = str(item.get("barcode", "0")).strip()
+
+        hist_data = None
+        if bcode and bcode != "0":
+            try:
+                async with aiosqlite.connect(db_path, timeout=10.0) as db:
+                    db.row_factory = aiosqlite.Row
+                    async with db.execute("SELECT * FROM barcode_history WHERE barcode=?", (bcode,)) as cc:
+                        hist_row = await cc.fetchone()
+                        if hist_row:
+                            hist_data = dict(hist_row)
+            except Exception: pass
+
+        if hist_data:
+            # [FIXED v2026.9.18] The freshly scanned name wins.
+            #
+            # barcode_history remembers where a product lives
+            # and how it is filed, which is worth keeping. The
+            # NAME is different: it is whatever language the
+            # receipt was read in the first time it was seen.
+            # Taking it from history meant a product first
+            # scanned in English kept its English name forever,
+            # even after the user switched the panel to Hebrew
+            # and rescanned the same receipt.
+            #
+            # History is still the fallback for a scan that
+            # produced no readable name.
+            scanned_name = (item.get("name") or "").strip()
+            nm = scanned_name or hist_data.get("name", "Unknown")
+            cat = hist_data.get("category", item.get("category", ""))
+            scat = hist_data.get("sub_category", item.get("sub_category", ""))
+            icon = hist_data.get("icon_key", item.get("icon_key", None))
+            raw_path = [hist_data.get("level_1", ""), hist_data.get("level_2", ""), hist_data.get("level_3", "")]
+            raw_path = [p for p in raw_path if p]
+        else:
+            nm = item.get("name", "Unknown")
+            cat = item.get("category", "")
+            scat = item.get("sub_category", "")
+            icon = item.get("icon_key", None)
+            loc_id = item.get("location_id", "")
+
+            raw_path = loc_hierarchy_map.get(loc_id)
+            if not raw_path:
+                for _k, v in loc_hierarchy_map.items():
+                    v_str = " ".join(v).replace("ORDER_MARKER", "")
+                    if loc_id and loc_id.lower() in v_str.lower():
+                        raw_path = v
+                        break
+            if not raw_path: raw_path = ["General"]
+
+        # [MODIFIED v2026.9.4 | STAGE 2] Unit price, purchased
+        # quantity and the receipt link now travel with the
+        # item. _coerce_amount in database.py turns an
+        # unreadable price into NULL rather than 0, so an
+        # unknown price is never recorded as free.
+        item_qty = int(item.get("qty", 1) or 1)
+        await async_add_item_db_safe(
+            hass, nm, item_qty, raw_path, cat, scat, "pending", icon, bcode,
+            purchase_price=item.get("price"),
+            quantity_purchased=item_qty,
+            receipt_id=receipt_id,
+            # [ADDED v2026.9.30] The scanner's estimate; the
+            # user can correct it on the item card.
+            expiry_date=item.get("expiry_date"),
+            warranty_end_date=item.get("warranty_end_date"),
+            # [ADDED v2026.9.20] A note, not a category.
+            # See _clean_category_suggestion.
+            suggested_category=_clean_category_suggestion(
+                item.get("suggest_category"), known_cats),
+        )
+
+        added_count += 1
+
+        # Write the current name back, so the next scan of
+        # this barcode and any other screen reading history
+        # both show what the user last confirmed rather than
+        # the first language it was ever seen in.
+        if bcode and bcode != "0" and nm:
+            try:
+                async with aiosqlite.connect(db_path, timeout=10.0) as db:
+                    await db.execute(
+                        "UPDATE barcode_history SET name = ? WHERE barcode = ?",
+                        (nm, bcode),
+                    )
+                    await db.commit()
+            except Exception as hist_err:
+                _LOGGER.debug("Could not refresh barcode name: %s", hist_err)
+
+        item["name"] = nm 
+        item["_resolved_path"] = raw_path
+
+    hass.bus.async_fire("home_organizer_db_update")
+
+    ai_message = parsed.get("message", f"✅ I have scanned the document and added {added_count} items to the Review tab.")
+    response_text = f"{ai_message}\n\n"
+    for i in parsed["items"]:
+        p_repaired = i.get("_resolved_path", ["General"])
+        display_path = []
+        for node in p_repaired:
+            cl_match = re.match(r'^\[?(ORDER_MARKER_\d+)\]?[_\s]+(.*)', node)
+            if cl_match:
+                display_path.append(f"[{cl_match.group(1)}] {cl_match.group(2)}")
+            else:
+                display_path.append(node)
+
+        path_str = " > ".join(display_path).replace("ORDER_MARKER", "").replace("[", "").replace("]", "")
+        response_text += f"- **{i.get('name')}** (x{i.get('qty')}) -> _{path_str}_\n"
+
+    return {
+        "response": response_text,
+        "debug": {"raw_json": clean_txt, "intent": "add_invoice"},
+
+        # [ADDED v2026.9.14] The panel scrolls to this scan once the
+
+        # review list refreshes. Without it the user is dropped at the
+
+        # top of a list that may already hold several scans.
+
+        "receipt_id": receipt_id
+    }
+
+# [MODIFIED v2026.9.24 | 2026-09-24] Purpose: The body moved behind a name with
+# an underscore so a second caller can run it. The websocket entry point is
+# the wrapper below; the companion app reaches the SAME function through
+# HOAppScanView with a connection that captures the reply. Nothing in this
+# function changed - the alternative was a second copy of the receipt
+# pipeline, which is the one duplication this project cannot afford (RULE 33d).
+async def _async_ai_chat(hass, connection, msg):
     try:
         user_message = msg.get("message", "")
         image_data = msg.get("image_data") 
@@ -614,7 +1152,6 @@ async def websocket_ai_chat(hass, connection, msg):
                     
                 clean_txt = re.sub(r'```json\s*|```\s*', '', res_text).strip()
                 
-                added_count = 0
                 parsed = {}
                 try:
                     parsed = json.loads(clean_txt)
@@ -627,336 +1164,11 @@ async def websocket_ai_chat(hass, connection, msg):
                         return
 
                     if parsed.get("intent") == "add_invoice" and "items" in parsed:
-                        db_path = get_db_path(hass)
-
-                        # [ADDED v2026.9.4 | STAGE 2] Receipt-level handling.
-                        #
-                        # The model now returns a "receipt" object alongside the
-                        # items. Older responses will not have it, so an empty
-                        # dict keeps this backwards compatible.
-                        receipt_data = parsed.get("receipt") or {}
-                        receipt_id = None
-
-                        # [ADDED v2026.9.22] Do the lines add up to the total?
-                        #
-                        # A discount printed on its own line, or under the
-                        # item, is easy to read past - the line keeps the
-                        # shelf price and the basket costs more than the
-                        # till charged. Nothing downstream can catch that
-                        # later: the breakdown is summed from product lines,
-                        # so one missed discount inflates a category for
-                        # ever, and purchase_history is append-only, so the
-                        # wrong unit price becomes the price trend.
-                        #
-                        # The receipt total is the one number on the page
-                        # that is not in dispute, so it is the test. When
-                        # they disagree by more than a unit of currency the
-                        # same images go back with the arithmetic shown, and
-                        # what comes back is kept ONLY if it moves the sum
-                        # closer to the printed total. The model proposes;
-                        # subtraction decides (RULE 7, RULE 11).
-                        recon_note = ""
-                        scanned_items = parsed.get("items") or []
-                        try:
-                            paid = float(receipt_data.get("total_amount"))
-                        except (TypeError, ValueError):
-                            paid = 0.0
-                        lines_sum = _lines_total(scanned_items)
-                        if paid and scanned_items:
-                            gap = round(lines_sum - float(paid), 2)
-                            if abs(gap) > RECONCILE_TOLERANCE:
-                                _LOGGER.info(
-                                    "[HO-SCAN] Receipt does not balance: "
-                                    "lines %.2f vs total %.2f (%.2f).",
-                                    lines_sum, float(paid), gap)
-                                summary = "\n".join(
-                                    "  [%d] %s x%s @ %s" % (
-                                        i,
-                                        str(it.get("name") or "?")[:60],
-                                        it.get("qty"),
-                                        it.get("price"))
-                                    for i, it in enumerate(scanned_items)
-                                    if isinstance(it, dict))
-                                fix_text, fix_err = await safe_smart_router(
-                                    hass, entry,
-                                    get_reconcile_prompt(
-                                        summary, lines_sum, float(paid),
-                                        receipt_data.get("currency")),
-                                    image_pages, mime_val)
-                                fixes = []
-                                if fix_text and not fix_err:
-                                    try:
-                                        fix_json = json.loads(re.sub(
-                                            r'```json\s*|```\s*', '',
-                                            fix_text).strip())
-                                        fixes = fix_json.get("fixes") or []
-                                        recon_note = str(
-                                            fix_json.get("note") or "")[:200]
-                                    except Exception as fix_parse:
-                                        _LOGGER.debug(
-                                            "[HO-SCAN] Reconcile reply "
-                                            "unreadable: %s", fix_parse)
-                                candidate, applied = _apply_price_fixes(
-                                    scanned_items, fixes, paid)
-                                if applied:
-                                    new_sum = _lines_total(candidate)
-                                    new_gap = round(new_sum - float(paid), 2)
-                                    # THE gate. Closer to the printed total
-                                    # or it did not happen - a "correction"
-                                    # that makes the basket wronger is a
-                                    # guess wearing a number (RULE 31).
-                                    if abs(new_gap) < abs(gap):
-                                        parsed["items"] = candidate
-                                        scanned_items = candidate
-                                        lines_sum = new_sum
-                                        _LOGGER.info(
-                                            "[HO-SCAN] %d price(s) corrected: "
-                                            "%.2f -> %.2f against total "
-                                            "%.2f. %s", applied, gap, new_gap,
-                                            float(paid), recon_note)
-                                    else:
-                                        _LOGGER.info(
-                                            "[HO-SCAN] Correction rejected: "
-                                            "gap %.2f would become %.2f.",
-                                            gap, new_gap)
-
-                        # Duplicate detection runs BEFORE a single item row is
-                        # written. Writing first and asking afterwards would
-                        # leave a half-imported receipt behind if the user then
-                        # declined.
-                        existing = await async_find_receipt(
-                            hass,
-                            receipt_data.get("vendor"),
-                            receipt_data.get("receipt_number"),
+                        result = await async_process_invoice_scan(
+                            hass, entry, parsed, clean_txt, image_pages, mime_val,
+                            loc_hierarchy_map, expense_cats,
                         )
-                        if existing:
-                            # The counts are the whole point of this message: a
-                            # re-scan usually happens because the first pass read
-                            # only part of the document. Without both numbers the
-                            # user is choosing blind.
-                            old_count = await async_count_receipt_items(
-                                hass, existing.get("id")
-                            )
-                            new_count = len(parsed.get("items") or [])
-                            connection.send_result(msg["id"], {
-                                "response": (
-                                    f"This receipt is already saved.\n\n"
-                                    f"{existing.get('vendor') or '-'} | "
-                                    f"{existing.get('purchase_date') or '-'} | "
-                                    f"{existing.get('total_amount') or '-'} "
-                                    f"{existing.get('currency') or ''}\n"
-                                    f"Saved copy: {old_count} item(s). "
-                                    f"This scan found {new_count}."
-                                ),
-                                "duplicate_receipt": {
-                                    "existing_id": existing.get("id"),
-                                    "existing_items": old_count,
-                                    "new_items": new_count,
-                                },
-                                "debug": {"intent": "duplicate_receipt"},
-                            })
-                            return
-
-                        # [ADDED v2026.9.5 | STAGE 2] Persist the scanned
-                        # document first, then record the row that points at it.
-                        #
-                        # This order is deliberate. A receipts row whose
-                        # file_path names a file that was never written gives a
-                        # broken screen every time the user opens it. A file with
-                        # no row is just an orphan on disk. If the write fails,
-                        # this returns None and the receipt is still recorded -
-                        # losing the image is much better than losing the amount.
-                        # [MODIFIED v2026.9.9] Every page is archived, not just
-                        # the first, so a receipt photographed in four parts can
-                        # be reopened later as the whole document.
-                        #
-                        # Files are written before the receipt row exists,
-                        # because a row pointing at a file that was never written
-                        # produces a broken screen every time it is opened, while
-                        # a file with no row is a harmless orphan.
-                        stored_pages = await async_store_receipt_pages(
-                            hass, image_pages, mime_val
-                        )
-                        # receipts.file_path stays as page one. It is what the
-                        # list views use for a thumbnail, and it keeps receipts
-                        # saved before receipt_pages existed working unchanged.
-                        stored_file = stored_pages[0] if stored_pages else None
-
-                        # Stored even when the item list is empty: a receipt whose
-                        # header was read is still a record that money was spent,
-                        # and items can be attached to it by hand later.
-                        receipt_id = await async_insert_receipt(hass, {
-                            "receipt_number": receipt_data.get("receipt_number"),
-                            "vendor": receipt_data.get("vendor"),
-                            "purchase_date": receipt_data.get("purchase_date"),
-                            "total_amount": receipt_data.get("total_amount"),
-                            "currency": receipt_data.get("currency"),
-                            "file_path": stored_file,
-                            "item_count": len(parsed.get("items") or []),
-                            # What the lines added up to AFTER the
-                            # reconciliation above, so the stored figure is
-                            # the corrected one and a receipt that still
-                            # does not balance can be found later.
-                            #
-                            # None, not 0, when there were no lines at all.
-                            # A tank of fuel HAS no products, so zero is
-                            # not a sum that disagrees with its total by
-                            # the whole amount - there is simply nothing to
-                            # compare, and storing 0 would make every
-                            # service receipt look like the worst
-                            # discrepancy in the database.
-                            "lines_total": (lines_sum if scanned_items
-                                            else None),
-                            # THE gate. The model proposes a bucket and
-                            # resolve_expense_category decides: a name that
-                            # is not already a category is refused, not
-                            # created, so the chart can never grow a bar
-                            # nobody chose (RULE 22, RULE 31).
-                            "expense_category": resolve_expense_category(
-                                receipt_data.get("expense_category"),
-                                expense_cats),
-                        })
-
-                        # Linked after the receipt exists, since page rows need
-                        # its id. If this fails the files are still on disk and
-                        # page one still displays from receipts.file_path.
-                        if receipt_id and stored_pages:
-                            await async_link_receipt_pages(
-                                hass, receipt_id, stored_pages, mime_val
-                            )
-
-                        # [ADDED v2026.9.20] Read once, for the suggestion
-                        # check below - a name that already exists is not a
-                        # proposal for a new one.
-                        try:
-                            known_cats = {
-                                str(c).casefold()
-                                for c in (await async_get_categories(hass))
-                            }
-                        except Exception:
-                            known_cats = set()
-
-                        for item in parsed["items"]:
-                            bcode = str(item.get("barcode", "0")).strip()
-                            
-                            hist_data = None
-                            if bcode and bcode != "0":
-                                try:
-                                    async with aiosqlite.connect(db_path, timeout=10.0) as db:
-                                        db.row_factory = aiosqlite.Row
-                                        async with db.execute("SELECT * FROM barcode_history WHERE barcode=?", (bcode,)) as cc:
-                                            hist_row = await cc.fetchone()
-                                            if hist_row:
-                                                hist_data = dict(hist_row)
-                                except Exception: pass
-
-                            if hist_data:
-                                # [FIXED v2026.9.18] The freshly scanned name wins.
-                                #
-                                # barcode_history remembers where a product lives
-                                # and how it is filed, which is worth keeping. The
-                                # NAME is different: it is whatever language the
-                                # receipt was read in the first time it was seen.
-                                # Taking it from history meant a product first
-                                # scanned in English kept its English name forever,
-                                # even after the user switched the panel to Hebrew
-                                # and rescanned the same receipt.
-                                #
-                                # History is still the fallback for a scan that
-                                # produced no readable name.
-                                scanned_name = (item.get("name") or "").strip()
-                                nm = scanned_name or hist_data.get("name", "Unknown")
-                                cat = hist_data.get("category", item.get("category", ""))
-                                scat = hist_data.get("sub_category", item.get("sub_category", ""))
-                                icon = hist_data.get("icon_key", item.get("icon_key", None))
-                                raw_path = [hist_data.get("level_1", ""), hist_data.get("level_2", ""), hist_data.get("level_3", "")]
-                                raw_path = [p for p in raw_path if p]
-                            else:
-                                nm = item.get("name", "Unknown")
-                                cat = item.get("category", "")
-                                scat = item.get("sub_category", "")
-                                icon = item.get("icon_key", None)
-                                loc_id = item.get("location_id", "")
-                                
-                                raw_path = loc_hierarchy_map.get(loc_id)
-                                if not raw_path:
-                                    for _k, v in loc_hierarchy_map.items():
-                                        v_str = " ".join(v).replace("ORDER_MARKER", "")
-                                        if loc_id and loc_id.lower() in v_str.lower():
-                                            raw_path = v
-                                            break
-                                if not raw_path: raw_path = ["General"]
-                            
-                            # [MODIFIED v2026.9.4 | STAGE 2] Unit price, purchased
-                            # quantity and the receipt link now travel with the
-                            # item. _coerce_amount in database.py turns an
-                            # unreadable price into NULL rather than 0, so an
-                            # unknown price is never recorded as free.
-                            item_qty = int(item.get("qty", 1) or 1)
-                            await async_add_item_db_safe(
-                                hass, nm, item_qty, raw_path, cat, scat, "pending", icon, bcode,
-                                purchase_price=item.get("price"),
-                                quantity_purchased=item_qty,
-                                receipt_id=receipt_id,
-                                # [ADDED v2026.9.30] The scanner's estimate; the
-                                # user can correct it on the item card.
-                                expiry_date=item.get("expiry_date"),
-                                warranty_end_date=item.get("warranty_end_date"),
-                                # [ADDED v2026.9.20] A note, not a category.
-                                # See _clean_category_suggestion.
-                                suggested_category=_clean_category_suggestion(
-                                    item.get("suggest_category"), known_cats),
-                            )
-
-                            added_count += 1
-
-                            # Write the current name back, so the next scan of
-                            # this barcode and any other screen reading history
-                            # both show what the user last confirmed rather than
-                            # the first language it was ever seen in.
-                            if bcode and bcode != "0" and nm:
-                                try:
-                                    async with aiosqlite.connect(db_path, timeout=10.0) as db:
-                                        await db.execute(
-                                            "UPDATE barcode_history SET name = ? WHERE barcode = ?",
-                                            (nm, bcode),
-                                        )
-                                        await db.commit()
-                                except Exception as hist_err:
-                                    _LOGGER.debug("Could not refresh barcode name: %s", hist_err)
-                            
-                            item["name"] = nm 
-                            item["_resolved_path"] = raw_path
-                        
-                        hass.bus.async_fire("home_organizer_db_update")
-                        
-                        ai_message = parsed.get("message", f"✅ I have scanned the document and added {added_count} items to the Review tab.")
-                        response_text = f"{ai_message}\n\n"
-                        for i in parsed["items"]:
-                            p_repaired = i.get("_resolved_path", ["General"])
-                            display_path = []
-                            for node in p_repaired:
-                                cl_match = re.match(r'^\[?(ORDER_MARKER_\d+)\]?[_\s]+(.*)', node)
-                                if cl_match:
-                                    display_path.append(f"[{cl_match.group(1)}] {cl_match.group(2)}")
-                                else:
-                                    display_path.append(node)
-                            
-                            path_str = " > ".join(display_path).replace("ORDER_MARKER", "").replace("[", "").replace("]", "")
-                            response_text += f"- **{i.get('name')}** (x{i.get('qty')}) -> _{path_str}_\n"
-
-                        connection.send_result(msg["id"], {
-                            "response": response_text,
-                            "debug": {"raw_json": clean_txt, "intent": "add_invoice"},
-
-                            # [ADDED v2026.9.14] The panel scrolls to this scan once the
-
-                            # review list refreshes. Without it the user is dropped at the
-
-                            # top of a list that may already hold several scans.
-
-                            "receipt_id": receipt_id
-                        })
+                        connection.send_result(msg["id"], result)
                         return
 
                 except Exception as e:
@@ -1343,6 +1555,12 @@ async def websocket_ai_chat(hass, connection, msg):
         _LOGGER.error(f"AI Chat general error: {e}", exc_info=True)
         connection.send_result(msg["id"], {"error": f"General Error: {str(e)}"})
 
+
+@websocket_api.async_response
+async def websocket_ai_chat(hass, connection, msg):
+    """The websocket entry point. The work is in _async_ai_chat."""
+    await _async_ai_chat(hass, connection, msg)
+
 @websocket_api.async_response
 async def websocket_save_avatar(hass, connection, msg):
     try:
@@ -1718,6 +1936,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     ])
     
     hass.http.register_view(HOCameraUploadView(hass))
+    # [ADDED v2026.9.24] The companion app scans through this one.
+    hass.http.register_view(HOAppScanView(hass))
 
     hass.data.setdefault(DOMAIN, {})
     

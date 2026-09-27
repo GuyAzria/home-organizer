@@ -1,4 +1,4 @@
-// Home Organizer for Home Assistant
+﻿// Home Organizer for Home Assistant
 // Copyright (C) 2026 Guy Azria
 //
 // This program is free software: you can redistribute it and/or modify it
@@ -11,23 +11,14 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
-// [FIXED v2026.9.22 | 2026-09-22] Purpose: A store header in the receipts
-//   archive was cut off on a phone. The caller builds the tab body as a
-//   flex COLUMN, so every header and every row in it is a flex item, and a
-//   flex item shrinks when the column overflows - which the scrolling list
-//   always does. Only a phone showed it: that is the width where a chain
-//   name wraps to a second line, so the header wants about 45px, is
-//   squeezed back to the 35px .group-separator sets as its minimum, and
-//   loses the bottom of both lines. The list is a stack of blocks that
-//   scrolls and never wanted a flex context at all, so it no longer has
-//   one; the column belongs to the review tab and stays there.
-// [MODIFIED v2026.9.22 | 2026-09-22] Purpose: The receipts archive is left
-//   alone on purpose. A per-store spending bucket was built here and then
-//   removed in the same release: one supermarket receipt is tomatoes AND a
-//   toy AND sunscreen, so no single answer at the receipt level is a true
-//   one. The breakdown is summed from the product lines instead, where the
-//   category already lives. Receipts keep being stored without a bucket
-//   and grouped by store, which is what this screen was already doing.
+// [MODIFIED v2026.9.27 | 2026-09-27] Purpose: The receipts archive is filtered by
+//   a store and a period, not by two date boxes and a Clear button. This year is
+//   the default, because an archive that opens on every receipt ever stored is a
+//   list nobody reads. Choose dates still opens the calendar for a window no
+//   preset covers.
+// [FIXED v2026.9.27 | 2026-09-27] Purpose: The receipts archive loads when the
+//   screen is reached, not only when its tab is clicked. The panel restores
+//   the screen it was last on, so arriving there directly showed it empty.
 
 import { ICONS } from '../organizer-icon.js?v=10.0.10';
 import { escapeHtml, formatAiText } from '../organizer-utils.js?v=2026.8.26';
@@ -65,7 +56,23 @@ export const ChatMixin = (Base) => class extends Base {
       const tabContent = document.createElement('div'); tabContent.style.flex = '1'; tabContent.style.minHeight = '0'; tabContent.style.display = 'flex'; tabContent.style.flexDirection = 'column'; tabContent.style.overflowY = this.isReviewMode ? 'auto' : 'hidden'; 
       // Review is the default: reaching this screen with no tab chosen means
       // the user came to deal with scans.
-      if (this.isReceiptsMode) { this.renderReceiptsTable(tabContent); }
+      if (this.isReceiptsMode) {
+        // [FIXED v2026.9.27] Load on arrival, not only on a tab click.
+        //
+        // loadReceipts() was wired to the tab's onclick and to nothing else,
+        // while the panel restores whichever screen it was last on. Opening it
+        // straight onto this tab left receiptsData undefined and the table fell
+        // back to its empty shape - the archive looked empty until the two tabs
+        // were toggled, because toggling is what ran the handler.
+        //
+        // The flag is set BEFORE the call, not after: loadReceipts() renders
+        // twice on its own and would re-enter this branch and ask again.
+        if (!this.receiptsRequested) {
+          this.receiptsRequested = true;
+          this.loadReceipts();
+        }
+        this.renderReceiptsTable(tabContent);
+      }
       else {
         // The list grows and scrolls; margin-top:auto on the bar then pushes
         // it to the bottom even when the list is empty.
@@ -552,11 +559,15 @@ export const ChatMixin = (Base) => class extends Base {
     this.receiptsLoading = true;
     this.render();
     try {
+      // [MODIFIED v2026.9.27] The dates come from the chosen period rather
+      // than from two boxes, so there is one place that decides what window
+      // is being shown.
+      const range = this.receiptDateRange();
       const res = await this._hass.callWS({
         type: 'home_organizer/list_receipts',
-        vendor:    this.receiptFilters?.vendor    || null,
-        date_from: this.receiptFilters?.date_from || null,
-        date_to:   this.receiptFilters?.date_to   || null,
+        vendor:    this.receiptFilters?.vendor || null,
+        date_from: range.from,
+        date_to:   range.to,
       });
       this.receiptsData = res || { receipts: [], vendors: [], totals: {} };
     } catch (e) {
@@ -573,9 +584,110 @@ export const ChatMixin = (Base) => class extends Base {
     this.loadReceipts();
   }
 
-  clearReceiptFilters() {
-    this.receiptFilters = {};
+  // [ADDED v2026.9.27] The period being shown. Replaces clearReceiptFilters,
+  // which existed to empty the two date boxes that are gone.
+  //
+  // This year is the default, and it is a real filter rather than "no filter":
+  // a household accumulates receipts for years and the archive opening on all
+  // of them is a list nobody reads.
+  receiptPeriodKey() { return this.receiptPeriod || 'this_year'; }
+
+  // Local date parts, never toISOString(): that converts to UTC first, which
+  // moves the day across midnight depending on the timezone - so "today"
+  // would be yesterday for anyone east of London in the early morning.
+  receiptIsoDate(d) {
+    const p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  }
+
+  receiptDateRange() {
+    const key = this.receiptPeriodKey();
+    if (key === 'custom') {
+      return { from: this.receiptFilters?.date_from || null,
+               to:   this.receiptFilters?.date_to   || null };
+    }
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    const iso = d => this.receiptIsoDate(d);
+    switch (key) {
+      case 'today':
+        return { from: iso(now), to: iso(now) };
+      // Day 0 of the next month is the last day of this one, so February and
+      // leap years need no special case.
+      case 'this_month':
+        return { from: iso(new Date(y, m, 1)), to: iso(new Date(y, m + 1, 0)) };
+      // Month -1 in January is December of the year before, handled by Date.
+      case 'last_month':
+        return { from: iso(new Date(y, m - 1, 1)), to: iso(new Date(y, m, 0)) };
+      case 'last_year':
+        return { from: `${y - 1}-01-01`, to: `${y - 1}-12-31` };
+      case 'this_year':
+      default:
+        return { from: `${y}-01-01`, to: `${y}-12-31` };
+    }
+  }
+
+  setReceiptPeriod(kind) {
+    if (kind === 'custom') {
+      // The dialog decides. Until it does, the period is unchanged, so the
+      // bar never shows a window that is not the one on screen.
+      this.openReceiptPeriodPicker();
+      return;
+    }
+    this.receiptPeriod = kind;
     this.loadReceipts();
+  }
+
+  // The platform calendar, through two date inputs. No date library: Home
+  // Assistant is often run with no internet, and every browser and phone
+  // already has a calendar behind input type=date (RULE 16).
+  openReceiptPeriodPicker() {
+    const previous = this.receiptPeriodKey();
+    const range = this.receiptDateRange();
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:#000000aa;z-index:300;'
+      + 'display:flex;align-items:center;justify-content:center;padding:16px;';
+    const card = document.createElement('div');
+    card.style.cssText = 'background:var(--card-background-color,#1c1c1c);'
+      + 'border-radius:12px;padding:16px;width:100%;max-width:340px;'
+      + 'display:flex;flex-direction:column;gap:12px;';
+    card.innerHTML = `
+      <div style="font-weight:bold;">${escapeHtml(this._t('receipts_period_title', 'Choose a period'))}</div>
+      <label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--text-sub);">
+        ${escapeHtml(this._t('receipts_filter_from', 'From'))}
+        <input type="date" id="rc-cf" value="${escapeHtml(range.from || '')}" style="min-height:40px;">
+      </label>
+      <label style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--text-sub);">
+        ${escapeHtml(this._t('receipts_filter_to', 'To'))}
+        <input type="date" id="rc-ct" value="${escapeHtml(range.to || '')}" style="min-height:40px;">
+      </label>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="action-btn" id="rc-cc" style="min-height:40px;">${escapeHtml(this._t('receipts_period_cancel', 'Cancel'))}</button>
+        <button class="action-btn" id="rc-ca" style="min-height:40px;">${escapeHtml(this._t('receipts_period_apply', 'Apply'))}</button>
+      </div>`;
+    ov.appendChild(card);
+
+    const dismiss = () => {
+      try { ov.remove(); } catch (e) { }
+      // The select in the bar is showing "choose dates"; putting the period
+      // back and re-rendering returns it to what is actually displayed.
+      this.receiptPeriod = previous;
+      this.render();
+    };
+    card.querySelector('#rc-cc').onclick = dismiss;
+    ov.onclick = (e) => { if (e.target === ov) dismiss(); };
+    card.querySelector('#rc-ca').onclick = () => {
+      const from = card.querySelector('#rc-cf').value || null;
+      const to   = card.querySelector('#rc-ct').value || null;
+      try { ov.remove(); } catch (e) { }
+      this.receiptFilters = this.receiptFilters || {};
+      this.receiptFilters.date_from = from;
+      this.receiptFilters.date_to = to;
+      this.receiptPeriod = 'custom';
+      this.loadReceipts();
+    };
+    this.shadowRoot.appendChild(ov);
   }
 
   // [ADDED v2026.9.15] Collapse store-name variants onto one group.
@@ -656,28 +768,53 @@ export const ChatMixin = (Base) => class extends Base {
     const f = this.receiptFilters || {};
 
     // --- filters ---
+    //
+    // [MODIFIED v2026.9.27] Two dropdowns, where there were a dropdown, two
+    // date boxes and a Clear button.
+    //
+    // Four controls did not fit a phone: they wrapped onto three lines, the two
+    // date boxes were the wrong shape for the question being asked - nobody
+    // thinks "from the 1st to the 31st", they think "last month" - and Clear
+    // left the archive showing every receipt ever stored.
+    //
+    // The dates are still there, behind Choose dates, for the one case a
+    // preset cannot express.
     const bar = document.createElement('div');
-    bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:12px;';
+    bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px;';
     const vendorOptions = ['<option value="">' + escapeHtml(this._t('receipts_filter_vendor', 'Store')) + '</option>']
       .concat((data.vendors || []).map(v =>
         `<option value="${escapeHtml(v)}" ${f.vendor === v ? 'selected' : ''}>${escapeHtml(v)}</option>`))
       .join('');
+    const periodKey = this.receiptPeriodKey();
+    const periodOptions = [
+      ['this_year',  this._t('receipts_period_this_year',  'This year')],
+      ['last_year',  this._t('receipts_period_last_year',  'Last year')],
+      ['this_month', this._t('receipts_period_this_month', 'This month')],
+      ['last_month', this._t('receipts_period_last_month', 'Last month')],
+      ['today',      this._t('receipts_period_today',      'Today')],
+      ['custom',     this._t('receipts_period_custom',     'Choose dates')],
+    ].map(([k, label]) =>
+      `<option value="${escapeHtml(k)}" ${periodKey === k ? 'selected' : ''}>${escapeHtml(label)}</option>`
+    ).join('');
+    // flex-basis 140px with wrap: side by side on anything from a tablet up,
+    // one per line on a narrow phone, and never squeezed to unreadable. 40px
+    // minimum because these are touched, not clicked.
     bar.innerHTML = `
-      <select id="rc-vendor" class="stylist-filter-select" style="flex:1;min-width:120px;">${vendorOptions}</select>
-      <label style="display:flex;flex-direction:column;font-size:10px;color:var(--text-sub);">
-        ${escapeHtml(this._t('receipts_filter_from', 'From'))}
-        <input type="date" id="rc-from" value="${escapeHtml(f.date_from || '')}">
-      </label>
-      <label style="display:flex;flex-direction:column;font-size:10px;color:var(--text-sub);">
-        ${escapeHtml(this._t('receipts_filter_to', 'To'))}
-        <input type="date" id="rc-to" value="${escapeHtml(f.date_to || '')}">
-      </label>
-      <button class="action-btn" id="rc-clear">${escapeHtml(this._t('receipts_clear_filters', 'Clear'))}</button>`;
+      <select id="rc-vendor" class="stylist-filter-select" style="flex:1 1 140px;min-width:120px;min-height:40px;">${vendorOptions}</select>
+      <select id="rc-period" class="stylist-filter-select" style="flex:1 1 140px;min-width:120px;min-height:40px;" title="${escapeHtml(this._t('receipts_period', 'Period'))}">${periodOptions}</select>`;
     container.appendChild(bar);
     bar.querySelector('#rc-vendor').onchange = e => this.setReceiptFilter('vendor', e.target.value);
-    bar.querySelector('#rc-from').onchange   = e => this.setReceiptFilter('date_from', e.target.value);
-    bar.querySelector('#rc-to').onchange     = e => this.setReceiptFilter('date_to', e.target.value);
-    bar.querySelector('#rc-clear').onclick   = () => this.clearReceiptFilters();
+    bar.querySelector('#rc-period').onchange = e => this.setReceiptPeriod(e.target.value);
+
+    // The window in figures, under the bar. A preset name alone does not say
+    // which dates it resolved to, and the totals below are only true of those.
+    const shown = this.receiptDateRange();
+    if (shown.from || shown.to) {
+      const cap = document.createElement('div');
+      cap.style.cssText = 'font-size:11px;color:var(--text-sub);margin-bottom:10px;direction:ltr;text-align:start;';
+      cap.textContent = `${shown.from || ''} \u2013 ${shown.to || ''}`;
+      container.appendChild(cap);
+    }
 
     // --- totals, one line per currency ---
     // Never summed together: adding shekels to dollars gives a meaningless
