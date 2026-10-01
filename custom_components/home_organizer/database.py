@@ -12,30 +12,48 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
-# // [ADDED v2026.9.27 | 2026-09-27] Purpose: async_find_receipt records its
-# // near misses. When a re-scan is not recognised as the same receipt there is
-# // no way to tell afterwards whether the status filter excluded the row, the
-# // shop name was read differently, or the number was - so every row carrying
-# // that number is logged, whatever its vendor or status. Only the no-match
-# // case is logged, at debug level rather than info - a shop name, a receipt
-# // number and a total are a record of what somebody bought, and the default
-# // log is what gets pasted into bug reports. And a second chance: the
-# // same number with the same total, where one shop name contains the other,
-# // is the same receipt. The model does not transcribe a shop name identically
-# // every time, and because vendor is half the duplicate key neither the
-# // lookup nor the UNIQUE index behind it saw "Rami Levy" and "Rami Levy
-# // Shivuk HaShikma" as one shop - so the same PDF was stored twice.
-# // [MODIFIED v2026.9.22 | 2026-09-22] Purpose: Spending is broken down BY
-# // PRODUCT LINE, not by receipt. One trip to the supermarket is tomatoes,
-# // a toy and a bottle of sunscreen, so no single answer at the receipt
-# // level is a true one - purchase_history now carries the item's own
-# // category, backfilled once from the items each row came from. Receipts
-# // with NO lines (fuel, a hotel) keep answering through their own
-# // expense_category, because nothing else can speak for them, and what is
-# // left of the receipt totals after both is reported as its own row
-# // rather than spread across the categories. receipts.lines_total records
-# // what the lines added up to at scan time, which is how a receipt that
-# // does not balance can be found again.
+# // [FIXED v2026.9.30 | 2026-09-30] Purpose: A box reached the panel as an
+# // item. Both location row builders SELECT type IN ('item','box') and both
+# // then wrote "type": 'item' into the dict, throwing the value away. The
+# // panel finds a box by that field, so the box card was never built: the box
+# // was drawn as an ordinary row, and the items inside it - which do carry
+# // box_id, and which the loose-item loop therefore skips - were drawn
+# // nowhere at all. They were never lost, only invisible. This is the RULE
+# // 33a.6 shape again: the same row built in more than one place, and a field
+# // added to the shared helper while a hardcoded one sat two lines above it.
+# // ORDER BY also said type DESC while its comment claimed boxes came first;
+# // 'box' sorts before 'item', so DESC did the opposite. Now ASC.
+# // Also box_type, added through the same idempotent ALTER loop as every
+# // other column, so a fresh install and an upgrade end in the same place and
+# // an existing row gets NULL and behaves exactly as before (RULE 6, RULE 25).
+# // It is returned by _box_fields, which all five row builders spread, so it
+# // reaches every list at once rather than three of them (RULE 33a.6).
+# // And the operations the assistant needs on a box it only knows by NUMBER:
+# // get_box_by_seq, empty_box, delete_box_items and the two pending lookups.
+# // empty_box clears box_id AND the sub-location, so the contents land in
+# // the General group of the location the box stands in and nothing is
+# // deleted. delete_box_items deletes the ITEMS and takes any unreviewed
+# // receipt line OUT of the box instead - a receipt line is review work, not
+# // inventory, and "delete the items" must not throw it away (RULE 5,
+# // RULE 23). name_matches_query was lifted out of box_matches_query so the
+# // agent looks for "face cream" among receipt lines with the same
+# // Hebrew-aware test and not a second copy of it (RULE 33d).
+# // Then the same operations for a LOCATION: location_counts,
+# // empty_location and delete_location_items. All three act on LOOSE items
+# // only - a box standing there is left alone and counted, because "take
+# // everything off the top shelf" means move the box, not unpack it, and
+# // unpacking one row at a time would break the invariant that an item's
+# // box_id and its levels agree. empty_location refuses a whole ROOM: it has
+# // no parent, and clearing level_1 would leave the rows at the root where
+# // no screen lists them, which is indistinguishable from lost (RULE 31).
+# // [ADDED v2026.9.27 | 2026-09-27] Purpose: BOXES. A box is a row, type=box,
+# // standing in a location as an item does, with a free title and a number
+# // that never changes. An item inside one carries box_id AND keeps the box
+# // levels, so every other feature still finds it by location and none of
+# // them had to learn about boxes; moving the box rewrites its contents in
+# // one statement. See the BOXES section for why a box cannot be a folder
+# // level: navigation is two levels deep and a box would put its contents
+# // where nothing looks.
 
 import logging
 import aiosqlite
@@ -234,7 +252,38 @@ async def async_init_db(hass):
                 #
                 # Purely additive; every existing row gets NULL and
                 # shows nothing (RULE 5, RULE 25).
-                'suggested_category': "TEXT"
+                'suggested_category': "TEXT",
+
+                # [ADDED v2026.9.27] Boxes.
+                #
+                # A box is a row of its own, type='box', standing in a
+                # location exactly as an item does. An item inside one carries
+                # box_id AND keeps its own level columns in step with the box.
+                #
+                # Both, not just box_id, because every other feature in this
+                # integration finds an item through its levels - search, the
+                # expiry list, the dashboard breakdown, the shopping flow, the
+                # receipt scanner resolving a location. If membership were the
+                # only record of where a thing is, all of them would have to
+                # learn about boxes. The levels stay the display truth; box_id
+                # is the membership truth, and moving a box rewrites the levels
+                # of its contents in one statement keyed on this integer.
+                #
+                # box_seq is the number on the physical label: box3 stays box3
+                # in every language, because it is an identifier and not a word
+                # (RULE 17, RULE 20). It is assigned MAX+1, never COUNT+1, so
+                # deleting a box does not renumber the others.
+                #
+                # Purely additive: every existing row gets NULL and behaves
+                # exactly as before (RULE 5, RULE 25).
+                'box_id': "INTEGER",
+                'box_seq': "INTEGER",
+                # [ADDED v2026.9.30] What kind of box it is - cardboard,
+                # a drawer, a crate. Free text, because it is the user's
+                # own word for their own box; the panel offers the common
+                # answers as chips and stores those in English so the
+                # label survives a change of interface language.
+                'box_type': "TEXT",
             }
             
             for i in range(1, 11): 
@@ -281,6 +330,9 @@ async def async_init_db(hass):
                 await db.execute("CREATE INDEX IF NOT EXISTS idx_items_expiry ON items(expiry_date)")
                 await db.execute("CREATE INDEX IF NOT EXISTS idx_items_receipt ON items(receipt_id)")
                 await db.execute("CREATE INDEX IF NOT EXISTS idx_items_discarded ON items(discarded)")
+                # [ADDED v2026.9.27] Moving a box updates its contents by
+                # this column, so it is the one that has to be indexed.
+                await db.execute("CREATE INDEX IF NOT EXISTS idx_items_box ON items(box_id)")
             except Exception:
                 pass
 
@@ -902,6 +954,550 @@ async def async_add_item_db_safe(hass, name, qty, path_list, category="", sub_ca
         return None
 
 # ==========================================================================
+# [ADDED v2026.9.27] BOXES
+#
+# A box is a row, type='box', standing in a location exactly as an item does,
+# carrying a free title ("M8 screws") and a number that never changes (box3).
+#
+# WHY MEMBERSHIP IS AN ID AND NOT A PATH.
+# The obvious design - a box is a third folder level - cannot work here:
+# async_get_view_data navigates two folder levels and reads DISTINCT level_1,
+# level_2, level_3 only, so a box at level 3 would put its contents at level 4
+# where nothing looks. The box is therefore a row in the item list, and what
+# says an item is inside it is box_id.
+#
+# WHY THE LEVELS ARE KEPT IN STEP AS WELL.
+# Everything else finds an item through its levels. Membership alone would mean
+# teaching search, expiry, the dashboard and the scanner about boxes; keeping
+# the levels means none of them change at all. So an item in a box carries
+# both, and moving the box rewrites the levels of its contents in one statement
+# keyed on the indexed integer.
+
+
+def _level_values(path):
+    """A path as the ten level columns, padded with None."""
+    parts = [p for p in (path or []) if p]
+    return [parts[i] if i < len(parts) else None for i in range(10)]
+
+
+def box_label(box_seq):
+    """The identifier on the physical label: box3.
+
+    Deliberately not translated. It is an identifier, like a barcode, and
+    RULE 20 says a translation must never alter one.
+    """
+    try:
+        return f"box{int(box_seq)}"
+    except (TypeError, ValueError):
+        return ""
+
+
+# [ADDED v2026.9.30] The name match, lifted out of box_matches_query.
+#
+# The assistant needs the same test when it looks for "face cream" among the
+# lines of a receipt, and a second copy would drift from this one the first
+# time either was tuned (RULE 33d).
+def name_matches_query(haystack, query):
+    """Whether `haystack` answers `query`, the way a person means it.
+
+    A single LIKE over the whole query does not do what a person expects.
+    Asking for "box for screws" against "M8 screws" matches nothing, and
+    splitting into words is not enough either: Hebrew glues its prepositions
+    on, so the query word carries a prefix the stored word does not have and
+    containment fails in that direction only.
+
+    So each word is tested BOTH ways round - a stored word inside a query
+    word, or a query word inside the stored text. Language-neutral, no word
+    list, and the same test that recognises "Rami Levy" as "Rami Levy Shivuk
+    HaShikma".
+
+    Words of one or two characters are ignored; anything that short is inside
+    almost everything.
+
+    An empty query matches EVERYTHING. A caller for which that would be
+    catastrophic - anything that deletes - must reject an empty query itself
+    rather than relying on this (RULE 31).
+    """
+    q = " ".join(str(query or "").split()).casefold()
+    if not q:
+        return True
+    hay = " ".join(str(haystack or "").split()).casefold()
+    hay_words = [w for w in hay.split() if len(w) >= 2]
+    for token in q.split():
+        if len(token) < 2:
+            continue
+        if token in hay:
+            return True
+        for w in hay_words:
+            if len(w) >= 3 and w in token:
+                return True
+    return False
+
+
+def box_matches_query(title, label, query):
+    """Whether a box answers a typed query.
+
+    The title and the label are one haystack, so box3 finds it by number and
+    screws finds it by what is in it. The match is name_matches_query.
+    """
+    return name_matches_query(f"{title or ''} {label or ''}", query)
+
+
+async def async_create_box(hass, title, path, new_item_names=None):
+    """Create a box in `path`. Returns {id, box_seq, label} or None.
+
+    box_seq is MAX+1 and never COUNT+1: deleting box3 must not turn box4 into
+    box3, because the number is written on the box itself.
+
+    new_item_names creates items straight INSIDE the box. It is done here, in
+    the same transaction, because the box id does not exist until the insert
+    above has run - a caller cannot put an item in a box it cannot name yet.
+    """
+    name = _coerce_text(title)
+    if not name:
+        return None
+    try:
+        db_path = get_db_path(hass)
+        vals = _level_values(path)
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            async with db.execute(
+                "SELECT COALESCE(MAX(box_seq), 0) + 1 FROM items"
+            ) as cur:
+                seq = (await cur.fetchone())[0]
+            cols = ", ".join(f"level_{i}" for i in range(1, 11))
+            marks = ", ".join("?" for _ in range(10))
+            cur = await db.execute(
+                f"INSERT INTO items (name, type, quantity, box_seq, {cols}) "
+                f"VALUES (?, 'box', 1, ?, {marks})",
+                (name, int(seq), *vals),
+            )
+            box_id = cur.lastrowid
+
+            for raw in (new_item_names or []):
+                item_name = _coerce_text(raw)
+                if not item_name:
+                    continue
+                await db.execute(
+                    f"INSERT INTO items (name, type, quantity, box_id, {cols}) "
+                    f"VALUES (?, 'item', 1, ?, {marks})",
+                    (item_name, box_id, *vals),
+                )
+
+            await db.commit()
+            return {"id": box_id, "box_seq": int(seq),
+                    "label": box_label(seq)}
+    except Exception as err:
+        _LOGGER.error("Box create failed: %s", err)
+        return None
+
+
+async def async_get_box(hass, box_id):
+    """One box row as a dict, or None."""
+    if not box_id:
+        return None
+    try:
+        db_path = get_db_path(hass)
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT * FROM items WHERE id = ? AND type = 'box'",
+                (box_id,),
+            ) as cur:
+                row = await cur.fetchone()
+        return dict(row) if row else None
+    except Exception as err:
+        _LOGGER.error("Box lookup failed: %s", err)
+        return None
+
+
+async def async_set_item_box(hass, item_id, box_id):
+    """Put an item in a box, move it between boxes, or take it out.
+
+    One function for all three, because they are one operation: set box_id and
+    bring the levels with it. box_id=None takes the item out and LEAVES it
+    where the box is standing, which is what happens physically.
+    """
+    if not item_id:
+        return False
+    try:
+        db_path = get_db_path(hass)
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            db.row_factory = aiosqlite.Row
+            if box_id:
+                async with db.execute(
+                    "SELECT * FROM items WHERE id = ? AND type = 'box'",
+                    (box_id,),
+                ) as cur:
+                    box = await cur.fetchone()
+                if not box:
+                    _LOGGER.error("Box %s does not exist", box_id)
+                    return False
+                box = dict(box)
+                sets = ", ".join(f"level_{i} = ?" for i in range(1, 11))
+                vals = [box.get(f"level_{i}") for i in range(1, 11)]
+                await db.execute(
+                    f"UPDATE items SET box_id = ?, {sets} WHERE id = ?",
+                    (box_id, *vals, item_id),
+                )
+            else:
+                # Out of the box, still on the shelf: the levels are already
+                # the box's, which is where the box is standing.
+                await db.execute(
+                    "UPDATE items SET box_id = NULL WHERE id = ?", (item_id,))
+            await db.commit()
+        return True
+    except Exception as err:
+        _LOGGER.error("Set item box failed: %s", err)
+        return False
+
+
+async def async_move_box(hass, box_id, path):
+    """Move a box and everything in it.
+
+    Two statements in ONE transaction. Separately they would leave a box whose
+    contents are on the old shelf - which is the exact thing this feature
+    exists to prevent.
+    """
+    if not box_id:
+        return False
+    try:
+        db_path = get_db_path(hass)
+        vals = _level_values(path)
+        sets = ", ".join(f"level_{i} = ?" for i in range(1, 11))
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            await db.execute(
+                f"UPDATE items SET {sets} WHERE id = ?", (*vals, box_id))
+            await db.execute(
+                f"UPDATE items SET {sets} WHERE box_id = ?", (*vals, box_id))
+            await db.commit()
+        return True
+    except Exception as err:
+        _LOGGER.error("Box move failed: %s", err)
+        return False
+
+
+async def async_delete_box(hass, box_id):
+    """Remove the box. Its contents stay exactly where they are.
+
+    Emptying a cardboard box onto the shelf does not throw the contents away,
+    and neither does this: box_id is cleared, the levels are untouched, and
+    only the box row goes (RULE 5).
+    """
+    if not box_id:
+        return False
+    try:
+        db_path = get_db_path(hass)
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            await db.execute(
+                "UPDATE items SET box_id = NULL WHERE box_id = ?", (box_id,))
+            await db.execute(
+                "DELETE FROM items WHERE id = ? AND type = 'box'", (box_id,))
+            await db.commit()
+        return True
+    except Exception as err:
+        _LOGGER.error("Box delete failed: %s", err)
+        return False
+
+
+async def async_list_boxes(hass, path_parts=None, query=None):
+    """Every box, narrowed by location and by typed text.
+
+    The text filter runs here rather than in SQL because the match is tested
+    both ways round - see box_matches_query - which SQL cannot express. A house
+    has tens of boxes, so the list is read and filtered without cost.
+    """
+    out = []
+    try:
+        db_path = get_db_path(hass)
+        sql = "SELECT * FROM items WHERE type = 'box'"
+        params = []
+        for i, p in enumerate(path_parts or []):
+            if p:
+                sql += f" AND level_{i + 1} = ?"
+                params.append(p)
+        sql += " ORDER BY box_seq ASC"
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(sql, tuple(params)) as cur:
+                rows = [dict(r) for r in await cur.fetchall()]
+            for row in rows:
+                label = box_label(row.get("box_seq"))
+                if not box_matches_query(row.get("name"), label, query):
+                    continue
+                async with db.execute(
+                    "SELECT COUNT(*) FROM items WHERE box_id = ?", (row["id"],)
+                ) as cur:
+                    count = (await cur.fetchone())[0]
+                row["box_label"] = label
+                row["box_count"] = count
+                out.append(row)
+    except Exception as err:
+        _LOGGER.error("Box list failed: %s", err)
+    return out
+
+
+# [ADDED v2026.9.30] What the assistant needs to work on a box by its NUMBER.
+#
+# A person says "box 4", never a row id. The number is what is written on the
+# carton, so it is the only handle the assistant is given - and a number that
+# names no box returns None, which is how every caller below refuses to guess
+# (RULE 31). Nothing here creates a box: allocating a box number means asking
+# someone to write it on a carton, and that is the user's decision.
+async def async_get_box_by_seq(hass, seq):
+    """The box whose printed number is `seq`, or None."""
+    try:
+        n = int(seq)
+    except (TypeError, ValueError):
+        return None
+    try:
+        db_path = get_db_path(hass)
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT * FROM items WHERE type = 'box' AND box_seq = ?",
+                (n,),
+            ) as cur:
+                row = await cur.fetchone()
+        return dict(row) if row else None
+    except Exception as err:
+        _LOGGER.error("Box lookup by number failed: %s", err)
+        return None
+
+
+async def async_empty_box(hass, box_id):
+    """Take everything out of a box. Returns how many rows moved, or None.
+
+    The contents land in the GENERAL group of the location the box is standing
+    in: box_id is cleared and so are level_3 and below. Physically you would
+    be putting them on the shelf the box was on, which is what clearing the
+    sub-location means on screen.
+
+    Nothing is deleted. A row that was in the box is still a row afterwards,
+    wherever the user then files it (RULE 5).
+    """
+    if not box_id:
+        return None
+    try:
+        db_path = get_db_path(hass)
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            sets = ", ".join(f"level_{i} = NULL" for i in range(3, 11))
+            cur = await db.execute(
+                f"UPDATE items SET box_id = NULL, {sets} WHERE box_id = ?",
+                (box_id,),
+            )
+            moved = cur.rowcount
+            await db.commit()
+        return moved
+    except Exception as err:
+        _LOGGER.error("Box empty failed: %s", err)
+        return None
+
+
+async def async_delete_box_items(hass, box_id):
+    """Delete the ITEMS in a box. Returns (deleted, unboxed) or None.
+
+    An unreviewed receipt line can be sorted into a box before anybody has
+    agreed it is real, and it is NOT inventory - it is review work. So it is
+    taken out of the box rather than deleted, and the count comes back
+    separately so the caller can say so. "Delete the items" must not quietly
+    throw away a receipt somebody was part-way through checking (RULE 5,
+    RULE 23).
+
+    The box row itself survives. Emptying a box is not the same as not having
+    one, and the number on the carton stays valid.
+    """
+    if not box_id:
+        return None
+    try:
+        db_path = get_db_path(hass)
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            cur = await db.execute(
+                "DELETE FROM items WHERE box_id = ? AND type = 'item'",
+                (box_id,),
+            )
+            deleted = cur.rowcount
+            cur = await db.execute(
+                "UPDATE items SET box_id = NULL WHERE box_id = ?",
+                (box_id,),
+            )
+            unboxed = cur.rowcount
+            await db.commit()
+        return (deleted, unboxed)
+    except Exception as err:
+        _LOGGER.error("Box item delete failed: %s", err)
+        return None
+
+
+async def async_find_pending_matching(hass, query):
+    """Unreviewed receipt lines whose name answers `query`.
+
+    This is what lets the assistant say "there is a face cream on a receipt -
+    shall I put THAT one in the box" instead of creating a second row for
+    something already waiting to be reviewed.
+
+    An empty query returns nothing rather than everything. name_matches_query
+    treats no text as "match all", which is right for a search box and wrong
+    for anything acting on the result (RULE 31).
+    """
+    if not str(query or "").strip():
+        return []
+    out = []
+    try:
+        db_path = get_db_path(hass)
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT id, name, receipt_id, box_id FROM items "
+                "WHERE type = 'pending'"
+            ) as cur:
+                rows = [dict(r) for r in await cur.fetchall()]
+        for row in rows:
+            if name_matches_query(row.get("name"), query):
+                out.append(row)
+    except Exception as err:
+        _LOGGER.error("Pending lookup failed: %s", err)
+    return out
+
+
+async def async_find_pending_by_vendor(hass, vendor):
+    """Every unreviewed line of every receipt from a shop.
+
+    The vendor is matched with name_matches_query, which is what recognises
+    "Super-Pharm" as "SUPER-PHARM LTD BRANCH 412".
+
+    An empty vendor returns nothing. Acting on "all receipts" because a name
+    was blank is exactly the accident RULE 31 exists to prevent.
+    """
+    if not str(vendor or "").strip():
+        return []
+    out = []
+    try:
+        db_path = get_db_path(hass)
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT id, vendor FROM receipts") as cur:
+                receipts = [dict(r) for r in await cur.fetchall()]
+            wanted = [r["id"] for r in receipts
+                      if name_matches_query(r.get("vendor"), vendor)]
+            if not wanted:
+                return []
+            marks = ",".join("?" * len(wanted))
+            async with db.execute(
+                f"SELECT id, name, receipt_id, box_id FROM items "
+                f"WHERE type = 'pending' AND receipt_id IN ({marks})",
+                tuple(wanted),
+            ) as cur:
+                out = [dict(r) for r in await cur.fetchall()]
+    except Exception as err:
+        _LOGGER.error("Pending lookup by vendor failed: %s", err)
+    return out
+
+
+# [ADDED v2026.9.30] The location equivalents of the box operations.
+#
+# All three work on LOOSE items only - type='item' with no box_id. A box
+# standing in the location is left alone and counted: "take everything off
+# the top shelf" means move the box, not unpack it, and unpacking one row at
+# a time would break the invariant that an item's box_id and its ten level
+# columns agree. A box is moved and emptied by its own operations.
+#
+# None of them touch an unreviewed receipt line. A pending line is not IN a
+# location - a model SUGGESTED that location for it - so deleting one would
+# throw away review work nobody has finished (RULE 23).
+def _level_where(parts):
+    """A WHERE fragment and its parameters for an exact location path."""
+    clean = [p for p in (parts or []) if p]
+    where = " AND ".join(f"level_{i + 1} = ?" for i in range(len(clean)))
+    return clean, where
+
+
+async def async_location_counts(hass, path):
+    """(loose items, boxes, unreviewed lines) sitting in a location.
+
+    Counted so a confirmation question can name numbers. "Delete everything
+    on the top shelf" is not something to agree to blind.
+    """
+    clean, where = _level_where(path)
+    if not clean:
+        return (0, 0, 0)
+    try:
+        db_path = get_db_path(hass)
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            async with db.execute(
+                f"SELECT COUNT(*) FROM items WHERE type = 'item' "
+                f"AND box_id IS NULL AND {where}", tuple(clean)) as cur:
+                loose = (await cur.fetchone())[0]
+            async with db.execute(
+                f"SELECT COUNT(*) FROM items WHERE type = 'box' "
+                f"AND {where}", tuple(clean)) as cur:
+                boxes = (await cur.fetchone())[0]
+            async with db.execute(
+                f"SELECT COUNT(*) FROM items WHERE type = 'pending' "
+                f"AND {where}", tuple(clean)) as cur:
+                pending = (await cur.fetchone())[0]
+        return (int(loose), int(boxes), int(pending))
+    except Exception as err:
+        _LOGGER.error("Location count failed: %s", err)
+        return (0, 0, 0)
+
+
+async def async_empty_location(hass, path):
+    """Move the loose items in a location up to its PARENT. Count, or None.
+
+    Taking everything off the top shelf puts it on the thing that contains
+    the top shelf, which is the location one level up. Nothing is deleted.
+
+    A room is refused: it has no parent, and clearing level_1 would leave the
+    rows at the root where no screen lists them - findable only by search,
+    which is indistinguishable from lost (RULE 31).
+    """
+    clean, where = _level_where(path)
+    if len(clean) < 2:
+        return None
+    try:
+        db_path = get_db_path(hass)
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            sets = ", ".join(f"level_{i} = NULL"
+                             for i in range(len(clean), 11))
+            cur = await db.execute(
+                f"UPDATE items SET {sets} WHERE type = 'item' "
+                f"AND box_id IS NULL AND {where}", tuple(clean))
+            moved = cur.rowcount
+            await db.commit()
+        return moved
+    except Exception as err:
+        _LOGGER.error("Location empty failed: %s", err)
+        return None
+
+
+async def async_delete_location_items(hass, path):
+    """Delete the loose items in a location. Count, or None.
+
+    The location itself survives - its folder marker is not touched - and so
+    does any box standing in it. Emptying a shelf is not the same as not
+    having one.
+
+    An empty path deletes NOTHING. Without that guard the WHERE clause would
+    be empty and the statement would clear the whole table; a caller that
+    could not work out a location must not be handed that (RULE 31).
+    """
+    clean, where = _level_where(path)
+    if not clean:
+        return None
+    try:
+        db_path = get_db_path(hass)
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            cur = await db.execute(
+                f"DELETE FROM items WHERE type = 'item' "
+                f"AND box_id IS NULL AND {where}", tuple(clean))
+            deleted = cur.rowcount
+            await db.commit()
+        return deleted
+    except Exception as err:
+        _LOGGER.error("Location item delete failed: %s", err)
+        return None
+
+
 # [ADDED v2026.9.4 | STAGE 2] RECEIPTS
 # ==========================================================================
 # Everything a model returns for a receipt passes through _coerce_* first.
@@ -2905,7 +3501,8 @@ def _item_icon_fields(r_dict, url_prefix):
     return img, (r_dict.get('icon_spec') or None)
 
 
-async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping):
+async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping,
+                              boxes_only=False):
     enable_ai = False
     entries = hass.config_entries.async_entries(DOMAIN)
     if entries:
@@ -2934,6 +3531,64 @@ async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping)
                     if l2:
                         if l2 not in hierarchy[l1]: hierarchy[l1][l2] = []
                         if l3 and l3 not in hierarchy[l1][l2]: hierarchy[l1][l2].append(l3)
+
+            # [ADDED v2026.9.27] Every box, and how full it is, in two queries.
+            #
+            # Read once here and used by EVERY row builder below. There are five
+            # of them - shopping, pending, search and the two browse queries -
+            # and a field added to some of them and not the rest is the defect
+            # RULE 33a.6 is named after. One source, five consumers.
+            box_info = {}
+            try:
+                async with db.execute(
+                    "SELECT id, name, box_seq, box_type FROM items "
+                    "WHERE type = 'box'"
+                ) as cursor:
+                    for r in await cursor.fetchall():
+                        box_info[r[0]] = {"box_label": box_label(r[2]),
+                                          "box_title": r[1] or "",
+                                          # [ADDED v2026.9.30] Appended to
+                                          # the SELECT, never inserted:
+                                          # this row is read by position
+                                          # (RULE 33a.3).
+                                          "box_type": r[3] or "",
+                                          "box_count": 0}
+                async with db.execute(
+                    "SELECT box_id, COUNT(*) FROM items "
+                    "WHERE box_id IS NOT NULL GROUP BY box_id"
+                ) as cursor:
+                    for r in await cursor.fetchall():
+                        if r[0] in box_info:
+                            box_info[r[0]]["box_count"] = r[1]
+            except Exception as box_err:
+                _LOGGER.error("Box lookup for the view failed: %s", box_err)
+
+            def _box_fields(row):
+                """The box fields for one row, whether it IS a box or sits in one.
+
+                A box row describes itself. An item row describes the box it is
+                in, which is what lets the line under an item read
+                "Garage > Shelf B - box3 M8 screws" and answer where a thing is
+                without opening anything.
+                """
+                if (row.get("type") or "") == "box":
+                    info = box_info.get(row.get("id")) or {}
+                    return {
+                        "box_id": None,
+                        "box_label": info.get("box_label")
+                                     or box_label(row.get("box_seq")),
+                        "box_title": row.get("name") or "",
+                        "box_type": row.get("box_type") or "",
+                        "box_count": info.get("box_count", 0),
+                    }
+                info = box_info.get(row.get("box_id")) or {}
+                return {
+                    "box_id": row.get("box_id"),
+                    "box_label": info.get("box_label", ""),
+                    "box_title": info.get("box_title", ""),
+                    "box_type": info.get("box_type", ""),
+                    "box_count": 0,
+                }
 
             if is_shopping:
                 async with db.execute("SELECT * FROM items WHERE quantity = 0 AND type='item' ORDER BY level_2 ASC, level_3 ASC") as cursor:
@@ -2979,6 +3634,8 @@ async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping)
                             "quantity_purchased": r_dict.get("quantity_purchased"),
 
                             "receipt_id": r_dict.get("receipt_id"),
+                            # [ADDED v2026.9.27] One of five row builders.
+                            **_box_fields(r_dict),
                         })
 
                 async with db.execute("SELECT * FROM items WHERE type='pending' ORDER BY created_at DESC") as cursor:
@@ -3011,10 +3668,47 @@ async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping)
                             "purchase_price": r_dict.get("purchase_price"),
                             "quantity_purchased": r_dict.get("quantity_purchased"),
                             "receipt_id": r_dict.get("receipt_id"),
+                            # [ADDED v2026.9.27] One of five row builders.
+                            **_box_fields(r_dict),
                         })
 
+            # [ADDED v2026.9.27] Boxes only, from the toggle in the search bar.
+            #
+            # Placed before the ordinary search branch, because with the toggle
+            # on an EMPTY field means "every box" - the opposite of what an empty
+            # field means to a search for items, which is "nothing to look for".
+            #
+            # The text match is in Python rather than SQL: it tests each word
+            # both ways round, which is what makes "box for screws" find a box
+            # titled "M8 screws" in a language that glues its prepositions on.
+            elif boxes_only:
+                for row in await async_list_boxes(hass, path_parts, query):
+                    img, icon_spec = _item_icon_fields(row, url_prefix)
+                    fp = [row.get(f"level_{i}") for i in range(1, 11)
+                          if row.get(f"level_{i}")]
+                    items.append({
+                        "id": row["id"],
+                        "name": row.get("name") or "",
+                        "type": "box",
+                        "qty": 1,
+                        "order_qty": 1,
+                        "date": row.get("item_date"),
+                        "img": img,
+                        "icon_spec": icon_spec,
+                        "location": " > ".join(fp),
+                        "level_1": row.get("level_1", ""),
+                        "level_2": row.get("level_2", ""),
+                        "level_3": row.get("level_3", ""),
+                        "box_id": None,
+                        "box_label": row.get("box_label", ""),
+                        "box_title": row.get("name") or "",
+                        "box_count": row.get("box_count", 0),
+                    })
+
             elif query or date_filter != "All":
-                sql = "SELECT * FROM items WHERE type='item'"; params = []
+                # [MODIFIED v2026.9.27] A search blind to boxes could not answer
+                # "which box are the M8 screws in", which is what boxes are for.
+                sql = "SELECT * FROM items WHERE type IN ('item','box')"; params = []
                 for i, p in enumerate(path_parts): sql += f" AND level_{i+1} = ?"; params.append(p)
 
                 if query: sql += " AND name LIKE ?"; params.append(f"%{query}%")
@@ -3057,7 +3751,9 @@ async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping)
                             "season": r_dict.get("season", ""),
                             "dress_code": r_dict.get("dress_code", ""),
                             "clothing_status": r_dict.get("clothing_status", "Clean"),
-                            "measurements": r_dict.get("measurements", "")
+                            "measurements": r_dict.get("measurements", ""),
+                            # [ADDED v2026.9.27] One of five row builders.
+                            **_box_fields(r_dict),
                         })
 
             else:
@@ -3099,7 +3795,11 @@ async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping)
                         folders.append({"name": f_name, "img": img,
                                         "icon_spec": folder_spec})
                     
-                    sql = f"SELECT * FROM items WHERE type='item' AND (level_{depth+1} IS NULL OR level_{depth+1} = '') {sql_where} ORDER BY name ASC"
+                    # [MODIFIED v2026.9.27] A box stands in the list beside the
+                    # items. It is a row in a location, not a folder level - see the
+                    # BOXES section for why that is the only shape that works with a
+                    # two-level navigation. type ASC puts boxes above loose items.
+                    sql = f"SELECT * FROM items WHERE type IN ('item','box') AND (level_{depth+1} IS NULL OR level_{depth+1} = '') {sql_where} ORDER BY type ASC, name ASC"
                     async with db.execute(sql, tuple(params)) as cursor:
                         for r_dict in await cursor.fetchall():
                             r_dict = dict(r_dict)
@@ -3117,7 +3817,7 @@ async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping)
                                 "warranty_end_date": r_dict.get("warranty_end_date"),
                                 "id": r_dict['id'],
                                 "name": r_dict['name'], 
-                                "type": 'item', 
+                                "type": r_dict['type'], 
                                 "qty": r_dict['quantity'], 
                                 "order_qty": r_dict.get('order_qty', 1),
                                 "img": img,
@@ -3132,7 +3832,9 @@ async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping)
                                 "season": r_dict.get("season", ""),
                                 "dress_code": r_dict.get("dress_code", ""),
                                 "clothing_status": r_dict.get("clothing_status", "Clean"),
-                                "measurements": r_dict.get("measurements", "")
+                                "measurements": r_dict.get("measurements", ""),
+                                # [ADDED v2026.9.27] One of five row builders.
+                                **_box_fields(r_dict),
                             })
                 else:
                     sublocations = []
@@ -3140,7 +3842,7 @@ async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping)
                     async with db.execute(f"SELECT DISTINCT {col} FROM items WHERE {col} IS NOT NULL AND {col} != '' {sql_where} ORDER BY {col} ASC", tuple(params)) as cursor:
                         for r in await cursor.fetchall(): sublocations.append(r[0])
 
-                    sql = f"SELECT * FROM items WHERE type='item' {sql_where} ORDER BY level_{depth+1} ASC, name ASC"
+                    sql = f"SELECT * FROM items WHERE type IN ('item','box') {sql_where} ORDER BY type ASC, level_{depth+1} ASC, name ASC"
                     async with db.execute(sql, tuple(params)) as cursor:
                         fetched_items = []
                         for r_dict in await cursor.fetchall():
@@ -3161,7 +3863,7 @@ async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping)
                                 "warranty_end_date": r_dict.get("warranty_end_date"),
                                 "id": r_dict['id'],
                                 "name": r_dict['name'], 
-                                "type": 'item', 
+                                "type": r_dict['type'], 
                                 "qty": r_dict['quantity'], 
                                 "order_qty": r_dict.get('order_qty', 1),
                                 "date": r_dict['item_date'], 
@@ -3177,7 +3879,9 @@ async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping)
                                 "season": r_dict.get("season", ""),
                                 "dress_code": r_dict.get("dress_code", ""),
                                 "clothing_status": r_dict.get("clothing_status", "Clean"),
-                                "measurements": r_dict.get("measurements", "")
+                                "measurements": r_dict.get("measurements", ""),
+                                # [ADDED v2026.9.27] One of five row builders.
+                                **_box_fields(r_dict),
                             })
                     
                     for s in sublocations: folders.append({"name": s})

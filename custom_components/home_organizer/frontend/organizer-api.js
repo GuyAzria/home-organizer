@@ -11,11 +11,15 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [MODIFIED v2026.9.27 | 2026-09-27] Purpose: get_data carries boxes_only, so
+//   the boxes toggle in the search bar reaches the query. Declared in the
+//   schema and read by the handler in the same change - an undeclared key is
+//   rejected before the handler runs and the toggle would silently do nothing
+//   (RULE 33a.2).
 // [ADDED v2026.9.20 | 2026-09-20] Purpose: acceptCategorySuggestion and
 //   dismissCategorySuggestion answer the category a receipt scan proposed.
 //   The click is the explicit user action that opens a top-level category;
 //   the scan never creates one and never stops to ask (RULE 22).
-// [MODIFIED v7.7.60 | 2026-05-03] Purpose: Removed complex blur/input event tracking. autoSaveItem now cleanly responds to explicit save actions (like the new Save button in the UI).
 
 import { escapeHtml } from './organizer-utils.js?v=2026.8.26';
 
@@ -68,7 +72,11 @@ export const APIMixin = (Base) => class extends Base {
         path: this.currentPath,
         search_query: query,
         date_filter: "All",
-        shopping_mode: this.isShopMode || this.isReviewMode
+        shopping_mode: this.isShopMode || this.isReviewMode,
+        // [ADDED v2026.9.27] The boxes toggle in the search bar. A flag and not
+        // a keyword: a keyword would have to be translated, and the back end
+        // would then depend on the language the user types in (RULE 20).
+        boxes_only: this.isSearch && this.boxesOnly === true
       });
       if (data.catalog_map) this.persistentIds = data.catalog_map;
       this.localData = data;

@@ -1113,3 +1113,35 @@ recipe_cat_delete_n,"Remove ""{c}""? Its {n} recipes are kept and move to Other.
 recipe_cat_delete_empty,"Remove the empty category ""{c}""?","להסיר את הקטגוריה הריקה ""{c}""?","Rimuovere la categoria vuota ""{c}""?","¿Quitar la categoría vacía ""{c}""?","Supprimer la catégorie vide ""{c}"" ?","إزالة الفئة الفارغة ""{c}""؟","Удалить пустую категорию ""{c}""?"
 recipe_translated,"Translated","מתורגם","Tradotta","Traducida","Traduite","مترجمة","Переведено"
 recipe_show_original,"Show the original","הצגת המקור","Mostra l'originale","Mostrar el original","Afficher l'original","عرض النص الأصلي","Показать оригинал"
+box_items,items,פריטים,articoli,artículos,articles,أصناف,позиций
+box_new,New box,קופסה חדשה,Nuova scatola,Nueva caja,Nouvelle boîte,صندوق جديد,Новая коробка
+box_create,Create,צור,Crea,Crear,Créer,إنشاء,Создать
+box_title_ph,What is in it - e.g. M8 screws,מה יש בה - למשל ברגים M8,Cosa contiene - es. viti M8,Qué contiene - ej. tornillos M8,Ce qu-elle contient - ex. vis M8,ما بداخله - مثل براغي M8,Что внутри - напр. винты M8
+box_move,Move box,העבר קופסה,Sposta scatola,Mover caja,Déplacer la boîte,نقل الصندوق,Переместить коробку
+box_move_to,Move to box,העבר לקופסה,Sposta nella scatola,Mover a la caja,Déplacer dans la boîte,نقل إلى صندوق,Переместить в коробку
+box_take_out,Take out of any box,הוצא מהקופסה,Togli dalla scatola,Sacar de la caja,Sortir de la boîte,إخراج من الصندوق,Вынуть из коробки
+box_none_here,There is no box in this location yet. Create one first.,אין עדיין קופסה במיקום הזה. צור אחת קודם.,Non c-è ancora una scatola qui. Creane una prima.,Aún no hay una caja aquí. Crea una primero.,Il n-y a pas encore de boîte ici. Créez-en une.,لا يوجد صندوق في هذا الموقع بعد. أنشئ واحدا أولا.,Здесь пока нет коробки. Сначала создайте её.
+box_delete,Delete box,מחק קופסה,Elimina scatola,Eliminar caja,Supprimer la boîte,حذف الصندوق,Удалить коробку
+box_delete_confirm,Remove this box? The items inside it stay where they are.,להסיר את הקופסה? הפריטים שבתוכה נשארים במקומם.,Rimuovere la scatola? Gli articoli restano dove sono.,¿Quitar la caja? Los artículos se quedan donde están.,Retirer la boîte ? Les articles restent en place.,إزالة الصندوق؟ الأصناف تبقى في مكانها.,Убрать коробку? Позиции останутся на месте.
+box_where,Where does it go,לאן היא נכנסת,Dove va,Dónde va,Où va-t-elle,أين توضع,Куда её поставить
+box_empty,This box is empty. Add something to it.,הקופסה ריקה. הוסף אליה משהו.,Questa scatola è vuota. Aggiungi qualcosa.,Esta caja está vacía. Añade algo.,Cette boîte est vide. Ajoutez quelque chose.,هذا الصندوق فارغ. أضف إليه شيئا.,Коробка пуста. Добавьте что-нибудь.
+box_add_item,Add item,הוסף פריט,Aggiungi articolo,Añadir artículo,Ajouter un article,إضافة صنف,Добавить позицию
+box_from_receipt,From a receipt,מחשבונית,Da una ricevuta,De un recibo,Depuis un reçu,من فاتورة,Из чека
+box_no_pending,There is nothing waiting for review.,אין פריטים שממתינים לאישור.,Non c'è nulla in attesa di revisione.,No hay nada pendiente de revisión.,Il n'y a rien en attente de révision.,لا يوجد شيء في انتظار المراجعة.,Нет позиций ожидающих проверки.
+box_no_receipt,No receipt,בלי חשבונית,Senza ricevuta,Sin recibo,Sans reçu,بدون فاتورة,Без чека
+box_put_in,Put in the box,הכנס לקופסה,Metti nella scatola,Poner en la caja,Mettre dans la boîte,ضع في الصندوق,Положить в коробку
+box_rename,Rename box,שנה שם קופסה,Rinomina scatola,Renombrar caja,Renommer la boîte,إعادة تسمية الصندوق,Переименовать коробку
+box_take_out_item,Take out of this box,הוצא מהקופסה הזו,Togli da questa scatola,Sacar de esta caja,Sortir de cette boîte,إخراج من هذا الصندوق,Вынуть из этой коробки
+box_options,Box options,אפשרויות קופסה,Opzioni scatola,Opciones de caja,Options de la boîte,خيارات الصندوق,Настройки коробки
+box_move_here,Change location,שנה מיקום,Cambia posizione,Cambiar ubicación,Changer l'emplacement,تغيير الموقع,Изменить место
+box_type,Box type,סוג הקופסה,Tipo di scatola,Tipo de caja,Type de boîte,نوع الصندوق,Тип коробки
+box_type_ph,What kind of box,איזו קופסה זו,Che tipo di scatola,Qué tipo de caja,Quel type de boîte,ما نوع الصندوق,Какая это коробка
+box_type_cardboard,Cardboard,קרטון,Cartone,Cartón,Carton,كرتون,Картон
+box_type_plastic,Plastic,פלסטיק,Plastica,Plástico,Plastique,بلاستيك,Пластик
+box_type_drawer,Drawer,מגירה,Cassetto,Cajón,Tiroir,درج,Ящик
+box_type_bag,Bag,שקית,Sacchetto,Bolsa,Sac,كيس,Пакет
+box_type_basket,Basket,סל,Cestino,Cesta,Panier,سلة,Корзина
+box_type_toolbox,Toolbox,ארגז כלים,Cassetta attrezzi,Caja de herramientas,Boîte à outils,صندوق أدوات,Ящик для инструментов
+box_cut,Cut - paste it elsewhere,גזור - הדבק במקום אחר,Taglia - incolla altrove,Cortar - pegar en otro sitio,Couper - coller ailleurs,قص - الصق في مكان آخر,Вырезать - вставить в другом месте
+box_count_here,boxes here,קופסאות כאן,scatole qui,cajas aquí,boîtes ici,صناديق هنا,коробок здесь
+box_no_other_group,There is nowhere else on this page to move it to.,אין לאן להעביר אותה בדף הזה.,Non c'è altro posto in questa pagina.,No hay otro sitio en esta página.,Il n'y a pas d'autre endroit sur cette page.,لا يوجد مكان آخر في هذه الصفحة.,На этой странице больше некуда её переместить.

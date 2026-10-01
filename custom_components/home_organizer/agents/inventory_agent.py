@@ -12,6 +12,48 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
+# // [ADDED v2026.9.30 | 2026-09-30] Purpose: The agent understands boxes.
+# // Five tools - put_items_in_box, put_pending_in_box, put_receipt_in_box,
+# // empty_box and delete_box_items - and a box is named by the NUMBER written
+# // on it. Nothing here creates one: allocating a box number means asking
+# // somebody to write it on a carton, so a number that names nothing is
+# // refused rather than guessed (RULE 31).
+# //
+# // delete_box_items is gated on the USER TURN COUNT, not on the prompt. The
+# // loop below runs up to ten times per turn, so a tool that asks for
+# // confirmation and then accepts it can be confirmed by the MODEL on the
+# // next iteration with nobody having answered - and RULE 7 says plainly
+# // that prompt instructions are not a security control. Arming happens on
+# // turn N and the delete is refused on turn N however often it is called;
+# // with no history passed in at all it never runs (RULE 9, RULE 31).
+# //
+# // Detection of a matching receipt line is generous, because
+# // name_matches_query has to recognise "face cream" in "Jelt face cream".
+# // ACTING on one is not: an exact name wins outright and a fuzzy result is
+# // used only when it is the only one, because the same generosity matched
+# // "cream for box two" against "Jelt face cream" on the shared word and
+# // would have swept in a line the user was never shown.
+# //
+# // Filing a receipt line in a box never approves it. It stays in the review
+# // queue and every answer says so (RULE 23).
+# //
+# // The same four things for a LOCATION: add_item_to_ho now offers a matching
+# // receipt line instead of silently making a second row for one thing, and
+# // move_pending_to_location, empty_location and delete_location_items
+# // mirror their box counterparts - including the shared turn gate, and
+# // including exact-name-wins so a shared word cannot sweep in a line the
+# // user was never shown. ignore_pending is how a "no, add a new one anyway"
+# // gets through; without it somebody who really did buy a second face cream
+# // could never add one.
+# //
+# // [FIXED v2026.9.30] A catalog id was looked up with an exact dict get and
+# // to_alpha_id builds the ids from chr(65 + n), so they are upper-case. A
+# // spoken "d2" missed, fell through a fuzzy search over path NAMES that an
+# // id can never match, and ended up as base_path = ["d2"] - a brand new
+# // top-level room called "d2" with the item inside it. An unknown id
+# // reported SUCCESS. Both call sites resolve without case now, and an id
+# // that names nothing is refused rather than becoming the name of a room
+# // (RULE 31).
 # // [ADDED v2026.9.22 | 2026-09-22] Purpose: get_reconcile_prompt - the
 # // second pass, used only when the product lines and the printed total
 # // disagree. A discount on its own line is easy to read past, and then
@@ -21,11 +63,6 @@
 # // comes back is kept only if it moves the sum closer to the total, so
 # // the rule telling it not to invent a price is guidance and the
 # // subtraction in __init__.py is the control (RULE 7, RULE 11).
-# // [MODIFIED v2026.9.22 | 2026-09-22] Purpose: The receipt prompt asks
-# // what the money went ON, chosen from the expense list and nothing else,
-# // and says plainly that a receipt with no products is still a receipt -
-# // fuel, a meal, a hotel - so it must return an empty items array rather
-# // than inventing lines to fill it.
 
 import json
 import logging
@@ -34,6 +71,16 @@ import homeassistant.util.dt as dt_util
 
 from ..database import (
     get_db_path, async_add_item_db_safe, async_set_item_icon,
+    async_get_box_by_seq, async_set_item_box, async_empty_box,
+    async_delete_box_items, async_find_pending_matching,
+    async_find_pending_by_vendor, box_label,
+    async_location_counts, async_empty_location,
+    async_delete_location_items,
+)
+# [ADDED v2026.9.30] The same multi-turn state the cooking agent uses. The
+# box delete needs to remember, across a user turn, that it asked.
+from ..ai_core.state_manager import (
+    read_state, write_state, clear_state, BULK_DELETE_KEY,
 )
 from ..ai_core.router import safe_smart_router
 from ..ai_core.json_utils import safe_parse_json, apply_voice_rules
@@ -122,6 +169,74 @@ AVAILABLE TOOLS (Use "intent": "tool", then specify "tool_name"):
 
 6. "remove_item" - If the user says "I finished the milk" or "Delete the apples".
    - kwargs: {{"item_name": "Milk"}}
+
+BOXES. A box is a labelled carton that lives in a location and holds items.
+The user names it by the NUMBER written on it - "box 1", "box 4" - never by
+a row id. You NEVER invent a box: if the number names nothing the tool says
+so and you tell the user, because allocating a box number means asking
+somebody to write it on a carton and that is their decision.
+
+7. "put_items_in_box" - Things go INTO a numbered box.
+   - Use it for "put M6 screws and M8 screws in box 1".
+   - If a name matches a line on a receipt that has NOT been reviewed yet,
+     the tool creates nothing for that name. It tells you which line it
+     found, and you MUST then ask the user whether to put THAT one in the
+     box - intent "clarify". On a yes, call "put_pending_in_box".
+   - Choose `category` and `sub_category` for the batch yourself, as rule 4
+     requires.
+   - kwargs: {{"box": 1, "item_names": ["M6 screws", "M8 screws"], "category": "Hardware", "sub_category": "Tools"}}
+
+8. "put_pending_in_box" - ONLY after the user agreed to use a receipt line
+   that "put_items_in_box" found. It does not approve the line - it stays
+   in the review queue - it only records which box it is going into.
+   - kwargs: {{"box": 1, "item_names": ["Jelt face cream"]}}
+
+9. "put_receipt_in_box" - Every unreviewed line of a shop's receipt goes in
+   one box. Use it for "put the whole Super-Pharm receipt in box 4".
+   - kwargs: {{"box": 4, "vendor": "Super-Pharm"}}
+
+10. "empty_box" - Take everything OUT of a box. The contents stay in the
+    house: they land in the General group of the location the box stands in.
+    Nothing is deleted. Use it for "empty box 2 into General".
+    - kwargs: {{"box": 2}}
+
+11. "delete_box_items" - DELETES the items in a box from the inventory.
+    - This needs the user's own confirmation in a NEW message. Call it
+      once: it deletes NOTHING, it answers with how many items are in the
+      box, and you must then ask the user to confirm - intent "clarify".
+      Call it again only after they have answered.
+    - The application enforces this. A second call in the same turn is
+      refused, so there is no way to shortcut it and no point trying.
+    - A receipt line waiting to be reviewed is NOT deleted. It is taken out
+      of the box and stays in the review queue.
+    - kwargs: {{"box": 4}}
+
+THE SAME THINGS, FOR A PLACE. A location is named by its catalog ID from the
+list above - "D2.1" - or by its name. An ID that names nothing is refused:
+say so and ask which place was meant. Never treat an unknown ID as the name
+of a room to create.
+
+12. "move_pending_to_location" - ONLY after the user agreed to file a receipt
+    line that "add_item_to_ho" reported. It does not approve the line - it
+    stays in the review queue - it only records where it is going.
+    - kwargs: {{"location_id": "D2.1", "item_names": ["Jelt face cream"]}}
+
+13. "empty_location" - Take the loose items OUT of a place and leave them in
+    the location that contains it. Nothing is deleted. Use it for "take
+    everything off the top shelf in the pantry".
+    - A box standing there is left alone and counted. Moving a box is
+      "move_box"; unpacking one is "empty_box".
+    - A whole ROOM cannot be emptied - it has nowhere to empty into. Say so.
+    - kwargs: {{"location_id": "D2.1"}}
+
+14. "delete_location_items" - DELETES the loose items in a place.
+    - Same confirmation as "delete_box_items": call it once, it deletes
+      NOTHING and answers with the counts, you ask the user, and you call it
+      again only after they have answered in a new message. The application
+      enforces this.
+    - A box standing there and an unreviewed receipt line are both left
+      alone, and the answer says so.
+    - kwargs: {{"location_id": "D2.1"}}
 
 === CHAT HISTORY ===
 {history_text}
@@ -452,7 +567,112 @@ def get_invoice_prompt(target_lang, existing_locs_str, existing_cats_str,
 # ==========================================
 # TOOLS (inventory-only)
 # ==========================================
-async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map):
+# [ADDED v2026.9.30] The box a spoken number refers to, or None.
+#
+# "box 4", "4" and "box4" all mean the same carton, so the digits are what
+# is read. Nothing here creates a box - a number that names nothing comes
+# back as None and every caller below refuses rather than guessing
+# (RULE 31).
+async def _agent_resolve_box(hass, raw):
+    import re as _re2
+    m = _re2.search(r"(\d+)", str(raw if raw is not None else ""))
+    if not m:
+        return None
+    return await async_get_box_by_seq(hass, m.group(1))
+
+
+def _agent_box_path(box):
+    """The location the box is standing in, as a path."""
+    return [box.get(f"level_{i}") for i in range(1, 11) if box.get(f"level_{i}")]
+
+
+# [ADDED v2026.9.30] The path a catalog id names, or None.
+#
+# Matched WITHOUT case. to_alpha_id builds the ids from chr(65 + n), so they
+# are upper-case, and a person says "d2.1". The exact dict get missed, the
+# fuzzy fallback below searches path NAMES which an id can never match, and
+# the item ended up in a new top-level room called "d2.1".
+def _agent_resolve_location(loc_hierarchy_map, loc_id):
+    key = str(loc_id or "").strip()
+    if not key:
+        return None
+    direct = (loc_hierarchy_map or {}).get(key)
+    if direct:
+        return list(direct)
+    lowered = key.casefold()
+    for k, v in (loc_hierarchy_map or {}).items():
+        if str(k).casefold() == lowered:
+            return list(v)
+    return None
+
+
+def _agent_looks_like_id(value):
+    """Whether a value is SHAPED like a catalog id - A, A1, D2.1, AB3.4.
+
+    A room is called "Pantry" and an id is not, so the two are told apart by
+    shape. It matters because an id that resolves to nothing must be refused
+    rather than treated as the name of a room to create (RULE 31).
+    """
+    import re as _re3
+    return bool(_re3.fullmatch(r"[A-Za-z]{1,3}\d*(?:\.\d+)*",
+                               str(value or "").strip()))
+
+
+# [ADDED v2026.9.30] The gate on every bulk delete, box or location.
+#
+# True only on a LATER user turn than the one that armed it. The loop above
+# runs up to ten times per turn, so without this the model could ask for
+# confirmation and then supply it itself on the next iteration; counting
+# user turns is the one thing it cannot forge (RULE 7, RULE 9).
+#
+# With no message history it always returns False and arms nothing, so a
+# caller that does not pass the history can never reach the delete
+# (RULE 31).
+def _agent_bulk_delete_ready(messages, target):
+    turn = sum(1 for m in (messages or []) if m.get("role") == "user")
+    armed = read_state(messages, BULK_DELETE_KEY) if messages else None
+    if (isinstance(armed, dict)
+            and armed.get("target") == target
+            and armed.get("turn") != turn):
+        if messages is not None:
+            clear_state(messages, BULK_DELETE_KEY)
+        return True
+    if messages is not None:
+        write_state(messages, BULK_DELETE_KEY,
+                    {"target": target, "turn": turn})
+    return False
+
+
+async def _agent_box_counts(hass, box_id):
+    """(items, unreviewed) currently in a box.
+
+    Counted so the confirmation question can name a number. "Delete the
+    items in box 4" is not something to agree to blind.
+    """
+    try:
+        db_path = get_db_path(hass)
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            async with db.execute(
+                "SELECT type, COUNT(*) FROM items WHERE box_id = ? "
+                "GROUP BY type",
+                (box_id,),
+            ) as cursor:
+                rows = dict(await cursor.fetchall())
+        return int(rows.get("item", 0)), int(rows.get("pending", 0))
+    except Exception as err:
+        _LOGGER.error("Box count failed: %s", err)
+        return (0, 0)
+
+
+# [MODIFIED v2026.9.30] messages is passed in for the box delete.
+#
+# It is the only tool here that destroys anything, and confirming it has to
+# survive a user turn - which is what read_state/write_state on the message
+# history is for. Default None, and with None the delete never runs: a
+# caller that does not supply the history cannot be given the destructive
+# path by accident (RULE 31).
+async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map,
+                       messages=None):
     _LOGGER.info(f"Inventory tool: {tool_name} args={kwargs}")
 
     if tool_name == "check_sub_locations":
@@ -519,7 +739,18 @@ async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map):
         scat = kwargs.get("sub_category", "")
         icon = kwargs.get("icon_key", None)
 
-        base_path = loc_hierarchy_map.get(loc_id)
+        # [MODIFIED v2026.9.30] Case-insensitive, and an id that names
+        # nothing is REFUSED instead of quietly becoming a new room.
+        #
+        # to_alpha_id builds the ids from chr(65 + n), so they are upper-case
+        # and a person says "d2.1". The exact get missed, the fuzzy fallback
+        # below searches path NAMES which an id can never match, and the item
+        # landed in a brand new top-level room called "d2.1".
+        base_path = _agent_resolve_location(loc_hierarchy_map, loc_id)
+        if not base_path and _agent_looks_like_id(loc_id):
+            return (f"There is no location with the id {loc_id}. Nothing was "
+                    "added. Tell the user which ids exist or ask which place "
+                    "they meant.")
         if not base_path:
             fallback_loc = kwargs.get("main_location", loc_id)
             for _k, v in loc_hierarchy_map.items():
@@ -535,6 +766,26 @@ async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map):
         full_path = list(base_path)
         if sl:
             full_path.append(sl)
+
+        # [ADDED v2026.9.30] An unreviewed receipt line with this name already
+        # exists, so adding would make a SECOND row for one thing.
+        #
+        # The user decides which they meant. ignore_pending is how the model
+        # carries a "no, add a new one anyway" - without it somebody who has
+        # genuinely bought a second face cream could never add one (RULE 23).
+        if not kwargs.get("ignore_pending"):
+            hits = await async_find_pending_matching(hass, nm)
+            if hits:
+                where = " > ".join(p for p in full_path if p)
+                names = ", ".join(h["name"] for h in hits[:3])
+                return (
+                    f"NOT added. {nm} already exists as a line on a receipt "
+                    f"nobody has reviewed: {names}. ASK the user whether to "
+                    f"file THAT line under {where} instead of creating a new "
+                    "item. On a yes call move_pending_to_location; if they "
+                    "want a new item anyway, call add_item_to_ho again with "
+                    "ignore_pending true."
+                )
 
         new_id = await async_add_item_db_safe(
             hass, nm, qt, full_path, cat, scat, "item", icon, "0"
@@ -577,7 +828,12 @@ async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map):
         if not new_sub:
             return "Error: No new_sub_location provided."
 
-        base_path = loc_hierarchy_map.get(loc_id)
+        # [MODIFIED v2026.9.30] The same strict resolve. An id that names
+        # nothing must not become the name of a new room here either.
+        base_path = _agent_resolve_location(loc_hierarchy_map, loc_id)
+        if not base_path and _agent_looks_like_id(loc_id):
+            return (f"There is no location with the id {loc_id}. No "
+                    "sub-location was created.")
         if not base_path:
             fallback_loc = kwargs.get("main_location", loc_id)
             for _k, v in loc_hierarchy_map.items():
@@ -727,6 +983,332 @@ async def execute_tool(hass, tool_name, kwargs, loc_hierarchy_map):
         hass.bus.async_fire("home_organizer_db_update")
         return res
 
+    # ================= BOXES =================
+    # A box is addressed by the number written on it. Every branch below
+    # resolves that number first and refuses if it names nothing, so a
+    # misheard "box four" can never act on some other box.
+    elif tool_name == "put_items_in_box":
+        box = await _agent_resolve_box(hass, kwargs.get("box"))
+        if not box:
+            return (f"There is no box numbered {kwargs.get('box')}. Tell the "
+                    f"user which boxes exist or ask them to create one.")
+        names = [str(n).strip() for n in (kwargs.get("item_names") or [])
+                 if str(n or "").strip()]
+        if not names:
+            return "No item names were given."
+        cat = kwargs.get("category") or "General"
+        scat = kwargs.get("sub_category") or ""
+        path = _agent_box_path(box)
+        label = box_label(box.get("box_seq"))
+
+        created, offered = [], []
+        for name in names:
+            # An unreviewed receipt line with this name already exists, so
+            # creating a second row would duplicate it. The user decides
+            # which one they meant (RULE 23).
+            hits = [h for h in await async_find_pending_matching(hass, name)
+                    if str(h.get("box_id") or "") != str(box["id"])]
+            if hits:
+                offered.append(f"{name} (receipt line: "
+                               + ", ".join(h["name"] for h in hits[:3]) + ")")
+                continue
+            new_id = await async_add_item_db_safe(
+                hass, name, 1, path, cat, scat, "item", None, "0"
+            )
+            if new_id:
+                # set_item_box brings the box levels with it, so the item and
+                # the box agree from the first moment either is read.
+                await async_set_item_box(hass, new_id, box["id"])
+                created.append(name)
+
+        hass.bus.async_fire("home_organizer_db_update")
+        parts = []
+        if created:
+            parts.append(f"Put in {label}: " + ", ".join(created) + ".")
+        if offered:
+            parts.append(
+                "NOT added yet, because each of these already exists as a "
+                "line on a receipt nobody has reviewed: "
+                + "; ".join(offered)
+                + ". ASK the user whether to put that receipt line in "
+                + f"{label} instead of creating a new item, and on a yes "
+                + "call put_pending_in_box."
+            )
+        if not parts:
+            return f"Nothing was added to {label}."
+        return " ".join(parts)
+
+    elif tool_name == "put_pending_in_box":
+        box = await _agent_resolve_box(hass, kwargs.get("box"))
+        if not box:
+            return f"There is no box numbered {kwargs.get('box')}."
+        names = [str(n).strip() for n in (kwargs.get("item_names") or [])
+                 if str(n or "").strip()]
+        if not names:
+            return "No item names were given."
+        label = box_label(box.get("box_seq"))
+        moved, ambiguous = [], []
+        for name in names:
+            hits = [h for h in await async_find_pending_matching(hass, name)
+                    if str(h.get("box_id") or "") != str(box["id"])]
+            if not hits:
+                continue
+            # DETECTION is generous - name_matches_query has to recognise
+            # "face cream" in "Jelt face cream". ACTING on it must not be:
+            # the same generosity matched "cream for box two" against "Jelt
+            # face cream" on the shared word, and moving both would sweep in
+            # a line the user was never shown.
+            #
+            # So an exact name wins outright - the offer that led here named
+            # the line's real name, so the usual case is an exact echo of it -
+            # and a fuzzy result is used only when it is the ONLY one. Several
+            # candidates move nothing and go back for the user to choose
+            # between (RULE 31).
+            key = " ".join(str(name).split()).casefold()
+            exact = [h for h in hits
+                     if " ".join(str(h.get("name") or "").split()).casefold()
+                     == key]
+            chosen = exact or hits
+            if len(chosen) > 1:
+                ambiguous.append(
+                    f"{name} -> " + ", ".join(h["name"] for h in chosen[:5]))
+                continue
+            if await async_set_item_box(hass, chosen[0]["id"], box["id"]):
+                moved.append(chosen[0]["name"])
+        hass.bus.async_fire("home_organizer_db_update")
+        if ambiguous and not moved:
+            return ("Nothing was moved. More than one unreviewed line answers "
+                    "each of these, so ASK the user which one they meant: "
+                    + "; ".join(ambiguous) + ".")
+        if not moved:
+            return "No unreviewed receipt line matched those names."
+        # Still unreviewed. Filing a line in a box is not agreeing it is
+        # real, and it stays in the review queue until a human confirms it
+        # (RULE 23).
+        out = (f"{len(moved)} receipt line(s) will go in {label}: "
+               + ", ".join(moved)
+               + ". They are still waiting to be reviewed - putting them in "
+                 "a box did not approve them.")
+        if ambiguous:
+            out += (" These were left alone because more than one line "
+                    "answers them - ask which was meant: "
+                    + "; ".join(ambiguous) + ".")
+        return out
+
+    elif tool_name == "put_receipt_in_box":
+        box = await _agent_resolve_box(hass, kwargs.get("box"))
+        if not box:
+            return f"There is no box numbered {kwargs.get('box')}."
+        vendor = str(kwargs.get("vendor") or "").strip()
+        if not vendor:
+            return "Which shop's receipt? No vendor was given."
+        label = box_label(box.get("box_seq"))
+        rows = await async_find_pending_by_vendor(hass, vendor)
+        moved = 0
+        for row in rows:
+            if str(row.get("box_id") or "") == str(box["id"]):
+                continue
+            if await async_set_item_box(hass, row["id"], box["id"]):
+                moved += 1
+        hass.bus.async_fire("home_organizer_db_update")
+        if not moved:
+            return (f"No unreviewed lines were found on a receipt from "
+                    f"'{vendor}'.")
+        return (f"{moved} line(s) from '{vendor}' will go in {label}. They "
+                "are still waiting to be reviewed - putting them in a box "
+                "did not approve them.")
+
+    elif tool_name == "empty_box":
+        box = await _agent_resolve_box(hass, kwargs.get("box"))
+        if not box:
+            return f"There is no box numbered {kwargs.get('box')}."
+        label = box_label(box.get("box_seq"))
+        moved = await async_empty_box(hass, box["id"])
+        if moved is None:
+            return f"Could not empty {label}."
+        hass.bus.async_fire("home_organizer_db_update")
+        if not moved:
+            return f"{label} was already empty."
+        return (f"{label} is empty. {moved} item(s) were moved to the General "
+                "group of the location the box is standing in - nothing was "
+                "deleted.")
+
+    elif tool_name == "delete_box_items":
+        box = await _agent_resolve_box(hass, kwargs.get("box"))
+        if not box:
+            return f"There is no box numbered {kwargs.get('box')}."
+        label = box_label(box.get("box_seq"))
+        n_items, n_pending = await _agent_box_counts(hass, box["id"])
+
+        # The shared gate - see _agent_bulk_delete_ready.
+        if not _agent_bulk_delete_ready(messages, f"box:{box['id']}"):
+            if not n_items and not n_pending:
+                return f"{label} is already empty. Nothing to delete."
+            return (f"NOTHING HAS BEEN DELETED. {label} holds {n_items} "
+                    f"item(s) and {n_pending} unreviewed receipt line(s). ASK "
+                    "the user to confirm that the items should be deleted "
+                    "from the inventory, and call this tool again only after "
+                    "they have answered in a new message.")
+
+        res = await async_delete_box_items(hass, box["id"])
+        if res is None:
+            return f"Could not delete the items in {label}."
+        deleted, unboxed = res
+        hass.bus.async_fire("home_organizer_db_update")
+        # Report what HAPPENED, not what was asked for (RULE 10).
+        msg = f"{deleted} item(s) were deleted from the inventory."
+        if unboxed:
+            msg += (f" {unboxed} unreviewed receipt line(s) were taken out of "
+                    f"{label} and are still in the review queue - they were "
+                    "not deleted.")
+        return msg
+
+    # ================= LOCATIONS =================
+    # The same four things, for a place instead of a carton. Every branch
+    # resolves the id first and refuses an id that names nothing, so a
+    # misheard "d2.1" can never act on some other shelf or invent a room.
+    elif tool_name == "move_pending_to_location":
+        path = _agent_resolve_location(loc_hierarchy_map,
+                                       kwargs.get("location_id"))
+        if not path:
+            return (f"There is no location with the id "
+                    f"{kwargs.get('location_id')}. Nothing was moved.")
+        sl = str(kwargs.get("sub_location") or "").strip()
+        if sl:
+            path = path[:2] + [sl] if len(path) > 2 else path + [sl]
+        names = [str(n).strip() for n in (kwargs.get("item_names") or [])
+                 if str(n or "").strip()]
+        if not names:
+            return "No item names were given."
+        where = " > ".join(p for p in path if p)
+
+        moved, ambiguous = [], []
+        for name in names:
+            hits = await async_find_pending_matching(hass, name)
+            if not hits:
+                continue
+            # Exact first, and several candidates move nothing. The same
+            # reasoning as put_pending_in_box: detection is generous so that
+            # "face cream" finds "Jelt face cream", and acting on it must not
+            # be or a shared word sweeps in a line nobody was shown
+            # (RULE 31).
+            key = " ".join(str(name).split()).casefold()
+            exact = [h for h in hits
+                     if " ".join(str(h.get("name") or "").split()).casefold()
+                     == key]
+            chosen = exact or hits
+            if len(chosen) > 1:
+                ambiguous.append(
+                    f"{name} -> " + ", ".join(h["name"] for h in chosen[:5]))
+                continue
+
+            # Written inline: a nested function here would close over the
+            # loop variables, and binding them through default arguments
+            # trades one ruff finding for another.
+            #
+            # type = 'pending' in the WHERE as well as the id, so this can
+            # only ever re-file a row that is still unreviewed - an approved
+            # item is moved by its own tool.
+            ok = False
+            try:
+                db_path = get_db_path(hass)
+                async with aiosqlite.connect(db_path, timeout=10.0) as db:
+                    sets = ", ".join(f"level_{i} = ?" for i in range(1, 11))
+                    vals = [path[i] if i < len(path) else None
+                            for i in range(10)]
+                    await db.execute(
+                        f"UPDATE items SET {sets} WHERE id = ? "
+                        f"AND type = 'pending'",
+                        (*vals, chosen[0]["id"]))
+                    await db.commit()
+                ok = True
+            except Exception as err:
+                _LOGGER.error("Pending re-file failed: %s", err)
+            if ok:
+                moved.append(chosen[0]["name"])
+
+        hass.bus.async_fire("home_organizer_db_update")
+        if ambiguous and not moved:
+            return ("Nothing was moved. More than one unreviewed line answers "
+                    "each of these, so ASK the user which one they meant: "
+                    + "; ".join(ambiguous) + ".")
+        if not moved:
+            return "No unreviewed receipt line matched those names."
+        out = (f"{len(moved)} receipt line(s) will be filed under {where}: "
+               + ", ".join(moved)
+               + ". They are still waiting to be reviewed - filing them did "
+                 "not approve them.")
+        if ambiguous:
+            out += (" These were left alone because more than one line "
+                    "answers them - ask which was meant: "
+                    + "; ".join(ambiguous) + ".")
+        return out
+
+    elif tool_name == "empty_location":
+        path = _agent_resolve_location(loc_hierarchy_map,
+                                       kwargs.get("location_id"))
+        if not path:
+            return (f"There is no location with the id "
+                    f"{kwargs.get('location_id')}. Nothing was moved.")
+        where = " > ".join(p for p in path if p)
+        loose, boxes, pending = await async_location_counts(hass, path)
+        moved = await async_empty_location(hass, path)
+        if moved is None:
+            # A room has nowhere to empty into, and clearing level_1 would
+            # leave the rows at the root where no screen lists them.
+            return (f"{where} is a whole room - there is no location above it "
+                    "to empty it into, so nothing was moved. Ask the user "
+                    "which shelf inside it they meant.")
+        hass.bus.async_fire("home_organizer_db_update")
+        if not moved:
+            return f"There were no loose items in {where}."
+        parent = " > ".join(p for p in path[:-1] if p) or "the room"
+        out = (f"{moved} item(s) were moved out of {where} and into "
+               f"{parent}. Nothing was deleted.")
+        if boxes:
+            out += (f" {boxes} box(es) standing there were left alone - a box "
+                    "is moved with move_box or unpacked with empty_box.")
+        if pending:
+            out += (f" {pending} unreviewed receipt line(s) still point at "
+                    f"{where}.")
+        return out
+
+    elif tool_name == "delete_location_items":
+        path = _agent_resolve_location(loc_hierarchy_map,
+                                       kwargs.get("location_id"))
+        if not path:
+            return (f"There is no location with the id "
+                    f"{kwargs.get('location_id')}. Nothing was deleted.")
+        where = " > ".join(p for p in path if p)
+        loose, boxes, pending = await async_location_counts(hass, path)
+
+        # The same gate the box delete uses - a LATER user turn than the one
+        # that armed it, which the model cannot produce on its own.
+        if not _agent_bulk_delete_ready(messages, "loc:" + where):
+            if not loose:
+                return (f"There are no loose items in {where}. Nothing to "
+                        "delete.")
+            return (f"NOTHING HAS BEEN DELETED. {where} holds {loose} loose "
+                    f"item(s), {boxes} box(es) and {pending} unreviewed "
+                    "receipt line(s). ASK the user to confirm that the items "
+                    "should be deleted from the inventory, and call this tool "
+                    "again only after they have answered in a new message.")
+
+        deleted = await async_delete_location_items(hass, path)
+        if deleted is None:
+            return f"Could not delete the items in {where}."
+        hass.bus.async_fire("home_organizer_db_update")
+        # What HAPPENED, not what was asked for (RULE 10).
+        out = f"{deleted} item(s) were deleted from the inventory."
+        if boxes:
+            out += (f" {boxes} box(es) standing in {where} were NOT touched, "
+                    "nor was anything inside them - use delete_box_items for "
+                    "a box.")
+        if pending:
+            out += (f" {pending} unreviewed receipt line(s) were not deleted "
+                    "and are still in the review queue.")
+        return out
+
     return f"Error: Unknown inventory tool '{tool_name}'."
 
 
@@ -757,7 +1339,11 @@ async def run(hass, entry, messages, target_lang, existing_locs_str,
         if intent == "tool":
             tool_name = parsed.get("tool_name")
             kwargs = parsed.get("kwargs", {})
-            tool_result = await execute_tool(hass, tool_name, kwargs, loc_hierarchy_map)
+            # messages by keyword, so the destructive branch cannot be
+            # handed the wrong argument by position (RULE 33a.3).
+            tool_result = await execute_tool(
+                hass, tool_name, kwargs, loc_hierarchy_map, messages=messages
+            )
             messages.append({"role": "system", "content": f"System Tool Output: {tool_result}"})
 
             history_text_new = ""

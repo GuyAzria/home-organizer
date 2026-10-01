@@ -12,18 +12,35 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
-# [MODIFIED v2026.9.22 | 2026-09-22] Purpose: handle_confirm_pending passes
-#   the item's category into the purchase record. The spending breakdown is
-#   summed from product lines now, not from receipts - one supermarket
-#   receipt is food AND a toy AND sunscreen, and only its lines can say so.
-#   The category is taken at APPROVAL, so the value the user corrected in
-#   the review tab is the one that reaches the chart.
-# [MODIFIED v2026.9.20 | 2026-09-20] Purpose: update_item_details accepts
-#   clear_suggestion, which answers the scanner's category proposal by
-#   clearing suggested_category. Explicit rather than implied: setting a
-#   category could have counted as an answer, but the icon picker also
-#   writes a category, and choosing a picture is not a decision about
-#   shelves (RULE 33a.8).
+# [FIXED v2026.9.30 | 2026-09-30] Purpose: the box invariant - box_id and the
+#   ten level columns always agree - held in two more places.
+#
+#   handle_confirm_pending rewrote all ten levels from the path in the review
+#   tab and never looked at box_id, so approving an item that had been put in
+#   a box left it linked to a box standing somewhere else. That invariant is
+#   what lets every other feature find a boxed item by location without
+#   knowing boxes exist. The levels now come FROM the box when there is one,
+#   read on the same connection, and barcode_history records them too so the
+#   next scan of that barcode does not offer a location the item has left. A
+#   box that has since been deleted falls back to the approved path with a
+#   warning rather than leaving the item unfindable (RULE 31).
+#
+#   handle_add gained box_id, so the box page can add an item the same way a
+#   shelf does. Inserting and then calling set_item_box would need the new
+#   row's id, which a service cannot return; creating it in place also means
+#   the invariant is true from the first insert rather than briefly false.
+#
+#   handle_update_item_details gained box_type, set from the box page's
+#   three-dot menu. No new service: this handler already writes any item
+#   field by id, and a new one would need matching entries in services.yaml,
+#   strings.json and translations/en.json or hassfest rejects the
+#   integration (RULE 33c) - for a field nobody calls by hand.
+# [ADDED v2026.9.27 | 2026-09-27] Purpose: add_box, set_item_box, move_box and
+#   delete_box. set_item_box is one service for three things - into a box,
+#   between boxes, out of a box - because they are one operation. paste_item now
+#   recognises a box on the clipboard and takes its contents with it, and
+#   delete_box empties a box onto the shelf rather than deleting anything
+#   (RULE 5).
 
 import logging
 import os
@@ -46,6 +63,9 @@ from .database import (
     async_delete_receipt_completely,
     # [ADDED v2026.9.19] Categories now live in the database.
     async_add_category, async_rename_category, async_update_item_extras,
+    # [ADDED v2026.9.27] Boxes.
+    async_create_box, async_get_box, async_set_item_box, async_move_box,
+    async_delete_box,
 )
 from .ai_logic import async_smart_router
 
@@ -102,6 +122,34 @@ async def register_services(hass, entry):
         parts = call.data.get("current_path", [])
         parts = await async_normalize_zone_path(hass, parts)
         parts = await async_repair_path_against_db(hass, parts)
+
+        # [ADDED v2026.9.30] An item can be created directly INSIDE a box.
+        #
+        # The box page needs the same manual add a shelf has. Inserting the
+        # row and then calling set_item_box would need the new row's id, and
+        # a service returns nothing - the caller would have to guess which
+        # row it had just made. Creating it in place also means the box
+        # invariant (box_id and the ten level columns agree) holds from the
+        # first insert instead of being briefly false.
+        #
+        # The LEVELS come from the box, not from current_path: the box is
+        # where the thing physically is. Resolved before the connection
+        # below is opened, so this is not a read against its transaction.
+        in_box = None
+        raw_box = call.data.get("box_id")
+        if raw_box and itype != 'folder':
+            box_row = await async_get_box(hass, raw_box)
+            if box_row:
+                in_box = box_row["id"]
+                parts = [box_row.get(f"level_{i}") for i in range(1, 11)]
+                parts = [p for p in parts if p]
+            else:
+                # Fail open to the given path rather than refusing the add,
+                # and say so - an item the user typed must not vanish.
+                _LOGGER.warning(
+                    "add_item names box %s, which does not exist - "
+                    "the item is created loose", raw_box)
+
         depth = len(parts)
         
         try:
@@ -123,6 +171,11 @@ async def register_services(hass, entry):
                     qs = ["?"] * len(vals)
                     
                     for i, p in enumerate(parts): cols.append(f"level_{i+1}"); vals.append(p); qs.append("?")
+
+                    # [ADDED v2026.9.30] Appended last, so the positional
+                    # cols/vals/qs triple stays in step (RULE 33a.3).
+                    if in_box:
+                        cols.append("box_id"); vals.append(in_box); qs.append("?")
 
                     await db.execute(f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})", tuple(vals))
                     
@@ -235,6 +288,20 @@ async def register_services(hass, entry):
         item_id = clipboard.get("id") if isinstance(clipboard, dict) else None
         item_name = clipboard.get("name") if isinstance(clipboard, dict) else clipboard
 
+        # [ADDED v2026.9.27] A box takes its contents with it.
+        #
+        # async_get_box returns None for anything that is not a box, so it is
+        # both the test and the lookup. The move itself is one transaction over
+        # there - the box row and everything carrying its box_id - because two
+        # separate statements could leave a box on the new shelf with its
+        # contents still on the old one, which is the exact thing boxes exist
+        # to prevent.
+        if item_id and await async_get_box(hass, item_id):
+            await async_move_box(hass, item_id, target_path)
+            hass.data[DOMAIN]["clipboard"] = None
+            broadcast_update()
+            return
+
         try:
             db_path = get_db_path(hass)
             async with aiosqlite.connect(db_path, timeout=10.0) as db:
@@ -251,6 +318,51 @@ async def register_services(hass, entry):
             
         hass.data[DOMAIN]["clipboard"] = None
         broadcast_update()
+
+    # [ADDED v2026.9.27] Boxes.
+    #
+    # A box is created where the user is standing, so the path is normalised
+    # and repaired exactly as handle_add does it - a box filed under a
+    # mistyped room would be a box nobody finds again.
+    async def handle_add_box(call):
+        title = call.data.get("title")
+        parts = call.data.get("current_path", [])
+        parts = await async_normalize_zone_path(hass, parts)
+        parts = await async_repair_path_against_db(hass, parts)
+        box = await async_create_box(hass, title, parts,
+                                     call.data.get("new_items"))
+        if box:
+            broadcast_update()
+
+    # One service for putting an item in a box, moving it to another box and
+    # taking it out, because they are one operation. box_id of 0, "" or None
+    # all mean out.
+    async def handle_set_item_box(call):
+        item_id = call.data.get("item_id")
+        raw = call.data.get("box_id")
+        try:
+            box_id = int(raw) if raw not in (None, "", 0, "0") else None
+        except (TypeError, ValueError):
+            box_id = None
+        if await async_set_item_box(hass, item_id, box_id):
+            broadcast_update()
+
+    # The two-tap move, for the picker on the box card. The clipboard route
+    # below reaches the same database function.
+    async def handle_move_box(call):
+        box_id = call.data.get("box_id")
+        parts = call.data.get("target_path", [])
+        parts = await async_normalize_zone_path(hass, parts)
+        parts = await async_repair_path_against_db(hass, parts)
+        if await async_move_box(hass, box_id, parts):
+            broadcast_update()
+
+    # Deleting a box empties it onto the shelf. It never deletes an item
+    # (RULE 5) - see async_delete_box.
+    async def handle_delete_box(call):
+        box_id = call.data.get("box_id")
+        if await async_delete_box(hass, box_id):
+            broadcast_update()
 
     async def handle_clipboard(call):
         action = call.data.get("action")
@@ -272,6 +384,11 @@ async def register_services(hass, entry):
         unit = call.data.get("unit")
         unit_value = call.data.get("unit_value")
         image_path = call.data.get("image_path")
+        # [ADDED v2026.9.30] What kind of box it is. Set from the box
+        # page's three-dot menu; this handler already writes any item
+        # field by id, so a service of its own would only add a third
+        # place for hassfest to disagree with (RULE 33c).
+        box_type = call.data.get("box_type")
         new_path = call.data.get("new_path")
         order_qty = call.data.get("order_qty")
         # [ADDED v2026.9.20] Answer the scanner's category proposal.
@@ -361,6 +478,10 @@ async def register_services(hass, entry):
                     # winning and the choice does nothing. Only when an image_path was
                     # actually supplied - an omitted argument still means leave alone
                     # (RULE 33a.8).
+                    # An empty string clears it and None leaves it alone,
+                    # which is what lets the sheet remove a type without
+                    # a second action (RULE 33a.8).
+                    if box_type is not None: updates.append("box_type = ?"); params.append(box_type)
                     if image_path is not None: updates.append("image_path = ?"); params.append(image_path); updates.append("icon_spec = NULL")
                     if order_qty is not None: updates.append("order_qty = ?"); params.append(order_qty)
                     if clear_suggestion: updates.append("suggested_category = NULL")
@@ -617,7 +738,11 @@ async def register_services(hass, entry):
                 # user made in the review tab, not the raw model output.
                 async with db.execute(
                     "SELECT barcode, image_path, category, sub_category, "
-                    "purchase_price, quantity_purchased, receipt_id, unit "
+                    "purchase_price, quantity_purchased, receipt_id, unit, "
+                    # [ADDED v2026.9.30] box_id is APPENDED, never inserted.
+                    # This row is read positionally below, and a column added
+                    # in the middle shifts every field after it (RULE 33a.3).
+                    "box_id "
                     "FROM items WHERE id=?", (item_id,)
                 ) as cursor:
                     row = await cursor.fetchone()
@@ -648,21 +773,66 @@ async def register_services(hass, entry):
                 qty_purchased = row[5] if row else None
                 receipt_id = row[6] if row else None
                 item_unit = row[7] if row else None
+                box_id_val = row[8] if row else None
+
+                # [ADDED v2026.9.30] An item in a box takes its levels FROM
+                # the box, not from the path in the review tab.
+                #
+                # This UPDATE rewrote all ten level columns from that path
+                # and never looked at box_id, so approving an item that had
+                # been put in a box left it linked to the box while its
+                # levels pointed somewhere else - and the box invariant is
+                # exactly what lets every other feature find a boxed item by
+                # location without knowing that boxes exist.
+                #
+                # A box is a physical container: what is inside it is where
+                # it is. Moving the item out is a separate, deliberate action
+                # (set_item_box), never a side effect of an approval.
+                #
+                # Read on the SAME connection - a second connect() here would
+                # be a read against a transaction this one has written to.
+                box_levels = None
+                if box_id_val:
+                    lvl_cols = ", ".join(f"level_{i}" for i in range(1, 11))
+                    async with db.execute(
+                        f"SELECT {lvl_cols} FROM items "
+                        f"WHERE id = ? AND type = 'box'",
+                        (box_id_val,),
+                    ) as bcur:
+                        brow = await bcur.fetchone()
+                    if brow:
+                        box_levels = list(brow)
+                    else:
+                        # Fail open to the approval path rather than dropping
+                        # the item somewhere unfindable, and say so.
+                        _LOGGER.warning(
+                            "Pending item %s points at box %s, which no "
+                            "longer exists - using the approved path",
+                            item_id, box_id_val)
+
+                eff_levels = (
+                    box_levels if box_levels is not None
+                    else [parts[i] if i < len(parts) else "" for i in range(10)]
+                )
 
                 upd = ["type='item'", "name=?", "quantity=?"]
                 vals = [name, qty]
 
                 for i in range(1, 11):
                     upd.append(f"level_{i}=?")
-                    vals.append(parts[i-1] if i <= len(parts) else "")
+                    vals.append(eff_levels[i-1])
 
                 vals.append(item_id)
                 await db.execute(f"UPDATE items SET {','.join(upd)} WHERE id=?", tuple(vals))
                 
                 if bcode and bcode != "0":
-                    l1 = parts[0] if len(parts) > 0 else ""
-                    l2 = parts[1] if len(parts) > 1 else ""
-                    l3 = parts[2] if len(parts) > 2 else ""
+                    # [MODIFIED v2026.9.30] The effective levels, so a box
+                    # is remembered too. This row pre-fills the next scan of
+                    # the same barcode; recording the approval path would
+                    # offer a location the item is not in.
+                    l1 = eff_levels[0] or ""
+                    l2 = eff_levels[1] or ""
+                    l3 = eff_levels[2] or ""
                     await db.execute('''
                         REPLACE INTO barcode_history (barcode, name, category, sub_category, icon_key, level_1, level_2, level_3)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -771,6 +941,33 @@ async def register_services(hass, entry):
     # [ADDED v2026.8.28] Schema for the service that accepts a file payload.
     # It was registered bare, so item_name arrived completely unvalidated.
     SCHEMAS = {
+        # [ADDED v2026.9.27] Boxes. item_id and box_id address rows, so they
+        # are validated before the handler sees them.
+        "add_box": vol.Schema(
+            {
+                vol.Required("title"): cv.string,
+                vol.Optional("current_path"): vol.Any([cv.string], None),
+                vol.Optional("new_items"): vol.Any([cv.string], None),
+            }
+        ),
+        "set_item_box": vol.Schema(
+            {
+                vol.Required("item_id"): vol.Any(int, cv.string),
+                # None, "" and 0 all mean "take it out of its box".
+                vol.Optional("box_id"): vol.Any(int, cv.string, None),
+            }
+        ),
+        "move_box": vol.Schema(
+            {
+                vol.Required("box_id"): vol.Any(int, cv.string),
+                vol.Optional("target_path"): vol.Any([cv.string], None),
+            }
+        ),
+        "delete_box": vol.Schema(
+            {
+                vol.Required("box_id"): vol.Any(int, cv.string),
+            }
+        ),
         # [ADDED v2026.9.11] receipt_id is the only field and must be an
         # integer: this service deletes rows, so an unvalidated value has
         # no business reaching the handler.
@@ -838,6 +1035,9 @@ async def register_services(hass, entry):
         ("delete_receipt", handle_delete_receipt),
         ("add_category", handle_add_category), ("rename_category", handle_rename_category),
         ("update_item_extras", handle_update_item_extras),
-        ("clear_all_items", handle_clear_all_items), ("clear_all_data", handle_clear_all_data)
+        ("clear_all_items", handle_clear_all_items), ("clear_all_data", handle_clear_all_data),
+        # [ADDED v2026.9.27] Boxes.
+        ("add_box", handle_add_box), ("set_item_box", handle_set_item_box),
+        ("move_box", handle_move_box), ("delete_box", handle_delete_box),
     ]:
         hass.services.async_register(DOMAIN, n, h, schema=SCHEMAS.get(n))

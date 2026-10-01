@@ -11,6 +11,14 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [ADDED v2026.9.30 | 2026-09-30] Purpose: dots - three of them, stacked. The
+//   box page keeps everything the box itself can be told to do behind them,
+//   because five 40px icons in that header leave no room for the title on a
+//   phone (RULE 36).
+// [ADDED v2026.9.27 | 2026-09-27] Purpose: A box icon - a closed carton with
+//   its lid seam and tape, because a plain cube reads as a 3D shape and not as
+//   a box. This file had no history block of its own; this is the first entry.
+//
 
 /**
  * Icon Library
@@ -57,6 +65,10 @@ export const ICONS = {
   view_grid: '<svg viewBox="0 0 24 24"><path d="M4 11h5V5H4v6zm0 7h5v-6H4v6zm6 0h5v-6h-5v6zm6 0h5v-6h-5v6zm-6-7h5V5h-5v6zm6-6v6h5V5h-5z"/></svg>',
   view_list: '<svg viewBox="0 0 24 24"><path d="M4 14h4v-4H4v4zm0 5h4v-4H4v4M4 9h4V5H4v4zm5 5h12v-4H9v4zm0 5h12v-4H9v4M9 5v4h12V5H9z"/></svg>',
   copy: '<svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>',
+  // [ADDED v2026.9.27] A closed carton: lid seam across the top, tape down
+  // the middle. A plain cube reads as a 3D shape rather than as a box.
+  box: '<svg viewBox="0 0 24 24"><path d="M20 4H4a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1v10a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1zm-9 14H6V9h5v9zm7 0h-5V9h5v9zM19 7H5V6h14v1z"/></svg>',
+  dots: '<svg viewBox="0 0 24 24"><path d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm0 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>',
   barcode: '<svg  viewBox="0 0 24 24"><path fill="currentColor" d="M2,6H4V18H2V6M5,6H6V18H5V6M7,6H10V18H7V6M11,6H12V18H11V6M13,6H16V18H13V6M17,6H20V18H17V6M21,6H22V18H21V6Z" /></svg>'
 }
 

@@ -12,22 +12,34 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
-# [FIXED v2026.9.27 | 2026-09-27] Purpose: A receipt row that could not be
-#   stored no longer leaves its items behind. async_insert_receipt returns None
-#   on any failure, including the UNIQUE index that exists to stop the same
-#   receipt being stored twice, and nothing checked for it - the lines were
-#   written anyway with receipt_id = None and appeared in the review queue
-#   looking like a new receipt with a number that was already taken. The lookup
-#   is re-run first, so the usual case answers with the duplicate message it
-#   should have given in the first place.
-# [MODIFIED v2026.9.24 | 2026-09-24] Purpose: The receipt pipeline is now
-#   async_process_invoice_scan, a function, instead of 331 lines buried in a
-#   branch of websocket_ai_chat. Nothing about it changed: the body is
-#   byte-identical after dedenting and only the two exits differ - it returns
-#   the payload rather than calling connection.send_result, so the caller
-#   sends it. It was moved because the companion app has to scan a receipt
-#   when no browser has the panel open, and a second copy of this pipeline is
-#   the one duplication this project cannot afford (RULE 33d).
+# [FIXED v2026.10.1 | 2026-10-01] Purpose: Reloading the integration never
+#   refreshed the panel, through two silent failures in a row.
+#
+#   async_unload_entry called frontend.async_remove_panel("organizer"). The
+#   signature is async_remove_panel(hass, frontend_url_path), so the string
+#   landed in hass and the path was not passed at all; the TypeError was
+#   swallowed by a bare except and the panel was never removed. The call was
+#   correct before it was migrated off the deprecated hass.components
+#   accessor, which had bound hass implicitly - the migration dropped it
+#   (RULE 33a.3).
+#
+#   async_setup_entry then registered a panel whose url path was still taken.
+#   async_register_panel raises in that case and its try only logged a
+#   warning, so the panel kept the module_url from the FIRST registration
+#   after a Home Assistant start - ?v= timestamp included. The browser kept
+#   the cached module and every frontend change looked as though it had not
+#   shipped until the whole of Home Assistant restarted.
+#
+#   Setup now removes the panel before registering it, so a setup following a
+#   failed unload still refreshes the url, and neither failure is swallowed:
+#   a registration that fails is an ERROR naming the consequence, because a
+#   failure nobody can see is how both of these lasted (RULE 2).
+# [MODIFIED v2026.9.30 | 2026-09-30] Purpose: The dashboard's comment block
+#   was describing the wrong function. websocket_create_box had been inserted
+#   between that comment and websocket_dashboard, so eight lines about a
+#   read-only yearly query sat above a command that writes rows, and the
+#   dashboard had none. The comment is back where it belongs and create_box
+#   states its own reason for being a command rather than a service.
 
 import logging
 from homeassistant.components import frontend
@@ -72,6 +84,10 @@ from .database import (
     # [ADDED v2026.9.22] What money was spent on, as a closed list.
     async_get_expense_categories, resolve_expense_category,
     async_get_dashboard_data,
+    # [ADDED v2026.9.27] Boxes. The path helpers come with it: a box filed
+    # under a mistyped room is a box nobody finds again, so the path is
+    # normalised and repaired exactly as the add_item service does it.
+    async_create_box, async_normalize_zone_path, async_repair_path_against_db,
 )
 from .services import register_services
 from .ai_logic import (
@@ -114,6 +130,14 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 WS_GET_DATA = "home_organizer/get_data"
 WS_GET_ALL_ITEMS = "home_organizer/get_all_items" 
 WS_AI_CHAT = "home_organizer/ai_chat" 
+# [ADDED v2026.9.27] Creating a box ANSWERS with its id.
+#
+# A service call returns nothing, so a panel that created a box through one
+# would have to guess which row it had just made in order to fill it. This is
+# a websocket command for that reason alone; the add_box service stays, for
+# voice and automations, where nothing needs the id back.
+WS_CREATE_BOX = "home_organizer/create_box"
+
 # [ADDED v2026.9.12] Backing command for the receipts table.
 WS_LIST_RECEIPTS = "home_organizer/list_receipts"
 # [ADDED v2026.10.9] Cookbook UI.
@@ -380,7 +404,9 @@ async def websocket_get_data(hass, connection, msg):
     query = msg.get("search_query", "")
     date_filter = msg.get("date_filter", "All")
     is_shopping = msg.get("shopping_mode", False)
-    data = await async_get_view_data(hass, path, query, date_filter, is_shopping)
+    boxes_only = msg.get("boxes_only", False)
+    data = await async_get_view_data(hass, path, query, date_filter, is_shopping,
+                                     boxes_only=boxes_only)
     connection.send_result(msg["id"], data)
 
 @websocket_api.async_response
@@ -421,6 +447,10 @@ async def websocket_get_all_items(hass, connection, msg):
                         "unit": r_dict.get('unit', ''),
                         "unit_value": r_dict.get('unit_value', ''),
                         "barcode": r_dict.get('barcode', '0'),
+                        # [ADDED v2026.9.27] The SIXTH row builder. The box
+                        # picker reads this list, and without box_id it could
+                        # not show which items are already in a box.
+                        "box_id": r_dict.get("box_id"),
                         "owner": r_dict.get("owner", ""),
                         "season": r_dict.get("season", ""),
                         "dress_code": r_dict.get("dress_code", ""),
@@ -1798,6 +1828,32 @@ def _parse_drawing_reply(raw_text):
 DRAW_ICON_MAX_DESCRIPTION = 200
 
 
+# [ADDED v2026.9.27 | 2026-09-27] Create a box and answer with its id.
+#
+# A websocket command rather than a service because the caller needs the new
+# id back: a service returns nothing, so a panel that created a box through
+# one could not then put anything in it without guessing which row it had
+# just made. The path is normalised and repaired exactly as add_box does it,
+# so a box cannot be filed under a mistyped room and lost.
+@websocket_api.async_response
+async def websocket_create_box(hass, connection, msg):
+    """Create a box and answer with {id, box_seq, label}."""
+    try:
+        path = msg.get("current_path") or []
+        path = await async_normalize_zone_path(hass, path)
+        path = await async_repair_path_against_db(hass, path)
+        box = await async_create_box(
+            hass, msg.get("title"), path, msg.get("new_items"))
+        if not box:
+            connection.send_result(msg["id"], {"error": "box_create_failed"})
+            return
+        hass.bus.async_fire("home_organizer_db_update")
+        connection.send_result(msg["id"], box)
+    except Exception as err:
+        _LOGGER.error("[HO-BOX] create failed: %s", err)
+        connection.send_result(msg["id"], {"error": "box_create_failed"})
+
+
 # [ADDED v2026.9.22 | 2026-09-22] The home dashboard's data, in one round trip.
 #
 # Not part of get_data: that is called on every navigation and is about the
@@ -1982,6 +2038,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     sidebar_label = sidebar_translations.get(hass.config.language, "Home Organizer")
 
+    # [FIXED v2026.10.1] Remove the panel before registering it again.
+    #
+    # async_register_panel RAISES when the url path is already taken, and the
+    # try below only logs a warning - so on an integration reload the
+    # registration failed quietly and the panel kept the module_url from the
+    # first registration after a Home Assistant start, ?v= timestamp and all.
+    # The browser then kept the cached module and every frontend change looked
+    # as though it had not shipped.
+    #
+    # Done here as well as on unload, because an unload that failed for any
+    # reason must not leave the panel pinned to an old build.
+    try:
+        frontend.async_remove_panel(hass, "organizer")
+    except Exception as err:
+        # The normal first-run case: there is no panel to remove yet.
+        _LOGGER.debug("No existing panel to remove: %s", err)
+
     try:
         await panel_custom.async_register_panel(
             hass,
@@ -1993,7 +2066,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             require_admin=False
         )
     except Exception as e:
-        _LOGGER.warning(f"Panel registration warning: {e}")
+        # Not a warning to be read past: with this failing, the panel in the
+        # sidebar is whatever was registered last and no frontend change can
+        # reach the browser (RULE 2).
+        _LOGGER.error("Panel registration FAILED - the sidebar panel will "
+                      "keep its previous build until Home Assistant "
+                      "restarts: %s", e)
 
     await async_init_db(hass)
 
@@ -2149,6 +2227,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 vol.Optional("search_query", default=""): str,
                 vol.Optional("date_filter", default="All"): str,
                 vol.Optional("shopping_mode", default=False): bool,
+                # [ADDED v2026.9.27] Declared here as well as handled and sent,
+                # because an undeclared key is rejected before the handler runs
+                # and the toggle would appear to do nothing (RULE 33a.2).
+                vol.Optional("boxes_only", default=False): bool,
             })
         )
     except Exception: pass
@@ -2781,6 +2863,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
     except Exception: pass
 
+    # [ADDED v2026.9.27] Declared, handled and called together, because a
+    # command added to the handler and not to this schema is rejected by
+    # voluptuous before the handler runs - the button then does nothing at
+    # all and no error surfaces (RULE 33a.2).
+    try:
+        websocket_api.async_register_command(
+            hass,
+            WS_CREATE_BOX,
+            websocket_create_box,
+            websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend({
+                vol.Required("type"): WS_CREATE_BOX,
+                vol.Required("title"): str,
+                vol.Optional("current_path"): vol.Any([str], None),
+                vol.Optional("new_items"): vol.Any([str], None),
+            })
+        )
+    except Exception: pass
+
     await register_services(hass, entry)
     entry.async_on_unload(entry.add_update_listener(update_listener))
 
@@ -2798,8 +2898,18 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # [MODIFIED v2026.8.26] hass.components.<x> is a deprecated accessor
         # that logs a warning on modern cores and is slated for removal.
         # Import the component module directly instead.
-        frontend.async_remove_panel("organizer")
-    except Exception: pass
+        #
+        # [FIXED v2026.10.1] hass was missing. The signature is
+        # async_remove_panel(hass, frontend_url_path), so "organizer" was
+        # being passed AS hass and the path was not passed at all. The call
+        # raised TypeError, the bare except swallowed it, and the panel was
+        # never removed - which is why reloading the integration never
+        # refreshed the frontend (RULE 33a.3).
+        frontend.async_remove_panel(hass, "organizer")
+    except Exception as err:
+        # Logged, not swallowed. A failure nobody can see is how the line
+        # above survived (RULE 2).
+        _LOGGER.warning("Panel removal on unload failed: %s", err)
     
     await hass.config_entries.async_unload_platforms(entry, ["conversation"])
     return True

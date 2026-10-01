@@ -11,20 +11,22 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [ADDED v2026.9.30 | 2026-09-30] Purpose: openBoxId, initialised and cleared
+//   by applyNavMode.
+//
+//   The box page is NOT restored on reload: it is keyed on a row that may have
+//   been deleted since, and the shelf behind it is a screen that always
+//   exists. applyNavMode clears it for the same reason it clears
+//   isBarcodeMode, and by the argument the entry below records - this function
+//   exists to leave exactly one screen selected, and a value it never names
+//   cannot be turned off by it. Without that line, restoring a state whose
+//   mode is 'home' would put the box page back, since no mode flag would be
+//   on to beat it in the dispatch.
 // [MODIFIED v2026.9.27 | 2026-09-27] Purpose: Only the cookbook is restored.
 //   A recipe is a place you are in the middle of; every other screen is one tap
 //   away, so coming back to it is at best neutral. Everything that is not the
 //   cookbook now opens the dashboard, with the location path cleared so the
 //   first tap out of it does not follow a stale breadcrumb.
-// [FIXED v2026.9.22 | 2026-09-22] Purpose: A refresh put the user back on
-//   the locations screen instead of the dashboard. isDashboardMode was a
-//   view mode this file had never been told about - absent from initState,
-//   from applyNavMode and from currentNavState - so the dashboard saved
-//   itself as 'home' and came back as the old screen. It worked at all
-//   only because an undefined property is falsy. applyNavMode now clears
-//   it like the other eight, which is the half of RULE 33a.1 that had no
-//   symptom yet: the one function whose job is to leave exactly one flag
-//   true could not turn off a flag it did not name.
 
 // [ADDED v2026.9.20] Where the user was, kept between visits.
 //
@@ -68,6 +70,14 @@ export const StateMixin = (Base) => class extends Base {
     this.isSearch       = mode === 'search';
     this.isStylistMode  = mode === 'stylist';
     this.isBarcodeMode  = false;   // never restored - see restoreNavState
+    // [ADDED v2026.9.30] The box page, cleared for the same reason and by
+    // the same argument as the line above it. It is not restored, and this
+    // function exists to leave exactly ONE screen selected: with openBoxId
+    // left alone, restoring a state whose mode is 'home' would put the box
+    // page back instead of the shelf, because no mode flag would be on to
+    // beat it in the dispatch. currentNavState records 'home' for the box
+    // page deliberately - the shelf is the screen that always exists.
+    this.openBoxId = null;
   }
 
   currentNavState() {
@@ -228,6 +238,10 @@ export const StateMixin = (Base) => class extends Base {
     this.translations = {};
     this.availableLangs = [];
     this.allDbItems = [];
+    // [ADDED v2026.9.30] The open box. Not a mode flag and not restored on
+    // reload: a page keyed on a row that may since have been deleted is how
+    // someone gets stranded, and the shelf behind it always exists.
+    this.openBoxId = null;
 
     this.loadingSet = new Set();
     this.imageVersions = {};

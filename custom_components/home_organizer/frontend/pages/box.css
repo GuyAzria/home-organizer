@@ -1,0 +1,438 @@
+/* pages/box.css | v2026.10.1 */
+/* The box card and the box page, kept out of inventory.css so the two
+   screens cannot inherit each other's changes. The page is deliberately
+   built like the inventory list - the same .item-row, .item-main and
+   .item-qty-ctrl classes from inventory.css draw the things INSIDE a box,
+   because an item is an item wherever it is standing. Everything here is the
+   frame around them.
+
+   THREE FACTS ABOUT THIS ENVIRONMENT, all of which cost a release:
+
+   1. Icons are coloured with `color`, NEVER `fill`. organizer-panel.css
+      declares `fill: currentColor` on the svg ELEMENT, and a declared value
+      beats an inherited one - so a `fill` set on a wrapping span never
+      reaches the icon. Every icon in this file was once drawn in whatever
+      `color` it inherited, which is .app-container's --text-main, the body
+      TEXT colour. That flips with .light-mode, a class organizer-state.js
+      applies from per-device settings, so two devices disagreed about it
+      while the card behind the icon did not. --primary is declared once on
+      :host and is NOT redefined by .light-mode, so it is the same in both.
+
+   2. That same global rule forces every svg to 24px, so every icon container
+      here sizes its own svg child. A 16px span was holding a 24px icon.
+
+   3. Logical properties only. This panel signals direction with an .ltr
+      CLASS on #app and never sets a dir attribute, so [dir="rtl"] selectors
+      never match (RULE 33b).
+
+   One breakpoint, 768px, matching inventory.css. A new set of widths in a
+   file that sits beside it would be a fourth set (RULE 36). The list itself
+   is one column at every width: the contents of one box is a list, and a
+   second column on a tablet would only make the rows narrower.
+
+   [MODIFIED v2026.10.1 | 2026-10-01] The page heading is 14px and centred in
+   the column - it is the page title now, not a label beside a row of
+   buttons - and it wraps rather than clipping. .box-title-input matches it
+   exactly, or the line jumps as the in-place rename opens. .box-count-badge
+   is new: the box icon and a count, on a group heading in the inventory
+   list, so a shelf says how many boxes are in it without being opened. It is
+   a button, so it has to LOOK pressable - there is no hover on a phone to
+   reveal that - and it is 32px, the smallest a thumb hits reliably on a
+   heading row. touch-action stops the browser reading the hold as the start
+   of a scroll, which is what cancels a long press. The tint is the literal
+   rgba the rest of the panel uses: color-mix is dropped silently by an older
+   webview and the companion app is the common platform (RULE 33b, RULE 36).
+
+   [MODIFIED v2026.9.30 | 2026-09-30] .box-page-sub wraps instead of
+   clipping. It carries up to four chips - the number, the count, the
+   unreviewed count and the type - which do not fit on one phone line in any
+   language, and a header one line taller beats a count nobody can read
+   (RULE 36). */
+
+/* ---------- the card that stands on the shelf ---------- */
+.box-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin: 6px 0;
+  border-radius: 10px;
+  cursor: pointer;
+  background: var(--bg-card);
+  border: 1px solid var(--primary);
+  border-inline-start: 4px solid var(--primary);
+  min-height: 56px;
+  transition: border-color 0.2s, background 0.2s;
+}
+.box-card:hover { background: var(--bg-card-hover); }
+.box-card.drag-over { background: var(--bg-card-hover); border-color: var(--accent, var(--primary)); }
+
+/* COLOUR, not fill. organizer-panel.css declares `fill: currentColor` on the
+   svg element itself, and a declared value beats an inherited one - so a
+   `fill` set on this wrapper never reaches the icon. currentColor is the
+   computed `color`, so `color` is the only property that controls an icon in
+   this panel. .item-icon and .nav-btn both do it this way.
+
+   --primary is declared once on :host and is NOT redefined by .light-mode,
+   so it is the same blue in both themes and no theme can hide it. The tint
+   behind it is the chip .item-icon uses, which keeps the icon readable
+   whatever colour the card is. */
+.box-card-icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(3, 169, 244, 0.12);
+  color: var(--primary);
+}
+/* The global rule forces every svg to 24px, so a container smaller than that
+   holds an icon that overflows it. Every icon here sizes its own svg, the way
+   .dropdown-item svg and .sub-bar .nav-btn svg do. */
+.box-card-icon svg { width: 22px; height: 22px; }
+.box-card-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.box-card-title {
+  font-weight: bold;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.box-card-meta {
+  font-size: 11px;
+  color: var(--text-sub);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+/* box3 is an identifier, not a word: it reads left to right in every
+   language, the same way a barcode does (RULE 20). */
+.box-card-label { direction: ltr; color: var(--primary); font-weight: bold; flex: 0 0 auto; }
+.box-card-type { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.box-card-actions { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+.box-card-chevron { color: var(--text-sub); display: flex; }
+.box-card-chevron svg { width: 20px; height: 20px; }
+
+/* ---------- the box count on a group heading ---------- */
+/* COLOUR, not fill - organizer-panel.css declares fill on the svg element
+   itself and a declared value beats an inherited one, so `color` is the only
+   property that reaches an icon in this panel. --primary is the same in both
+   themes, so no theme can hide it.
+
+   The svg child is sized because that same global rule forces every svg to
+   24px, which would dwarf a 12px badge. */
+/* A button, so it has to LOOK pressable: there is no hover on a phone or a
+   tablet to reveal that it is one, and 32px is the smallest thing a thumb
+   hits reliably on a heading row (RULE 36). touch-action stops the browser
+   treating the hold as the start of a scroll or a double-tap zoom, which is
+   what cancels a long press. */
+.box-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 32px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--primary);
+  /* The literal rgba the rest of the panel uses for a primary tint - see
+     .item-icon in inventory.css. color-mix is Chrome 111 / Safari 16.2 and
+     is DROPPED silently by an older webview, which would leave the badge
+     with no background and nothing to say it is pressable. The companion
+     app is the common platform; this is not the place to find out. */
+  background: rgba(3, 169, 244, 0.14);
+  margin-inline-start: 8px;
+  flex: 0 0 auto;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.box-count-badge:active { background: rgba(3, 169, 244, 0.30); }
+.box-count-icon { width: 14px; height: 14px; display: inline-flex; }
+.box-count-icon svg { width: 14px; height: 14px; }
+
+/* ---------- the page header ---------- */
+.box-page-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border-radius: 10px;
+  background: var(--bg-card);
+  border-inline-start: 4px solid var(--primary);
+}
+/* The heading IS the page title now, so it is centred in the column rather
+   than sitting at the start of a row of buttons. */
+.box-page-heading {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+/* 14px, asked for directly. It still WRAPS rather than clipping - a centred
+   heading on two lines reads fine and a box name cut off mid-word does not
+   - and at this size it needs no phone step, so there is none. */
+.box-page-title {
+  font-weight: bold;
+  font-size: 14px;
+  line-height: 1.15;
+  width: 100%;
+  overflow-wrap: anywhere;
+}
+/* Back to 11px with the title at 14px. A sub-line larger than the line it
+   sits under reads as the heading, which is the wrong way round. It still
+   wraps: number, count, unreviewed and type do not always fit on one phone
+   line in every language. */
+.box-page-sub { font-size: 11px; display: flex; align-items: center;
+  justify-content: center; flex-wrap: wrap; gap: 2px 10px; width: 100%; }
+.box-page-count { color: var(--text-sub); flex: 0 0 auto; }
+.box-page-pending { color: var(--warning-color, #FFA726); flex: 0 0 auto; }
+.box-page-label { direction: ltr; color: var(--primary); font-weight: bold; flex: 0 0 auto; }
+/* The input that replaces the title while it is being renamed. It has to
+   look like the heading it stands in for, or the line jumps as it opens. */
+.box-title-input {
+  font-weight: bold;
+  font-size: 14px;
+  line-height: 1.15;
+  width: 100%;
+  text-align: center;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: var(--bg-input-edit);
+  color: var(--text-main);
+  border: 2px solid var(--primary);
+  box-sizing: border-box;
+  font-family: inherit;
+}
+.box-page-type {
+  color: var(--text-sub);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 40px, because this is pressed with a thumb and there is no hover on a phone
+   or a tablet to hint that it is pressable (RULE 36). */
+.box-icon-btn {
+  min-width: 40px;
+  min-height: 40px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---------- the three-dot menu ---------- */
+/* A full-screen catcher behind the menu, so one tap anywhere closes it. A
+   document-level listener would be the other way, but this panel lives in a
+   shadow root and the menu has to close on touch, where there is no blur to
+   rely on. */
+.box-menu-catch { position: fixed; inset: 0; z-index: 330; }
+/* Fixed, and a sibling of the catcher rather than a child of the header.
+   .content is a scroll box (overflow-y:auto, which forces overflow-x to
+   auto as well), so an absolutely positioned menu inside it is CLIPPED at
+   its padding box - on a short viewport the menu would simply have been
+   cut off, and scrolling would not have brought it back.
+
+   left and right are both set from the anchor's rect and the menu hugs
+   the inline end with an auto margin, so nothing here has to know which
+   physical side that is (RULE 33b). */
+.box-menu {
+  position: fixed;
+  z-index: 331;
+  min-width: 200px;
+  max-width: 260px;
+  margin-inline-start: auto;
+  max-height: 70vh;
+  overflow: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.box-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-main);
+  font-size: 13px;
+  text-align: start;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.box-menu-item:hover { background: var(--bg-card-hover); }
+.box-menu-item svg { width: 18px; height: 18px; }
+/* No fill here: .box-menu-item sets `color`, the global rule turns that into
+   the icon's fill, and a `fill` on this span would be ignored anyway. */
+.box-menu-item .box-menu-icon { width: 18px; height: 18px; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center; }
+.box-menu-item.is-danger { color: var(--danger); }
+.box-menu-sep { height: 1px; background: var(--border-light); margin: 4px 6px; }
+
+/* ---------- the destination strip ---------- */
+/* Three selects and a Move button. On a phone the button drops to its own
+   full-width row: three selects and a button on one line leaves each select
+   under 70px, which clips every room name in every language (RULE 36). */
+.box-move-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border-radius: 10px;
+  background: var(--bg-card);
+  border: 1px dashed var(--border-light);
+}
+.box-move-row { display: flex; align-items: center; gap: 8px; }
+.box-move-row .hierarchy-container { flex: 1; min-width: 0; }
+.box-move-go { min-height: 40px; flex: 0 0 auto; white-space: nowrap; }
+
+/* ---------- the contents ---------- */
+.box-list { display: flex; flex-direction: column; gap: 8px; }
+.box-empty { padding: 24px 12px; text-align: center; color: var(--text-sub); font-size: 13px; }
+/* A line that has not been reviewed yet is shown, because it can be sorted
+   into a box before it is approved - but it is dimmed and labelled, because
+   nothing about it is confirmed (RULE 23). */
+.box-pending { opacity: 0.75; }
+.box-pending-tag { font-size: 10px; color: var(--warning-color, #FFA726); }
+
+/* ---------- the action bar ---------- */
+.box-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 0 24px; }
+.box-actions .action-btn {
+  min-height: 44px;
+  flex: 1 1 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.box-actions .action-btn .box-btn-icon { width: 18px; height: 18px;
+  display: flex; align-items: center; justify-content: center; }
+.box-actions .action-btn .box-btn-icon svg { width: 18px; height: 18px; }
+
+/* ---------- the receipt panel ---------- */
+/* Same frame as the destination strip, because they are the same kind of
+   thing: a drawer on the page that the header opened. */
+.box-receipt-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  margin-bottom: 24px;
+  border-radius: 10px;
+  background: var(--bg-card);
+  border: 1px dashed var(--border-light);
+}
+
+/* ---------- the sheets ---------- */
+.box-overlay {
+  position: fixed;
+  inset: 0;
+  background: #000000aa;
+  z-index: 320;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.box-sheet {
+  background: var(--card-background-color, var(--bg-card));
+  border-radius: 12px;
+  padding: 16px;
+  width: 100%;
+  max-width: 420px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.box-sheet-head { font-weight: bold; display: flex; align-items: center; gap: 8px; }
+.box-sheet-head .box-sheet-icon { width: 20px; height: 20px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--primary); }
+.box-sheet-head .box-sheet-icon svg { width: 20px; height: 20px; }
+.box-sheet-body { display: flex; flex-direction: column; gap: 10px; overflow: auto; }
+.box-sheet-label { font-size: 11px; color: var(--text-sub); }
+.box-sheet-bar { display: flex; gap: 8px; justify-content: flex-end; }
+.box-sheet-bar .action-btn { min-height: 40px; }
+.box-sheet-note { font-size: 13px; color: var(--text-sub); }
+
+.box-input {
+  min-height: 40px;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--bg-input);
+  color: var(--text-main);
+  border: 1px solid var(--border-input);
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+/* The location picker and the box-type suggestions are the same control. */
+.box-pick { display: flex; flex-direction: column; gap: 4px; max-height: 40vh; overflow: auto; }
+.box-pick-btn {
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background: var(--bg-input);
+  color: var(--text-main);
+  text-align: start;
+  font-size: 13px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.box-pick-btn.is-on { border-color: var(--primary); background: var(--bg-card-hover); }
+
+.box-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.box-chips .box-pick-btn { flex: 0 0 auto; min-height: 40px; }
+
+.box-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  font-size: 13px;
+  padding: 0 4px;
+}
+.box-row input[type="checkbox"] { transform: scale(1.3); flex: 0 0 auto; }
+.box-row-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.box-group-head { font-size: 11px; color: var(--text-sub); padding: 8px 4px 2px; }
+.box-scroll { max-height: 50vh; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+
+@media (max-width: 768px) {
+  /* The two add buttons stack. Side by side they are under 160px each on a
+     phone, which clips their labels in every language but English. */
+  .box-actions .action-btn { flex: 1 1 100%; }
+
+  /* Room for a long label in any language: on a phone the menu may use
+     the whole width the header gave it. */
+  .box-menu { max-width: none; }
+
+  /* The Move button takes its own row. Beside three selects on a phone each
+     of them is under 70px, which clips a room name in any language. */
+  .box-move-row { flex-wrap: wrap; }
+  .box-move-row .hierarchy-container { flex: 1 1 100%; }
+  .box-move-go { flex: 1 1 100%; }
+
+  /* No heading step here any more: 14px fits every width, so the phone and
+     the desktop read the same. */
+  .box-card-title { min-width: 0; }
+}

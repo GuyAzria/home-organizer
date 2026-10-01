@@ -171,3 +171,15 @@ update_item_extras:
 
 update_order_qty:
   # Change how many of an item to buy.
+
+add_box:
+  # Create a box in the current location.
+
+delete_box:
+  # Remove a box. The items inside it stay where they are.
+
+move_box:
+  # Move a box and everything inside it to another location.
+
+set_item_box:
+  # Put an item in a box, move it to another box, or take it out.

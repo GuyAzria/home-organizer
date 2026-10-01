@@ -174,6 +174,10 @@
     }
   },
   "services": {
+    "add_box": {
+      "name": "Add box",
+      "description": "Create a box in the current location."
+    },
     "add_category": {
       "name": "Add category",
       "description": "Add a category or sub-category to the list."
@@ -206,6 +210,10 @@
       "name": "Confirm scanned item",
       "description": "Approve a scanned item and add it to the inventory."
     },
+    "delete_box": {
+      "name": "Delete box",
+      "description": "Remove a box. The items inside it stay where they are."
+    },
     "delete_item": {
       "name": "Delete item",
       "description": "Remove an item from the inventory."
@@ -222,6 +230,10 @@
       "name": "Duplicate item",
       "description": "Create a copy of an item in the same location."
     },
+    "move_box": {
+      "name": "Move box",
+      "description": "Move a box and everything inside it to another location."
+    },
     "navigate": {
       "name": "Navigate",
       "description": "Move the panel to a location in the inventory tree."
@@ -233,6 +245,10 @@
     "rename_category": {
       "name": "Rename category",
       "description": "Rename a category or sub-category and move its items."
+    },
+    "set_item_box": {
+      "name": "Set item box",
+      "description": "Put an item in a box, move it to another box, or take it out."
     },
     "set_receipt_currency": {
       "name": "Set receipt currency",

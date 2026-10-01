@@ -11,23 +11,48 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
-// [FIXED v2026.9.22 | 2026-09-22] Purpose: The rooms screen rebuilt every
-//   room as { originalName, displayName, img } and dropped the rest of the
-//   row. A drawn room icon was stored, the window closed as though it had
-//   worked, and the tile still showed the old picture - the field simply
-//   never reached the renderer. It spreads the row now, so the next field
-//   added to a folder arrives without anyone remembering this line exists.
-// [MODIFIED v2026.9.22 | 2026-09-22] Purpose: Both folder loops call
-//   folderIcon instead of repeating the same four-way choice, so a drawn
-//   room icon appears in both without being added twice.
-// [MODIFIED v2026.9.20 | 2026-09-20] Purpose: The expanded item card's
-//   boxes carry class names - exp-top, exp-media, exp-name-row and the
-//   rest. NOTHING ELSE CHANGED HERE: every inline style is exactly what it
-//   was, so the tablet and desktop layouts are untouched. The names exist
-//   so the phone block in inventory.css has something to select; the card
-//   was built entirely from inline styles, which a stylesheet cannot
-//   override without a handle to grip and a reason to shout.
-// [MODIFIED v10.0.24 | 2026-06-22] Purpose: Version bump to match restored CSS grid layout explicitly protecting the square shape and 15px gap.
+// [FIXED v2026.10.1 | 2026-10-01] Purpose: The count on a group heading was
+//   never the item count it reads as, and the box badge beside it is now a
+//   button - wired by wireBoxCountBadge after innerHTML is set, because the
+//   heading is built as a string and a handler cannot be attached to one.
+//
+//   grouped[subName] is filled from attrs.items, which carries the box ROWS
+//   and the items INSIDE those boxes as well as the loose ones - so a group
+//   holding one box with three things in it showed 4: the box counted as an
+//   item, and its contents counted even though they are drawn on the box's
+//   own page and never in this list.
+//
+//   It counts what the group actually draws as item rows now, and the boxes
+//   are counted beside it by boxCountBadge from view-box.js. Nothing is
+//   hidden: a box card carries its own "N items". The number WILL change for
+//   any group that contains a box, which is the point.
+// [MODIFIED v2026.9.30 | 2026-09-30] Purpose: Every box method moved out to
+//   pages/view-box.js, and NO list here draws a box any more. The seam is two
+//   calls to appendBoxCards, which returns the loose rows.
+//
+//   The move left three lists still drawing boxes themselves, which is why
+//   the box page could not be reached from them: renderLocationsView drew a
+//   box standing in a ROOM with createItemRow, the grid branch was handed the
+//   whole list including the boxes and made each one an ordinary tile, and
+//   view-search.js did the same to the results of the boxes toggle. All of
+//   them produced an item-shaped row with no way to open it, and left the
+//   box's contents loose beside it.
+//
+//   It was written here because the card belongs to this list and the box
+//   page reuses createItemRow, which is a reason of convenience: the two
+//   screens diverge from here on, and in one file each would inherit the
+//   other's changes. createItemRow is still shared, deliberately - search
+//   and shopping draw their rows with it too, and an item is an item wherever
+//   it is standing.
+//
+//   The box line under an item name keeps its .item-box-line class: the box
+//   page removes that node, because "in box3" on every row of box3 says
+//   nothing.
+//
+//   The two entries this replaces both described the card and the sheets,
+//   which are no longer in this file. See the header of view-box.js for why
+//   a box is a card rather than a row and why its page is keyed on box_id.
+
 
 import { ICONS } from '../organizer-icon.js?v=10.0.13';
 import { escapeHtml } from '../organizer-utils.js?v=2026.8.26';
@@ -236,7 +261,13 @@ export const InventoryMixin = (Base) => class extends Base {
     }
     if (attrs.items?.length > 0) {
       const list = document.createElement('div'); list.className = 'item-list';
-      attrs.items.forEach(item => {
+      // [MODIFIED v2026.9.30] A box can stand in a ROOM, not only on a
+      // shelf, and this list drew it with createItemRow - an item-shaped row
+      // with no way to open it, and its contents loose beside it.
+      const loose = (typeof this.appendBoxCards === 'function')
+        ? this.appendBoxCards(attrs.items, list, false)
+        : attrs.items;
+      loose.forEach(item => {
           if (typeof this.createItemRow === 'function') list.appendChild(this.createItemRow(item, false));
       });
       content.appendChild(list);
@@ -296,7 +327,23 @@ export const InventoryMixin = (Base) => class extends Base {
 
       const isExpanded = this.viewMode === 'grid' ? true : this.expandedSublocs.has(subName);
       const icon = isExpanded ? ICONS.chevron_down : ICONS.chevron_right;
-      const countBadge = `<span style="font-size:12px;background:var(--bg-badge);color:var(--text-badge);padding:2px 6px;border-radius:10px;margin-inline-start:8px;">${items.length}</span>`;
+      // [MODIFIED v2026.10.1] The badge counts ITEMS, which is what it has
+      // always been read as and never was.
+      //
+      // grouped[subName] comes from attrs.items, which carries the box ROWS
+      // and the items INSIDE those boxes as well as the loose ones - so a
+      // group with one box holding three things showed 4: the box counted as
+      // an item, and its contents counted even though they are drawn on the
+      // box's own page and never in this list.
+      //
+      // It now counts what this group actually draws as item rows, and the
+      // boxes are counted beside it. Nothing is hidden - a box card carries
+      // its own "N items".
+      const looseCount = items.filter(
+        i => i.type !== 'box' && !i.box_id).length;
+      const countBadge = `<span style="font-size:12px;background:var(--bg-badge);color:var(--text-badge);padding:2px 6px;border-radius:10px;margin-inline-start:8px;">${looseCount}</span>`;
+      const boxBadge = (typeof this.boxCountBadge === 'function')
+        ? this.boxCountBadge(items) : '';
       const cleanSubName = this.stripMarkerForDisplay(subName);
       const idHtml = catalogID ? `<span class="catalog-id-text">${catalogID}</span>` : '';
 
@@ -308,7 +355,7 @@ export const InventoryMixin = (Base) => class extends Base {
 
       if (this.isEditMode && subName !== "General") {
         header.innerHTML = `
-          <div style="display:flex;align-items:center;"><span style="margin-inline-end:5px;display:flex;align-items:center;">${icon}</span><span class="subloc-title">${escapeHtml(cleanSubName)}</span>${countBadge}</div>
+          <div style="display:flex;align-items:center;"><span style="margin-inline-end:5px;display:flex;align-items:center;">${icon}</span><span class="subloc-title">${escapeHtml(cleanSubName)}</span>${countBadge}${boxBadge}</div>
           <div style="display:flex;align-items:center;gap:10px;">${idHtml}
             <div style="display:flex;gap:5px;align-items:center;">
               <button class="arrow-btn" onclick="event.stopPropagation();this.getRootNode().host.moveSubLoc('${escapeHtml(this.escapeJSArg(subName))}',-1)">${ICONS.arrow_up}</button>
@@ -319,15 +366,31 @@ export const InventoryMixin = (Base) => class extends Base {
             </div>
           </div>`;
       } else {
-        header.innerHTML = `<div style="display:flex;align-items:center;"><span style="margin-inline-end:5px;display:flex;align-items:center;">${icon}</span><span>${escapeHtml(cleanSubName)}</span>${countBadge}</div>${idHtml}`;
+        header.innerHTML = `<div style="display:flex;align-items:center;"><span style="margin-inline-end:5px;display:flex;align-items:center;">${icon}</span><span>${escapeHtml(cleanSubName)}</span>${countBadge}${boxBadge}</div>${idHtml}`;
+      }
+      // [ADDED v2026.10.1] The box badge is a button: a tap opens the box, a
+      // long press offers to move it. Wired here because the heading above is
+      // built as a string and a handler cannot be attached to one.
+      if (typeof this.wireBoxCountBadge === 'function') {
+        this.wireBoxCountBadge(header, items, subName);
       }
       listContainer.appendChild(header);
 
       if (isExpanded) {
-        if (this.viewMode === 'grid' && items.length > 0) {
-          listContainer.appendChild(this.buildGridSection(items, false));
+        // [MODIFIED v2026.9.30] The boxes come out FIRST, and out of
+        // view-box.js, whichever way this list is being drawn.
+        //
+        // The grid branch used to be handed `items` whole, boxes included,
+        // and drew each of them as an ordinary tile - so in grid view a box
+        // had no way to open and its contents sat loose beside it. Both
+        // branches now get the loose rows only.
+        const loose = (typeof this.appendBoxCards === 'function')
+          ? this.appendBoxCards(items, listContainer, false)
+          : items;
+        if (this.viewMode === 'grid' && loose.length > 0) {
+          listContainer.appendChild(this.buildGridSection(loose, false));
         } else {
-          items.forEach(item => {
+          loose.forEach(item => {
               if (typeof this.createItemRow === 'function') listContainer.appendChild(this.createItemRow(item, false));
           });
         }
@@ -494,7 +557,7 @@ export const InventoryMixin = (Base) => class extends Base {
     const div = document.createElement('div');
     const oosClass = (item.qty === 0 && !isShopMode) ? 'out-of-stock-frame' : '';
     div.className = `item-row ${this.expandedIdx === item.id ? 'expanded' : ''} ${oosClass}`;
-    if (typeof this.setupDragSource === 'function') this.setupDragSource(div, item.name);
+    if (typeof this.setupDragSource === 'function') this.setupDragSource(div, item.name, item.id);
 
     const app   = this.shadowRoot.getElementById('app');
     const isRTL = app && !app.classList.contains('ltr');
@@ -536,13 +599,20 @@ export const InventoryMixin = (Base) => class extends Base {
     const barcodeHtml = (item.barcode && item.barcode !== '0')
       ? `<div style="font-size:10px;color:var(--text-sub);margin-top:2px;display:inline-flex;align-items:center;gap:4px;opacity:.8;direction:ltr;">${miniBarcodeSvg} ${escapeHtml(item.barcode)}</div>` : '';
 
+    // [ADDED v2026.9.27] Which box it is in, on the item itself. This is what
+    // answers "where are the M8 screws" from a search result, without opening
+    // anything. The label is ltr because box3 is an identifier.
+    const boxHtml = item.box_label
+      ? `<div class="item-box-line" style="font-size:10px;color:var(--accent,#03a9f4);margin-top:2px;display:inline-flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;display:inline-flex;fill:currentColor;">${ICONS.box}</span><span style="direction:ltr;">${escapeHtml(item.box_label)}</span><span>${escapeHtml(item.box_title || '')}</span></div>`
+      : '';
+
     div.innerHTML = `
       <div class="item-main" onclick="this.getRootNode().host.toggleRow('${escapeHtml(item.id)}')">
         <div class="item-left">
           ${checkboxHtml}${iconHtml}
           <div class="item-text" style="display:flex;flex-direction:column;justify-content:center;">
             <div class="item-name">${escapeHtml(item.name)}</div>
-            ${barcodeHtml}
+            ${barcodeHtml}${boxHtml}
             ${typeof subText==='string'&&subText.startsWith('<') ? subText : `<div class="sub-title">${subText}</div>`}
           </div>
         </div>

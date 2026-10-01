@@ -12,6 +12,14 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
+# // [ADDED v2026.9.30 | 2026-09-30] Purpose: BULK_DELETE_KEY. The inventory
+# // agent records here WHAT it asked to empty - a box, or a location - and
+# // on WHICH USER TURN. Its loop runs up to ten times per turn, so a
+# // destructive tool that asks for confirmation could otherwise be confirmed
+# // by the model itself on the next iteration, and prompt wording is not a
+# // control (RULE 7, RULE 9). The turn count is the one thing a model cannot
+# // forge. One key for both, so there is one gate to reason about rather
+# // than two copies to keep in step (RULE 33d).
 # // [v9.0.0 | 2026-04-13] Purpose: Centralized read/write of per-agent state
 # // that lives inside the conversation `messages` list. Each agent owns a
 # // unique key (e.g. HO_COOKING_STATE, HO_SHOPPING_STATE) and CAN ONLY touch
@@ -32,6 +40,16 @@ SHOPPING_DRAFT_KEY = "HO_SHOPPING_DRAFT"
 # so the many places that rewrite the cooking state cannot drop the
 # offer halfway through the question.
 TIMER_OFFER_KEY = "HO_TIMER_OFFER"
+
+# [ADDED v2026.9.30] An armed confirmation for a BULK delete - the contents
+# of a box, or the contents of a location. It records what is targeted and
+# WHICH USER TURN asked, because the agent loop runs several times per turn
+# and a destructive tool must not be able to confirm itself (RULE 7,
+# RULE 9).
+#
+# One key for both, so there is one gate to reason about and not two copies
+# of it to keep in step (RULE 33d).
+BULK_DELETE_KEY = "HO_BULK_DELETE"
 
 
 def _is_state_message(msg, key):

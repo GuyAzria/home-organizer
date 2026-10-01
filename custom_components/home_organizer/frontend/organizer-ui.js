@@ -11,22 +11,28 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
-// [MODIFIED v2026.9.22 | 2026-09-22] Purpose: The FAB starts in the TOP
-//   bar instead of floating over the content near the bottom. Only the
-//   anchor moved: column-reverse already lays the stack out as
-//   button-then-menu, so pinning the container by its top puts the button
-//   in the bar and the menu falls below it, and the button still does not
-//   shift when the menu opens. 66px in from the edge rather than 30,
-//   because both corners of that bar are already taken - the settings
-//   button in Hebrew, the sidebar toggle in English. The menu's entrance
-//   flips with it, arriving from above rather than rising from below. It
-//   is still draggable: this is a starting point, not a cage.
-// [MODIFIED v2026.9.22 | 2026-09-22] Purpose: The Home button opens the
-//   DASHBOARD. The room list is untouched and is the dashboard's first
-//   button, so nothing that worked before moved - it is only no longer the
-//   first thing seen. isDashboardMode is a new view mode, which means every
-//   other entry point had to learn to clear it: 13 sites, found by the
-//   audit in CLAUDE.md rather than by eye (RULE 33a.1).
+// [ADDED v2026.9.30 | 2026-09-30] Purpose: the box page is dispatched here,
+//   and left here - and btn-up, the app's one back arrow beside Home, is
+//   what leaves it, since the page no longer carries an arrow of its own.
+//   That button is shown on the box page whatever the depth, because it is
+//   the only way off that screen. pages/box.css is linked beside the other
+//   eight sheets;
+//   renderBoxView itself lives in pages/view-box.js, so this file only names
+//   it.
+//
+//   openBoxId is its whole state. There is no isBoxMode, deliberately: two
+//   things to clear is how isReceiptsMode, isRecipesMode and isBarcodeMode
+//   each shipped stuck on, and one value is one thing to forget instead of
+//   two (RULE 33a.1). All nine entry points clear it, the dispatch clears it
+//   when the box is not in the data this screen was loaded with - which would
+//   otherwise be an empty page with no way off it - and the header names the
+//   open box rather than the shelf behind it. New box is hidden while a box
+//   is open, because a box does not go in a box.
+// [ADDED v2026.9.27 | 2026-09-27] Purpose: New box beside the pencil, to-box
+//   beside bulk delete once something is ticked, and a boxes toggle in the
+//   search bar. The toggle is what replaces a magic keyword: a keyword would
+//   have to be translated and the back end would then read a word in the
+//   user language (RULE 20).
 
 import { ICONS } from './organizer-icon.js?v=10.3.0';
 import { escapeHtml } from './organizer-utils.js?v=2026.8.26';
@@ -145,6 +151,7 @@ export const UIMixin = (Base) => class extends Base {
       <link rel="stylesheet" href="/home_organizer_static/pages/stylist.css?v=${timestamp}">
       <link rel="stylesheet" href="/home_organizer_static/pages/barcode.css?v=${timestamp}">
       <link rel="stylesheet" href="/home_organizer_static/pages/inventory.css?v=${timestamp}">
+      <link rel="stylesheet" href="/home_organizer_static/pages/box.css?v=${timestamp}">
       <link rel="stylesheet" href="/home_organizer_static/pages/chat.css?v=${timestamp}">
       <link rel="stylesheet" href="/home_organizer_static/pages/dashboard.css?v=${timestamp}">
       <link rel="stylesheet" href="/home_organizer_static/pages/shopping.css?v=${timestamp}">
@@ -335,6 +342,11 @@ export const UIMixin = (Base) => class extends Base {
             <button class="nav-btn" id="btn-home">${ICONS.home}</button>
             <button class="nav-btn" id="btn-up" style="display:none;">${ICONS.arrow_up}</button>
             <button class="nav-btn" id="btn-bulk-delete" style="display:none;color:var(--danger,#F44336);align-items:center;gap:5px;" title="Delete Selected"></button>
+            <!-- [ADDED v2026.9.27] Boxes. New box appears with the pencil;
+                 to-box appears once something is ticked, beside bulk delete,
+                 which is the touch route that replaces dragging. -->
+            <button class="nav-btn" id="btn-new-box" style="display:none;" title="New box">${ICONS.box}</button>
+            <button class="nav-btn" id="btn-bulk-to-box" style="display:none;align-items:center;gap:5px;" title="Move to box"></button>
           </div>
           <div class="sub-bar-right">
             <button class="nav-btn" id="btn-share-shopping" style="display:none;" title="Share Shopping List">${SHARE_SVG}</button>
@@ -353,6 +365,11 @@ export const UIMixin = (Base) => class extends Base {
             <button class="nav-btn ai-btn" id="btn-ai-search" style="position:absolute;inset-inline-start:0;top:0;height:100%;background:none;border:none;">${ICONS.camera}</button>
             <button class="nav-btn ai-btn" id="btn-ai-upload"  style="position:absolute;inset-inline-start:30px;top:0;height:100%;background:none;border:none;" title="Upload File">${UPLOAD_SVG}</button>
           </div>
+          <!-- [ADDED v2026.9.27] Boxes only. A dedicated control rather than a
+               magic word: a keyword would have to be translated, and then the
+               back end would depend on the language the user types in, which
+               RULE 20 forbids. This sends a flag. -->
+          <button class="nav-btn" id="btn-search-boxes" title="Boxes">${ICONS.box}</button>
           <button class="nav-btn" id="search-close">${ICONS.close}</button>
         </div>
 
@@ -760,14 +777,26 @@ export const UIMixin = (Base) => class extends Base {
     root.getElementById('setup-dropdown-menu').onclick = e => e.stopPropagation();
 
     click('btn-ha-menu', () => this.dispatchEvent(new Event('hass-toggle-menu', { bubbles: true, composed: true })));
-    click('btn-up',   () => this.navigate('up'));
+    // [MODIFIED v2026.10.1] The app's one back arrow also leaves the box
+    // page, which no longer carries its own.
+    //
+    // Checked before navigate, because the box page is not a path: walking
+    // up from it would change the shelf behind it while the page stayed
+    // open, and the user asked for one arrow with one meaning.
+    click('btn-up',   () => {
+      if (this.openBoxId && typeof this.closeBox === 'function') {
+        this.closeBox();
+        return;
+      }
+      this.navigate('up');
+    });
     // [MODIFIED v2026.9.22] Home opens the dashboard, not the room list.
     //
     // The rooms screen is untouched and is the dashboard's first button.
     // navigate('root') is still called, so the path underneath is reset -
     // leaving Home on a dashboard while the breadcrumb still says
     // Kitchen > Fridge would show the wrong place on the way back.
-    click('btn-home', () => {
+    click('btn-home', () => { this.openBoxId = null;
       this.isShopMode = false; this.isSearch = false; this.isChatMode = false;
       this.isStylistMode = false; this.isReviewMode = false;
       this.isBarcodeMode = false; this.isReceiptsMode = false; this.isDashboardMode = false;
@@ -812,27 +841,27 @@ export const UIMixin = (Base) => class extends Base {
     }
     const closeFab = () => root.getElementById('fab-container')?.classList.remove('open');
 
-    click('btn-fab-shop',   () => { this.isReceiptsMode=false; this.isDashboardMode = false; this.isShopMode=true;  this.isSearch=false; this.isEditMode=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isBarcodeMode=false; this.isRecipesMode=false; closeFab(); this.fetchData(); });
-    click('btn-fab-search', () => { this.isReceiptsMode=false; this.isDashboardMode = false; this.isSearch=true;    this.isShopMode=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isBarcodeMode=false; this.isRecipesMode=false; closeFab(); this.render(); });
+    click('btn-fab-shop',   () => { this.openBoxId = null; this.isReceiptsMode=false; this.isDashboardMode = false; this.isShopMode=true;  this.isSearch=false; this.isEditMode=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isBarcodeMode=false; this.isRecipesMode=false; closeFab(); this.fetchData(); });
+    click('btn-fab-search', () => { this.openBoxId = null; this.isReceiptsMode=false; this.isDashboardMode = false; this.isSearch=true;    this.isShopMode=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isBarcodeMode=false; this.isRecipesMode=false; closeFab(); this.render(); });
     // [ADDED v2026.9.22] Locations, from the speed dial.
     //
     // This is btn-home's destination, so it clears what btn-home clears -
     // ALL of them. A view mode left on here would win the next render and
     // the user would land somewhere else entirely; that has shipped three
     // times in this panel already (RULE 33a.1).
-    click('btn-fab-locations', () => {
+    click('btn-fab-locations', () => { this.openBoxId = null;
       this.isShopMode = false; this.isSearch = false; this.isChatMode = false;
       this.isStylistMode = false; this.isReviewMode = false;
       this.isBarcodeMode = false; this.isReceiptsMode = false; this.isDashboardMode = false;
       this.isRecipesMode = false; this.isEditMode = false;
       this.clearSearchInput(); closeFab(); this.navigate('root');
     });
-    click('btn-fab-recipes', () => { this.isChatMode=false; this.isReviewMode=false; this.isReceiptsMode=false; this.isDashboardMode = false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isStylistMode=false; this.isBarcodeMode=false; this.isRecipesMode=true; closeFab(); this.render(); });
-    click('btn-fab-chat',   () => { this.isChatMode=false; this.isReceiptsMode=false; this.isDashboardMode = false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isStylistMode=false; this.isBarcodeMode=false; this.isRecipesMode=false; this.isReviewMode=true; closeFab(); this.fetchData(); });
-    click('btn-fab-stylist',() => { this.isReceiptsMode=false; this.isDashboardMode = false; this.isStylistMode=true; this.isChatMode=false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isReviewMode=false; this.isBarcodeMode=false; this.isRecipesMode=false; closeFab(); this.render(); });
-    click('btn-fab-review', () => { this.isReceiptsMode=false; this.isDashboardMode = false; this.isReviewMode=true; this.isChatMode=false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isStylistMode=false; this.isBarcodeMode=false; this.isRecipesMode=false; closeFab(); this.fetchData(); });
+    click('btn-fab-recipes', () => { this.openBoxId = null; this.isChatMode=false; this.isReviewMode=false; this.isReceiptsMode=false; this.isDashboardMode = false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isStylistMode=false; this.isBarcodeMode=false; this.isRecipesMode=true; closeFab(); this.render(); });
+    click('btn-fab-chat',   () => { this.openBoxId = null; this.isChatMode=false; this.isReceiptsMode=false; this.isDashboardMode = false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isStylistMode=false; this.isBarcodeMode=false; this.isRecipesMode=false; this.isReviewMode=true; closeFab(); this.fetchData(); });
+    click('btn-fab-stylist',() => { this.openBoxId = null; this.isReceiptsMode=false; this.isDashboardMode = false; this.isStylistMode=true; this.isChatMode=false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isReviewMode=false; this.isBarcodeMode=false; this.isRecipesMode=false; closeFab(); this.render(); });
+    click('btn-fab-review', () => { this.openBoxId = null; this.isReceiptsMode=false; this.isDashboardMode = false; this.isReviewMode=true; this.isChatMode=false; this.isShopMode=false; this.isSearch=false; this.isEditMode=false; this.isStylistMode=false; this.isBarcodeMode=false; this.isRecipesMode=false; closeFab(); this.fetchData(); });
     
-    click('btn-fab-barcode', () => { 
+    click('btn-fab-barcode', () => { this.openBoxId = null; 
       this.isShopMode=false; this.isSearch=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isEditMode=false; this.isReceiptsMode=false; this.isDashboardMode = false;
       this.isRecipesMode=false;
       this.isBarcodeMode=true;
@@ -850,7 +879,13 @@ export const UIMixin = (Base) => class extends Base {
       }
     });
 
-    click('search-close', () => { this.isSearch=false; this.clearSearchInput(); this.fetchData(); });
+    click('search-close', () => { this.isSearch=false; this.clearSearchInput(); this.boxesOnly=false; this.fetchData(); });
+    click('btn-search-boxes', () => {
+      this.boxesOnly = !this.boxesOnly;
+      // Searching boxes only is a different question from searching items, and
+      // an empty field then means "all of them" rather than "nothing typed".
+      this.fetchData();
+    });
     root.getElementById('search-input').oninput = () => this.fetchData();
 
     // [FIXED v2026.9.17] The pencil edits the screen you are ON.
@@ -893,6 +928,8 @@ export const UIMixin = (Base) => class extends Base {
     click('btn-load-url',   () => { const url = root.getElementById('icon-url-input').value; if (url) this.handleUrlIcon(url); });
     click('btn-ai-icon',    () => this.drawIconWithAi());
     click('btn-bulk-delete',() => this.bulkDeleteItems());
+    click('btn-new-box',    () => this.openNewBoxSheet());
+    click('btn-bulk-to-box',() => this.openPickBoxSheet());
     click('btn-ai-search',  () => this.openCamera('search'));
     click('btn-ai-upload',  () => this.openFileUpload('search'));
     click('btn-cam-close',  () => this.stopCamera());
@@ -961,6 +998,19 @@ export const UIMixin = (Base) => class extends Base {
     else if (this.isSearch)       pathDisplay = this._t('search_results', 'Search Results');
     else if (this.isBarcodeMode)  pathDisplay = this._t('barcode_scanner', 'Barcode Scanner'); 
     else if (attrs.path_display && attrs.path_display !== "Main") pathDisplay = attrs.path_display;
+
+    // [ADDED v2026.9.30] On the box page the header names the box, not the
+    // shelf behind it. A separate statement rather than another link in the
+    // chain above: when the box is NOT in this data the dispatch closes the
+    // page, and the title has to be the shelf's, not "Main".
+    if (this.openBoxId) {
+      const openBox = (attrs.items || []).find(
+        i => i.type === 'box' && String(i.id) === String(this.openBoxId));
+      if (openBox) {
+        pathDisplay = [openBox.box_label, openBox.box_title || openBox.name]
+          .filter(Boolean).join('  ');
+      }
+    }
     root.getElementById('display-path').innerText = pathDisplay;
 
     root.getElementById('search-box').style.display  = this.isSearch ? 'flex' : 'none';
@@ -1002,6 +1052,12 @@ export const UIMixin = (Base) => class extends Base {
     const app = root.getElementById('app');
     if (this.isEditMode) app.classList.add('edit-mode'); else app.classList.remove('edit-mode');
 
+    const boxSearchBtn = root.getElementById('btn-search-boxes');
+    if (boxSearchBtn) {
+      if (this.boxesOnly) boxSearchBtn.classList.add('edit-active');
+      else boxSearchBtn.classList.remove('edit-active');
+    }
+
     const editBtn = root.getElementById('btn-edit');
     if (editBtn) { if (this.isEditMode) editBtn.classList.add('edit-active'); else editBtn.classList.remove('edit-active'); }
 
@@ -1013,11 +1069,37 @@ export const UIMixin = (Base) => class extends Base {
       } else bulkDelBtn.style.display = 'none';
     }
 
+    // [ADDED v2026.9.27] A box belongs to a location, so the button is offered
+    // where locations are edited and nowhere else.
+    const newBoxBtn = root.getElementById('btn-new-box');
+    if (newBoxBtn) {
+      const placeScreen = !this.isShopMode && !this.isSearch && !this.isChatMode
+        && !this.isReviewMode && !this.isReceiptsMode && !this.isDashboardMode
+        && !this.isRecipesMode && !this.isStylistMode && !this.isBarcodeMode
+        // [ADDED v2026.9.30] Not inside a box. A box does not go in a box.
+        && !this.openBoxId;
+      newBoxBtn.style.display = (this.isEditMode && placeScreen) ? 'flex' : 'none';
+    }
+
+    const toBoxBtn = root.getElementById('btn-bulk-to-box');
+    if (toBoxBtn) {
+      if (this.isEditMode && this.selectedItems.size > 0) {
+        toBoxBtn.style.display = 'flex';
+        toBoxBtn.innerHTML = `${ICONS.box} <span style="font-size:12px;font-weight:bold;margin-inline-start:5px;">(${this.selectedItems.size})</span>`;
+      } else toBoxBtn.style.display = 'none';
+    }
+
     const shareBtn = root.getElementById('btn-share-shopping');
     if (shareBtn) shareBtn.style.display = this.isShopMode ? 'flex' : 'none';
 
     const upBtn = root.getElementById('btn-up');
-    if (upBtn) upBtn.style.display = attrs.depth === 0 ? 'none' : 'flex';
+    // [MODIFIED v2026.10.1] Shown on the box page whatever the depth. It is
+    // the only way off that screen now, so hiding it would strand someone
+    // on a box standing at the root.
+    if (upBtn) {
+      upBtn.style.display =
+        (attrs.depth === 0 && !this.openBoxId) ? 'none' : 'flex';
+    }
 
     const viewBtn   = root.getElementById('btn-view-toggle');
     const toggleBtn = root.getElementById('btn-toggle-ids');
@@ -1062,6 +1144,25 @@ export const UIMixin = (Base) => class extends Base {
     if ((this.isChatMode || this.isReviewMode || this.isReceiptsMode) && typeof this.renderChatAndReviewView === 'function') return this.renderChatAndReviewView(content, attrs);
     if (this.isShopMode && typeof this.renderShoppingView === 'function') return this.renderShoppingView(content, attrs);
     if ((this.isSearch || attrs.path_display?.startsWith('Search')) && attrs.items && typeof this.renderSearchView === 'function') return this.renderSearchView(content, attrs);
+
+    // [ADDED v2026.9.30] The box page, keyed on box_id and not on a path.
+    //
+    // Checked after every view mode, so a mode always wins: openBoxId can
+    // only be set while no mode is, and preferring the screens that are
+    // known to work is the safe direction.
+    //
+    // The box row must be present in the data this screen was loaded with.
+    // An id that is not - a box deleted in another session, a path that has
+    // moved on - would draw an empty page with no way off it, so it is
+    // cleared here and the shelf is drawn instead (RULE 31).
+    if (this.openBoxId) {
+      const boxRow = (attrs.items || []).find(
+        i => i.type === 'box' && String(i.id) === String(this.openBoxId));
+      if (boxRow && typeof this.renderBoxView === 'function') {
+        return this.renderBoxView(content, attrs, boxRow);
+      }
+      this.openBoxId = null;
+    }
 
     if (attrs.depth === 0 && typeof this.renderRoomsView === 'function') return this.renderRoomsView(content, attrs);
     if (attrs.depth < 2 && typeof this.renderLocationsView === 'function') return this.renderLocationsView(content, attrs);

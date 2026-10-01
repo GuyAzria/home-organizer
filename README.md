@@ -173,7 +173,9 @@ To make Home Organizer the default "brain" for voice commands across your entire
 ### 🎙️ The Ultimate Voice Assistant Capabilities
 HO can now be configured as your official **Home Assistant Conversation Agent**! You can speak naturally and ask for almost anything:
 * **Smart Shopping List:** Say *"Add eggs to the shopping list,"* *"Clear my shopping list,"* or even ***"Send my shopping list to WhatsApp."***
-* **Voice Inventory:** Add items directly to locations by saying, *"Add 3 batteries to the kitchen drawer."*
+* **Voice Inventory:** Add items directly to locations by saying, *"Add 3 batteries to the kitchen drawer,"* or name the place by its catalog ID — *"Add face cream to D2.1."* If the thing you named is already sitting on a receipt you have not reviewed, it asks whether you meant that one instead of quietly making a second row for it.
+* **Voice Boxes:** *"Put M6 and M8 screws in box 1."* *"Empty box 2."* *"Put the whole Super-Pharm receipt in box 4."* *"Delete everything in box 4"* — which tells you how many items are in there and waits for a real answer before it deletes anything, and never deletes a receipt line that is still waiting for review.
+* **Voice Housekeeping:** *"Take everything off the top shelf in the pantry"* moves the loose items up one level and leaves any box standing there alone — taking everything off a shelf means moving the carton, not unpacking it.
 * **Your Personal Sous-Chef:** Want to bake? Ask, *"How do I make a cheesecake?"* The AI will instantly cross-reference your HO inventory, tell you what ingredients you have, offer to add missing ones to your shopping list, and guide you step-by-step. It will even **add automatic Home Assistant reminders and timers** while you cook!
 * **Smart Reminders Assistant:** Say, *"Remind me in an hour to pick up the kids."* When the time comes, the reminder will return **as an audio voice message directly to the specific user's phone** who requested it!
 * **Calendar Secretary:** Seamlessly manage your schedule. Just say, *"Add a meeting tomorrow morning with Mr. Bean,"* and it's booked.
@@ -242,7 +244,8 @@ While the core inventory database (SQLite) is 100% local and private, please not
 * **Native Multilingual Support** — The panel, the AI's replies, and everyday speech through Home Assistant's conversation agent all work in English, Hebrew, Arabic, or any other supported language.
 
 ### 📦 Smart Inventory Management
-* **Hierarchical Explorer** — Navigate through Rooms, Furniture, Shelves, and Boxes with unlimited depth.
+* **Hierarchical Explorer** — Zones ▸ Rooms ▸ Storage Locations ▸ Sublocations. Every place gets a short catalog ID (`D2.1`) you can say out loud or type into the search bar.
+* **📦 Boxes** — The carton on the shelf, with a number written on it. A box holds items, has its own page, and **moves with everything inside it** in one operation. Deleting a box never deletes what was in it. Receipt lines you have not reviewed yet can be filed into one before you approve them.
 * **Live Stock Tracking & Shopping Mode** — Instantly update stock. When an item hits `0`, it is marked **Out of Stock** and sent directly to your Shopping List.
 * **Price History & Expiry Tracking** — Every item remembers what you paid and where you bought it. Expiry dates for food and medicine, and warranty end dates for electronics and tools, are estimated automatically based on the item and its storage location, and are always editable.
 * **Management Tools** — Rename, Move (Cut/Paste), Duplicate, and Delete items or entire locations.
@@ -309,6 +312,21 @@ Click on a Room (e.g., Kitchen) to enter it. Add a **Storage Location** (like "F
   <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/6.png" width="48%" alt="Kitchen Storage Locations">
   <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/7.png" width="48%" alt="Fridge Sublocations">
 </p>
+
+### 4b. Boxes
+A **Box** is the carton that stands on a shelf. It is not another level of the hierarchy — it is a thing in a location, the same way an item is — and that is what lets it move with its contents.
+
+Turn on **Edit Mode** and press the box button beside the pencil. Give it a title (*M8 screws*) and choose which place on the page it goes in. It opens onto its own page straight away.
+
+**The number.** Every box gets one — `box1`, `box2`, `box3`. Write it on the carton. It reads the same in every language because it is an identifier, not a word, and it is never reused: delete box3 and the next box is box5, so a label you wrote last year still means what it meant.
+
+**On the box's page** you can add items by hand without limit, pull in lines from a receipt you have not approved yet, edit anything inside it, and take items back out. The three-dot menu holds the rest: change its location with the room ▸ location ▸ sublocation pickers, set what kind of box it is, rename it in place, cut it to paste in another room, or delete it.
+
+**Deleting a box does not delete what was in it.** The items stay exactly where the box was standing. Getting rid of a carton is not the same as getting rid of its contents.
+
+**Finding one.** On a shelf, a box is a card showing its number, title, type and count. On the heading of any sublocation that holds one you get a box icon with a count — **tap** it to open the box, **hold** it to move the box to another place on that page. In the search bar, a toggle narrows results to boxes only; typing *screws* finds *box3 — M8 screws*, and so does typing *box3*.
+
+**Filing a receipt line into a box does not approve it.** It stays in the review queue and the page marks it unreviewed. The box only records where it is going, so that when you do approve it, it is filed in the box.
 
 ### 5. Adding and Managing Items manually
 Turn off **Edit Mode**. Navigate to a sublocation and click **+ Add** to create a new item manually.

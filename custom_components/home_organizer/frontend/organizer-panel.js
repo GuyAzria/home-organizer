@@ -11,34 +11,49 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
-// [MODIFIED v2026.9.27 | 2026-09-27] Purpose: Cache version 10.11.86.
-//   view-chat.js carries the receipts filter bar. A browser on an older tag
-//   would keep the two date boxes and never ask for the new period keys.
-// [MODIFIED v2026.9.27 | 2026-09-27] Purpose: Cache version 10.11.85.
-//   organizer-state.js decides which screen a reload comes back to. A browser
-//   holding an older tag would keep restoring whatever screen it was left on.
+// [MODIFIED v2026.10.1 | 2026-10-01] Purpose: Cache version 10.11.97, and
+//   BoxMixin from pages/view-box.js - the sixteenth mixin.
+//
+//   The tag is what invalidates view-box.js for a browser that already has
+//   it. That file's OWN import tags only govern what it imports; this line
+//   governs whether it is fetched at all.
+//
+//   It wraps InventoryMixin, so a name defined in both would resolve to the
+//   box one. There is no such name today; that is the order that makes the
+//   intent obvious if one ever appears.
+//
+//   Six modules move together here - the new box view, the inventory view it
+//   was carved out of, the toolbar and dispatch, the nav helpers, the saved
+//   state and the icon table - and a browser holding an older tag would take
+//   some and not the rest: a dispatch that knows about openBoxId with no view
+//   to draw it, or a menu asking for an icon that module does not have yet.
+// [ADDED v2026.9.27 | 2026-09-27] Purpose: Cache version 10.11.87. Boxes.
+//   Five modules changed together - the icon, the nav drag, the inventory view,
+//   the toolbar and the api - and a browser holding an older tag would take
+//   some of them and not the rest, which is worse than taking none of them.
 
-import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=10.11.86';
-import { UtilsMixin }  from './organizer-utils.js?v=10.11.86';
-import { StateMixin }  from './organizer-state.js?v=10.11.86';
-import { APIMixin }    from './organizer-api.js?v=10.11.86';
-import { CameraMixin } from './organizer-camera.js?v=10.11.86';
-import { NavMixin }    from './organizer-nav.js?v=10.11.86';
-import { IconsMixin }  from './organizer-icons.js?v=10.11.86';
-import { UIMixin }     from './organizer-ui.js?v=10.11.86';
+import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=10.11.97';
+import { UtilsMixin }  from './organizer-utils.js?v=10.11.97';
+import { StateMixin }  from './organizer-state.js?v=10.11.97';
+import { APIMixin }    from './organizer-api.js?v=10.11.97';
+import { CameraMixin } from './organizer-camera.js?v=10.11.97';
+import { NavMixin }    from './organizer-nav.js?v=10.11.97';
+import { IconsMixin }  from './organizer-icons.js?v=10.11.97';
+import { UIMixin }     from './organizer-ui.js?v=10.11.97';
 
-import { StylistMixin }   from './pages/view-stylist.js?v=10.11.86';
-import { BarcodeMixin }   from './pages/view-barcode.js?v=10.11.86';
-import { InventoryMixin } from './pages/view-inventory.js?v=10.11.86';
-import { ChatMixin }      from './pages/view-chat.js?v=10.11.86';
+import { StylistMixin }   from './pages/view-stylist.js?v=10.11.97';
+import { BarcodeMixin }   from './pages/view-barcode.js?v=10.11.97';
+import { InventoryMixin } from './pages/view-inventory.js?v=10.11.97';
+import { BoxMixin }       from './pages/view-box.js?v=10.11.97';
+import { ChatMixin }      from './pages/view-chat.js?v=10.11.97';
 // [ADDED v2026.9.22] The home dashboard.
-import { DashboardMixin } from './pages/view-dashboard.js?v=10.11.86';
+import { DashboardMixin } from './pages/view-dashboard.js?v=10.11.97';
 // [ADDED v10.11.45] The cookbook screen.
-import { RecipesMixin }   from './pages/view-recipes.js?v=10.11.86';
-import { ShoppingMixin }  from './pages/view-shopping.js?v=10.11.86';
-import { SearchMixin }    from './pages/view-search.js?v=10.11.86';
+import { RecipesMixin }   from './pages/view-recipes.js?v=10.11.97';
+import { ShoppingMixin }  from './pages/view-shopping.js?v=10.11.97';
+import { SearchMixin }    from './pages/view-search.js?v=10.11.97';
 
-class HomeOrganizerPanel extends APIMixin(CameraMixin(SearchMixin(ShoppingMixin(RecipesMixin(ChatMixin(DashboardMixin(InventoryMixin(BarcodeMixin(StylistMixin(UIMixin(NavMixin(IconsMixin(UtilsMixin(StateMixin(HTMLElement))))))))))))))) {
+class HomeOrganizerPanel extends APIMixin(CameraMixin(SearchMixin(ShoppingMixin(RecipesMixin(ChatMixin(DashboardMixin(BoxMixin(InventoryMixin(BarcodeMixin(StylistMixin(UIMixin(NavMixin(IconsMixin(UtilsMixin(StateMixin(HTMLElement)))))))))))))))) {
   set hass(hass) {
     this._hass = hass;
     if (!this.content) {
