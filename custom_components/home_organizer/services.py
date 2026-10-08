@@ -12,35 +12,41 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
-# [FIXED v2026.9.30 | 2026-09-30] Purpose: the box invariant - box_id and the
-#   ten level columns always agree - held in two more places.
+# [FIXED v2026.10.7 | 2026-10-07] Purpose: renaming a location left its
+#   barcode memory behind.
 #
-#   handle_confirm_pending rewrote all ten levels from the path in the review
-#   tab and never looked at box_id, so approving an item that had been put in
-#   a box left it linked to a box standing somewhere else. That invariant is
-#   what lets every other feature find a boxed item by location without
-#   knowing boxes exist. The levels now come FROM the box when there is one,
-#   read on the same connection, and barcode_history records them too so the
-#   next scan of that barcode does not offer a location the item has left. A
-#   box that has since been deleted falls back to the approved path with a
-#   warning rather than leaving the item unfindable (RULE 31).
+#   handle_update_item_details has renamed a folder for a long time, and it
+#   moved items.level_N, the folder_marker row that carries the folder's icon,
+#   and persistent_ids. It did not move barcode_history, which is keyed by the
+#   same level columns and is what remembers where a product lives so the next
+#   scan or receipt files itself.
 #
-#   handle_add gained box_id, so the box page can add an item the same way a
-#   shelf does. Inserting and then calling set_item_box would need the new
-#   row's id, which a service cannot return; creating it in place also means
-#   the invariant is true from the first insert rather than briefly false.
+#   Measured on a real installation before the fix: renaming one room moved
+#   381 items and stranded 142 barcode rows on a path that no longer existed,
+#   so scanning any of those products filed it into a room that was not there.
+#   After the fix all 142 move, and no row is created or deleted.
 #
-#   handle_update_item_details gained box_type, set from the box page's
-#   three-dot menu. No new service: this handler already writes any item
-#   field by id, and a new one would need matching entries in services.yaml,
-#   strings.json and translations/en.json or hassfest rejects the
-#   integration (RULE 33c) - for a field nobody calls by hand.
-# [ADDED v2026.9.27 | 2026-09-27] Purpose: add_box, set_item_box, move_box and
-#   delete_box. set_item_box is one service for three things - into a box,
-#   between boxes, out of a box - because they are one operation. paste_item now
-#   recognises a box on the clipboard and takes its contents with it, and
-#   delete_box empties a box onto the shelf rather than deleting anything
-#   (RULE 5).
+#   location_settings moves too, descendants included. Nothing writes that
+#   table yet - the per-location shelf-life feature stopped at the CREATE
+#   TABLE, and database.py says so in a comment that has been waiting for
+#   this - but the locations wizard seeds it for the fridge, and a settings
+#   row orphaned by a rename is worse than no row.
+#
+#   And a folder rename now needs two real names. orig and nn arrived straight
+#   from call.data with nothing checked while the UPDATE wrote nn into the
+#   level column unconditionally, so an empty new name blanked that column and
+#   every item under the folder lost the only thing that said where it was.
+#   Refused rather than guessed (RULE 31).
+#
+#   NOT a new function. Writing async_rename_location beside this would have
+#   been two copies of one piece of logic, which is what RULE 33d forbids and
+#   what this project has already been bitten by.
+# [MODIFIED v2026.10.5 | 2026-10-05] Purpose: two questions about a barcode.
+#
+#   Every barcode_history writer here asks is_portable_barcode instead of
+#   testing the code by hand. Two of them already carried their own
+#   `not in ("0", "None", "")` test - the same bug met and patched where it
+#   was found rather than at the source (RULE 33a.6).
 
 import logging
 import os
@@ -60,9 +66,12 @@ from .database import (
     async_record_purchase, async_activate_receipt, async_get_receipt,
     # [ADDED v2026.9.11] Discard an entire unreviewed scan.
     async_delete_draft_scan, async_update_receipt_currency,
+    async_update_receipt_date,
     async_delete_receipt_completely,
     # [ADDED v2026.9.19] Categories now live in the database.
     async_add_category, async_rename_category, async_update_item_extras,
+    is_portable_barcode,
+    async_delete_category,
     # [ADDED v2026.9.27] Boxes.
     async_create_box, async_get_box, async_set_item_box, async_move_box,
     async_delete_box,
@@ -88,6 +97,23 @@ async def register_services(hass, entry):
 
     async def handle_add(call):
         name = call.data.get("item_name"); itype = call.data.get("item_type", "item")
+        # [FIXED v2026.10.1] The quantity was ignored and the insert below
+        # hardcoded 1.
+        #
+        # The shopping list is built from items at quantity 0, so the
+        # cookbook's "add the missing ingredients" - which has always sent
+        # quantity: 0 - created them IN STOCK instead. Nothing reached the
+        # list, and the next stock check then found every ingredient present
+        # and reported the whole recipe as available.
+        #
+        # Absent still means 1, which is what every other caller sends, so
+        # no existing behaviour changes. Clamped at zero: a negative stock
+        # level has no meaning and would read as "needed" forever.
+        raw_qty = call.data.get("quantity")
+        try:
+            add_qty = 1 if raw_qty is None else max(0, int(raw_qty))
+        except (TypeError, ValueError):
+            add_qty = 1
         date = call.data.get("item_date"); img_b64 = call.data.get("image_data")
         category = call.data.get("category", "")
         sub_category = call.data.get("sub_category", "")
@@ -167,7 +193,7 @@ async def register_services(hass, entry):
                     await db.execute(f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})", tuple(vals))
                 else:
                     cols = ["name", "type", "quantity", "item_date", "image_path", "category", "sub_category", "barcode", "owner", "season", "dress_code", "clothing_status", "measurements"]
-                    vals = [name, itype, 1, date, fname, category, sub_category, barcode, owner, season, dress_code, clothing_status, measurements]
+                    vals = [name, itype, add_qty, date, fname, category, sub_category, barcode, owner, season, dress_code, clothing_status, measurements]
                     qs = ["?"] * len(vals)
                     
                     for i, p in enumerate(parts): cols.append(f"level_{i+1}"); vals.append(p); qs.append("?")
@@ -179,7 +205,10 @@ async def register_services(hass, entry):
 
                     await db.execute(f"INSERT INTO items ({','.join(cols)}) VALUES ({','.join(qs)})", tuple(vals))
                     
-                    if barcode and barcode != "0":
+                    # [MODIFIED v2026.10.4] See normalize_barcode: "None"
+                    # passed this test and became a barcode_history row that
+                    # every later scan inherited.
+                    if is_portable_barcode(barcode):
                         l1 = parts[0] if len(parts) > 0 else ""
                         l2 = parts[1] if len(parts) > 1 else ""
                         l3 = parts[2] if len(parts) > 2 else ""
@@ -419,6 +448,21 @@ async def register_services(hass, entry):
             db_path = get_db_path(hass)
             async with aiosqlite.connect(db_path, timeout=10.0) as db:
                 if is_folder:
+                    # [ADDED v2026.10.7] A folder rename needs two real names.
+                    #
+                    # orig and nn arrive straight from call.data with nothing checked, and
+                    # the UPDATE below writes nn into the level column unconditionally - so
+                    # an empty new name blanked the column and every item under that folder
+                    # lost the only thing that said where it was. Refused instead of
+                    # guessed (RULE 31).
+                    orig = str(orig or "").strip()
+                    nn = str(nn or "").strip()
+                    if not orig or not nn:
+                        _LOGGER.warning(
+                            "[HO-LOC] Refused a folder rename with an empty name: "
+                            "%r -> %r. Nothing was changed.", orig, nn,
+                        )
+                        return
                     depth = len(parts)
                     if depth < 10:
                         target_col = f"level_{depth+1}"
@@ -438,6 +482,48 @@ async def register_services(hass, entry):
                         
                         await db.execute(f"UPDATE items SET name = ? WHERE type = 'folder_marker' AND name = ? AND {marker_where}", 
                                   (f"[Folder] {nn}", f"[Folder] {orig}", *marker_args))
+
+                        # [ADDED v2026.10.7] The barcode memory moves with the folder.
+                        #
+                        # Measured on a real installation: renaming one room moved 381 items
+                        # and left 142 barcode_history rows pointing at the old path, so the
+                        # next scan of any of those products filed it into a room that was
+                        # not there any more. barcode_history carries level_1..level_3 only.
+                        if depth < 3:
+                            bh_col = f"level_{depth+1}"
+                            bh_where = f"{bh_col} = ?"
+                            bh_args = [orig]
+                            for i, p in enumerate(parts):
+                                bh_where += f" AND level_{i+1} = ?"
+                                bh_args.append(p)
+                            await db.execute(
+                                f"UPDATE barcode_history SET {bh_col} = ? WHERE {bh_where}",
+                                [nn] + bh_args,
+                            )
+                        
+                        # [ADDED v2026.10.7] And the per-location settings, which are keyed BY
+                        # the path. Nothing writes that table yet - the shelf-life feature
+                        # stopped at the CREATE TABLE - but the locations wizard seeds it for
+                        # the fridge, and a settings row orphaned by a rename is worse than no
+                        # row at all. Descendants move too: renaming a room has to carry the
+                        # settings of every shelf inside it.
+                        old_key = " > ".join(list(parts) + [orig])
+                        new_key = " > ".join(list(parts) + [nn])
+                        await db.execute(
+                            "UPDATE OR IGNORE location_settings SET location_path = ? "
+                            "WHERE location_path = ?", (new_key, old_key),
+                        )
+                        await db.execute(
+                            "UPDATE OR IGNORE location_settings "
+                            "SET location_path = ? || substr(location_path, ?) "
+                            "WHERE location_path LIKE ?",
+                            (new_key, len(old_key) + 1, old_key + " > %"),
+                        )
+                        
+                        _LOGGER.info(
+                            "[HO-LOC] Folder renamed at depth %d: %r -> %r (path=%r)",
+                            depth, orig, nn, list(parts),
+                        )
 
                     scope = 'root'
                     if depth == 1: scope = parts[0]
@@ -508,7 +594,11 @@ async def register_services(hass, entry):
                         if item_id:
                             async with db.execute("SELECT barcode, name, category, sub_category, image_path, level_1, level_2, level_3 FROM items WHERE id=?", (item_id,)) as cursor:
                                 row = await cursor.fetchone()
-                            if row and row[0] and str(row[0]) not in ("0", "None", ""):
+                            # [MODIFIED v2026.10.4] This site already knew
+                            # about "None" and tested for it inline. The
+                            # test lives in one place now, so the writers
+                            # that did NOT know cannot stay wrong.
+                            if is_portable_barcode(row[0] if row else None):
                                 await db.execute('''
                                     REPLACE INTO barcode_history (barcode, name, category, sub_category, icon_key, level_1, level_2, level_3)
                                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -592,7 +682,8 @@ async def register_services(hass, entry):
                     
                     async with db.execute("SELECT barcode, name, category, sub_category, image_path, level_1, level_2, level_3 FROM items WHERE id=?", (item_id,)) as cursor:
                         row = await cursor.fetchone()
-                    if row and row[0] and str(row[0]) not in ("0", "None", ""):
+                    # [MODIFIED v2026.10.4] As above: one rule, not a copy.
+                    if is_portable_barcode(row[0] if row else None):
                         await db.execute('''
                             REPLACE INTO barcode_history (barcode, name, category, sub_category, icon_key, level_1, level_2, level_3)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -618,6 +709,49 @@ async def register_services(hass, entry):
                 broadcast_update()
         except Exception as e:
             _LOGGER.error(f"Service update item extras error: {e}")
+
+    async def handle_delete_category(call):
+        """Delete a category or sub-category and re-file its items.
+
+        Item rows are never deleted. The data layer re-files them first and
+        removes the label second, on one commit, and refuses outright if the
+        destination does not exist (RULE 5, RULE 31).
+
+        The outcome is returned to the caller AND logged. A delete that was
+        refused has to be distinguishable from one that did nothing because
+        there was nothing to do (RULE 10).
+        """
+        try:
+            res = await async_delete_category(
+                hass,
+                call.data.get("category"),
+                call.data.get("sub_category"),
+                call.data.get("to_category"),
+                call.data.get("to_sub_category"),
+            )
+            if res.get("ok"):
+                _LOGGER.info(
+                    "delete_category: removed %s rows, re-filed %s items "
+                    "(category=%r sub=%r -> %r/%r)",
+                    res.get("removed"), res.get("moved"),
+                    call.data.get("category"), call.data.get("sub_category"),
+                    call.data.get("to_category"),
+                    call.data.get("to_sub_category"),
+                )
+                broadcast_update()
+            else:
+                _LOGGER.warning(
+                    "delete_category refused (%s): category=%r sub=%r "
+                    "-> %r/%r. Nothing was changed.",
+                    res.get("reason"),
+                    call.data.get("category"), call.data.get("sub_category"),
+                    call.data.get("to_category"),
+                    call.data.get("to_sub_category"),
+                )
+            return res
+        except Exception as e:
+            _LOGGER.error(f"Service delete category error: {e}")
+            return {"ok": False, "reason": "error", "moved": 0, "removed": 0}
 
     async def handle_add_category(call):
         """Add a category or sub-category. Never deletes or replaces.
@@ -698,6 +832,35 @@ async def register_services(hass, entry):
                 broadcast_update()
         except Exception as e:
             _LOGGER.error(f"Service set receipt currency error: {e}")
+
+    async def handle_set_receipt_date(call):
+        """Correct the date printed on one receipt.
+
+        Stored on the receipt rather than the item for the same reason as
+        the currency: every line of one receipt was bought on the same day.
+        The item's own item_date stays the day it was scanned.
+
+        The value is validated in async_update_receipt_date, which refuses
+        anything that is not YYYY-MM-DD rather than storing NULL - the
+        expenses queries filter dates with LIKE, so a wrong shape would
+        silently drop the receipt out of its month.
+        """
+        try:
+            ok = await async_update_receipt_date(
+                hass, call.data.get("receipt_id"),
+                call.data.get("purchase_date"),
+            )
+            if ok:
+                broadcast_update()
+            else:
+                _LOGGER.warning(
+                    "set_receipt_date refused receipt=%r date=%r; "
+                    "nothing was written.",
+                    call.data.get("receipt_id"),
+                    call.data.get("purchase_date"),
+                )
+        except Exception as e:
+            _LOGGER.error(f"Service set receipt date error: {e}")
 
     async def handle_delete_scan(call):
         """Discard a whole scan while it is still unreviewed.
@@ -825,7 +988,8 @@ async def register_services(hass, entry):
                 vals.append(item_id)
                 await db.execute(f"UPDATE items SET {','.join(upd)} WHERE id=?", tuple(vals))
                 
-                if bcode and bcode != "0":
+                # [MODIFIED v2026.10.4] The same rule as every other writer.
+                if is_portable_barcode(bcode):
                     # [MODIFIED v2026.9.30] The effective levels, so a box
                     # is remembered too. This row pre-fills the next scan of
                     # the same barcode; recording the approval path would
@@ -979,6 +1143,14 @@ async def register_services(hass, entry):
                 vol.Optional("warranty_end_date"): vol.Any(cv.string, None),
             }
         ),
+        "delete_category": vol.Schema(
+            {
+                vol.Required("category"): cv.string,
+                vol.Optional("sub_category"): vol.Any(cv.string, None),
+                vol.Optional("to_category"): vol.Any(cv.string, None),
+                vol.Optional("to_sub_category"): vol.Any(cv.string, None),
+            }
+        ),
         "add_category": vol.Schema(
             {
                 vol.Required("category"): cv.string,
@@ -1007,6 +1179,12 @@ async def register_services(hass, entry):
                 vol.Required("currency"): cv.string,
             }
         ),
+        "set_receipt_date": vol.Schema(
+            {
+                vol.Required("receipt_id"): vol.Coerce(int),
+                vol.Required("purchase_date"): cv.string,
+            }
+        ),
         "delete_scan": vol.Schema(
             {
                 vol.Required("receipt_id"): vol.Coerce(int),
@@ -1032,8 +1210,10 @@ async def register_services(hass, entry):
         ("confirm_pending", handle_confirm_pending), ("clear_barcode_history", handle_clear_barcode_history),
         ("delete_scan", handle_delete_scan),
         ("set_receipt_currency", handle_set_receipt_currency),
+        ("set_receipt_date", handle_set_receipt_date),
         ("delete_receipt", handle_delete_receipt),
         ("add_category", handle_add_category), ("rename_category", handle_rename_category),
+        ("delete_category", handle_delete_category),
         ("update_item_extras", handle_update_item_extras),
         ("clear_all_items", handle_clear_all_items), ("clear_all_data", handle_clear_all_data),
         # [ADDED v2026.9.27] Boxes.

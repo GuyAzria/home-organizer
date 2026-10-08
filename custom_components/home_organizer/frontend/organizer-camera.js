@@ -12,8 +12,47 @@
 // more details. <https://www.gnu.org/licenses/>.
 
 //
-// [MODIFIED v2026.9.24 | 2026-09-24] Purpose: A receipt arriving from the companion app may now be a PDF, and the two routes that handled one finally share a single implementation instead of two copies of the same twenty lines.
-// [MODIFIED v10.0.11 | 2026-08-02] Purpose: Changed barcode polyfill CDN URL to local static path to satisfy offline HACS requirements.
+// [FIXED v2026.10.6 | 2026-10-06] Purpose: the scanner read a number that was
+//   not on the packet, fast, nine times out of ten.
+//
+//   The vendored polyfill holds a HARDCODED format list,
+//
+//       ["Code128","Code93","Code39","EAN-13","2Of5","Inter2Of5","Codabar"]
+//
+//   and posts it to its worker as decodeFormats on every detect(). The formats
+//   option passed to the constructor here was never read - the bundle has no
+//   getSupportedFormats and no mapping for it - and the constructor does not
+//   throw either, so the catch-fallback never fired. Seven symbologies were
+//   decoded every frame whatever was asked for.
+//
+//   Interleaved 2 of 5 is variable-length, continuous, purely numeric and has
+//   NO mandatory check digit, so any even-length run of bars inside a denser
+//   barcode decodes as a valid-looking ITF number. Off an EAN-13 that is a
+//   short read: numeric, so it looks like an ID; instant; wrong; and the SAME
+//   on every frame, because the packet is being held still.
+//
+//   That last part is why REQUIRED_CONFIDENCE = 3 did not help. It proved the
+//   value was STABLE. It never proved it was CORRECT. And multiple:true means
+//   the worker returns every decode it managed, so taking barcodes[0] could
+//   pick the bogus ITF read over the EAN-13 that was really there.
+//
+//   So the OUTPUT is filtered instead: pickScannedCode accepts a candidate only
+//   when isValidGtin says it is a GTIN-8/12/13/14 with a correct check digit,
+//   an unreadable frame resets the run, and a refusal from the backend is shown
+//   as a failure rather than falling into the unknown-barcode prompt and asking
+//   the user to name a product for a number off no packet.
+// [FIXED v2026.10.5 | 2026-10-05] Purpose: a scanned product appears on the
+//   BARCODE page.
+//
+//   A barcode scan creates a PENDING item, and the review tab was the only
+//   thing in the panel that draws one - so the product landed on the receipts
+//   screen beside things that came off an invoice. executeBarcodeLookup made
+//   it explicit: it set isBarcodeMode = false and switched screens before the
+//   lookup had even returned.
+//
+//   The split is receipt_id - a receipt scan sets one, a barcode scan never
+//   does - and it is only reliable because a receipt line with no printed
+//   barcode now stores "0" rather than the string "None".
 
 export const CameraMixin = (Base) => class extends Base {
 
@@ -601,41 +640,88 @@ export const CameraMixin = (Base) => class extends Base {
       }
   }
 
+  // [FIXED v2026.10.5] The scan stays on the barcode page.
+  //
+  // This used to set isBarcodeMode = false and switch to the review screen
+  // before the lookup had even returned, so the product the user had just
+  // scanned appeared on the receipts tab beside things that came off an
+  // invoice. That is what was reported.
+  //
+  // It also wrote its progress and its question into chatHistory. The chat
+  // list that rendered chatHistory was removed in an earlier release and
+  // nothing creates a .chat-messages element any more, so the "looking up"
+  // line was invisible and the confirmation for an UNKNOWN barcode was
+  // completely dead: the user scanned, and the screen did not change at all.
+  //
+  // The page owns both now - barcodeStatus and barcodePrompt - and draws
+  // them itself.
   async executeBarcodeLookup(code) {
-    this.isBarcodeMode = false; 
+    // Exactly one mode on, every other one explicitly off. A new entry point
+    // that forgets one leaves it true for ever (RULE 33a.1).
+    this.openBoxId = null;
+    this.isBarcodeMode = true;
+    this.isChatMode = false; this.isReviewMode = false;
+    this.isReceiptsMode = false; this.isRecipesMode = false;
+    this.isShopMode = false; this.isSearch = false;
+    this.isStylistMode = false; this.isDashboardMode = false;
+    this.isEditMode = false;
 
-    if (!this.isChatMode) {
-      this.isChatMode = true; this.isShopMode = false; this.isSearch = false; this.isEditMode = false; this.isReviewMode = false;
-    }
-    
-    const statusMsg = { role: 'system', text: `Looking up barcode: <b>${code}</b>...`, isStatus: true };
-    this.chatHistory.push(statusMsg);
+    this.barcodePrompt = null;
+    this.barcodeStatus = {
+      text: this._t('barcode_looking', 'Looking up {code}...')
+        .replace('{code}', code),
+      bad: false,
+    };
     this.render();
 
-    setTimeout(() => { const m = this.shadowRoot.querySelector('.chat-messages'); if (m) m.scrollTop = m.scrollHeight; }, 50);
-
     try {
-      const res = await this._hass.callWS({ type: 'home_organizer/lookup_barcode', barcode: code, language: this.currentLang });
-      statusMsg.isStatus = false;
+      const res = await this._hass.callWS({
+        type: 'home_organizer/lookup_barcode',
+        barcode: code,
+        language: this.currentLang,
+      });
       if (res.found) {
         const pathArr = res.item.path || [];
-        this.callHA('add_item', {
+        // Awaited: the refetch below has to happen AFTER the row exists, or
+        // the page draws the list it had before the scan.
+        await this.callHA('add_item', {
           item_name: res.item.name, category: res.item.category || "",
-          sub_category: res.item.sub_category || "", icon_key: res.item.icon_key || null,
-          barcode: code, item_type: 'pending', current_path: pathArr.filter(p => p)
+          sub_category: res.item.sub_category || "",
+          icon_key: res.item.icon_key || null,
+          barcode: code, item_type: 'pending',
+          current_path: pathArr.filter(p => p)
         });
-        statusMsg.text = `✅ Found in memory! Added <b>${res.item.name}</b> to Review tab.`;
+        this.barcodeStatus = {
+          text: this._t('barcode_found', 'Found {name}. Check it and confirm.')
+            .replace('{name}', res.item.name || ''),
+          bad: false,
+        };
+        await this.fetchData();
+      } else if (res.error_key) {
+        // [ADDED v2026.10.6] The backend refused the code as a misread.
+        //
+        // Without this branch a refusal fell into the unknown-barcode prompt
+        // below and asked the user to NAME a product for a number that was
+        // never on the packet - which is the misread wearing a different hat.
+        this.barcodeStatus = {
+          text: this._t(res.error_key, 'That scan could not be read. Try again.'),
+          bad: true,
+        };
+        this.render();
       } else {
-        statusMsg.text = "";
-        statusMsg.isBarcodeConfirm = true;
-        statusMsg.barcode = code;
-        statusMsg.suggestion = res.suggestion || { name: `Scanned Product (${code})` };
+        // Not known yet: ask what it is. This is the step that could not be
+        // seen before.
+        this.barcodeStatus = null;
+        this.barcodePrompt = {
+          barcode: code,
+          name: (res.suggestion && res.suggestion.name) || '',
+        };
+        this.render();
       }
-      this.render();
-      setTimeout(() => { const m = this.shadowRoot.querySelector('.chat-messages'); if (m) m.scrollTop = m.scrollHeight; }, 50);
     } catch (err) {
       console.error("Barcode lookup failed", err);
-      statusMsg.text = `❌ Barcode lookup failed.`; statusMsg.isStatus = false;
+      this.barcodeStatus = {
+        text: this._t('barcode_failed', 'The lookup failed.'), bad: true };
       this.render();
     }
   }
@@ -657,6 +743,40 @@ export const CameraMixin = (Base) => class extends Base {
     return false;
   }
 
+  // [ADDED v2026.10.6] Is this string a real GTIN, or a short read?
+  //
+  // The mod-10 check digit, with weights alternating 3 and 1 from the
+  // rightmost body digit. This mirrors _gtin_check_digit_ok in database.py
+  // deliberately: one is Python on the server, one is JavaScript in the
+  // browser, and they cannot share an implementation - so st43 asserts the
+  // two agree on a shared list of codes rather than trusting that they do.
+  isValidGtin(code) {
+    const s = String(code || '').trim();
+    if (!/^[0-9]+$/.test(s)) return false;
+    if (![8, 12, 13, 14].includes(s.length)) return false;
+    if (/^0+$/.test(s)) return false;
+    let total = 0;
+    const body = s.slice(0, -1);
+    for (let i = 0; i < body.length; i++) {
+      const digit = Number(body[body.length - 1 - i]);
+      total += digit * (i % 2 === 0 ? 3 : 1);
+    }
+    return ((10 - (total % 10)) % 10) === Number(s[s.length - 1]);
+  }
+
+  // The one candidate worth believing out of everything a frame decoded.
+  //
+  // The polyfill is handed `multiple: true` and returns EVERY symbology it
+  // managed to read, so taking [0] meant a bogus ITF short read could be
+  // chosen over the EAN-13 that was really on the packet.
+  pickScannedCode(barcodes) {
+    for (const b of barcodes || []) {
+      const value = String(b?.rawValue || '').trim();
+      if (this.isValidGtin(value)) return value;
+    }
+    return null;
+  }
+
   async handleBarcodeScan() {
     if (this.useExternalCamera) { this.openCamera('barcode'); return; }
 
@@ -665,6 +785,16 @@ export const CameraMixin = (Base) => class extends Base {
 
     this.openCamera('barcode');
 
+    // [MODIFIED v2026.10.6] The formats option is a REQUEST, not a filter.
+    //
+    // The vendored polyfill ignores it completely: it holds a hardcoded
+    // ["Code128","Code93","Code39","EAN-13","2Of5","Inter2Of5","Codabar"]
+    // and posts that to its worker every time. It does not throw either, so
+    // the catch below never fired and nothing was ever restricted.
+    //
+    // It is still passed, because the NATIVE BarcodeDetector in Chrome does
+    // honour it. What makes the result trustworthy on both is pickScannedCode
+    // below, which drops anything that is not a valid GTIN.
     let detector;
     try { detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e'] }); }
     catch (e) { detector = new BarcodeDetector(); }
@@ -690,15 +820,31 @@ export const CameraMixin = (Base) => class extends Base {
             rotCtx.restore();
             barcodes = await detector.detect(rotCanvas);
           }
-          if (barcodes.length > 0) {
-            const code = barcodes[0].rawValue;
+          // [MODIFIED v2026.10.6] Only a valid GTIN counts, and the run of
+          // three has to be unbroken.
+          //
+          // An Interleaved 2 of 5 short read taken off an EAN-13's bars is
+          // numeric, instant, and the SAME on every frame while the packet is
+          // held still - so it reached three confirmations immediately. The
+          // counter proved the value was STABLE and never that it was RIGHT.
+          // A code that fails its check digit now resets the run instead of
+          // building one, and the choice is no longer barcodes[0]: the
+          // polyfill is handed multiple:true and returns every symbology it
+          // managed to read.
+          const code = this.pickScannedCode(barcodes);
+          if (code) {
             if (code === lastCode) confidence++; else { lastCode = code; confidence = 1; }
             if (confidence >= REQUIRED_CONFIDENCE) {
               this.playBeep(); this.stopCamera();
-              this.executeBarcodeLookup(code); 
+              this.executeBarcodeLookup(code);
               return;
-            } else { setTimeout(() => requestAnimationFrame(scanFrame), 100); return; }
+            }
+            setTimeout(() => requestAnimationFrame(scanFrame), 100);
+            return;
           }
+          // Nothing readable in this frame. A partial read must not count
+          // towards the next one.
+          lastCode = null; confidence = 0;
         } catch (e) {}
       }
       setTimeout(() => requestAnimationFrame(scanFrame), 150);

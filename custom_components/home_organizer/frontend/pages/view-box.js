@@ -98,8 +98,8 @@
 //   such row and drops back to it - the guard written for a box deleted in
 //   another session answers this case too.
 
-import { ICONS } from '../organizer-icon.js?v=2026.9.30';
-import { escapeHtml } from '../organizer-utils.js?v=2026.9.30';
+import { ICONS } from '../organizer-icon.js?v=10.11.112';
+import { escapeHtml } from '../organizer-utils.js?v=10.11.112';
 
 // The canonical box types, in English.
 //
@@ -129,7 +129,7 @@ export const BoxMixin = (Base) => class extends Base {
     card.appendChild(head);
     ov.appendChild(card);
     ov.onclick = (e) => { if (e.target === ov) ov.remove(); };
-    this.shadowRoot.appendChild(ov);
+    this.mountOverlay(ov);
     return { ov, card };
   }
 
@@ -616,8 +616,8 @@ export const BoxMixin = (Base) => class extends Base {
       menu.appendChild(d);
     };
     const show = () => {
-      this.shadowRoot.appendChild(catcher);
-      this.shadowRoot.appendChild(menu);
+      this.mountOverlay(catcher);
+      this.mountOverlay(menu);
     };
     return { menu, add, sep, shut, show };
   }

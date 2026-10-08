@@ -12,8 +12,17 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
+# // [MODIFIED v2026.10.1 | 2026-10-01] Purpose: allow_cooking=False. The
+# // Home Assistant chat - and the Mind app, which arrives through this same
+# // agent - never reaches the cooking agent. A recipe question here is
+# // answered as an ordinary question.
+# //
+# // A walkthrough running in the cookbook is NOT cancelled by this; it is
+# // only unreachable from here. The history below is kept per conv_id and
+# // persists, which is exactly why it mattered: one recipe question used to
+# // leave cooking state in the conversation and every later message followed
+# // it into the recipe.
 # // [MODIFIED v8.25.0 | 2026-08-02] Purpose: Refactored database interactions to use aiosqlite for full asynchronous I/O. Replaced get_db_connection with get_db_path and removed async_add_executor_job wrappers to prevent Event Loop blocking during voice interactions.
-# // [MODIFIED v8.24.0 | 2026-04-12] Purpose: Captured user_input.device_id and user_input.context.user_id to pass down to the AI. This allows the Time Reminder Agent to target the specific mobile device that initiated the voice request.
 
 import logging
 import re
@@ -136,8 +145,19 @@ class HomeOrganizerConversationAgent(conversation.ConversationEntity):
 
             mode = self.entry.options.get(CONF_PROCESSING_MODE) or self.entry.data.get(CONF_PROCESSING_MODE) or MODE_HYBRID
 
+            # [ADDED v2026.10.1] No sous-chef in the Home Assistant chat, or
+            # in the Mind app, which arrives through this same agent.
+            #
+            # A recipe question here is answered as an ordinary question. A
+            # walkthrough running in the cookbook is NOT cancelled - it is
+            # simply not reachable from here, and asking in the cookbook
+            # again continues from where it was.
+            #
+            # This history is kept per conv_id and persists, which is exactly
+            # why it mattered: one recipe question used to leave cooking
+            # state in the conversation and every later message followed it.
             final_reply = await safe_universal_agent_loop(
-                self.hass, self.entry, mode, self.history[conv_id], target_lang, existing_locs_str, loc_hierarchy_map, is_voice=True, device_id=device_id, user_id=user_id
+                self.hass, self.entry, mode, self.history[conv_id], target_lang, existing_locs_str, loc_hierarchy_map, is_voice=True, device_id=device_id, user_id=user_id, allow_cooking=False
             )
 
             if len(self.history[conv_id]) > 10:

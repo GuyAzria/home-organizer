@@ -30,7 +30,7 @@
 //   rides on the end of the message - because every one of them used to
 //   read as the same single sentence.
 
-import { ICONS, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.10';
+import { ICONS, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=10.11.112';
 
 export const IconsMixin = (Base) => class extends Base {
 

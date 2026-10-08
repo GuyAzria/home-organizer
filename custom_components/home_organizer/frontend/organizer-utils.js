@@ -11,21 +11,22 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [FIXED v2026.10.5 | 2026-10-05] Purpose: a scanned product appears on the
+//   BARCODE page.
+//
+//   isBarcodeScanned is the one rule both screens read, so an item cannot end
+//   up on both or on neither (RULE 33a.6).
 // [MODIFIED v2026.9.22 | 2026-09-22] Purpose: localeTag maps the panel
 //   language onto a BCP-47 tag, in ONE place. view-recipes had the table
 //   for the speech engines and the dashboard was about to grow a second
 //   one for month names and money; two copies drift and then one language
 //   formats its dates in another's (RULE 33d).
-// [ADDED v2026.9.22 | 2026-09-22] Purpose: folderIcon decides what a folder
-//   tile shows - photo, then drawing, then library key, then the plain
-//   folder. The two loops in view-inventory.js each had their own copy of
-//   that order, which is the shape RULE 33a.6 warns about.
 
-import { ICONS, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=6.6.10';
+import { ICONS, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=10.11.112';
 // [ADDED v2026.9.20] Item icons the assistant designed, drawn from the
 // spec it sent. See item-icon.js for why they carry no background and
 // inherit their colour.
-import { itemIconFromSpec } from './item-icon.js?v=2026.9.22';
+import { itemIconFromSpec } from './item-icon.js?v=10.11.112';
 
 // [ADDED v2026.8.26] HTML escaping for any value that reaches innerHTML.
 //
@@ -54,6 +55,99 @@ export function escapeHtml(value) {
 // The text is escaped FIRST, then the two intentional transforms (**bold**
 // and newline to <br>) are applied to the already-escaped string. Formatting
 // keeps working exactly as before; injected markup does not.
+// [ADDED v2026.10.5] Did this pending item come from the barcode scanner?
+//
+// The review tab and the barcode page split the same list between them, so
+// the rule lives in one place or they disagree and an item shows on both
+// screens or on neither (RULE 33a.6).
+//
+// receipt_id is the discriminator: a receipt scan sets one, a barcode scan
+// never does. The barcode test is what separates a barcode scan from a
+// manual add or a garment photo, which also have no receipt.
+//
+// This is only reliable because a receipt line with no printed barcode now
+// stores "0". It used to store the string "None", which is truthy - so
+// every pending item in the database looked like a barcode scan.
+export function isBarcodeScanned(item) {
+  const row = item || {};
+  if (row.receipt_id) return false;
+  const code = String(row.barcode == null ? '' : row.barcode).trim();
+  return !!code && code !== '0';
+}
+
+// [ADDED v2026.10.2] Which date an item cares about: expiry, or warranty end.
+//
+// Food expires, a drill has a warranty, and showing both on everything would
+// be noise - so the one that already has a value wins, and otherwise the
+// category decides.
+//
+// Lifted out of view-inventory.js because the review card needs the same
+// answer. Two copies would drift, and the drift would be invisible: an item
+// would be offered a warranty date before approval and an expiry date
+// after it, writing to two different columns (RULE 33d).
+export function itemDateField(item, translate) {
+  const t = translate || ((key, dflt) => dflt);
+  const row = item || {};
+  const WARRANTY_CATS = ['Electronics', 'Tools', 'Furniture', 'Appliances'];
+  const showsWarranty = !!(row.warranty_end_date
+    || (!row.expiry_date && WARRANTY_CATS.includes(row.category)));
+  return {
+    field: showsWarranty ? 'warranty_end_date' : 'expiry_date',
+    label: showsWarranty
+      ? t('warranty_end', 'Warranty ends')
+      : t('expiry_date', 'Expiry date'),
+    value: (showsWarranty ? row.warranty_end_date : row.expiry_date) || '',
+  };
+}
+
+// [ADDED v2026.10.2] The option list for a category or sub-category select.
+//
+// Two things were wrong with the two copies this replaces.
+//
+// A value that is not in the list still has to appear as an option, or the
+// select shows a blank and the next save writes that blank over a field the
+// user never touched. Both copies did append it - but as an ordinary
+// option, indistinguishable from a real category. That is why a category
+// the model invented reads in the interface as though it were one of the
+// real ones. It is now labelled, so it can be seen and re-filed.
+//
+// And the names come from the database, which RULE 15 counts as untrusted:
+// the view-chat copy escaped them, the view-inventory copy did not.
+//
+// `translate` is passed in rather than imported because _t is a method on
+// the panel; the default keeps this function usable on its own.
+export function categorySelectOptions({
+  names, current, placeholder, translate, keyPrefix,
+  addLabel, offListLabel,
+}) {
+  const t = translate || ((key, dflt) => dflt);
+  const pre = keyPrefix || 'cat_';
+  const cur = (current === null || current === undefined) ? '' : String(current);
+  let html = `<option value="">${escapeHtml(placeholder || '')}</option>`;
+  let found = false;
+  for (const raw of (names || [])) {
+    const name = String(raw);
+    const sel = name === cur;
+    if (sel) found = true;
+    const label = t(pre + name.replace(/[^a-zA-Z0-9]+/g, '_'), name);
+    html += `<option value="${escapeHtml(name)}"${sel ? ' selected' : ''}>`
+      + `${escapeHtml(label)}</option>`;
+  }
+  // The item's own value, when it is not one of the real ones. Shown with
+  // its own name untranslated - there is no translation key for a name
+  // nobody chose - and marked, so it reads as a value to fix rather than a
+  // category to use.
+  if (cur && !found) {
+    const mark = offListLabel ? ` ${offListLabel}` : '';
+    html += `<option value="${escapeHtml(cur)}" selected>`
+      + `${escapeHtml(cur + mark)}</option>`;
+  }
+  if (addLabel) {
+    html += `<option value="__ADD__">+ ${escapeHtml(addLabel)}</option>`;
+  }
+  return html;
+}
+
 export function formatAiText(text) {
   return escapeHtml(text)
     .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')

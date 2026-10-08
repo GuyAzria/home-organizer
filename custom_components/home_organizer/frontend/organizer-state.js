@@ -11,35 +11,22 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
-// [ADDED v2026.9.30 | 2026-09-30] Purpose: openBoxId, initialised and cleared
-//   by applyNavMode.
+// [ADDED v2026.10.7 | 2026-10-07] Purpose: the wizard's catalogue of
+//   translations, fetched when it opens rather than at boot.
 //
-//   The box page is NOT restored on reload: it is keyed on a row that may have
-//   been deleted since, and the shelf behind it is a screen that always
-//   exists. applyNavMode clears it for the same reason it clears
-//   isBarcodeMode, and by the argument the entry below records - this function
-//   exists to leave exactly one screen selected, and a value it never names
-//   cannot be turned off by it. Without that line, restoring a state whose
-//   mode is 'home' would put the box page back, since no mode flag would be
-//   on to beat it in the dispatch.
-// [MODIFIED v2026.9.27 | 2026-09-27] Purpose: Only the cookbook is restored.
-//   A recipe is a place you are in the middle of; every other screen is one tap
-//   away, so coming back to it is at best neutral. Everything that is not the
-//   cookbook now opens the dashboard, with the location path cleared so the
-//   first tap out of it does not follow a stale breadcrumb.
-
-// [ADDED v2026.9.20] Where the user was, kept between visits.
+//   wizard-locations.csv is ~165 rows - every room and every kind of storage -
+//   that the main panel would otherwise load on every start and never use. Keys
+//   are prefixed wiz_ and loc_ and st45 asserts the two files share none, so
+//   merging cannot overwrite a panel string and "which file wins" is a question
+//   that never arises. A failed fetch leaves the wizard on its English
+//   fallbacks instead of breaking the panel.
 //
-// A Home Assistant panel is destroyed when you navigate away from it and
-// built again from nothing when you come back - so answering the phone, or
-// glancing at another dashboard, dropped you back at the front door. This
-// remembers the screen you were on and puts you back on it.
-//
-// localStorage, not the database: this is a position, not user data. It is
-// per device, which is what "where I was on this phone" means, it costs no
-// round trip on a screen that is already waiting for one, and losing it costs
-// nothing at all - which is why every read and write here is wrapped and
-// every failure ends at the home screen (RULE 31).
+//   The banner's dismissal is read back here as well, from
+//   localStorage, beside the language and the theme. It is a nudge
+//   rather than installation state, and reading it per render would
+//   mean a round trip for it.
+// [ADDED v2026.10.5 | 2026-10-05] Purpose: the barcode page's lookup-order
+//   sheet - whether it is open, and the list it is showing.
 const NAV_KEY = 'home_organizer_nav';
 // Bumped when the shape below changes, so an older saved position is ignored
 // rather than half-read.
@@ -215,6 +202,28 @@ export const StateMixin = (Base) => class extends Base {
     this.collapsedShopSubCats = new Set();
 
     this.chatHistory = [];
+    // [ADDED v2026.10.5] What the barcode page is showing: the progress or
+    // error line, and the question for a code the inventory does not know.
+    this.barcodeStatus = null;
+    this.barcodePrompt = null;
+    // [ADDED v2026.10.5] The lookup-order sheet, and what it is showing.
+    // [ADDED v2026.10.7] The locations wizard. wizProfile is the answer
+    // sheet, kept so that reopening it shows what was ticked rather than a
+    // blank form; wizTree is what already exists, for the review's diff.
+    this.wizStep = 0;
+    this.wizProfile = null;
+    this.wizTree = {};
+    this.wizIssues = [];
+    this.wizAppliedBefore = false;
+    this.wizBusy = false;
+    this.wizResult = null;
+    this.wizTranslationsLoaded = false;
+    // Per browser, beside the language and the theme, which are stored the
+    // same way. The banner is a nudge, not installation state.
+    this.wizBannerHidden =
+      localStorage.getItem('ho_wizard_banner_hidden') === 'true';
+    this.barcodeSheet = false;
+    this.barcodeSources = [];
     this.viewMode = 'list';
     this.expandedIdx = null;
     this.lastAI = "";
@@ -269,6 +278,45 @@ export const StateMixin = (Base) => class extends Base {
         this.translations = { "_direction": { "en": "ltr" } };
         this.render();
       });
+  }
+
+  // [ADDED v2026.10.7] The locations wizard's own translations, fetched
+  // when the wizard opens rather than at boot.
+  //
+  // It is ~165 rows - the room and storage catalogue - that the main panel
+  // would otherwise load on every start and never use. Keys are prefixed
+  // wiz_ and loc_ and are asserted to be disjoint from translations.csv, so
+  // merging cannot overwrite a panel string and "which file wins" is a
+  // question that never arises.
+  //
+  // Failing is soft: the wizard then shows its English fallbacks, which are
+  // in the same file's `en` column, rather than breaking the panel. Loaded
+  // once per session - re-opening the wizard does not refetch.
+  async loadWizardTranslations() {
+    if (this.wizTranslationsLoaded) return;
+    try {
+      const res = await fetch('/home_organizer_static/wizard-locations.csv?v='
+                              + Date.now());
+      if (!res.ok) throw new Error('wizard CSV not found');
+      const rows = this.parseCsvRows(await res.text());
+      const header = (rows[0] || []).map(h => String(h || '').trim());
+      rows.slice(1).forEach(row => {
+        if (!row || !row[0]) return;
+        const key = String(row[0]).trim();
+        if (!key) return;
+        const entry = {};
+        for (let i = 1; i < header.length; i++) {
+          if (header[i]) entry[header[i]] = row[i] || '';
+        }
+        // Never clobber a key the panel already has: translations.csv is the
+        // authority for anything that is in it.
+        if (!this.translations[key]) this.translations[key] = entry;
+      });
+      this.wizTranslationsLoaded = true;
+    } catch (err) {
+      console.warn('Home Organizer: the wizard catalogue could not be '
+                   + 'loaded; it will show in English.', err);
+    }
   }
 
   // [ADDED v2026.9.16] RFC-4180 field splitter.

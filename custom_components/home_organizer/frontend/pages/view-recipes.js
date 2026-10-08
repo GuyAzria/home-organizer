@@ -11,46 +11,36 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
-// [MODIFIED v2026.9.22 | 2026-09-22] Purpose: _voiceLang delegates to
-//   UtilsMixin.localeTag. The language-to-BCP-47 table lived here for the
-//   speech engines, and the dashboard needed the same mapping for month
-//   names and money. Two copies of a language table drift, and then one
-//   screen speaks Russian while another dates itself in English (RULE 33d).
-// [FIXED v2026.9.22 | 2026-09-22] Purpose: 'Cannot read properties of null
-//   (reading reply)' after the assistant wrote a recipe. saved_recipe_id
-//   opens the new page, openRecipeById clears the conversation because the
-//   recipe changed, and the speak() two lines later still read .reply off
-//   it. The throw was caught by the handler's own catch and rendered as the
-//   chat's error banner - so the bug reported itself in the panel, and the
-//   refreshes after it never ran. The reply is captured into a local before
-//   anything can change the page, and put back afterwards: this recipe is
-//   what the reply is about, so the panel should not come up empty beside
-//   the page it just wrote.
+// [MODIFIED v2026.10.1 | 2026-10-01] Purpose: The stock-check buttons.
 //
-// THE COOKBOOK SCREEN - architecture.
-// (Kept as permanent documentation, not a history entry: RULE 28 caps the
-// history at two entries but explicitly preserves notes like this one.)
+//   "Add missing to shopping list" says what it does and carries no count -
+//   the list underneath already shows which ones are missing, and the
+//   confirmation still names the number before anything is written. It did
+//   not work at all until services.py stopped throwing the quantity away.
 //
-// A note on the architecture, because the request asked for a Lit element:
-// this panel is not built from Lit elements. It is ONE custom element whose
-// behaviour is composed from mixins (ChatMixin, InventoryMixin, CameraMixin
-// and so on), all sharing a single shadowRoot, a single `_t()` translator,
-// `callHA`, `localData` and one `render()`. A Lit element dropped in here
-// would need its own shadow root, its own style pipeline and its own copy of
-// the translation and websocket plumbing, and it could not use the existing
-// FAB, theming or RTL handling.
+//   useAndRestock is the second button: deduct what was used, put every
+//   ingredient on the list. ONE action, because here it is one write twice
+//   over - an item at quantity 0 IS the shopping list, so deducting and
+//   re-buying cannot disagree. Nothing is deleted: the row keeps its
+//   location, its price history and its barcode (RULE 5).
 //
-// So this follows the established pattern: a mixin in pages/, with its
-// styling in a dedicated pages/recipes.css exactly like the other screens.
-// It is a new self-contained component in the pages directory as asked; it is
-// simply a mixin rather than a Lit element, which is what "a new component"
-// means in this codebase.
+//   A staple the check assumes present - salt, water, oil - is neither
+//   deducted nor bought. Putting salt on the shopping list after every
+//   recipe is the exact noise that assumption exists to prevent.
+// [FIXED v2026.10.1 | 2026-10-01] Purpose: Two chat calls did not send
+//   recipe_id, which __init__.py documents as something the cookbook sends on
+//   EVERY message. The key is now what tells the back end the cookbook is
+//   calling, and the sous-chef is reachable from nowhere else - so without it
+//   the finish command and the finish BUTTON would both have been answered as
+//   ordinary questions, leaving a user unable to end a session they asked to
+//   end. All five calls send it now, which also makes that documented
+//   invariant true.
 
-import { escapeHtml } from '../organizer-utils.js?v=2026.10.9';
+import { escapeHtml } from '../organizer-utils.js?v=10.11.112';
 // [MODIFIED v2026.9.19] Only the assistant's drawing is built here now. The
 // local part library that composed emblems from the recipe's chapter has been
 // removed - see the plate in renderCookbookPage for why.
-import { emblemFromSpec } from './recipe-emblem.js?v=2026.9.21';
+import { emblemFromSpec } from './recipe-emblem.js?v=10.11.112';
 
 const CHEF_HAT_SVG =
   '<svg viewBox="0 0 24 24"><path d="M12 3a5 5 0 0 0-4.9 4.02A4 4 0 0 0 6 15v1h12v-1a4 4 0 0 0-1.1-7.98A5 5 0 0 0 12 3zM6 18h12v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-2z"/></svg>';
@@ -976,14 +966,33 @@ export const RecipesMixin = (Base) => class extends Base {
 
     // Only offered once a check has actually run and found something missing.
     // A button that adds nothing is worse than no button.
-    const missing = (this.stockCheck?.report || []).filter(r => !r.in_stock);
+    const stockReport = (this.stockCheck?.report || []);
+    const missing = stockReport.filter(r => !r.in_stock);
     if (missing.length) {
       const addBtn = document.createElement('button');
       addBtn.className = 'cookbook-tool';
-      addBtn.textContent = this._t('recipe_add_missing', 'Add {n} missing to shopping')
-        .replace('{n}', missing.length);
+      // [MODIFIED v2026.10.1] The label says what it does and carries no
+      // count. The list underneath already shows which ones are missing, and
+      // the confirmation still names the number before anything is written.
+      addBtn.textContent = this._t('recipe_add_missing',
+        'Add missing to shopping list');
       addBtn.onclick = () => this.addMissingToShopping();
       back.appendChild(addBtn);
+    }
+
+    // [ADDED v2026.10.1] Cooked it: take what was used out of stock and put
+    // every ingredient on the shopping list.
+    //
+    // Offered whenever a check has run, not only when something is missing -
+    // a recipe you had everything for is exactly the one you have just used
+    // up.
+    if (stockReport.length) {
+      const useBtn = document.createElement('button');
+      useBtn.className = 'cookbook-tool';
+      useBtn.textContent = this._t('recipe_use_and_restock',
+        'Deduct from stock and re-buy all');
+      useBtn.onclick = () => this.useAndRestock();
+      back.appendChild(useBtn);
     }
 
     // [ADDED v2026.9.17] Say so when what is on screen was machine
@@ -1699,6 +1708,62 @@ export const RecipesMixin = (Base) => class extends Base {
     await this.checkRecipeStock();
   }
 
+  // [ADDED v2026.10.1] Cooked it. Deduct what was used, re-buy everything.
+  //
+  // One action, because in this database it is one write twice over: an item
+  // at quantity 0 IS the shopping list - async_get_view_data builds it from
+  // `quantity = 0 AND type='item'` - so setting what you used to zero both
+  // deducts it and asks for it again. Two separate buttons could have
+  // disagreed with each other; this cannot.
+  //
+  // Nothing is deleted. The row keeps its location, its price history and
+  // its barcode, and reappears in stock the moment you tick it off the list
+  // (RULE 5).
+  //
+  // A staple the check assumes present - salt, water, oil - is neither
+  // deducted nor bought. Putting salt on the shopping list after every
+  // recipe is the exact noise that assumption exists to prevent.
+  async useAndRestock() {
+    const rows = (this.stockCheck?.report || []).filter(r => !r.assumed);
+    if (!rows.length) return;
+    // Only a row the check actually MATCHED can be deducted. An ingredient
+    // reported in stock with no id matched nothing and there is nothing to
+    // write to.
+    const used = rows.filter(r => r.in_stock && r.item_id);
+    const missing = rows.filter(r => !r.in_stock);
+    if (!used.length && !missing.length) return;
+
+    const msg = this._t('recipe_use_and_restock_confirm',
+      'Remove {used} used item(s) from your inventory and add all {all} '
+      + 'ingredients to your shopping list?')
+      .replace('{used}', used.length)
+      .replace('{all}', rows.length);
+    if (!window.confirm(msg)) return;
+
+    for (const r of used) {
+      try {
+        await this.callHA('update_stock', {
+          item_id: String(r.item_id),
+          quantity: 0,
+        });
+      } catch (e) { console.error(e); }
+    }
+    for (const r of missing) {
+      const name = r.ingredient;
+      if (!name) continue;
+      try {
+        await this.callHA('add_item', {
+          item_name: name,
+          item_type: 'item',
+          quantity: 0,
+          current_path: [],
+        });
+      } catch (e) { console.error(e); }
+    }
+    this.stockCheck = null;
+    await this.checkRecipeStock();
+  }
+
   // [ADDED v2026.10.11] Editing an existing recipe.
   //
   // Appends rather than replaces: the common need is "one more ingredient" or
@@ -1802,6 +1867,11 @@ export const RecipesMixin = (Base) => class extends Base {
         image_data: null,
         mime_type: 'image/jpeg',
         language: this.currentLang || 'en',
+        // [ADDED v2026.10.1] The key is what tells the back end this is the
+        // cookbook, and the sous-chef is reachable from nowhere else now.
+        // Without it this message would never reach the cooking agent and a
+        // session could not be ended. null is correct: nothing is open yet.
+        recipe_id: null,
       });
     } catch (_) { /* nothing was running; carry on */ }
 
@@ -1939,6 +2009,11 @@ export const RecipesMixin = (Base) => class extends Base {
         image_data: null,
         mime_type: 'image/jpeg',
         language: this.currentLang || 'en',
+        // [ADDED v2026.10.1] The finish button. Without this key the back
+        // end would not see the cookbook and the message would be answered
+        // as an ordinary question - leaving the user unable to end the
+        // session they asked to end.
+        recipe_id: (this.openRecipe && this.openRecipe.id) || null,
       });
     } catch (e) {
       // Closing is still correct even if the message never landed: the

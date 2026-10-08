@@ -14,8 +14,8 @@
 // [MODIFIED v10.0.9 | 2026-05-03] Purpose: Removed all sharing logic from the shopping view. Share functionality has been completely abstracted into the UIMixin (organizer-ui.js) for proper routing and modal interaction.
 // [ADDED v10.0.4] Shopping View
 
-import { ICONS } from '../organizer-icon.js?v=10.4.2';
-import { escapeHtml } from '../organizer-utils.js?v=2026.8.30';
+import { ICONS } from '../organizer-icon.js?v=10.11.112';
+import { escapeHtml } from '../organizer-utils.js?v=10.11.112';
 
 export const ShoppingMixin = (Base) => class extends Base {
 

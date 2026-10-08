@@ -11,17 +11,44 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
-// [MODIFIED v2026.9.27 | 2026-09-27] Purpose: The receipts archive is filtered by
-//   a store and a period, not by two date boxes and a Clear button. This year is
-//   the default, because an archive that opens on every receipt ever stored is a
-//   list nobody reads. Choose dates still opens the calendar for a window no
-//   preset covers.
-// [FIXED v2026.9.27 | 2026-09-27] Purpose: The receipts archive loads when the
-//   screen is reached, not only when its tab is clicked. The panel restores
-//   the screen it was last on, so arriving there directly showed it empty.
+// [FIXED v2026.10.5 | 2026-10-05] Purpose: a scanned product appears on the
+//   BARCODE page.
+//
+//   buildPendingCard was lifted out of the review loop so the barcode page can
+//   draw the same card - copying 140 lines of category selects and date fields
+//   is the shape RULE 33a.6 warns about. The review tab also stops listing and
+//   counting barcode scans: a badge for items a tab does not show is a badge
+//   that cannot be cleared.
+// [FIXED v2026.10.3 | 2026-10-03] Purpose: the scan sends an empty control
+//   message, the banner exists on both tabs, and the reply is no longer
+//   thrown away.
+//
+//   The message field is a control signal, not display text: an empty
+//   message is what tells get_invoice_prompt there is no user instruction,
+//   and HOAppScanView has sent "" for a receipt all along. Sending
+//   _t('scanned_invoice') meant every non-English scan had a SPECIAL USER
+//   INSTRUCTION appended to its prompt, after which the model asked a
+//   clarifying question instead of reading the receipt (RULE 20). That
+//   question arrives with no receipt_id and was discarded here, so the
+//   screen stayed blank - any reply that saved no receipt and carries text
+//   is now shown.
+//
+//   Two silences. The success branch read result.receipt_id and nothing
+//   else, so a scan that stored a header and no product lines - which the
+//   backend reports, and which the invoice prompt explicitly asks the
+//   model to return for a receipt with no products - showed an empty
+//   review queue and no message at all.
+//
+//   And the banner was built inline in the review branch only, so on the
+//   Receipts tab no scan message of any kind could appear - not progress,
+//   not an error, not the duplicate notice. That is the tab the user is on
+//   when they have just deleted a receipt and are re-scanning it, which is
+//   the one moment it matters. renderScanBanner is now one method called
+//   from both (RULE 33d).
+//
 
-import { ICONS } from '../organizer-icon.js?v=10.0.10';
-import { escapeHtml, formatAiText } from '../organizer-utils.js?v=2026.8.26';
+import { ICONS } from '../organizer-icon.js?v=10.11.112';
+import { escapeHtml, formatAiText, categorySelectOptions, itemDateField, isBarcodeScanned } from '../organizer-utils.js?v=10.11.112';
 const UPLOAD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>';
 const miniBarcodeSvg = '<svg style="width:12px;height:12px" viewBox="0 0 24 24"><path fill="currentColor" d="M3,6H5V18H3V6M7,6H8V18H7V6M9,6H12V18H9V6M13,6H14V18H13V6M16,6H18V18H16V6M19,6H21V18H19V6Z"/></svg>';
 
@@ -41,7 +68,12 @@ export const ChatMixin = (Base) => class extends Base {
       }
       content.style.padding = '0'; content.style.display = 'flex'; content.style.flexDirection = 'column';
       const tabContainer = document.createElement('div'); tabContainer.className = 'shop-tabs'; tabContainer.style.margin = '10px 15px 10px 15px'; tabContainer.style.flexShrink = '0';
-      const pendingCount = attrs.pending_list?.length || 0;
+      // [MODIFIED v2026.10.5] Barcode scans live on the barcode page now,
+      // so they are not counted here either - a badge for items this tab
+      // does not show is a badge that cannot be cleared.
+      const reviewPending = (attrs.pending_list || [])
+        .filter((it) => !isBarcodeScanned(it));
+      const pendingCount = reviewPending.length;
       // [MODIFIED v2026.9.14] The chat tab is gone. Item commands moved to the
       // general HA conversation agent, so this screen is now only the review
       // queue and the receipts archive.
@@ -71,6 +103,14 @@ export const ChatMixin = (Base) => class extends Base {
           this.receiptsRequested = true;
           this.loadReceipts();
         }
+        // [FIXED v2026.10.3] The scan banner belongs on this tab as well.
+        //
+        // It was built only in the else below, so scanning while on the
+        // Receipts tab could not show a message of any kind - not progress,
+        // not an error, not the duplicate notice. That is the tab the user
+        // is on when they have just deleted a receipt and are re-scanning
+        // it, which is the one moment the message matters most.
+        this.renderScanBanner(tabContent);
         this.renderReceiptsTable(tabContent);
       }
       else {
@@ -84,17 +124,8 @@ export const ChatMixin = (Base) => class extends Base {
         // The capture queue sits above everything: it is the thing the user
         // is in the middle of.
         this.renderReceiptQueue(listContainer);
-        if (this.scanInProgress || this.scanError) {
-          const banner = document.createElement('div');
-          const bad = !!this.scanError;
-          banner.style.cssText = `margin:0 0 12px 0;padding:10px 12px;border-radius:8px;font-size:13px;`
-            + `background:${bad ? 'var(--error-color,#c62828)' : 'var(--primary-color,#03a9f4)'};color:#fff;`;
-          banner.textContent = bad
-            ? this.scanError
-            : this._t('scan_in_progress', 'Reading the receipt...');
-          listContainer.appendChild(banner);
-        }
-        if (attrs.pending_list?.length > 0) {
+        this.renderScanBanner(listContainer);
+        if (reviewPending.length > 0) {
           // [ADDED v2026.9.11] Group the review list by receipt.
           //
           // A single scan can produce forty rows. Ungrouped they read as one
@@ -105,7 +136,10 @@ export const ChatMixin = (Base) => class extends Base {
           // keep their own group at the end rather than disappearing.
           const receipts = attrs.pending_receipts || {};
           const groups = new Map();
-          attrs.pending_list.forEach(it => {
+          // [MODIFIED v2026.10.5] The same filtered list the badge counts.
+          // A product scanned by barcode belongs on the barcode page, which
+          // is where the user was standing when they scanned it.
+          reviewPending.forEach(it => {
             const key = it.receipt_id ? String(it.receipt_id) : '__none__';
             if (!groups.has(key)) groups.set(key, []);
             groups.get(key).push(it);
@@ -167,6 +201,30 @@ export const ChatMixin = (Base) => class extends Base {
             if (collapsed) return;
 
             if (rec) {
+              // [ADDED v2026.10.2] The date printed on the receipt, editable
+              // before anything is approved.
+              //
+              // One control for the whole receipt, not one per item: the date
+              // lives on the receipts row because every line was bought on the
+              // same day. Rendering it per item would put several controls on
+              // screen for one value (RULE 33a.6).
+              //
+              // Outside the header, because the header's onclick collapses the
+              // group - a date input in there would need its own
+              // stopPropagation on every interaction to stay usable.
+              const dateBar = document.createElement('div');
+              dateBar.style.cssText =
+                'display:flex;align-items:center;gap:8px;margin:8px 0;flex-wrap:wrap;';
+              dateBar.innerHTML = `
+                <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-sub);">
+                  ${escapeHtml(this._t('purchase_date', 'Purchase date'))}
+                  <input type="date" id="receiptdate-${escapeHtml(key)}"
+                         value="${escapeHtml(rec.purchase_date || '')}"
+                         onchange="this.getRootNode().host.setReceiptDate('${escapeHtml(this.escapeJSArg(key))}',this.value)"
+                         style="padding:6px;border-radius:6px;border:1px solid var(--border-light);background:var(--bg-input-edit);color:var(--text-main);font-size:12px;">
+                </label>`;
+              listContainer.appendChild(dateBar);
+
               const bulk = document.createElement('div');
               bulk.style.cssText = 'display:flex;gap:8px;margin:8px 0;';
               bulk.innerHTML = `<button class="action-btn" style="flex:1;" onclick="this.getRootNode().host.approveScan('${escapeHtml(this.escapeJSArg(key))}')">${escapeHtml(this._t('receipt_approve_all', 'Approve all'))}</button>`;
@@ -174,98 +232,9 @@ export const ChatMixin = (Base) => class extends Base {
             }
 
             groupItems.forEach(item => {
-            if (!this.locationEditState[item.id]) this.locationEditState[item.id] = { l1: item.level_1||'', l2: item.level_2||'', l3: item.level_3||'' };
-            // [FIXED v2026.9.18] Build both lists from this.categories, and mark
-            // the current value as selected.
-            //
-            // Two bugs lived in the two lines this replaces. Only Clothing,
-            // Food and Electronics were offered out of 23 real categories, and
-            // neither select ever carried a `selected` attribute - so whatever
-            // the model or the user chose, the box redrew as "Select category"
-            // on the next render and looked as though nothing had saved.
-            //
-            // A category the AI invented that is not in the static list is
-            // added as an option too, or the select would silently drop it.
-            const curCat = item.category || '';
-            const curSub = item.sub_category || '';
-            const catNames = Object.keys(this.categories);
-            if (curCat && !catNames.includes(curCat)) catNames.push(curCat);
-            let mainCatOptions = `<option value="">${escapeHtml(this._t('select_cat', 'Category'))}</option>`
-              + catNames.map(c => `<option value="${escapeHtml(c)}" ${c === curCat ? 'selected' : ''}>${escapeHtml(this._t('cat_' + c.replace(/[^a-zA-Z0-9]+/g,'_'), c))}</option>`).join('')
-              // "+ Add" sits last so it never displaces a real choice.
-              // updatePendingCategory treats __ADD__ as a sentinel, not a value.
-              + `<option value="__ADD__">+ ${escapeHtml(this._t('add_new', 'Add'))}</option>`;
-            const subNames = Object.keys(this.categories[curCat] || {});
-            if (curSub && !subNames.includes(curSub)) subNames.push(curSub);
-            let subCatOptions = `<option value="">${escapeHtml(this._t('select_sub', 'Sub-Category'))}</option>`
-              + subNames.map(sc => `<option value="${escapeHtml(sc)}" ${sc === curSub ? 'selected' : ''}>${escapeHtml(this._t('sub_' + sc.replace(/[^a-zA-Z0-9]+/g,'_'), sc))}</option>`).join('')
-              // Only once a category is chosen: a sub-category with no
-              // parent has nowhere to live.
-              + (curCat ? `<option value="__ADD__">+ ${escapeHtml(this._t('add_new', 'Add'))}</option>` : '');
-            
-            let iconHtml = `<div class="item-icon" style="margin-inline-end:10px;">${ICONS.item}</div>`;
-            // [MODIFIED v2026.9.20] "is it a photograph", not "is there an img":
-            // a drawn icon lives in its own field, so an item that has one but no
-            // img was falling through to the default.
-            if (!this.itemHasPhoto(item)) {
-              iconHtml = `<div class="item-icon" style="margin-inline-end:10px;">${this.getItemIcon(item)}</div>`;
-            } else {
-              let cleanPath = item.img.split('?')[0]; 
-              const ver = this.imageVersions[item.id] || 'ok';
-              iconHtml = `<img src="${cleanPath}?v=${ver}" style="width:40px;height:40px;border-radius:4px;object-fit:cover;margin-inline-end:10px;">`;
-            }
-
-            const hierarchyHtml = (typeof this.renderHierarchyControl === 'function') ? this.renderHierarchyControl(item, true) : '';
-
-            // [ADDED v2026.9.20] The scanner's category proposal, as a note.
-            //
-            // The scan no longer stops to ask where an odd product belongs -
-            // one guitar on a fifty-line receipt used to replace the whole
-            // list with a question. The item is filed under the nearest
-            // category and what the assistant WOULD have opened is shown
-            // here. Pressing Create is the explicit user action that opens a
-            // top-level category (RULE 22); nothing was created by the scan.
-            //
-            // Only the id travels through the handler string. The name is
-            // read from the item by the method itself.
-            const suggestCat = (item.suggested_category || '').trim();
-            const suggestHtml = suggestCat ? `
-              <div class="cat-suggest">
-                <span class="cat-suggest-text">${escapeHtml(this._t('cat_suggest_msg', 'Nothing here fits this item. Open a new category?'))}</span>
-                <b class="cat-suggest-name">${escapeHtml(suggestCat)}</b>
-                <button class="action-btn cat-suggest-yes" onclick="this.getRootNode().host.acceptCategorySuggestion('${escapeHtml(item.id)}')">${escapeHtml(this._t('cat_suggest_yes', 'Create'))}</button>
-                <button class="action-btn cat-suggest-no" title="${escapeHtml(this._t('cat_suggest_no', 'Not now'))}" onclick="this.getRootNode().host.dismissCategorySuggestion('${escapeHtml(item.id)}')">${ICONS.close}</button>
-              </div>` : '';
-
-            const card = document.createElement('div'); card.className = 'pending-card';
-            card.innerHTML = `
-              <div class="pending-top">
-                ${iconHtml}
-                <div style="display:flex;flex-direction:column;flex:1;margin-inline-end:10px;">
-                  <input type="text" id="pending-name-${escapeHtml(item.id)}" class="pending-name-input" value="${escapeHtml(item.name)}" style="width:100%;">
-                  ${item.barcode && item.barcode!=='0' ? `<div style="font-size:10px;color:var(--text-sub);margin-top:4px;display:inline-flex;align-items:center;gap:4px;opacity:.8;direction:ltr;align-self:flex-start;">${miniBarcodeSvg} ${escapeHtml(item.barcode)}</div>` : ''}
-                </div>
-                <input type="number" id="pending-qty-${escapeHtml(item.id)}" class="pending-qty-input" value="${escapeHtml(item.qty)}" min="1">
-                <!-- [ADDED v2026.9.11] Unit price, editable.
-                     Not a convenience: a model that reads 4.90 as 49.0 would
-                     otherwise write that figure into purchase_history, which is
-                     append-only and never corrected. inputmode="decimal" opens a
-                     numeric keypad on a phone. -->
-                <span style="font-size:11px;color:var(--text-sub);align-self:center;margin-inline-start:8px;">${escapeHtml(this._t('price', 'Price'))}</span>
-                <input type="number" step="0.01" min="0" inputmode="decimal"
-                       id="pending-price-${escapeHtml(item.id)}" class="pending-qty-input"
-                       style="width:70px;margin-inline-start:4px;"
-                       placeholder="${escapeHtml(this._t('price', 'Price'))}"
-                       value="${item.purchase_price != null ? escapeHtml(item.purchase_price) : ''}"
-                       title="${escapeHtml(this._t('unit_price', 'Unit price'))}">
-              </div>
-              ${this.buildReceiptLineHtml(item, rec, true)}
-              <div class="pending-mid" style="display:flex;flex-direction:column;gap:8px;">${hierarchyHtml}${suggestHtml}<div style="display:flex;gap:5px;"><select class="move-select" id="pending-cat-main-${escapeHtml(item.id)}" style="flex:1;" onchange="this.getRootNode().host.updatePendingCategory('${escapeHtml(item.id)}',this.value,'main')">${mainCatOptions}</select><select class="move-select" id="pending-cat-sub-${escapeHtml(item.id)}" style="flex:1;" onchange="this.getRootNode().host.updatePendingCategory('${escapeHtml(item.id)}',this.value,'sub')">${subCatOptions}</select></div></div>
-              <div class="pending-actions" style="justify-content:space-between;align-items:center;margin-top:12px;">
-                <div style="display:flex;gap:10px;"><button class="action-btn" title="${this._t('take_photo', 'Take Photo')}" onclick="this.getRootNode().host.triggerCameraEdit('${escapeHtml(item.id)}','${escapeHtml(this.escapeJSArg(item.name))}')">${ICONS.camera}</button><button class="action-btn" title="${this._t('upload_file', 'Upload File')}" onclick="this.getRootNode().host.triggerFileUploadEdit('${escapeHtml(item.id)}','${escapeHtml(this.escapeJSArg(item.name))}')">${UPLOAD_SVG}</button><button class="action-btn" title="${this._t('change_img', 'Change Icon')}" onclick="this.getRootNode().host.openIconPicker('${escapeHtml(item.id)}','item')">${ICONS.image}</button></div>
-                <div style="display:flex;gap:10px;"><button class="action-btn btn-danger" title="${this._t('reject', 'Reject')}" onclick="this.getRootNode().host.deletePending('${escapeHtml(item.id)}')" style="display:flex;align-items:center;justify-content:center;">${ICONS.delete}</button><button class="action-btn" title="${this._t('confirm', 'Confirm')}" style="background:var(--success);color:white;display:flex;align-items:center;justify-content:center;" onclick="this.getRootNode().host.confirmPending('${escapeHtml(item.id)}')">${ICONS.check}</button></div>
-              </div>`;
-            listContainer.appendChild(card);
+              // [MODIFIED v2026.10.5] One card, two screens. The barcode
+              // page draws the same one - see buildPendingCard.
+              listContainer.appendChild(this.buildPendingCard(item, rec));
             });
           });
         } else {
@@ -303,6 +272,166 @@ export const ChatMixin = (Base) => class extends Base {
         const viewer = this.renderReceiptViewer();
         if (viewer) content.appendChild(viewer);
       }
+  }
+
+  // [ADDED v2026.10.5] One pending item, as a card. Used by the review
+  // tab and by the barcode page.
+  //
+  // A barcode scan creates a PENDING item, and this card was the only
+  // thing in the panel that draws one - so a scanned product appeared on
+  // the receipts screen, which is where it was reported, and the barcode
+  // page stayed a button on an empty screen.
+  //
+  // Lifted out rather than copied: it carries the category selects, the
+  // location picker, the price and the dates, and two of those drifting
+  // apart is the shape RULE 33a.6 warns about.
+  //
+  // `rec` is the receipt header when there is one. A barcode scan has no
+  // receipt, so it passes null and buildReceiptLineHtml draws nothing.
+  buildPendingCard(item, rec) {
+            if (!this.locationEditState[item.id]) this.locationEditState[item.id] = { l1: item.level_1||'', l2: item.level_2||'', l3: item.level_3||'' };
+            // [FIXED v2026.9.18] Build both lists from this.categories, and mark
+            // the current value as selected.
+            //
+            // Two bugs lived in the two lines this replaces. Only Clothing,
+            // Food and Electronics were offered out of 23 real categories, and
+            // neither select ever carried a `selected` attribute - so whatever
+            // the model or the user chose, the box redrew as "Select category"
+            // on the next render and looked as though nothing had saved.
+            //
+            // [MODIFIED v2026.10.2] categorySelectOptions builds both lists.
+            //
+            // A value that is not in the list still has to appear, or the
+            // select shows a blank and the next save writes that blank over
+            // the field. It was appended as an ordinary option though, so a
+            // category the model invented read like a real one. It is now
+            // marked. The same list is drawn on the item card, and keeping
+            // two copies is how the two drifted apart (RULE 33a.6).
+            const curCat = item.category || '';
+            const curSub = item.sub_category || '';
+            const offList = this._t('off_list_hint', '(not in list)');
+            const tr = (key, dflt) => this._t(key, dflt);
+            // "+ Add" sits last so it never displaces a real choice.
+            // updatePendingCategory treats __ADD__ as a sentinel, not a value.
+            const addLabel = this._t('add_new', 'Add');
+            const mainCatOptions = categorySelectOptions({
+              names: Object.keys(this.categories),
+              current: curCat,
+              placeholder: this._t('select_cat', 'Category'),
+              translate: tr, keyPrefix: 'cat_',
+              addLabel, offListLabel: offList,
+            });
+            const subCatOptions = categorySelectOptions({
+              names: Object.keys(this.categories[curCat] || {}),
+              current: curSub,
+              placeholder: this._t('select_sub', 'Sub-Category'),
+              translate: tr, keyPrefix: 'sub_',
+              // Only once a category is chosen: a sub-category with no
+              // parent has nowhere to live.
+              addLabel: curCat ? addLabel : '',
+              offListLabel: offList,
+            });
+            
+            let iconHtml = `<div class="item-icon" style="margin-inline-end:10px;">${ICONS.item}</div>`;
+            // [MODIFIED v2026.9.20] "is it a photograph", not "is there an img":
+            // a drawn icon lives in its own field, so an item that has one but no
+            // img was falling through to the default.
+            if (!this.itemHasPhoto(item)) {
+              iconHtml = `<div class="item-icon" style="margin-inline-end:10px;">${this.getItemIcon(item)}</div>`;
+            } else {
+              let cleanPath = item.img.split('?')[0]; 
+              const ver = this.imageVersions[item.id] || 'ok';
+              iconHtml = `<img src="${cleanPath}?v=${ver}" style="width:40px;height:40px;border-radius:4px;object-fit:cover;margin-inline-end:10px;">`;
+            }
+
+            const hierarchyHtml = (typeof this.renderHierarchyControl === 'function') ? this.renderHierarchyControl(item, true) : '';
+
+            // [ADDED v2026.9.20] The scanner's category proposal, as a note.
+            //
+            // The scan no longer stops to ask where an odd product belongs -
+            // one guitar on a fifty-line receipt used to replace the whole
+            // list with a question. The item is filed under the nearest
+            // category and what the assistant WOULD have opened is shown
+            // here. Pressing Create is the explicit user action that opens a
+            // top-level category (RULE 22); nothing was created by the scan.
+            //
+            // Only the id travels through the handler string. The name is
+            // read from the item by the method itself.
+            const suggestCat = (item.suggested_category || '').trim();
+            const suggestHtml = suggestCat ? `
+              <div class="cat-suggest">
+                <span class="cat-suggest-text">${escapeHtml(this._t('cat_suggest_msg', 'Nothing here fits this item. Open a new category?'))}</span>
+                <b class="cat-suggest-name">${escapeHtml(suggestCat)}</b>
+                <button class="action-btn cat-suggest-yes" onclick="this.getRootNode().host.acceptCategorySuggestion('${escapeHtml(item.id)}')">${escapeHtml(this._t('cat_suggest_yes', 'Create'))}</button>
+                <button class="action-btn cat-suggest-no" title="${escapeHtml(this._t('cat_suggest_no', 'Not now'))}" onclick="this.getRootNode().host.dismissCategorySuggestion('${escapeHtml(item.id)}')">${ICONS.close}</button>
+              </div>` : '';
+
+            // [ADDED v2026.10.2] The item's own expiry or warranty date,
+            // before approval.
+            //
+            // The scan does not extract one - the invoice prompt never asks -
+            // so this is usually empty and is the only way to set it while the
+            // item is still a draft. It writes through saveItemExtras, the same
+            // method the normal item card uses: id `itemdate-<id>` plus a
+            // data-field naming the column (RULE 33d). That method also looks
+            // for `price-<id>`, which this card does not have, so the price is
+            // left alone - correct, because the pending price is committed when
+            // the item is confirmed.
+            //
+            // The value survives approval: handle_confirm_pending updates the
+            // row in place and never touches these two columns.
+            const itemDate = itemDateField(item, (k, d) => this._t(k, d));
+            const itemDateHtml = `
+              <label style="display:flex;align-items:center;gap:6px;margin-top:6px;
+                            font-size:11px;color:var(--text-sub);">
+                ${escapeHtml(itemDate.label)}
+                <input type="date" id="itemdate-${escapeHtml(item.id)}"
+                       data-field="${escapeHtml(itemDate.field)}"
+                       value="${escapeHtml(itemDate.value)}"
+                       onchange="if(typeof this.getRootNode().host.saveItemExtras === 'function') this.getRootNode().host.saveItemExtras('${escapeHtml(item.id)}')"
+                       style="padding:6px;border-radius:6px;border:1px solid var(--border-light);background:var(--bg-input-edit);color:var(--text-main);font-size:12px;">
+              </label>`;
+
+            const card = document.createElement('div'); card.className = 'pending-card';
+            card.innerHTML = `
+              <div class="pending-top">
+                ${iconHtml}
+                <div class="pending-name-col" style="display:flex;flex-direction:column;flex:1;margin-inline-end:10px;">
+                  <input type="text" id="pending-name-${escapeHtml(item.id)}" class="pending-name-input" value="${escapeHtml(item.name)}" style="width:100%;">
+                  ${item.barcode && item.barcode!=='0' ? `<div style="font-size:10px;color:var(--text-sub);margin-top:4px;display:inline-flex;align-items:center;gap:4px;opacity:.8;direction:ltr;align-self:flex-start;">${miniBarcodeSvg} ${escapeHtml(item.barcode)}</div>` : ''}
+                </div>
+                <!-- [MODIFIED v2026.10.2] The quantity and the price are one
+                     element now. They were two of five children on this flex
+                     row, and the name input - the one that has to shrink - was
+                     unusable on a phone. Wrapped, they move to a row of their
+                     own under 450px and the name gets the full width, which is
+                     the order a normal item in a location already uses.
+                     The inline spacing is the same as the three children
+                     carried, so nothing moves at tablet or desktop width. -->
+                <div class="pending-qty-group" style="display:flex;align-items:center;">
+                  <input type="number" id="pending-qty-${escapeHtml(item.id)}" class="pending-qty-input" value="${escapeHtml(item.qty)}" min="1">
+                  <!-- [ADDED v2026.9.11] Unit price, editable.
+                       Not a convenience: a model that reads 4.90 as 49.0 would
+                       otherwise write that figure into purchase_history, which is
+                       append-only and never corrected. inputmode="decimal" opens a
+                       numeric keypad on a phone. -->
+                  <span style="font-size:11px;color:var(--text-sub);align-self:center;margin-inline-start:8px;">${escapeHtml(this._t('price', 'Price'))}</span>
+                  <input type="number" step="0.01" min="0" inputmode="decimal"
+                         id="pending-price-${escapeHtml(item.id)}" class="pending-qty-input"
+                         style="width:70px;margin-inline-start:4px;"
+                         placeholder="${escapeHtml(this._t('price', 'Price'))}"
+                         value="${item.purchase_price != null ? escapeHtml(item.purchase_price) : ''}"
+                         title="${escapeHtml(this._t('unit_price', 'Unit price'))}">
+                </div>
+              </div>
+              ${this.buildReceiptLineHtml(item, rec, true)}
+              ${itemDateHtml}
+              <div class="pending-mid" style="display:flex;flex-direction:column;gap:8px;">${hierarchyHtml}${suggestHtml}<div style="display:flex;gap:5px;"><select class="move-select" id="pending-cat-main-${escapeHtml(item.id)}" style="flex:1;" onchange="this.getRootNode().host.updatePendingCategory('${escapeHtml(item.id)}',this.value,'main')">${mainCatOptions}</select><select class="move-select" id="pending-cat-sub-${escapeHtml(item.id)}" style="flex:1;" onchange="this.getRootNode().host.updatePendingCategory('${escapeHtml(item.id)}',this.value,'sub')">${subCatOptions}</select></div></div>
+              <div class="pending-actions" style="justify-content:space-between;align-items:center;margin-top:12px;">
+                <div style="display:flex;gap:10px;"><button class="action-btn" title="${this._t('take_photo', 'Take Photo')}" onclick="this.getRootNode().host.triggerCameraEdit('${escapeHtml(item.id)}','${escapeHtml(this.escapeJSArg(item.name))}')">${ICONS.camera}</button><button class="action-btn" title="${this._t('upload_file', 'Upload File')}" onclick="this.getRootNode().host.triggerFileUploadEdit('${escapeHtml(item.id)}','${escapeHtml(this.escapeJSArg(item.name))}')">${UPLOAD_SVG}</button><button class="action-btn" title="${this._t('change_img', 'Change Icon')}" onclick="this.getRootNode().host.openIconPicker('${escapeHtml(item.id)}','item')">${ICONS.image}</button></div>
+                <div style="display:flex;gap:10px;"><button class="action-btn btn-danger" title="${this._t('reject', 'Reject')}" onclick="this.getRootNode().host.deletePending('${escapeHtml(item.id)}')" style="display:flex;align-items:center;justify-content:center;">${ICONS.delete}</button><button class="action-btn" title="${this._t('confirm', 'Confirm')}" style="background:var(--success);color:white;display:flex;align-items:center;justify-content:center;" onclick="this.getRootNode().host.confirmPending('${escapeHtml(item.id)}')">${ICONS.check}</button></div>
+              </div>`;
+            return card;
   }
 
   // [ADDED v2026.9.14] The receipt line shown on an item card.
@@ -391,6 +520,24 @@ export const ChatMixin = (Base) => class extends Base {
     this.changeReceiptCurrency(receiptId, code);
   }
 
+  // [ADDED v2026.10.2] Correct the date printed on a whole receipt.
+  //
+  // A blank is not sent. async_update_receipt_date refuses anything that is
+  // not YYYY-MM-DD rather than storing NULL, so a cleared input would be a
+  // silent no-op - and clearing the date of a real receipt is not something
+  // this screen offers.
+  async setReceiptDate(receiptId, value) {
+    const stamp = String(value || '').trim();
+    if (!receiptId || !stamp) return;
+    try {
+      await this.callHA('set_receipt_date', {
+        receipt_id: parseInt(receiptId, 10),
+        purchase_date: stamp,
+      });
+      this.fetchData();
+    } catch (e) { console.error(e); }
+  }
+
   // Correct the currency of a whole receipt.
   async changeReceiptCurrency(receiptId, currency) {
     if (!receiptId || !currency) return;
@@ -398,6 +545,33 @@ export const ChatMixin = (Base) => class extends Base {
       await this.callHA('set_receipt_currency', { receipt_id: parseInt(receiptId, 10), currency });
       this.fetchData();
     } catch (e) { console.error(e); }
+  }
+
+  // [ADDED v2026.10.3] The scan banner, built in ONE place.
+  //
+  // It used to be written inline in the review branch and nowhere else, so
+  // the Receipts tab had no way to show progress, an error or the duplicate
+  // notice. Extracted rather than copied: a second copy is how the two would
+  // have drifted (RULE 33d).
+  //
+  // Appended, never assigned through innerHTML, because both callers pass a
+  // container that already holds children (RULE 33a.5).
+  renderScanBanner(container) {
+    if (!container) return;
+    if (!this.scanInProgress && !this.scanError) return;
+    const bad = !!this.scanError;
+    const banner = document.createElement('div');
+    banner.className = 'scan-banner';
+    banner.style.cssText = 'margin:0 0 12px 0;padding:10px 12px;'
+      + 'border-radius:8px;font-size:13px;color:#fff;'
+      + `background:${bad ? 'var(--error-color,#c62828)'
+                          : 'var(--primary-color,#03a9f4)'};`;
+    // textContent, not innerHTML: this text can carry a shop name read off
+    // a photograph by a model (RULE 15).
+    banner.textContent = bad
+      ? this.scanError
+      : this._t('scan_in_progress', 'Reading the receipt...');
+    container.appendChild(banner);
   }
 
   // [ADDED v2026.9.25] The pages captured so far, with their thumbnails.
@@ -521,13 +695,28 @@ export const ChatMixin = (Base) => class extends Base {
     try {
       const result = await this._hass.callWS({
         type: 'home_organizer/ai_chat',
-        message: this._t('scanned_invoice', 'Scanned Invoice'),
+        // [FIXED v2026.10.3] Empty, not a translated label.
+        //
+        // This field is a control signal, not display text: an empty message
+        // is what tells get_invoice_prompt there is no user instruction to
+        // apply, and HOAppScanView has sent "" for a receipt scan all along.
+        // Sending _t('scanned_invoice') instead meant the prompt matched its
+        // English check only in English, and every other language had a
+        // SPECIAL USER INSTRUCTION appended telling the model to strictly
+        // apply the words "scanned invoice" - after which it asked a
+        // clarifying question instead of reading the receipt (RULE 20).
+        message: '',
         image_data: pages,
         mime_type: mime,
         language: this.currentLang || 'en',
       });
       if (result?.error) {
-        this.scanError = String(result.error);
+        // [MODIFIED v2026.10.3] A key when the backend sent one, so the
+        // message is in the user's language. The English text travels with
+        // it as the fallback and is what older messages still send.
+        this.scanError = result.error_key
+          ? this._t(result.error_key, String(result.error))
+          : String(result.error);
       } else if (result?.duplicate_receipt) {
         this.scanError = String(result.response || '');
       } else {
@@ -538,6 +727,34 @@ export const ChatMixin = (Base) => class extends Base {
           this.collapsedScans = this.collapsedScans || {};
           this.collapsedScans[String(newId)] = false;
           this.focusScanId = String(newId);
+        }
+        // [FIXED v2026.10.3] A scan that stored a header and no product
+        // lines said nothing at all.
+        //
+        // This branch read receipt_id and threw the rest of the reply away.
+        // The backend had already reported "added 0 items"; the user saw an
+        // empty review queue, no message, and a receipt that existed only in
+        // the Receipts tab - indistinguishable from the scan being ignored,
+        // which is exactly how it was reported.
+        if (result?.no_items) {
+          this.scanError = this._t(
+            result.notice_key || 'scan_no_items',
+            'The receipt header was saved but no product lines could be read. '
+            + 'Try a sharper photograph or add the items by hand.');
+        } else if (!newId && result?.response) {
+          // [FIXED v2026.10.3] A reply that is a QUESTION, not a scan.
+          //
+          // intent "clarify" comes back as {response: question} with no
+          // receipt_id, and this branch ignored response entirely - so the
+          // model asked something and the screen stayed blank. That is how a
+          // poisoned Hebrew prompt looked from the outside: nothing at all.
+          //
+          // Shown whatever produced it: any reply that saved no receipt and
+          // carries text has something to say, and a scan that saved nothing
+          // must never look like one that worked (RULE 2, RULE 10). The text
+          // is the model's own and already in the user's language, because
+          // target_lang is in the prompt.
+          this.scanError = String(result.response);
         }
       }
     } catch (e) {
@@ -687,7 +904,7 @@ export const ChatMixin = (Base) => class extends Base {
       this.receiptPeriod = 'custom';
       this.loadReceipts();
     };
-    this.shadowRoot.appendChild(ov);
+    this.mountOverlay(ov);
   }
 
   // [ADDED v2026.9.15] Collapse store-name variants onto one group.

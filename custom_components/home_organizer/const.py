@@ -13,17 +13,46 @@
 # more details. <https://www.gnu.org/licenses/>.
 #
 
-# // [MODIFIED v10.0.0 | 2026-08-23] Purpose: SECURITY HARDENING (HACS review).
-# // Introduced an explicit, code-side allow-list for every Home Assistant
-# // service the LLM agent is permitted to call, plus CONF_ALLOW_SCRIPTS so
-# // script/scene execution is opt-in and OFF by default (secure by default).
-# // Sensitive domains (lock, cover, alarm_control_panel) are NOT in the
-# // allow-list at all: locks and covers are delegated to Home Assistant's own
-# // built-in conversation agent, and alarm panels are not voice-reachable.
-# // [MODIFIED v9.5.0 | 2026-04-18] Purpose: Added CONF_TRIGGER_REMINDER and
-# // CONF_TRIGGER_CALENDAR so that Reminder + Calendar domains are fully
-# // user-configurable from the config flow, matching the pattern of the
-# // existing inventory/shopping/cooking/smart_home/stylist triggers.
+# // [ADDED v2026.10.7 | 2026-10-07] Purpose: SETTING_HOME_PROFILE, the
+# // locations wizard's answer sheet.
+# //
+# // Not a record of what was created - the locations themselves are rows in
+# // `items`. This is what the user TICKED, so reopening the wizard shows their
+# // own answers rather than a blank form, and "the kitchen is actually on floor
+# // 2" is a correction instead of starting again.
+# // [MODIFIED v2026.10.6 | 2026-10-06] Purpose: which product databases a
+# // barcode scan asks, in what order, and for how long.
+# //
+# // It was a config-entry option for about an hour, which could not work:
+# // __init__.py registers entry.add_update_listener(update_listener) and that
+# // calls async_reload, so writing an option from a panel sheet would reload
+# // the whole integration every time a checkbox is ticked.
+# //
+# // It lives in app_settings now, as one JSON list in ranked order, and the
+# // options-flow step was removed rather than left behind writing somewhere
+# // else - two surfaces for one setting is the drift RULE 21 forbids.
+# //
+# // BARCODE_SOURCE_OFF went with it. "Disabled" was only ever the dropdown's
+# // own choice, nothing else referenced it, and a user-visible English string
+# // here would have needed a translation it never had (RULE 33d).
+# //
+# // BARCODE_SOURCE_TIMEOUT is 30, not 8. The original code passed no timeout
+# // at all, so aiohttp allowed five minutes; capping it at 8 cut off answers
+# // that were still coming, and a scan that could have been named exactly fell
+# // back to guessing from the manufacturer prefix instead.
+# //
+# // BARCODE_LOOKUP_BUDGET bounds the lookup as a whole. The per-source timeout
+# // bounds nothing on its own - four sources at 30 seconds is two minutes, and
+# // every source added made it worse. The budget is checked before each source,
+# // so the ceiling is budget + one timeout whatever is enabled.
+# //
+# // BARCODE_SOURCE_OPEN_LIBRARY and BARCODE_SOURCE_AI are the fourth and
+# // fifth sources, both LAST on purpose - see the comment on
+# // DEFAULT_BARCODE_SOURCE_ORDER. The AI one is the model the user already
+# // configured, asked what the barcode is as its own question. It is last
+# // because a real product database beats a recollection, because it is the
+# // only source that costs money per scan, and because it is the only one
+# // that can invent an answer.
 
 """Constants for the Home Organizer integration."""
 
@@ -56,6 +85,103 @@ CONF_PROCESSING_MODE = "processing_mode"
 MODE_LOCAL_ONLY = "Local Only (100% Ollama)"
 MODE_CLOUD_ONLY = "Cloud Only (Gemini/OpenAI API)"
 MODE_HYBRID = "Hybrid (Local Voice + Cloud Images)"
+# [ADDED v2026.10.5] Which product database the barcode scan asks, and in
+# what order.
+#
+# These used to be a hardcoded `if not external_hint:` chain, so the order
+# was whatever the code said and a source could not be turned off. The web
+# search in particular is an HTML scrape of a results page rather than a
+# product database, and an installation that should not be making that
+# request can now set it to Disabled.
+#
+# The stored value is the English display string, which is how
+# CONF_PROCESSING_MODE and CONF_AI_PROVIDER are already stored in this
+# file (RULE 27).
+BARCODE_SOURCE_OFF_FACTS = "Open Food Facts"
+BARCODE_SOURCE_UPCITEMDB = "UPCitemdb"
+BARCODE_SOURCE_WEB = "Web search (DuckDuckGo)"
+# Books. Asked only for a 978/979 barcode, so it costs nothing on a tin of
+# beans - see _barcode_src_open_library.
+BARCODE_SOURCE_OPEN_LIBRARY = "Open Library (books)"
+# The model the user already configured, asked what the barcode is. Last by
+# default: a real database beats a recollection, this is the only source that
+# costs money per scan, and the only one that can invent an answer.
+BARCODE_SOURCE_AI = "AI (your configured model)"
+
+# Every real source. The sheet on the barcode page draws one row per
+# entry, so adding a name here adds a row - there is no second list
+# to keep in step, and no Disabled entry since a row has a tick box.
+BARCODE_SOURCES = [
+    BARCODE_SOURCE_OFF_FACTS,
+    BARCODE_SOURCE_UPCITEMDB,
+    BARCODE_SOURCE_WEB,
+    BARCODE_SOURCE_OPEN_LIBRARY,
+    BARCODE_SOURCE_AI,
+]
+
+# [MODIFIED v2026.10.5] One setting row, not three config-entry options.
+#
+# These were options on the config entry for about an hour. That cannot
+# work for a panel screen: __init__.py registers an update listener that
+# calls async_reload, so writing an option would reload the whole
+# integration every time a checkbox is ticked.
+#
+# The order and the on/off state live in app_settings under this key, as
+# one JSON list. One row, one write, nothing to keep in step (RULE 21).
+SETTING_BARCODE_SOURCES = "barcode_sources"
+
+# [ADDED v2026.10.7] The locations wizard's answer sheet.
+#
+# Not a log of what was created - the created locations are in `items`. This
+# is what the user TICKED, kept so that reopening the wizard shows their own
+# answers instead of a blank form, and so that "the kitchen is actually on
+# floor 2" is a correction rather than starting again.
+#
+# It also carries applied_paths: which path each answer turned into last
+# time. Without that, a renamed room looks like a new room plus an orphan.
+SETTING_HOME_PROFILE = "home_profile"
+
+# Every source on, in the order the code used before any of this was
+# configurable. An installation that never opens the sheet behaves exactly
+# as it did.
+# Open Library is LAST, not first, even though a book would resolve from it
+# in one request. async_get_barcode_sources appends a source an older release
+# never stored, so an existing installation would get it last whatever this
+# list said - and a new install behaving differently from an upgraded one is
+# worse than one extra hop. Moving it to 1 is what the sheet is for.
+DEFAULT_BARCODE_SOURCE_ORDER = [
+    BARCODE_SOURCE_OFF_FACTS,
+    BARCODE_SOURCE_UPCITEMDB,
+    BARCODE_SOURCE_WEB,
+    BARCODE_SOURCE_OPEN_LIBRARY,
+    BARCODE_SOURCE_AI,
+]
+
+# Seconds to wait for one source before moving to the next.
+#
+# This was 8, which is a comfortable wait but not a reliable one: the product
+# databases answer a cold barcode in well over eight seconds often enough that
+# the lookup was giving up on an answer that was on its way, and the scan fell
+# back to guessing from the manufacturer prefix. 30 is long enough that a slow
+# answer still arrives.
+#
+# The cost is the dead-network case: nothing above this caps the lookup, so
+# three sources that never answer are 3 x 30 = 90 seconds before the user sees
+# anything. That is the deliberate trade - a correct name after a wait beats a
+# wrong one straight away - and it is why a source the user does not want is
+# switched off in the sheet rather than left to time out. If a fourth source is
+# ever added, revisit this number: st40 asserts sources x timeout <= 90.
+BARCODE_SOURCE_TIMEOUT = 30
+
+# Seconds for the WHOLE lookup, across every source.
+#
+# The per-source timeout alone does not bound anything: four sources at 30
+# seconds is two minutes, and every source added makes it worse. This is
+# checked BEFORE each source is asked, so the real ceiling is the budget plus
+# one source's timeout - 90 seconds - no matter how many sources exist or how
+# many the user has switched on. st40 asserts that arithmetic.
+BARCODE_LOOKUP_BUDGET = 60
+
 CONF_SYNC_GOOGLE_TASKS = "sync_google_tasks"
 
 # Triggers

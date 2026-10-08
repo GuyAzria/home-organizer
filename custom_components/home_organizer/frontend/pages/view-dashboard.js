@@ -23,7 +23,7 @@
 //   and gives the attention band the whole row when nothing went up in
 //   price, because an empty half reads as a card that failed to load.
 
-import { ICONS } from '../organizer-icon.js?v=10.11.80';
+import { ICONS } from '../organizer-icon.js?v=10.11.112';
 
 // THE CHART'S TWO COLOURS, AS TOKENS RATHER THAN HEX.
 //

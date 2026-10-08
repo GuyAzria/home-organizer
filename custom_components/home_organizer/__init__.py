@@ -12,34 +12,103 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
-# [FIXED v2026.10.1 | 2026-10-01] Purpose: Reloading the integration never
-#   refreshed the panel, through two silent failures in a row.
+# [ADDED v2026.10.7 | 2026-10-07] Purpose: one websocket command for the
+#   locations wizard - get, save, apply, scan_cleanup.
 #
-#   async_unload_entry called frontend.async_remove_panel("organizer"). The
-#   signature is async_remove_panel(hass, frontend_url_path), so the string
-#   landed in hass and the path was not passed at all; the TypeError was
-#   swallowed by a bare except and the panel was never removed. The call was
-#   correct before it was migrated off the deprecated hass.components
-#   accessor, which had bound hass implicitly - the migration dropped it
-#   (RULE 33a.3).
+#   IT CREATES NOTHING ITSELF. add_item with item_type=folder is how the panel
+#   has always made a folder and handle_update_item_details is how it renames
+#   one, both called through hass.services.async_call - so there stays exactly
+#   one creation path and one rename path in the integration (RULE 33d). What
+#   this adds is the plan: which paths are missing, and ask for those.
 #
-#   async_setup_entry then registered a panel whose url path was still taken.
-#   async_register_panel raises in that case and its try only logged a
-#   warning, so the panel kept the module_url from the FIRST registration
-#   after a Home Assistant start - ?v= timestamp included. The browser kept
-#   the cached module and every frontend change looked as though it had not
-#   shipped until the whole of Home Assistant restarted.
+#   THE SHAPE IT PRODUCES was read out of a real database first:
 #
-#   Setup now removes the panel before registering it, so a setup following a
-#   failed unload still refreshes the url, and neither failure is swallowed:
-#   a registration that fails is an ERROR naming the consequence, because a
-#   failure nobody can see is how both of these lasted (RULE 2).
-# [MODIFIED v2026.9.30 | 2026-09-30] Purpose: The dashboard's comment block
-#   was describing the wrong function. websocket_create_box had been inserted
-#   between that comment and websocket_dashboard, so eight lines about a
-#   read-only yearly query sat above a command that writes rows, and the
-#   dashboard had none. The comment is back where it belongs and create_box
-#   states its own reason for being a command rather than a service.
+#       level_1 = '[Floor 1] Kitchen'   the room, floor as a PREFIX
+#       level_2 = 'Fridge'
+#       level_3 = '[ORDER_MARKER_020] Top shelf'
+#
+#   The floor is not a level. level_4..level_10 exist as columns and nothing
+#   reads them, and the inventory view produces folders only for depth 0 and 1.
+#   location_seed.py put its worked example in at level_4, where the panel
+#   never looks, so those shelves were invisible; that seed was removed in
+#   v2026.10.7 and the wizard replaces what it was for.
+#
+#   APPLY IS ADDITIVE AND IDEMPOTENT. A path that exists is skipped, because
+#   add_item does not check and a second call would make two folder markers for
+#   one shelf. Nothing is ever deleted: a tick removed from the profile means
+#   the wizard stops proposing it, not that the location goes - items may be
+#   living in it (RULE 5, RULE 6). A service that raises is reported in
+#   "failed" and never in "created" (RULE 2, RULE 10).
+# [MODIFIED v2026.10.6 | 2026-10-06] Purpose: the barcode lookup finds
+#   general products, not only food - and says so when it cannot ask.
+#
+#   The order is a setting in the database, chosen from the barcode page.
+#
+#   _barcode_source_order reads app_settings rather than the entry, and one
+#   websocket command reads and writes it. What comes back is what is STORED,
+#   not what was sent - the list is repaired on read - so the sheet always
+#   draws the order that will really be asked. A refused write returns the
+#   unchanged list with saved=False (RULE 2, RULE 10).
+#
+#   A source that could not be REACHED is also no longer silent. The original
+#   code passed no timeout at all, so aiohttp allowed five minutes; the
+#   refactor capped it at 8 seconds and every lookup on a slow connection was
+#   cut off, logged at debug, and handed to the model as "guess, and say
+#   Unknown Product if you cannot" - a network fault wearing the face of a
+#   shop full of unknown products. The cap is 30s and the give-up is a
+#   WARNING naming each source and why.
+#
+#   _SourceUnavailable carries that distinction, and each source decides for
+#   itself, because the services do not agree. Measured against the live
+#   endpoints: the unified Open*Facts endpoint answers 404 for a code it does
+#   not hold, so 404 is NOT a fault - warning on those would warn on every
+#   obscure product; UPCitemdb's trial endpoint allows 100 lookups a day and
+#   answers 429, which IS a fault and was being returned as ""; and
+#   html.duckduckgo.com answers 202 with a challenge page.
+#
+#   Open Food Facts also moved off the v0 url, which is FOOD ONLY and answered
+#   404 for every general product, cosmetic and pet food. The v2 endpoint with
+#   product_type=all redirects to whichever Open*Facts database holds the code,
+#   so one request covers all four. This is the whole reason a tin of beans was
+#   recognised and a bottle of shampoo was not.
+#
+#   Open Library is a fourth source, gated to 978/979 so it costs nothing on a
+#   scan it cannot help with, and the lookup now has a total budget so that
+#   adding it did not lengthen the worst case.
+#
+#   The configured model is a fifth, _barcode_src_ai. It was already asked at
+#   the end of every lookup, but the question about what the barcode IS was a
+#   clause inside a formatting prompt - "guess from the manufacturer prefix,
+#   and say Unknown Product if you cannot" - in the same breath as translate
+#   this, categorise it, pick an icon. One question gets a better answer, and
+#   as a source it can be ordered and switched off like the rest.
+#
+#   HYBRID ASKS BOTH ROUTES. The router sends a barcode prompt to the cloud in
+#   hybrid mode, and FallbackMockEntry then forces the local model for a second
+#   attempt. safe_smart_router's own fallback could not do this: it triggers on
+#   a cloud FAILURE, and a cloud model answering UNKNOWN has not failed.
+#
+#   The hint also stopped lying. _async_external_product_name always returned
+#   which source answered and the caller threw it away, so a name the model
+#   recalled by itself was introduced to the next prompt as something "found in
+#   an external barcode database" - which is how a guess becomes a fact
+#   (RULE 2, RULE 11).
+#
+#   _BarcodeCtx exists so all five take the same arguments. The alternative was
+#   a branch on the source name inside the loop, and this project has twice
+#   shipped a defect from a call site whose arguments did not match the
+#   signature (RULE 33a.3).
+#
+#   AND THE SCAN BOUNDARY FAILS CLOSED. _async_lookup_barcode took
+#   str(msg.get("barcode")) with no validation at all, so a misread was
+#   looked up, missed by every source, and handed to the model to invent a
+#   product for a number that was never on the packet. BOTH scan routes pass
+#   through here - the panel's websocket and the companion app's own scanner
+#   via HOAppScanView - and that app lives in another repository, so this is
+#   the only place reachable from here that protects it (RULE 31).
+#
+#   is_gtin and not normalize_barcode, because the lenient test has nothing
+#   to check on the even-length numeric short read an ITF misread produces.
 
 import logging
 from homeassistant.components import frontend
@@ -49,6 +118,7 @@ import time
 import json
 import re
 import asyncio
+import aiohttp
 import shutil
 import aiosqlite
 import voluptuous as vol
@@ -60,11 +130,15 @@ from homeassistant.components.http import StaticPathConfig, HomeAssistantView
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import entity_registry as er
 import homeassistant.helpers.config_validation as cv
+import homeassistant.util.dt as dt_util
 
 from .const import (
+    BARCODE_SOURCE_OFF_FACTS, BARCODE_SOURCE_UPCITEMDB,
+    BARCODE_SOURCE_WEB, BARCODE_SOURCE_OPEN_LIBRARY, BARCODE_SOURCE_AI,
+    BARCODE_SOURCE_TIMEOUT, BARCODE_LOOKUP_BUDGET,
     DOMAIN, CONF_API_KEY, CONF_DEBUG, DB_FILE, IMG_DIR,
     CONF_STORAGE_METHOD, CONF_DELETE_ON_REMOVE, STORAGE_METHOD_WWW, STORAGE_METHOD_MEDIA,
-    CONF_AI_PROVIDER, CONF_PROCESSING_MODE, MODE_LOCAL_ONLY, MODE_HYBRID, PROVIDER_OPENAI, PROVIDER_GEMINI
+    CONF_AI_PROVIDER, CONF_PROCESSING_MODE, MODE_LOCAL_ONLY, MODE_CLOUD_ONLY, MODE_HYBRID, PROVIDER_OPENAI, PROVIDER_GEMINI
 )
 from .database import (
     async_init_db, get_db_path, async_get_or_create_catalog_ids, to_alpha_id, async_get_view_data, async_add_item_db_safe,
@@ -88,10 +162,23 @@ from .database import (
     # under a mistyped room is a box nobody finds again, so the path is
     # normalised and repaired exactly as the add_item service does it.
     async_create_box, async_normalize_zone_path, async_repair_path_against_db,
+    async_get_barcode_sources, async_set_barcode_sources,
+    # [ADDED v2026.10.7] The locations wizard.
+    async_get_home_profile, async_set_home_profile,
+    async_location_tree, async_scan_location_issues, async_set_shelf_life,
+    normalize_barcode, is_portable_barcode, is_gtin,
+    # Private by name, shared by necessity: the wizard compares a stored
+    # level against a plain name, and the prefix stripping must be the
+    # same rule the rest of the integration uses (RULE 33d).
+    _clean_level,
+    name_matches_query,
 )
 from .services import register_services
 from .ai_logic import (
     safe_smart_router,
+    # Forces LOCAL routing. The barcode AI source uses it for hybrid's second
+    # attempt, exactly as the router uses it after a cloud failure.
+    FallbackMockEntry,
     safe_universal_agent_loop,
 )
 from .reminders_scheduler import async_register_startup_restore
@@ -116,12 +203,24 @@ from .prompt_core import get_intent_resolve_prompt, get_icon_draw_prompt
 # through. A spec from the Change Icon button is no more trusted than one
 # that arrives with an add_item call.
 from .ai_core.draw_spec import validate_icon_spec
-from .prompt_inventory import get_barcode_prompt, get_invoice_prompt
+from .prompt_inventory import (
+    get_barcode_prompt, get_barcode_identify_prompt, get_invoice_prompt,
+)
 # [ADDED v2026.9.22] Straight from the agent module, not through
 # prompt_inventory: that file says in its own header that it is a
 # compatibility shim for two legacy imports and that no new logic belongs
 # there. This prompt has no legacy caller to be compatible with.
-from .agents.inventory_agent import get_reconcile_prompt
+# Private by name, shared by necessity: one loader for translations.csv and
+# one slug rule. A second copy of either would drift from the panel's, and
+# then a label would map back to nothing (RULE 33d).
+from .agents.shopping_agent import _load_translations, _slug
+from .agents.inventory_agent import (
+    get_reconcile_prompt,
+    # Private by name, shared by necessity: it is the one place that decides
+    # whether a string is shaped like a catalog id, and the scan needs the
+    # same answer the agent paths already get.
+    _agent_looks_like_id,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -143,6 +242,9 @@ WS_LIST_RECEIPTS = "home_organizer/list_receipts"
 # [ADDED v2026.10.9] Cookbook UI.
 WS_RECIPES = "home_organizer/recipes"
 WS_LOOKUP_BARCODE = "home_organizer/lookup_barcode"
+# [ADDED v2026.10.5] Read and write the barcode source order.
+WS_BARCODE_SOURCES = "home_organizer/barcode_sources"
+WS_LOCATIONS_WIZARD = "home_organizer/locations_wizard"
 WS_SAVE_AVATAR = "home_organizer/save_avatar"
 # [ADDED v2026.9.20] Draw one item an icon, on request from its card.
 WS_DRAW_ICON = "home_organizer/draw_item_icon"
@@ -465,9 +567,601 @@ async def websocket_get_all_items(hass, connection, msg):
 # and for the same reason. THE LOOKUP ITSELF IS UNTOUCHED: it still reads
 # barcode_history, still asks the model only when there is no history, and
 # still returns a suggestion rather than creating anything.
+# [ADDED v2026.10.5] The external product databases, one function each.
+#
+# A source that cannot ANSWER raises this. It is not the same as a source
+# that answered "no such product", and the two must not be reported alike:
+# one is a fault the user can act on, the other is an obscure product.
+class _SourceUnavailable(Exception):
+    """The source could not be asked, or refused to answer."""
+
+
+class _BarcodeCtx:
+    """Everything a source may need, so they all take the same arguments.
+
+    Four of the five need only the http session; the AI source needs hass and
+    the config entry. The alternative was a branch on the source name inside
+    the loop, and this project has twice shipped a defect from a call site
+    whose arguments did not match the signature (RULE 33a.3).
+    """
+
+    __slots__ = ("hass", "entry", "session")
+
+    def __init__(self, hass, entry, session):
+        self.hass = hass
+        self.entry = entry
+        self.session = session
+
+
+# They were three inline blocks in a hardcoded `if not external_hint:` chain,
+# so the order could not be changed and a source could not be turned off. Each
+# is now a named function that returns a product name or "", and the order
+# comes from the options.
+#
+# Every one gets a timeout. None of them had one: session.get() with no
+# timeout waits as long as the other end wants, and a scan is interactive.
+#
+# Every failure is logged at debug with the source named. They were wrapped in
+# bare `except Exception: pass`, so a source that was down looked exactly like
+# a product nobody has heard of (RULE 2).
+def _off_lang(lang_code):
+    """A language tag safe to put in a url. Anything odd becomes "en"."""
+    tag = str(lang_code or "").strip().lower()[:2]
+    return tag if tag.isalpha() and len(tag) == 2 else "en"
+
+
+async def _barcode_src_off_facts(ctx, barcode, lang_code):
+    """The Open*Facts family. A wiki, so what comes back is user-written.
+
+    [MODIFIED v2026.10.6] The v0 url this used is FOOD ONLY: it answered 404
+    for every general product, cosmetic and pet food, which is why a tin of
+    beans was recognised and a bottle of shampoo was not. The v2 endpoint
+    with product_type=all redirects to whichever Open*Facts database holds
+    the code, so one request now covers food, general products, beauty and
+    pet food.
+
+    fields= keeps the reply small. The full record is hundreds of kilobytes,
+    and this runs while the user stands there holding the packet.
+
+    A 404 here means "not in the database" and is NOT a fault - the endpoint
+    answers 404 with status 0 for an unknown barcode. Warning about those
+    would warn on every obscure product.
+    """
+    lang = _off_lang(lang_code)
+    url = (f"https://world.openfoodfacts.org/api/v2/product/{barcode}.json"
+           f"?product_type=all"
+           f"&fields=code,product_name,product_name_{lang},generic_name")
+    async with ctx.session.get(
+        url, allow_redirects=True,
+        timeout=aiohttp.ClientTimeout(total=BARCODE_SOURCE_TIMEOUT)
+    ) as resp:
+        if resp.status == 404:
+            # Measured: the unified endpoint answers 404 with
+            # status 0 for a code it does not hold. The body is not
+            # read, so an error page on this path cannot look like a
+            # source fault.
+            return ""
+        if resp.status != 200:
+            raise _SourceUnavailable(f"HTTP {resp.status}")
+        data = await resp.json()
+        product = data.get("product") or {}
+        return (product.get(f"product_name_{lang}")
+                or product.get("product_name")
+                or product.get("generic_name") or "")
+
+
+async def _barcode_src_upcitemdb(ctx, barcode, lang_code):
+    """UPCitemdb's trial endpoint. 100 lookups a day, and it says so.
+
+    [MODIFIED v2026.10.6] A non-200 used to return "", so being out of quota
+    was indistinguishable from a product nobody has heard of. Measured: the
+    trial endpoint sends X-RateLimit-Limit: 100 and answers 429 with
+    {"code": "TOO_FAST"} once spent. This is the source most likely to know a
+    GENERAL product, so being quietly switched off by a quota is exactly the
+    failure the user must be told about (RULE 2, RULE 10).
+
+    400 is left as "not found": it means this service will not accept the
+    code, which the user cannot act on.
+    """
+    url = f"https://api.upcitemdb.com/prod/trial/lookup?upc={barcode}"
+    async with ctx.session.get(
+        url, timeout=aiohttp.ClientTimeout(total=BARCODE_SOURCE_TIMEOUT)
+    ) as resp:
+        if resp.status == 429:
+            raise _SourceUnavailable(
+                "rate limited - the free endpoint allows 100 lookups a day")
+        if resp.status == 400:
+            return ""
+        if resp.status != 200:
+            raise _SourceUnavailable(f"HTTP {resp.status}")
+        data = await resp.json()
+        items = data.get("items") or []
+        return items[0].get("title", "") if items else ""
+
+
+async def _barcode_src_web(ctx, barcode, lang_code):
+    """A search results page, scraped.
+
+    Not a product database: it returns whatever the first snippet says, which
+    may be a shop listing or a forum post. Last by default for that reason,
+    and the one most worth turning off.
+    """
+    url = f"https://html.duckduckgo.com/html/?q={barcode}"
+    headers = {"User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")}
+    async with ctx.session.get(
+        url, headers=headers,
+        timeout=aiohttp.ClientTimeout(total=BARCODE_SOURCE_TIMEOUT)
+    ) as resp:
+        if resp.status != 200:
+            # [MODIFIED v2026.10.6] A blocked scrape is a failure, not an
+            # answer. This one is rate-limited and served a captcha often
+            # enough that it has to be visible.
+            raise _SourceUnavailable(f"HTTP {resp.status}")
+        html = await resp.text()
+        match = re.search(r'<a class="result__snippet[^>]*>(.*?)</a>',
+                          html, re.IGNORECASE | re.DOTALL)
+        return re.sub(r'<[^>]+>', '', match.group(1)).strip() if match else ""
+
+
+# [ADDED v2026.10.6] Books, which no product database carries.
+#
+# A book barcode IS its ISBN-13, and every one begins 978 or 979. The gate
+# returns before a request is made, so this source costs nothing at all on
+# the scans it cannot help with - which is why it can sit in the chain
+# without lengthening an ordinary shop.
+#
+# Open Library answers an unknown ISBN with an empty object, so there is no
+# not-found status to interpret.
+async def _barcode_src_open_library(ctx, barcode, lang_code):
+    """Open Library, for a 978/979 barcode. Keyless."""
+    if not str(barcode).startswith(("978", "979")):
+        return ""
+    url = ("https://openlibrary.org/api/books"
+           f"?bibkeys=ISBN:{barcode}&format=json&jscmd=data")
+    async with ctx.session.get(
+        url, timeout=aiohttp.ClientTimeout(total=BARCODE_SOURCE_TIMEOUT)
+    ) as resp:
+        if resp.status != 200:
+            raise _SourceUnavailable(f"HTTP {resp.status}")
+        data = await resp.json()
+    record = (data or {}).get(f"ISBN:{barcode}") or {}
+    title = str(record.get("title") or "").strip()
+    if not title:
+        return ""
+    # The author belongs in the name: two books share a title far more often
+    # than two tins of beans share a label.
+    authors = [str(a.get("name") or "").strip()
+               for a in (record.get("authors") or [])]
+    authors = [a for a in authors if a]
+    return f"{title} - {authors[0]}" if authors else title
+
+
+def _ai_product_name(text):
+    """The product name out of an identify reply, or "" for UNKNOWN.
+
+    Models answer with JSON however plainly the prompt asks for one line, so
+    the reply goes through the same parser the rest of this integration uses
+    rather than a second one (RULE 33d).
+    """
+    # Strip code fences BEFORE anything else. A model that answers
+    # with a fenced plain-text UNKNOWN is saying it does not know,
+    # and leaving the fence on turned that into a product name.
+    raw = re.sub(r"```[a-zA-Z]*", " ", str(text or "")).strip()
+    parsed = safe_parse_json(raw)
+    if isinstance(parsed, dict):
+        raw = str(parsed.get("name") or parsed.get("product") or "")
+    line = " ".join(raw.split()).strip("\"'").strip()
+    if not line or line.upper().startswith("UNKNOWN"):
+        return ""
+    return line
+
+
+# [ADDED v2026.10.6] The model the user already configured, as a source.
+#
+# It is asked ONE question - what is this barcode - rather than being asked
+# to recognise, translate, categorise and pick an icon in the same breath,
+# which is what the formatting prompt at the end of the lookup does.
+#
+# HYBRID TRIES BOTH ROUTES, which is the point. async_smart_router sends a
+# prompt containing "retail product database" to the cloud in hybrid mode,
+# and FallbackMockEntry then forces the local model for a second attempt.
+# safe_smart_router's own fallback could not do this: it triggers on a cloud
+# FAILURE, and a cloud model answering "UNKNOWN" has not failed.
+#
+# What comes back is untrusted and may be invented, which is why UNKNOWN is
+# an explicit answer, why this source is last by default, and why the caller
+# introduces its answer to the next prompt as the model's own recollection
+# rather than as a database record (RULE 11, RULE 2).
+async def _barcode_src_ai(ctx, barcode, lang_code):
+    """Ask the configured model what the barcode is."""
+    entry = ctx.entry
+    if entry is None:
+        return ""
+    mode = (entry.options.get(CONF_PROCESSING_MODE)
+            or entry.data.get(CONF_PROCESSING_MODE)
+            or MODE_HYBRID)
+    api_key = (entry.options.get(CONF_API_KEY)
+               or entry.data.get(CONF_API_KEY) or "")
+    if mode == MODE_CLOUD_ONLY and not api_key:
+        # Cloud-only with no key: there is nothing to ask. Not a fault, and
+        # saying so on every scan would be noise.
+        return ""
+
+    prompt = get_barcode_identify_prompt(barcode)
+    attempts = [(entry, "configured route")]
+    if mode == MODE_HYBRID:
+        attempts.append((FallbackMockEntry(entry), "local model"))
+
+    failures = []
+    for attempt_entry, what in attempts:
+        text, err = await safe_smart_router(ctx.hass, attempt_entry, prompt)
+        if err:
+            # Already scrubbed of credentials by safe_smart_router (RULE 14).
+            failures.append(f"{what}: {str(err)[:120]}")
+            continue
+        name = _ai_product_name(text)
+        if name:
+            _LOGGER.debug("[HO-BARCODE] the %s named %s.", what, barcode)
+            return name
+    if failures and len(failures) == len(attempts):
+        raise _SourceUnavailable("; ".join(failures))
+    return ""
+
+
+_BARCODE_SRC_FUNCS = {
+    BARCODE_SOURCE_OFF_FACTS: _barcode_src_off_facts,
+    BARCODE_SOURCE_UPCITEMDB: _barcode_src_upcitemdb,
+    BARCODE_SOURCE_WEB: _barcode_src_web,
+    BARCODE_SOURCE_OPEN_LIBRARY: _barcode_src_open_library,
+    BARCODE_SOURCE_AI: _barcode_src_ai,
+}
+
+
+async def _barcode_source_order(hass):
+    """The sources to ask, in the user's order, once each.
+
+    [MODIFIED v2026.10.5] Read from app_settings rather than from the config
+    entry. The entry has an update listener that reloads the whole
+    integration, so a sheet the user ticks checkboxes on could not write
+    there.
+
+    A source switched off drops out. async_get_barcode_sources has already
+    repaired the stored list, so every name here is a real one.
+    """
+    rows = await async_get_barcode_sources(hass)
+    return [r["name"] for r in rows
+            if r.get("enabled") and r["name"] in _BARCODE_SRC_FUNCS]
+
+
+def _clean_external_hint(text):
+    """One line, capped. This is a product name, not a paragraph.
+
+    Open Food Facts is a wiki - anyone can edit a product name - and the hint
+    goes into the prompt under "YOU MUST USE THIS EXACT PRODUCT", which hands
+    untrusted content an instruction's authority (RULE 11). Flattening it
+    leaves no newline to start a second instruction on, and the cap leaves no
+    room for one.
+    """
+    flat = " ".join(str(text or "").split())
+    return flat[:120]
+
+
+async def _async_external_product_name(hass, entry, session, barcode,
+                                      lang_code):
+    """The first source that answers, and which one it was.
+
+    [MODIFIED v2026.10.5] A source that could not be ASKED is now reported
+    differently from one that answered "no such product", and at a level the
+    user actually has switched on.
+
+    Both used to end as the same _LOGGER.debug line. When the per-source
+    timeout cut all three off, the model was handed the "If unknown, just
+    return 'Unknown Product'" branch and nothing in the log at default level
+    said why - so a network problem was indistinguishable from a shop full of
+    products nobody has ever heard of (RULE 2, RULE 10).
+    """
+    ctx = _BarcodeCtx(hass, entry, session)
+    broke = []
+    started = time.monotonic()
+    order = await _barcode_source_order(hass)
+    for position, name in enumerate(order):
+        # [ADDED v2026.10.6] Checked BEFORE the request, so the ceiling is the
+        # budget plus one source's timeout however many sources are enabled.
+        # Without this, every source added multiplied the worst case.
+        if time.monotonic() - started >= BARCODE_LOOKUP_BUDGET:
+            skipped = ", ".join(order[position:])
+            broke.append(
+                f"the {BARCODE_LOOKUP_BUDGET}s budget ran out before "
+                f"{skipped} could be asked")
+            break
+        try:
+            hint = _clean_external_hint(
+                await _BARCODE_SRC_FUNCS[name](ctx, barcode, lang_code))
+        except asyncio.TimeoutError:
+            broke.append("%s timed out after %ss"
+                         % (name, BARCODE_SOURCE_TIMEOUT))
+            continue
+        except Exception as err:
+            # str(err) on an aiohttp error carries the url, which holds the
+            # barcode and no credential. Capped so a long server message
+            # cannot fill the log (RULE 14).
+            broke.append("%s failed: %s" % (name, str(err)[:160]))
+            continue
+        if hint:
+            _LOGGER.info("[HO-BARCODE] %s answered for %s.", name, barcode)
+            return hint, name
+    if broke:
+        _LOGGER.warning(
+            "[HO-BARCODE] No source could be reached for %s, so the model was "
+            "asked to guess the product instead. This is a network or timeout "
+            "problem, not an unknown product: %s.",
+            barcode, "; ".join(broke))
+    else:
+        _LOGGER.info(
+            "[HO-BARCODE] No source had %s; the model will be asked to guess.",
+            barcode)
+    return "", ""
+
+
+# [ADDED v2026.10.7] The locations wizard.
+#
+# One command, five actions, because the wizard is one screen flow and five
+# registrations would be five schemas to keep in step (RULE 33a.2).
+#
+# NOTHING HERE CREATES OR RENAMES A LOCATION. add_item with item_type=folder
+# is how the panel has always made one, and handle_update_item_details is how
+# it renames one - both are called through hass.services.async_call, so there
+# stays exactly one of each in the integration (RULE 33d). What this adds is
+# the plan: work out which paths are missing, and ask for those.
+#
+# APPLY IS ADDITIVE AND IDEMPOTENT (RULE 5, RULE 6). A path that exists is
+# skipped, never recreated - add_item does not check, so calling it twice
+# would make two folder markers for one shelf. Nothing is ever deleted: a
+# tick removed from the profile means the wizard stops proposing it, not that
+# the location goes, because items may be living in it.
+def _wiz_room_path(floor_label, room_name):
+    """level_1 for a room: '[floor] room', the shape already in use."""
+    room = str(room_name or "").strip()
+    floor = str(floor_label or "").strip()
+    if not room:
+        return ""
+    return "[%s] %s" % (floor, room) if floor else room
+
+
+def _wiz_spot_name(index, spot_name):
+    """level_3 with the order marker every spot should carry."""
+    name = str(spot_name or "").strip()
+    if not name:
+        return ""
+    if "ORDER_MARKER" in name:
+        return name
+    return "[ORDER_MARKER_%03d] %s" % ((index + 1) * 10, name)
+
+
+def _wiz_plan(profile):
+    """Every path the profile asks for, parents before children.
+
+    Returns a list of {kind, path, name, icon_key, shelf_life}. The caller
+    skips the ones that already exist; this function only says what is
+    wanted, which is what makes the diff reviewable before anything is
+    written.
+    """
+    plan = []
+    for floor in profile.get("floors") or []:
+        if not isinstance(floor, dict):
+            continue
+        label = str(floor.get("label") or "").strip()
+        if label:
+            plan.append({"kind": "zone", "path": [], "name": label,
+                         "icon_key": "", "shelf_life": 0})
+        for room in floor.get("rooms") or []:
+            if not isinstance(room, dict):
+                continue
+            l1 = _wiz_room_path(label, room.get("name"))
+            if not l1:
+                continue
+            plan.append({"kind": "room", "path": [], "name": l1,
+                         "icon_key": str(room.get("icon_key") or ""),
+                         "shelf_life": 0})
+            for unit in room.get("furniture") or []:
+                if not isinstance(unit, dict):
+                    continue
+                l2 = str(unit.get("name") or "").strip()
+                if not l2:
+                    continue
+                plan.append({"kind": "unit", "path": [l1], "name": l2,
+                             "icon_key": str(unit.get("icon_key") or ""),
+                             "shelf_life": 0})
+                for i, spot in enumerate(unit.get("children") or []):
+                    if isinstance(spot, dict):
+                        spot_name = spot.get("name")
+                        days = spot.get("shelf_life") or 0
+                    else:
+                        spot_name, days = spot, 0
+                    l3 = _wiz_spot_name(i, spot_name)
+                    if not l3:
+                        continue
+                    plan.append({"kind": "spot", "path": [l1, l2],
+                                 "name": l3, "icon_key": "",
+                                 "shelf_life": days})
+    return plan
+
+
+def _wiz_exists(tree, kind, path, name):
+    """Is this path already in the tree, ignoring the order prefix?"""
+    def same(a, b):
+        return _clean_level(a).strip() == _clean_level(b).strip()
+
+    if kind == "zone":
+        return any(
+            str(k or "").startswith("ZONE_MARKER")
+            and same(re.sub(r"^ZONE_MARKER_(\d+_)?", "", str(k)), name)
+            for k in tree
+        )
+    if kind == "room":
+        return any(same(k, name) for k in tree)
+    rooms = next((v for k, v in tree.items() if same(k, path[0])), None)
+    if rooms is None:
+        return False
+    if kind == "unit":
+        return any(same(k, name) for k in rooms)
+    spots = next((v for k, v in rooms.items() if same(k, path[1])), None)
+    return bool(spots) and any(same(sp, name) for sp in spots)
+
+
+@websocket_api.async_response
+async def websocket_locations_wizard(hass, connection, msg):
+    """Read, save, apply, and tidy. The wizard's only way in."""
+    action = msg.get("action") or "get"
+
+    if action == "get":
+        profile = await async_get_home_profile(hass)
+        tree = await async_location_tree(hass)
+        connection.send_result(msg["id"], {
+            "profile": profile,
+            "tree": tree,
+            # The cleanup screen is shown only once the wizard has been
+            # applied before: on a first run there is nothing to tidy.
+            "applied_before": bool(profile.get("applied_at")),
+        })
+        return
+
+    if action == "save":
+        ok = await async_set_home_profile(hass, msg.get("profile") or {})
+        connection.send_result(msg["id"], {"saved": bool(ok)})
+        return
+
+    if action == "scan_cleanup":
+        connection.send_result(msg["id"], {
+            "issues": await async_scan_location_issues(hass)})
+        return
+
+    if action == "apply":
+        profile = msg.get("profile")
+        if not isinstance(profile, dict):
+            connection.send_result(msg["id"], {
+                "applied": False, "error_key": "wiz_bad_profile"})
+            return
+
+        tree = await async_location_tree(hass)
+        plan = _wiz_plan(profile)
+        created, skipped, failed, seeded = [], [], [], 0
+
+        for step in plan:
+            if _wiz_exists(tree, step["kind"], step["path"], step["name"]):
+                skipped.append(step["name"])
+                continue
+            # A zone is created the way the panel creates one, marker and all.
+            if step["kind"] == "zone":
+                payload = {
+                    "item_name": "ZONE_MARKER_999_%s" % step["name"],
+                    "item_type": "folder", "zone": step["name"],
+                    "current_path": [],
+                }
+            else:
+                payload = {"item_name": step["name"], "item_type": "folder",
+                           "current_path": list(step["path"])}
+            try:
+                await hass.services.async_call(
+                    DOMAIN, "add_item", payload, blocking=True)
+                created.append(step["name"])
+            except Exception as err:
+                # Never reported as created (RULE 2, RULE 10). The rest of
+                # the plan still runs: one bad name must not cost the house.
+                failed.append(step["name"])
+                _LOGGER.error("[HO-WIZ] Could not create %r under %r: %s",
+                              step["name"], step["path"], err)
+                continue
+
+            if step["icon_key"]:
+                try:
+                    await hass.services.async_call(
+                        DOMAIN, "update_image",
+                        {"item_name": "[Folder] %s" % step["name"],
+                         "icon_key": step["icon_key"]}, blocking=True)
+                except Exception as err:
+                    _LOGGER.warning(
+                        "[HO-WIZ] %r was created but its icon was not set: "
+                        "%s", step["name"], err)
+
+            if step["shelf_life"]:
+                path_key = " > ".join(list(step["path"]) + [step["name"]])
+                if await async_set_shelf_life(hass, path_key,
+                                              step["shelf_life"]):
+                    seeded += 1
+
+        profile["applied_at"] = dt_util.now().isoformat()
+        await async_set_home_profile(hass, profile)
+        _LOGGER.info(
+            "[HO-WIZ] Applied: %d created, %d already there, %d failed, "
+            "%d shelf lives seeded.",
+            len(created), len(skipped), len(failed), seeded)
+        connection.send_result(msg["id"], {
+            "applied": True, "created": created, "skipped": skipped,
+            "failed": failed, "seeded": seeded,
+        })
+        return
+
+    connection.send_result(msg["id"], {"error_key": "wiz_bad_action"})
+
+
+# [ADDED v2026.10.5] The barcode source order, for the panel's sheet.
+#
+# One command for both directions: with no "sources" it reads, with one it
+# writes and reads back. What comes back is what is STORED - the list is
+# repaired on read - so the sheet always draws the order that will actually
+# be asked rather than the one that was sent.
+#
+# A refused write returns the unchanged list with saved=False. The panel then
+# redraws what is really there instead of showing an order that was never
+# saved (RULE 2, RULE 10).
+@websocket_api.async_response
+async def websocket_barcode_sources(hass, connection, msg):
+    saved = None
+    if msg.get("sources") is not None:
+        saved = await async_set_barcode_sources(hass, msg["sources"])
+        if not saved:
+            _LOGGER.warning(
+                "[HO-BARCODE] A source order was refused: it must list every "
+                "source exactly once. Nothing was changed.")
+    connection.send_result(msg["id"], {
+        "sources": await async_get_barcode_sources(hass),
+        "saved": saved,
+    })
+
+
 async def _async_lookup_barcode(hass, connection, msg):
     try:
+        # [ADDED v2026.10.6] Refuse a code that cannot be a barcode.
+        #
+        # This took whatever it was handed. BOTH scan routes reach it - the
+        # panel's own scanner over websocket, and the companion app's native
+        # scanner through HOAppScanView - so a misread was looked up, missed
+        # by every source, and handed to the model to invent a product for a
+        # number that was never on the packet.
+        #
+        # is_gtin, not normalize_barcode: a scanned retail code IS a GTIN,
+        # and normalize_barcode is deliberately lenient about length so a
+        # short code the user TYPED survives. An ITF short read is numeric
+        # and even-length - six digits - so a lenient test has nothing to
+        # check and waves it through.
+        #
+        # The app's scanner is in another repository, so this boundary is the
+        # only place reachable from here that protects that route (RULE 31).
         barcode = str(msg.get("barcode", ""))
+        if not is_gtin(barcode):
+            _LOGGER.warning(
+                "[HO-BARCODE] Refused %r: not a valid barcode, so almost "
+                "certainly a misread. Nothing was looked up.", barcode[:40],
+            )
+            connection.send_result(msg["id"], {
+                "found": False,
+                "error_key": "barcode_misread",
+                "suggestion": None,
+            })
+            return
         lang_code = msg.get("language", hass.config.language)
         db_path = get_db_path(hass)
         history_row = None
@@ -512,41 +1206,28 @@ async def _async_lookup_barcode(hass, connection, msg):
             lang_map = {"en": "English", "he": "Hebrew", "it": "Italian", "es": "Spanish", "fr": "French", "ar": "Arabic"}
             target_lang = lang_map.get(lang_code, "English")
             
-            external_hint = ""
-            try:
-                off_url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
-                async with session.get(off_url) as off_resp:
-                    if off_resp.status == 200:
-                        off_data = await off_resp.json()
-                        product = off_data.get("product", {})
-                        if product:
-                            external_hint = product.get(f"product_name_{lang_code}") or product.get("product_name") or product.get("generic_name", "")
-            except Exception: pass
+            # [MODIFIED v2026.10.5] The order comes from the options now.
+            # See _async_external_product_name: each source has a timeout, a
+            # failure is logged with the source named, and the answer is
+            # flattened before it reaches the prompt (RULE 11).
+            external_hint, hint_source = await _async_external_product_name(
+                hass, entry, session, barcode, lang_code)
 
-            if not external_hint:
-                try:
-                    upc_url = f"https://api.upcitemdb.com/prod/trial/lookup?upc={barcode}"
-                    async with session.get(upc_url) as upc_resp:
-                        if upc_resp.status == 200:
-                            upc_data = await upc_resp.json()
-                            if upc_data.get("items") and len(upc_data["items"]) > 0:
-                                external_hint = upc_data["items"][0].get("title", "")
-                except Exception: pass
-
-            if not external_hint:
-                try:
-                    ddg_url = f"https://html.duckduckgo.com/html/?q={barcode}"
-                    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
-                    async with session.get(ddg_url, headers=headers) as ddg_resp:
-                        if ddg_resp.status == 200:
-                            html = await ddg_resp.text()
-                            match = re.search(r'<a class="result__snippet[^>]*>(.*?)</a>', html, re.IGNORECASE | re.DOTALL)
-                            if match:
-                                external_hint = re.sub(r'<[^>]+>', '', match.group(1)).strip()
-                except Exception: pass
-
+            # [MODIFIED v2026.10.6] Which source answered decides how the hint
+            # is introduced. It was always "I found this in an external
+            # barcode database", which would be untrue of a name the model
+            # recalled by itself - and telling a model its own guess is a
+            # database record is how a guess becomes a fact (RULE 2).
             hint_prompt = ""
-            if external_hint:
+            if external_hint and hint_source == BARCODE_SOURCE_AI:
+                hint_prompt = (
+                    f"You identified this barcode as '{external_hint}' from "
+                    f"your own knowledge, NOT from a product database. If "
+                    f"that is correct, format and translate it cleanly into "
+                    f"{target_lang}. If you are not confident it is right, "
+                    f"return 'Unknown Product' instead."
+                )
+            elif external_hint:
                 hint_prompt = f"I found this exact product name from an external barcode database: '{external_hint}'. YOU MUST USE THIS EXACT PRODUCT as your base, but format/translate it cleanly into {target_lang}."
             else:
                 hint_prompt = "I could not find this barcode in external databases. Make your absolute best guess what this retail product is based on the manufacturer prefix. If unknown, just return 'Unknown Product'."
@@ -594,6 +1275,82 @@ async def websocket_lookup_barcode(hass, connection, msg):
 # after dedenting; the two connection.send_result(msg["id"], {...}) calls became
 # "return {...}" and the caller sends what comes back. It no longer takes
 # `connection` or `msg`, because those two calls were their only use.
+# [ADDED v2026.10.4] Which location an id from the model actually means.
+#
+# This replaces two identical copies - the receipt scan and the barcode
+# resolve - whose fallback was a SUBSTRING test against the whole path:
+#
+#     if loc_id and loc_id.lower() in v_str.lower():
+#
+# first match wins, in dict order. Real ids are a letter plus digits, so an id
+# the model invented is usually one or two characters, and a single character
+# is inside almost every path - "b" is inside "Libi's room". An invented id
+# therefore did not land in General where the user would see it and fix it; it
+# landed in whichever room happened to contain that letter. Groceries in a
+# child's bedroom, one line at a time.
+#
+# What is accepted now, in order:
+#   1. the id itself, ignoring case
+#   2. a full location NAME, ignoring case and any order marker - the model
+#      does sometimes answer "Kitchen" instead of "C1", and that is a clear
+#      enough statement of intent to honour
+#   3. nothing else. A token shorter than MIN_FUZZY is never matched by
+#      containment, because it carries no information.
+#
+# Returning None is a real answer: the caller files the item under General,
+# where it is visible in the review queue and one tap from being placed
+# (RULE 31 - do not guess).
+_ORDER_MARKER_RE = re.compile(r'\[?ORDER_MARKER_\d+\]?[_\s]*')
+
+# A token that LOOKS like an id and did not resolve in step 1 is a
+# hallucination. _agent_looks_like_id already decides that for the agent
+# paths, which refuse an unresolved id outright - the scan never got the same
+# guard, and that is the difference this fixes. Reused rather than restated:
+# two copies of a refusal rule drift, and only one of them gets fixed
+# (RULE 33d).
+#
+# It requires a leading letter, so it says nothing about a bare number. "1" is
+# inside "[ORDER_MARKER_010] Kitchen" and inside half the paths in a real
+# house, so the length floor stays for that case.
+_MIN_FUZZY_LOC = 3
+
+
+def _resolve_location_id(loc_hierarchy_map, loc_id):
+    """Return the stored path for an id or name, or None if it does not resolve."""
+    want = str(loc_id or "").strip()
+    if not want or not loc_hierarchy_map:
+        return None
+
+    # 1. The id, as issued.
+    folded = want.casefold()
+    for key, path in loc_hierarchy_map.items():
+        if str(key).casefold() == folded:
+            return path
+
+    def _bare(text):
+        return _ORDER_MARKER_RE.sub('', str(text)).strip().casefold()
+
+    # 2. A location name, at any level of the path.
+    for path in loc_hierarchy_map.values():
+        for segment in path:
+            if _bare(segment) == folded:
+                return path
+
+    # 3. A token inside a name - but only one that could not be an id and is
+    #    long enough to carry information. Both tests are needed: "B" is
+    #    id-shaped, "1" is not but sits inside almost every path.
+    if len(want) >= _MIN_FUZZY_LOC and not _agent_looks_like_id(want):
+        for path in loc_hierarchy_map.values():
+            for segment in path:
+                if folded in _bare(segment):
+                    return path
+
+    _LOGGER.debug(
+        "[HO-SCAN] location_id %r matched nothing; the item goes to General "
+        "rather than to a room it has nothing to do with.", want)
+    return None
+
+
 async def async_process_invoice_scan(
     hass, entry, parsed, clean_txt, image_pages, mime_val,
     loc_hierarchy_map, expense_cats,
@@ -855,22 +1612,42 @@ async def async_process_invoice_scan(
             hass, receipt_id, stored_pages, mime_val
         )
 
-    # [ADDED v2026.9.20] Read once, for the suggestion
-    # check below - a name that already exists is not a
-    # proposal for a new one.
+    # [MODIFIED v2026.10.2] The whole MAP, not a flattened set of names.
+    #
+    # known_cats was built by iterating the dict, which yields its keys - so
+    # it held the top-level names only. The suggestion check could not tell
+    # whether a proposed SUB-category already existed, and _resolve_scan_
+    # category needs to know which subs belong to which category.
     try:
-        known_cats = {
-            str(c).casefold()
-            for c in (await async_get_categories(hass))
-        }
+        cat_map = await async_get_categories(hass) or {}
     except Exception:
-        known_cats = set()
+        cat_map = {}
+    # [ADDED v2026.10.4] Through the executor: _load_translations opens a
+    # file, and that must not happen on the event loop (RULE 13). It caches
+    # after the first call, so this is one read per restart.
+    try:
+        cat_labels, sub_labels = _build_label_map(
+            cat_map, await hass.async_add_executor_job(_load_translations))
+    except Exception as label_err:
+        _LOGGER.debug("Category label map unavailable: %s", label_err)
+        cat_labels, sub_labels = {}, {}
+    known_cats = {str(c).casefold() for c in cat_map}
+    for _subs in cat_map.values():
+        known_cats |= {str(s).casefold() for s in (_subs or {})}
 
     for item in parsed["items"]:
-        bcode = str(item.get("barcode", "0")).strip()
+        # [FIXED v2026.10.4] str(item.get("barcode", "0")) on a present null
+        # is the string "None", not the default - and "None" is truthy and
+        # is not "0", so it was stored, written into barcode_history on
+        # approval, and then matched by every barcode-less line of every
+        # later receipt. One nappies approval owned the whole shop.
+        bcode = normalize_barcode(item.get("barcode"))
 
         hist_data = None
-        if bcode and bcode != "0":
+        # [MODIFIED v2026.10.5] Only ASK the history about a code that
+        # travels. A shop-local one would find another shop's product and
+        # hand over its category and its room.
+        if is_portable_barcode(bcode):
             try:
                 async with aiosqlite.connect(db_path, timeout=10.0) as db:
                     db.row_factory = aiosqlite.Row
@@ -908,14 +1685,12 @@ async def async_process_invoice_scan(
             icon = item.get("icon_key", None)
             loc_id = item.get("location_id", "")
 
-            raw_path = loc_hierarchy_map.get(loc_id)
+            # [MODIFIED v2026.10.4] One resolver, and it refuses to guess.
+            # See _resolve_location_id: the substring fallback this replaces
+            # put an item wherever a single character happened to match.
+            raw_path = _resolve_location_id(loc_hierarchy_map, loc_id)
             if not raw_path:
-                for _k, v in loc_hierarchy_map.items():
-                    v_str = " ".join(v).replace("ORDER_MARKER", "")
-                    if loc_id and loc_id.lower() in v_str.lower():
-                        raw_path = v
-                        break
-            if not raw_path: raw_path = ["General"]
+                raw_path = ["General"]
 
         # [MODIFIED v2026.9.4 | STAGE 2] Unit price, purchased
         # quantity and the receipt link now travel with the
@@ -923,8 +1698,23 @@ async def async_process_invoice_scan(
         # unreadable price into NULL rather than 0, so an
         # unknown price is never recorded as free.
         item_qty = int(item.get("qty", 1) or 1)
+        # [ADDED v2026.10.2] Only a category that already exists is written.
+        #
+        # Before the write, so async_register_subcategory_if_new - which
+        # async_add_item_db_safe calls - never sees a name that is not
+        # already real. That registration is where the junk entries came
+        # from, and it cannot be fixed downstream of itself.
+        # [ADDED v2026.10.4] Back to the canonical identifier first, so a
+        # model that answered in the interface language is understood
+        # instead of having every item rejected.
+        safe_cat, safe_scat, cat_proposal = _resolve_scan_category(
+            cat_map,
+            _canonical_name(cat_labels, cat),
+            _canonical_name(sub_labels, scat),
+            nm)
         await async_add_item_db_safe(
-            hass, nm, item_qty, raw_path, cat, scat, "pending", icon, bcode,
+            hass, nm, item_qty, raw_path, safe_cat, safe_scat, "pending",
+            icon, bcode,
             purchase_price=item.get("price"),
             quantity_purchased=item_qty,
             receipt_id=receipt_id,
@@ -934,8 +1724,11 @@ async def async_process_invoice_scan(
             warranty_end_date=item.get("warranty_end_date"),
             # [ADDED v2026.9.20] A note, not a category.
             # See _clean_category_suggestion.
+            # [MODIFIED v2026.10.2] The model's own proposal if it made one,
+            # otherwise the sub-category it tried to write and could not.
+            # Either way it is a note for the user, never a category.
             suggested_category=_clean_category_suggestion(
-                item.get("suggest_category"), known_cats),
+                item.get("suggest_category") or cat_proposal, known_cats),
         )
 
         added_count += 1
@@ -977,7 +1770,24 @@ async def async_process_invoice_scan(
 
     return {
         "response": response_text,
-        "debug": {"raw_json": clean_txt, "intent": "add_invoice"},
+        # [ADDED v2026.10.3] A scan that stored a header and no lines has to
+        # SAY so.
+        #
+        # Rule 11 of the invoice prompt tells the model to return
+        # "add_invoice" with an empty items array when it can read the header
+        # but no products - a tank of fuel genuinely has none - and this
+        # function handles that and stores the header. The panel then read
+        # receipt_id and nothing else, so the user saw an empty review queue
+        # and no explanation, and the receipt existed only in the Receipts
+        # tab. Indistinguishable from the scan being ignored.
+        #
+        # A key, not prose: the panel translates it. The older messages in
+        # this file are English built server-side, which is a separate
+        # pre-existing problem (RULE 18).
+        "no_items": added_count == 0,
+        "notice_key": "scan_no_items" if added_count == 0 else None,
+        "debug": {"raw_json": clean_txt, "intent": "add_invoice",
+                  "added": added_count},
 
         # [ADDED v2026.9.14] The panel scrolls to this scan once the
 
@@ -1201,6 +2011,36 @@ async def _async_ai_chat(hass, connection, msg):
                         connection.send_result(msg["id"], result)
                         return
 
+                    # [FIXED v2026.10.3] Neither shape: say so instead of
+                    # falling out of the branch.
+                    #
+                    # There was no else here. A reply that parsed as JSON but
+                    # was neither "clarify" nor "add_invoice" WITH an items
+                    # key - "add_invoice" with the key absent is the easy one
+                    # to produce - left this block with no send_result and no
+                    # return, and execution carried on into the barcode
+                    # handler below. The websocket call came back with no
+                    # result, no error and no log line, so a scan that failed
+                    # was indistinguishable from one that was ignored
+                    # (RULE 2, RULE 10).
+                    _LOGGER.error(
+                        "[HO-SCAN] Unusable reply shape: intent=%r keys=%s. "
+                        "Nothing was saved.",
+                        parsed.get("intent"), sorted(parsed),
+                    )
+                    connection.send_result(msg["id"], {
+                        "error_key": "scan_bad_reply",
+                        "error": (
+                            "The scan did not come back in a usable form, so "
+                            "nothing was saved. Try again with a clearer "
+                            "photograph."
+                        ),
+                        "debug": {"intent": "scan_bad_reply",
+                                  "got_intent": parsed.get("intent"),
+                                  "raw": clean_txt},
+                    })
+                    return
+
                 except Exception as e:
                     connection.send_result(msg["id"], {"response": f"❌ Could not parse invoice data. Error: {str(e)}", "debug": {"raw": clean_txt}})
                     return
@@ -1225,14 +2065,13 @@ async def _async_ai_chat(hass, connection, msg):
                         qt = item.get("qty", 1)
                         loc_id = item.get("location_id", "")
                         
-                        pt = loc_hierarchy_map.get(loc_id)
+                        # [MODIFIED v2026.10.4] The same resolver as the
+                        # receipt scan. These were two identical copies, and
+                        # a fix to one would have missed the other
+                        # (RULE 33a.6).
+                        pt = _resolve_location_id(loc_hierarchy_map, loc_id)
                         if not pt:
-                            for _k, v in loc_hierarchy_map.items():
-                                v_str = " ".join(v).replace("ORDER_MARKER", "")
-                                if loc_id and loc_id.lower() in v_str.lower():
-                                    pt = v
-                                    break
-                        if not pt: pt = ["General"]
+                            pt = ["General"]
                         
                         cat = item.get("category", "")
                         sub_cat = item.get("sub_category", "")
@@ -1404,9 +2243,22 @@ async def _async_ai_chat(hass, connection, msg):
 
         ACTIVE_SESSIONS[session_key].append({"role": "user", "content": user_message})
 
+        # [ADDED v2026.10.1] The sous-chef is reachable from the cookbook and
+        # nowhere else.
+        #
+        # The test is the KEY being present, not its value. The cookbook is
+        # the only caller that sends recipe_id at all - see the binding block
+        # above - and it sends it as null when nothing is open. Gating on a
+        # truthy value would break the behaviour that block went out of its
+        # way to keep: a walkthrough continues when the user steps back to
+        # the contents page, and losing their place there is worse.
+        #
+        # The panel's GENERAL chat does not send the key, so a recipe
+        # question there is answered as an ordinary question too.
         final_reply = await safe_universal_agent_loop(
             hass, entry, mode, ACTIVE_SESSIONS[session_key], target_lang,
-            existing_locs_str, loc_hierarchy_map, user_id=ws_user_id
+            existing_locs_str, loc_hierarchy_map, user_id=ws_user_id,
+            allow_cooking=("recipe_id" in msg),
         )
 
         if len(ACTIVE_SESSIONS[session_key]) > 10:
@@ -1761,6 +2613,121 @@ def _apply_price_fixes(items, fixes, receipt_total):
         out[idx]["price"] = price
         applied += 1
     return out, applied
+
+
+# [ADDED v2026.10.4] A category name the model translated, mapped back.
+#
+# db_items_categories holds English identifiers and the panel shows them
+# through cat_<Name> keys, so "Baby Supplies" reads as its Hebrew label on
+# screen. A model answering in Hebrew sends the label, which matches no
+# identifier, and the item ends with no category.
+#
+# The prompt now says not to translate them. This is the half that does not
+# depend on the model obeying (RULE 7), and it is RULE 20's pipeline: the
+# answer is brought back to the canonical English BEFORE anything validates
+# or writes it.
+#
+# The mapping is the panel's own: the same translations.csv, read through
+# the loader the shopping agent already has rather than a second copy of it
+# (RULE 33d). Every language column is searched, so the user's language
+# does not have to be threaded down here - and a label that would map to
+# two different identifiers is dropped rather than guessed (RULE 31).
+def _build_label_map(cat_map, translations):
+    """{translated label: canonical name} for categories and sub-categories."""
+    cats, subs = {}, {}
+
+    def add(target, canonical, prefix):
+        entry = translations.get(prefix + _slug(canonical)) or {}
+        for label in entry.values():
+            key = str(label or "").strip().casefold()
+            if not key or key == str(canonical).casefold():
+                continue
+            if key in target and target[key] != canonical:
+                # Two identifiers share a label in some language. Neither
+                # can be chosen safely, so the label stops being usable.
+                target[key] = None
+                continue
+            target.setdefault(key, canonical)
+
+    for cat, sub_map in (cat_map or {}).items():
+        add(cats, cat, "cat_")
+        for sub in (sub_map or {}):
+            add(subs, sub, "sub_")
+    return ({k: v for k, v in cats.items() if v},
+            {k: v for k, v in subs.items() if v})
+
+
+def _canonical_name(label_map, value):
+    """The identifier a translated name stands for, or the value unchanged."""
+    key = str(value or "").strip().casefold()
+    if not key:
+        return value
+    return (label_map or {}).get(key, value)
+
+
+# [ADDED v2026.10.2] What a scanned item may actually be filed under.
+#
+# Rules 3a and 3b of the invoice prompt say the model must use the closest
+# existing category, never invent a top-level one, and propose a new
+# sub-category only when nothing is close. That is prompt text, and a prompt
+# is not a control (RULE 7). Nothing checked the answer, so:
+#
+#   * an invented sub-category was written onto the item AND registered into
+#     db_items_categories by async_register_subcategory_if_new, which every
+#     write path reaches. That is where the junk entries came from.
+#   * an invented top-level category was not registered but stayed on the
+#     item, and the item card offers an item's own category as an extra
+#     dropdown option - which is why it shows up as a category.
+#
+# Returns (category, sub_category, proposal). Only names that already exist
+# are returned to be written; anything else comes back as a proposal for the
+# user to accept or ignore, which is what was agreed.
+def _resolve_scan_category(cat_map, raw_cat, raw_sub, item_name):
+    cats = cat_map or {}
+    want_cat = " ".join(str(raw_cat or "").split())
+    want_sub = " ".join(str(raw_sub or "").split())
+
+    # The stored spelling wins, so "food" and "FOOD" both become "Food" and
+    # the list never gains a second entry that differs only in case.
+    real_cat = ""
+    for name in cats:
+        if str(name).casefold() == want_cat.casefold() and want_cat:
+            real_cat = str(name)
+            break
+
+    # The category is unknown, but the SUB-category it sent may be a real
+    # one belonging to some category - "Frozen / Dairy" is recoverable as
+    # Food / Dairy. Recovering it beats discarding both.
+    if not real_cat and want_sub:
+        for name, subs in cats.items():
+            for sub in (subs or {}):
+                if str(sub).casefold() == want_sub.casefold():
+                    real_cat = str(name)
+                    break
+            if real_cat:
+                break
+
+    real_sub = ""
+    if real_cat and want_sub:
+        for sub in (cats.get(real_cat) or {}):
+            if str(sub).casefold() == want_sub.casefold():
+                real_sub = str(sub)
+                break
+
+    # What is left over is a proposal, not a category. The sub-category is
+    # the interesting one: a rejected TOP-LEVEL name is never proposed,
+    # because opening one is the user's decision and the model has already
+    # shown it will invent them (RULE 22).
+    proposal = ""
+    if want_sub and not real_sub:
+        # A sub-category that is really the product name is not a proposal.
+        # "Cucumbers" on an item called Cucumbers says nothing; it is the
+        # model restating the item. name_matches_query is the same two-way
+        # word test the rest of the app uses, so this works in Hebrew too,
+        # where a word carries its prepositions (RULE 33d).
+        if not name_matches_query(item_name, want_sub):
+            proposal = want_sub
+    return real_cat, real_sub, proposal
 
 
 def _clean_category_suggestion(raw, existing_names):
@@ -2187,10 +3154,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         ACTIVE_SESSIONS[session_key].append(
             {"role": "user", "content": user_message})
 
+        # [ADDED v2026.10.1] No sous-chef here. This is the voice service,
+        # not the cookbook. Stated rather than left to the default, because
+        # the decision is the point and a default can be changed by someone
+        # who has not read this.
         final_reply = await safe_universal_agent_loop(
             hass, entry, mode, ACTIVE_SESSIONS[session_key], target_lang,
             existing_locs_str, loc_hierarchy_map, is_voice=True,
             device_id=voice_device_id, user_id=voice_user_id,
+            allow_cooking=False,
         )
         ACTIVE_SESSIONS[session_key].append(
             {"role": "assistant", "content": final_reply})
@@ -2813,6 +3785,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 vol.Required("type"): WS_LOOKUP_BARCODE,
                 vol.Required("barcode"): cv.string, 
                 vol.Optional("language", default="en"): str 
+            })
+        )
+        # [ADDED v2026.10.5] The schema, the handler and the caller have to
+        # agree or voluptuous rejects the message before the handler runs
+        # and the sheet does nothing with no error anywhere (RULE 33a.2).
+        websocket_api.async_register_command(
+            hass,
+            WS_LOCATIONS_WIZARD,
+            websocket_locations_wizard,
+            websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend({
+                vol.Required("type"): WS_LOCATIONS_WIZARD,
+                vol.Optional("action"): vol.In(
+                    ["get", "save", "apply", "scan_cleanup"]),
+                vol.Optional("profile"): vol.Any(dict, None),
+            }),
+        )
+        websocket_api.async_register_command(
+            hass,
+            WS_BARCODE_SOURCES,
+            websocket_barcode_sources,
+            websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend({
+                vol.Required("type"): WS_BARCODE_SOURCES,
+                vol.Optional("sources"): vol.Any([dict], None),
             })
         )
     except Exception: pass 

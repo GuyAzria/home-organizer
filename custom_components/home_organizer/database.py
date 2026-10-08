@@ -12,49 +12,59 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
-# // [FIXED v2026.9.30 | 2026-09-30] Purpose: A box reached the panel as an
-# // item. Both location row builders SELECT type IN ('item','box') and both
-# // then wrote "type": 'item' into the dict, throwing the value away. The
-# // panel finds a box by that field, so the box card was never built: the box
-# // was drawn as an ordinary row, and the items inside it - which do carry
-# // box_id, and which the loose-item loop therefore skips - were drawn
-# // nowhere at all. They were never lost, only invisible. This is the RULE
-# // 33a.6 shape again: the same row built in more than one place, and a field
-# // added to the shared helper while a hardcoded one sat two lines above it.
-# // ORDER BY also said type DESC while its comment claimed boxes came first;
-# // 'box' sorts before 'item', so DESC did the opposite. Now ASC.
-# // Also box_type, added through the same idempotent ALTER loop as every
-# // other column, so a fresh install and an upgrade end in the same place and
-# // an existing row gets NULL and behaves exactly as before (RULE 6, RULE 25).
-# // It is returned by _box_fields, which all five row builders spread, so it
-# // reaches every list at once rather than three of them (RULE 33a.6).
-# // And the operations the assistant needs on a box it only knows by NUMBER:
-# // get_box_by_seq, empty_box, delete_box_items and the two pending lookups.
-# // empty_box clears box_id AND the sub-location, so the contents land in
-# // the General group of the location the box stands in and nothing is
-# // deleted. delete_box_items deletes the ITEMS and takes any unreviewed
-# // receipt line OUT of the box instead - a receipt line is review work, not
-# // inventory, and "delete the items" must not throw it away (RULE 5,
-# // RULE 23). name_matches_query was lifted out of box_matches_query so the
-# // agent looks for "face cream" among receipt lines with the same
-# // Hebrew-aware test and not a second copy of it (RULE 33d).
-# // Then the same operations for a LOCATION: location_counts,
-# // empty_location and delete_location_items. All three act on LOOSE items
-# // only - a box standing there is left alone and counted, because "take
-# // everything off the top shelf" means move the box, not unpack it, and
-# // unpacking one row at a time would break the invariant that an item's
-# // box_id and its levels agree. empty_location refuses a whole ROOM: it has
-# // no parent, and clearing level_1 would leave the rows at the root where
-# // no screen lists them, which is indistinguishable from lost (RULE 31).
-# // [ADDED v2026.9.27 | 2026-09-27] Purpose: BOXES. A box is a row, type=box,
-# // standing in a location as an item does, with a free title and a number
-# // that never changes. An item inside one carries box_id AND keeps the box
-# // levels, so every other feature still finds it by location and none of
-# // them had to learn about boxes; moving the box rewrites its contents in
-# // one statement. See the BOXES section for why a box cannot be a folder
-# // level: navigation is two levels deep and a box would put its contents
-# // where nothing looks.
+# // [ADDED v2026.10.7 | 2026-10-07] Purpose: what the locations wizard needed
+# // and nothing else provided.
+# //
+# // async_get/set_home_profile - the answer sheet, one JSON value in
+# // app_settings. Reading REPAIRS rather than refusing: a profile written by an
+# // older release must still open, so a missing key becomes a default and a
+# // value of the wrong type is dropped. A form that will not open because one
+# // field changed shape is worse than one field reset.
+# //
+# // async_set_shelf_life - the FIRST thing ever to write location_settings.
+# // The table has carried "Renaming a location must update this table too,
+# // which is wired up in a later stage" since it was created, and no row was
+# // ever written. The wizard seeds the fridge and only the fridge, because
+# // everywhere else the expiry comes from the assistant when the item is made.
+# //
+# // async_location_tree - the names and nothing else. async_get_view_data
+# // builds the same map, but as part of a page render with items, boxes and
+# // shopping in it; the wizard needs it before it has drawn anything.
+# //
+# // async_scan_location_issues - what is wrong with the locations that already
+# // exist. Every finding was measured in a real installation: 15 copies of one
+# // empty zone marker, six names with a trailing space, one shelf stored twice
+# // because one copy had an order marker and the other did not, a doubled
+# // ORDER_MARKER from a rename that re-applied the prefix, and "General"
+# // showing as a sub-location heading. It only REPORTS; the user ticks what to
+# // fix and no item row is ever touched (RULE 5).
+# //
+# // AND THE STARTER LOCATIONS ARE GONE. location_seed.py wrote one worked
+# // example - Floor A / Kitchen / Fridge and five shelves - on an install
+# // where the `items` table had never existed. The wizard replaces what that
+# // was for, and the seed used a shape the panel cannot show: it put the
+# // shelves in level_4, and the inventory view produces folders only for
+# // depth 0 and 1, so those five were never visible in the panel at all.
+# //
+# // The module, the block that ran it, and the is_first_install probe that
+# // existed only to gate it all went together - a helper left behind after
+# // the thing it served is removed is exactly the plausible-looking code
+# // that causes the next defect (RULE 33d). No user data can be affected:
+# // it only ever wrote where the table had never existed (RULE 5). The
+# // CATEGORY seed is untouched and still runs.
+# // [ADDED v2026.10.6 | 2026-10-06] Purpose: is_gtin, for the scan boundary.
+# //
+# // normalize_barcode is deliberately lenient about length - it only
+# // check-digits a GTIN shape, so a short code the user TYPED survives, which
+# // st24 exists to protect. That leniency is wrong for a SCANNED code: an
+# // Interleaved 2 of 5 short read is numeric and even-length, six digits say,
+# // so a lenient length test has nothing to check and waves it through.
+# //
+# // A retail barcode IS a GTIN, so this one is strict. The panel has the same
+# // rule in JavaScript as isValidGtin - they cannot share an implementation,
+# // so st43 asserts the two agree instead of assuming it.
 
+import json
 import logging
 import aiosqlite
 import os
@@ -68,6 +78,8 @@ from datetime import datetime, timedelta
 import homeassistant.util.dt as dt_util
 
 from .const import (
+    BARCODE_SOURCES, SETTING_BARCODE_SOURCES, SETTING_HOME_PROFILE,
+    DEFAULT_BARCODE_SOURCE_ORDER,
     DOMAIN, DB_FILE, IMG_DIR, CONF_API_KEY, CONF_USE_AI, 
     CONF_PROCESSING_MODE, MODE_LOCAL_ONLY, MODE_HYBRID, 
     CONF_AI_PROVIDER, PROVIDER_OPENAI, PROVIDER_GEMINI, VERSION
@@ -140,22 +152,6 @@ async def async_init_db(hass):
 
     try:
         async with aiosqlite.connect(db_path, timeout=10.0) as db:
-            # [FIXED v2026.9.17] First run means the TABLE has never existed,
-            # not that the file is absent.
-            #
-            # Deleting the database while Home Assistant is running leaves
-            # the next query to recreate it - empty and with no tables, since
-            # only setup builds the schema. The file then exists, so a file
-            # test reports "not a first install" forever after and the
-            # starter folders are never written. Asking about the table is
-            # exact, and still refuses to seed over an inventory that was
-            # merely emptied (RULE 5).
-            async with db.execute(
-                "SELECT name FROM sqlite_master "
-                "WHERE type='table' AND name='items'"
-            ) as cur:
-                is_first_install = (await cur.fetchone()) is None
-
             await db.execute("CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)")
             await db.execute("CREATE TABLE IF NOT EXISTS persistent_ids (scope TEXT, item_name TEXT, seq_id INTEGER, PRIMARY KEY (scope, item_name))")
 
@@ -677,6 +673,20 @@ async def async_init_db(hass):
             # Renaming a location must update this table too, which is wired
             # up in a later stage.
             await db.execute('''
+                CREATE TABLE IF NOT EXISTS app_settings (
+                    key        TEXT PRIMARY KEY,
+                    value      TEXT,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
+            # [ADDED v2026.10.5] One row per panel preference.
+            #
+            # location_settings is per location and persistent_ids is per
+            # name; a setting that belongs to the whole installation had
+            # nowhere to live. IF NOT EXISTS, so a fresh install and an
+            # upgrade take the same path (RULE 6).
+            await db.execute('''
                 CREATE TABLE IF NOT EXISTS location_settings (
                     location_path   TEXT PRIMARY KEY,
                     shelf_life_enabled INTEGER DEFAULT 0,
@@ -707,42 +717,6 @@ async def async_init_db(hass):
             except Exception:
                 pass
 
-            # [ADDED v2026.9.17] One worked example of a location, on a brand
-            # new install only.
-            #
-            # Guarded twice over. is_first_install says the database file did
-            # not exist a moment ago, and the count says nothing has been put
-            # in the table since - which covers the case of two setups racing
-            # on the same fresh install. Any existing installation fails the
-            # first test and never reaches the second.
-            if is_first_install:
-                try:
-                    async with db.execute(
-                        "SELECT COUNT(*) FROM items"
-                    ) as cur:
-                        already_have = (await cur.fetchone())[0]
-                    if not already_have:
-                        from .location_seed import (
-                            DEFAULT_LOCATIONS, build_folder_row,
-                        )
-                        for parent_path, folder_name in DEFAULT_LOCATIONS:
-                            columns, values = build_folder_row(
-                                parent_path, folder_name
-                            )
-                            placeholders = ",".join("?" * len(values))
-                            await db.execute(
-                                f"INSERT INTO items ({','.join(columns)}) "
-                                f"VALUES ({placeholders})",
-                                tuple(values),
-                            )
-                        _LOGGER.info(
-                            "First run: seeded %s starter locations.",
-                            len(DEFAULT_LOCATIONS),
-                        )
-                except Exception as loc_err:
-                    # A missing example is a cosmetic loss. It must never stop
-                    # the integration from setting up.
-                    _LOGGER.error("Location seeding failed: %s", loc_err)
 
             await db.commit()
     except Exception as e:
@@ -880,6 +854,11 @@ async def async_add_item_db_safe(hass, name, qty, path_list, category="", sub_ca
     try:
         db_path = get_db_path(hass)
         today = dt_util.now().strftime("%Y-%m-%d")
+        # [ADDED v2026.10.5] Normalised HERE, so every caller stores the
+        # same thing. Leaving it to each one is how the string "None"
+        # reached this column from the receipt scan and stayed on items
+        # that have no barcode at all.
+        barcode = normalize_barcode(barcode) or "0"
         cols = ["name", "type", "quantity", "item_date", "category", "sub_category", "barcode"]
         vals = [name, item_type, qty, today, category, sub_category, barcode]
         qs = ["?", "?", "?", "?", "?", "?", "?"]
@@ -928,7 +907,12 @@ async def async_add_item_db_safe(hass, name, qty, path_list, category="", sub_ca
             # the caller had no way to name the item it had just added.
             cursor = await db.execute(sql, tuple(vals))
             new_item_id = cursor.lastrowid
-            if barcode and barcode != "0":
+            # [MODIFIED v2026.10.4] One rule for what counts as a barcode.
+            # The string "None" passed `barcode != "0"` and poisoned
+            # barcode_history for every later scan - see normalize_barcode.
+            # [MODIFIED v2026.10.5] Only a code that means the same thing
+            # in another shop is worth remembering across receipts.
+            if is_portable_barcode(barcode):
                 l1 = path_list[0] if len(path_list) > 0 else ""
                 l2 = path_list[1] if len(path_list) > 1 else ""
                 l3 = path_list[2] if len(path_list) > 2 else ""
@@ -1505,6 +1489,152 @@ async def async_delete_location_items(hass, path):
 # and never "". None is SQL NULL and means "not known"; 0 means "free". The
 # expenses screen has to be able to tell those apart, and a model that
 # misreads a blurred total as 0 must not silently create a free purchase.
+
+
+# [ADDED v2026.10.4] The barcode to store, or "" when there is not one.
+#
+# The model is asked for "<string|null>" and sends null for a line with no
+# printed barcode, which is correct. The scan then did
+# str(item.get("barcode", "0")) - and .get returns the DEFAULT only when the
+# KEY IS ABSENT, so a present null became the four-character string "None".
+# Truthy, not "0", and therefore accepted by every guard in the project: it
+# was stored on the item, written into barcode_history on approval, and found
+# again by the next scan, which handed that one row's category and location to
+# every barcode-less line of every receipt afterwards.
+#
+# Two of the five writers already tested `not in ("0", "None", "")` - the same
+# bug, met and patched where it was found rather than at the source, twice.
+# This is that test, once, so the sixth place cannot get it wrong again
+# (RULE 33a.6, RULE 33d).
+#
+# A barcode is a number. Anything with no digit in it is a word, not a code,
+# which catches "None", "null" and "undefined" without listing them; the
+# explicit set is kept for the ones that do contain digits.
+_NOT_A_BARCODE = {"0", "none", "null", "nil", "nan", "undefined",
+                  "n/a", "na", "-", "--", "unknown"}
+
+
+
+# [ADDED v2026.10.5] (A) The check digit, because this code was READ OFF A
+# PHOTOGRAPH.
+#
+# A barcode here does not come from a laser scanner - a model reads it from an
+# image of a receipt or a packet. One digit read wrong produces a code that
+# looks entirely valid, and that is worse than no code: it writes a
+# barcode_history row under someone else's product, or finds one.
+#
+# GTIN-8, 12, 13 and 14 all carry a mod-10 check digit. It catches every
+# single-digit error and most transpositions. Rejecting a code that fails it
+# costs nothing - the item simply has no barcode, which is the normal state
+# for most lines on a receipt.
+#
+# Lengths that are not GTIN lengths pass unchecked: Code-128 and the rest have
+# no check scheme to apply, and refusing what cannot be checked would throw
+# away scans that work.
+_GTIN_LENGTHS = (8, 12, 13, 14)
+
+
+def _gtin_check_digit_ok(digits):
+    """True when a GTIN's last digit is the right check digit for the rest."""
+    if len(digits) not in _GTIN_LENGTHS or not digits.isdigit():
+        return True            # nothing to check: not a GTIN shape
+    body, check = digits[:-1], int(digits[-1])
+    # Weights alternate 3 and 1, counting from the RIGHTMOST body digit, which
+    # always carries 3. Same rule for every GTIN length.
+    total = 0
+    for i, ch in enumerate(reversed(body)):
+        total += int(ch) * (3 if i % 2 == 0 else 1)
+    return (10 - total % 10) % 10 == check
+
+
+# [ADDED v2026.10.6] (C) Could a SCANNER have produced this?
+#
+# normalize_barcode is deliberately lenient about length: it only check-digits
+# a GTIN shape, so a short code the user typed in himself survives. That is
+# right for a typed code and wrong for a scanned one, because an Interleaved
+# 2 of 5 short read off an EAN-13's bars is numeric and EVEN-LENGTH - six
+# digits, say - and sails straight through a length test that has nothing to
+# check.
+#
+# A retail barcode IS a GTIN. At the scan boundary nothing less will do, so
+# this one is strict, and the panel's isValidGtin mirrors it exactly.
+def is_gtin(value):
+    """True only for a GTIN-8/12/13/14 whose check digit matches."""
+    text = str("" if value is None else value).strip()
+    if not text.isdigit() or len(text) not in _GTIN_LENGTHS:
+        return False
+    if not text.strip("0"):
+        return False
+    return _gtin_check_digit_ok(text)
+
+
+# [ADDED v2026.10.5] (B) Does this code mean the same thing in another shop?
+#
+# barcode_history remembers where a product lives so the next receipt carrying
+# the same code files itself. That rests on a GTIN being globally unique,
+# which is true for packaged goods and NOT true for the ranges GS1 reserves
+# for "restricted distribution" - every supermarket assigns those for itself:
+#
+#     EAN-13 : 02, and 20-29
+#     UPC-A  : leading 2 (variable weight) or 4 (in-store)
+#
+# The deli counter, the bakery, anything sold by weight. 2300123456789 at one
+# chain is a different product from the same code at another, so remembering
+# it means the next shop's cheese inherits this shop's olives - its category,
+# its sub-category and its room. Exactly the defect that was just fixed, but
+# with a code that looks legitimate.
+#
+# The item KEEPS its barcode either way. This only decides whether the code is
+# worth remembering ACROSS receipts, which is a different question from
+# whether it is a barcode (normalize_barcode).
+def is_portable_barcode(value):
+    """True when this code identifies the same product in any shop."""
+    code = normalize_barcode(value)
+    if not code:
+        return False
+    # The restricted ranges are a property of GS1 numbering, so the test
+    # only applies to something shaped like a GS1 number. The isdigit
+    # check used to sit at the top and refused a Code-128 label outright,
+    # which was the same mistake as refusing a short code: it is not a
+    # GTIN, so GS1 says nothing about it either way.
+    if code.isdigit():
+        if len(code) == 13:
+            head = code[:2]
+            return not (head == "02" or "20" <= head <= "29")
+        if len(code) == 12:
+            return code[0] not in ("2", "4")
+    # Any other length is not a GTIN at all, so GS1's restricted ranges say
+    # nothing about it and this function has no reason to refuse it. The
+    # codes that reach here are ones a user typed or a scanner read off a
+    # non-retail label, and remembering those is exactly what the user
+    # expects.
+    #
+    # An earlier version refused them, on the reasoning that an unknown
+    # code cannot be trusted to travel. st24 caught it: a short code a user
+    # had entered themselves silently stopped being remembered, with no
+    # message anywhere. Refusing was the WRONG direction here - the danger
+    # this function exists for is a code a SHOP assigned, and a code that
+    # is not a GTIN is not one of those.
+    return True
+def normalize_barcode(value):
+    """Return a usable barcode string, or "" when there is none."""
+    text = str("" if value is None else value).strip()
+    if not text or text.casefold() in _NOT_A_BARCODE:
+        return ""
+    if not any(ch.isdigit() for ch in text):
+        return ""
+    # "0", "00", "000" - a placeholder, never a product.
+    if not text.strip("0 "):
+        return ""
+    # [ADDED v2026.10.5] A GTIN whose check digit does not match was
+    # misread. Rejecting it leaves the item without a barcode, which is
+    # harmless; accepting it files the item under another product.
+    if not _gtin_check_digit_ok(text):
+        _LOGGER.debug(
+            "[HO-BARCODE] %r fails its check digit - treated as no barcode.",
+            text)
+        return ""
+    return text
 
 
 def _coerce_amount(value):
@@ -2914,7 +3044,12 @@ async def async_check_ingredients(hass, ingredients, assume_available=None,
         async with aiosqlite.connect(db_path, timeout=10.0) as db:
             db.row_factory = aiosqlite.Row
             async with db.execute(
-                "SELECT name, quantity, unit, "
+                # [MODIFIED v2026.10.1] id as well. The panel needs to be
+                # able to deduct what was used, and this function already
+                # worked out WHICH row each ingredient matched - making the
+                # panel match the name again would be a second matcher that
+                # could disagree with this one (RULE 33a.6).
+                "SELECT id, name, quantity, unit, "
                 "level_1, level_2, level_3, level_4, level_5 "
                 "FROM items WHERE type = 'item'"
             ) as cur:
@@ -2938,6 +3073,7 @@ async def async_check_ingredients(hass, ingredients, assume_available=None,
             if cleaned:
                 parts.append(cleaned)
         stock.append({
+            "id": row.get("id"),
             "name": name,
             "lower": name.lower(),
             "quantity": row.get("quantity"),
@@ -2960,6 +3096,7 @@ async def async_check_ingredients(hass, ingredients, assume_available=None,
             "ingredient": ing_name,
             "required": ing_qty,
             "in_stock": False,
+            "item_id": None,
             "matched_name": None,
             "location": None,
             "quantity": None,
@@ -3023,6 +3160,7 @@ async def async_check_ingredients(hass, ingredients, assume_available=None,
                 # saying it is would be worse than saying nothing.
                 entry.update({
                     "in_stock": bool(has_qty),
+                    "item_id": item["id"],
                     "matched_name": item["name"],
                     "location": item["location"] or None,
                     "quantity": item["quantity"],
@@ -3030,6 +3168,311 @@ async def async_check_ingredients(hass, ingredients, assume_available=None,
                 })
         results.append(entry)
     return results
+
+
+# [ADDED v2026.10.5] One panel preference, read and written by name.
+async def async_get_setting(hass, key, default=None):
+    """The stored value for a key, or the default."""
+    try:
+        async with aiosqlite.connect(get_db_path(hass), timeout=10.0) as db:
+            async with db.execute(
+                "SELECT value FROM app_settings WHERE key = ?", (key,)
+            ) as cur:
+                row = await cur.fetchone()
+        return row[0] if row and row[0] is not None else default
+    except Exception as err:
+        _LOGGER.error("Reading setting %r failed: %s", key, err)
+        return default
+
+
+async def async_set_setting(hass, key, value):
+    """Store one value. REPLACE, so a key holds exactly one row."""
+    try:
+        async with aiosqlite.connect(get_db_path(hass), timeout=10.0) as db:
+            await db.execute(
+                "REPLACE INTO app_settings (key, value, updated_at) "
+                "VALUES (?, ?, CURRENT_TIMESTAMP)",
+                (key, str(value)),
+            )
+            await db.commit()
+        return True
+    except Exception as err:
+        _LOGGER.error("Writing setting %r failed: %s", key, err)
+        return False
+
+
+# [ADDED v2026.10.5] Which product database the barcode scan asks, in order,
+# and which of them are switched off.
+#
+# Stored as ONE json list in ranked order - [{"name": ..., "enabled": ...}] -
+# because the order and the on/off state are one decision and a single row has
+# nothing to keep in step (RULE 21).
+#
+# Reading REPAIRS. A name that is no longer a source is dropped, and a source
+# missing from the stored list is appended, enabled. The source list is code
+# and the stored order is data: data written by an older release must never
+# leave a source unreachable.
+async def async_get_barcode_sources(hass):
+    """[{"name": str, "enabled": bool}] in the order they will be asked."""
+    raw = await async_get_setting(hass, SETTING_BARCODE_SOURCES)
+    stored = []
+    if raw:
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                stored = parsed
+        except Exception as err:
+            _LOGGER.warning(
+                "The stored barcode source order could not be read (%s); "
+                "falling back to the default.", err)
+
+    out, seen = [], set()
+    for entry in stored:
+        if not isinstance(entry, dict):
+            continue
+        name = str(entry.get("name") or "")
+        if name not in BARCODE_SOURCES or name in seen:
+            continue
+        seen.add(name)
+        out.append({"name": name, "enabled": bool(entry.get("enabled", True))})
+    for name in DEFAULT_BARCODE_SOURCE_ORDER:
+        if name not in seen:
+            out.append({"name": name, "enabled": True})
+    return out
+
+
+async def async_set_barcode_sources(hass, rows):
+    """Store the order. Refuses anything that is not every source, once.
+
+    A write is the user pressing a button on a settings sheet. A partial
+    order - a source missing, or one listed twice - would silently stop a
+    source being asked at all, so it is refused outright (RULE 31).
+    """
+    clean, seen = [], set()
+    for entry in rows or []:
+        if not isinstance(entry, dict):
+            return False
+        name = str(entry.get("name") or "")
+        if name not in BARCODE_SOURCES or name in seen:
+            return False
+        seen.add(name)
+        clean.append({"name": name, "enabled": bool(entry.get("enabled"))})
+    if len(clean) != len(BARCODE_SOURCES):
+        return False
+    return await async_set_setting(
+        hass, SETTING_BARCODE_SOURCES, json.dumps(clean, ensure_ascii=False))
+
+
+# [ADDED v2026.10.7] The locations wizard's answer sheet, and the two
+# things it needs that nothing else provided.
+#
+# Stored as one JSON value in app_settings. Reading REPAIRS rather than
+# refusing: a profile written by an older release must still open, so a
+# missing key becomes a default and a value of the wrong type is dropped.
+# The wizard is a form; a form that will not open because one field changed
+# shape is worse than a form with one field reset.
+async def async_get_home_profile(hass):
+    """The stored wizard answers, or an empty profile."""
+    raw = await async_get_setting(hass, SETTING_HOME_PROFILE)
+    empty = {"version": 1, "home_type": "", "floors": [], "extras": {},
+             "applied_at": "", "applied_paths": {}}
+    if not raw:
+        return empty
+    try:
+        parsed = json.loads(raw)
+    except Exception as err:
+        _LOGGER.warning(
+            "The stored home profile could not be read (%s); the wizard "
+            "opens blank rather than refusing to open.", err)
+        return empty
+    if not isinstance(parsed, dict):
+        return empty
+    out = dict(empty)
+    for key, want in (("home_type", str), ("floors", list),
+                      ("extras", dict), ("applied_at", str),
+                      ("applied_paths", dict)):
+        val = parsed.get(key)
+        if isinstance(val, want):
+            out[key] = val
+    return out
+
+
+async def async_set_home_profile(hass, profile):
+    """Store the wizard answers. Refuses anything that is not a dict."""
+    if not isinstance(profile, dict):
+        return False
+    return await async_set_setting(
+        hass, SETTING_HOME_PROFILE,
+        json.dumps(profile, ensure_ascii=False))
+
+
+# [ADDED v2026.10.7] Per-location shelf life - the FIRST thing to write this
+# table since it was created.
+#
+# database.py has carried "Renaming a location must update this table too,
+# which is wired up in a later stage" since the table was added, and nothing
+# ever wrote a row. The wizard seeds the fridge and only the fridge: the user
+# asked for that explicitly, because everywhere else the expiry date comes
+# from the AI when the item is created.
+#
+# The key is the path joined the way every other caller displays it.
+async def async_set_shelf_life(hass, location_path, days):
+    """Seed the shelf life for one location path. Refuses a bad value."""
+    path = str(location_path or "").strip()
+    try:
+        value = int(days)
+    except (TypeError, ValueError):
+        return False
+    # A day to a year. Anything else is a misread number, not a shelf life.
+    if not path or value < 1 or value > 365:
+        return False
+    try:
+        async with aiosqlite.connect(get_db_path(hass), timeout=10.0) as db:
+            await db.execute(
+                "REPLACE INTO location_settings (location_path, "
+                "shelf_life_enabled, shelf_life_value, shelf_life_unit, "
+                "updated_at) VALUES (?, 1, ?, 'days', CURRENT_TIMESTAMP)",
+                (path, value),
+            )
+            await db.commit()
+        return True
+    except Exception as err:
+        _LOGGER.error("Seeding shelf life for %r failed: %s", path, err)
+        return False
+
+
+# [ADDED v2026.10.7] The location tree, for the wizard's diff.
+#
+# async_get_view_data builds this too, but as part of a page render with
+# items, boxes and shopping in it. The wizard needs the names and nothing
+# else, before it has drawn anything.
+async def async_location_tree(hass):
+    """{level_1: {level_2: [level_3, ...]}}, exactly as stored."""
+    tree = {}
+    try:
+        async with aiosqlite.connect(get_db_path(hass), timeout=10.0) as db:
+            async with db.execute(
+                "SELECT DISTINCT level_1, level_2, level_3 FROM items "
+                "WHERE level_1 IS NOT NULL AND level_1 != ''"
+            ) as cur:
+                for l1, l2, l3 in await cur.fetchall():
+                    rooms = tree.setdefault(l1, {})
+                    if l2:
+                        spots = rooms.setdefault(l2, [])
+                        if l3 and l3 not in spots:
+                            spots.append(l3)
+    except Exception as err:
+        _LOGGER.error("Reading the location tree failed: %s", err)
+    return tree
+
+
+# [ADDED v2026.10.7] What is wrong with the locations that already exist.
+#
+# Every finding here was measured in a real installation, and the wizard
+# offers them one by one with a count. NOTHING is applied without the user
+# ticking it, and no finding ever deletes an item row - only the labels that
+# point at them (RULE 5).
+#
+# Shown only when the wizard has been applied before: on a first run there is
+# nothing to tidy, and a cleanup screen on an empty house is noise.
+async def async_scan_location_issues(hass):
+    """A list of {id, kind, count, examples} the user can choose to fix."""
+    tree = await async_location_tree(hass)
+    findings = []
+
+    def clean(value):
+        return _clean_level(value).strip()
+
+    # 1. zone markers that no room sits under. 15 copies of
+    #    'ZONE_MARKER_New Zone' were found in one house.
+    zones = set()
+    for l1 in tree:
+        m = re.match(r"^ZONE_MARKER_\d+_(.*)$", str(l1 or ""))
+        if m:
+            zones.add(m.group(1).strip())
+    empty_zones = []
+    for l1 in tree:
+        raw = str(l1 or "")
+        if not raw.startswith("ZONE_MARKER"):
+            continue
+        name = re.sub(r"^ZONE_MARKER_(\d+_)?", "", raw).strip()
+        has_rooms = any(
+            str(other).startswith("[%s]" % name) for other in tree
+        )
+        if not has_rooms:
+            empty_zones.append(raw)
+    if empty_zones:
+        findings.append({
+            "id": "empty_zones", "kind": "empty_zones",
+            "count": len(empty_zones), "examples": sorted(empty_zones)[:5],
+            "targets": sorted(empty_zones),
+        })
+
+    # 2. a name with a space on the end. Two names that differ only by
+    #    trailing space are two different locations on screen.
+    spaced = []
+    for l1, rooms in tree.items():
+        for value in [l1] + list(rooms):  # the room name matters here
+            if value and value != str(value).rstrip():
+                spaced.append(value)
+        for spots in rooms.values():
+            spaced += [s for s in spots if s and s != str(s).rstrip()]
+    if spaced:
+        findings.append({
+            "id": "trailing_space", "kind": "trailing_space",
+            "count": len(set(spaced)), "examples": sorted(set(spaced))[:5],
+            "targets": sorted(set(spaced)),
+        })
+
+    # 3. the same spot stored twice under one parent, once with an order
+    #    marker and once without.
+    dupes = []
+    for l1, rooms in tree.items():
+        for l2, spots in rooms.items():
+            seen = {}
+            for s in spots:
+                seen.setdefault(clean(s), []).append(s)
+            for base, variants in seen.items():
+                if len(set(variants)) > 1:
+                    dupes.append({"path": [l1, l2], "name": base,
+                                  "variants": sorted(set(variants))})
+    if dupes:
+        findings.append({
+            "id": "duplicate_spots", "kind": "duplicate_spots",
+            "count": len(dupes),
+            "examples": ["%s / %s" % (d["path"][1], d["name"])
+                         for d in dupes[:5]],
+            "targets": dupes,
+        })
+
+    # 4. a doubled order marker, from a rename that re-applied the prefix.
+    doubled = []
+    for rooms in tree.values():
+        for spots in rooms.values():
+            doubled += [s for s in spots
+                        if len(re.findall(r"ORDER_MARKER_\d+", str(s))) > 1]
+    if doubled:
+        findings.append({
+            "id": "doubled_marker", "kind": "doubled_marker",
+            "count": len(set(doubled)), "examples": sorted(set(doubled))[:5],
+            "targets": sorted(set(doubled)),
+        })
+
+    # 5. 'General' showing as a sub-location heading.
+    generals = []
+    for l1, rooms in tree.items():
+        for l2, spots in rooms.items():
+            if "General" in spots:
+                generals.append({"path": [l1, l2], "name": "General"})
+    if generals:
+        findings.append({
+            "id": "general_spots", "kind": "general_spots",
+            "count": len(generals),
+            "examples": ["%s / General" % g["path"][1] for g in generals[:5]],
+            "targets": generals,
+        })
+
+    return findings
 
 
 async def async_get_categories(hass):
@@ -3110,6 +3553,182 @@ async def async_add_category(hass, category, sub_category, unit=None, source="us
     except Exception as err:
         _LOGGER.error("Adding category failed: %s", err)
         return None
+
+
+# [ADDED v2026.10.2] How many item rows each category and sub-category holds.
+#
+# The categories screen offers to delete a label and re-file everything under
+# it. Offering that without saying how much "everything" is would be the blind
+# destructive action RULE 33 exists to prevent.
+#
+# Counted the way the delete WORKS: no filter on type, because the UPDATE in
+# async_delete_category has none either. A pending line waiting on the review
+# screen carries a category and moves with the rest, so a number that left it
+# out would understate what is about to happen.
+#
+# Two flat maps, not one nested map with a total key: a sub-category genuinely
+# named "_total" would collide with the key holding the total.
+async def async_category_item_counts(hass):
+    """{"by_category": {cat: n}, "by_sub": {cat: {sub: n}}}."""
+    out = {"by_category": {}, "by_sub": {}}
+    try:
+        db_path = get_db_path(hass)
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT category, sub_category, COUNT(*) AS n FROM items "
+                "WHERE category IS NOT NULL AND category != '' "
+                "GROUP BY category, sub_category"
+            ) as cur:
+                rows = await cur.fetchall()
+        for row in rows:
+            cat = row["category"]
+            sub = row["sub_category"] or ""
+            n = row["n"] or 0
+            out["by_category"][cat] = out["by_category"].get(cat, 0) + n
+            if sub:
+                out["by_sub"].setdefault(cat, {})[sub] = n
+        return out
+    except Exception as err:
+        _LOGGER.error("Counting items per category failed: %s", err)
+        return out
+
+
+# [ADDED v2026.10.2] Delete a category or sub-category, re-filing its items.
+#
+# There was no delete before this. async_rename_category is the nearest thing
+# and cannot do the job: UPDATE OR IGNORE means renaming onto a name that
+# already exists moves the ITEMS but leaves the old row behind, so the junk
+# entry stays in the list.
+#
+# The order inside the transaction is the design. Items are re-filed FIRST,
+# then the category rows are removed, on one connection and one commit. An
+# item row is NEVER deleted (RULE 5): a category is a label, and removing a
+# label is not a reason to lose something the user owns.
+#
+# Returns a dict, not a bool, so a refusal can say why - a screen that can
+# only report "nothing happened" leaves the user unable to tell a protection
+# from a bug (RULE 2, RULE 10).
+#
+# reason is one of:
+#   ok            - done. moved/removed say how much.
+#   no_category   - nothing was named.
+#   unknown       - no such category or sub-category. A second delete of the
+#                   same thing lands here and changes nothing (RULE 6).
+#   unknown_target- the destination does not exist. REFUSED rather than
+#                   written onto the items: moving fifty items to a category
+#                   that is not there is a worse version of this same problem
+#                   (RULE 31).
+#   same          - the destination is what is being deleted.
+async def async_delete_category(hass, category, sub_category=None,
+                                to_category=None, to_sub_category=None):
+    """Remove a category or one sub-category; its items are re-filed."""
+    category = _coerce_text(category, 60)
+    sub_category = _coerce_text(sub_category, 60)
+    to_category = _coerce_text(to_category, 60)
+    to_sub_category = _coerce_text(to_sub_category, 60)
+    if not category:
+        return {"ok": False, "reason": "no_category", "moved": 0, "removed": 0}
+
+    # Deleting something into itself would re-file the items onto a row that
+    # is about to disappear.
+    if (to_category and to_category.casefold() == category.casefold()
+            and (sub_category or "").casefold()
+            == (to_sub_category or "").casefold()):
+        return {"ok": False, "reason": "same", "moved": 0, "removed": 0}
+
+    try:
+        db_path = get_db_path(hass)
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            db.row_factory = aiosqlite.Row
+
+            # What exists, read by NAME rather than by position (RULE 33a.3).
+            if sub_category:
+                async with db.execute(
+                    "SELECT COUNT(*) AS n FROM db_items_categories "
+                    "WHERE category = ? COLLATE NOCASE "
+                    "AND sub_category = ? COLLATE NOCASE",
+                    (category, sub_category),
+                ) as cur:
+                    exists = (await cur.fetchone())["n"]
+            else:
+                async with db.execute(
+                    "SELECT COUNT(*) AS n FROM db_items_categories "
+                    "WHERE category = ? COLLATE NOCASE",
+                    (category,),
+                ) as cur:
+                    exists = (await cur.fetchone())["n"]
+            if not exists:
+                return {"ok": False, "reason": "unknown",
+                        "moved": 0, "removed": 0}
+
+            # The destination has to be real BEFORE anything moves.
+            if to_category:
+                if to_sub_category:
+                    async with db.execute(
+                        "SELECT COUNT(*) AS n FROM db_items_categories "
+                        "WHERE category = ? COLLATE NOCASE "
+                        "AND sub_category = ? COLLATE NOCASE",
+                        (to_category, to_sub_category),
+                    ) as cur:
+                        ok_target = (await cur.fetchone())["n"]
+                else:
+                    async with db.execute(
+                        "SELECT COUNT(*) AS n FROM db_items_categories "
+                        "WHERE category = ? COLLATE NOCASE",
+                        (to_category,),
+                    ) as cur:
+                        ok_target = (await cur.fetchone())["n"]
+                if not ok_target:
+                    return {"ok": False, "reason": "unknown_target",
+                            "moved": 0, "removed": 0}
+
+            # The stored spelling of the destination, so the items carry the
+            # same text as the category list rather than whatever case the
+            # caller typed.
+            dest_cat, dest_sub = "", ""
+            if to_category:
+                async with db.execute(
+                    "SELECT category, sub_category FROM db_items_categories "
+                    "WHERE category = ? COLLATE NOCASE "
+                    + ("AND sub_category = ? COLLATE NOCASE "
+                       if to_sub_category else "")
+                    + "LIMIT 1",
+                    ((to_category, to_sub_category) if to_sub_category
+                     else (to_category,)),
+                ) as cur:
+                    trow = await cur.fetchone()
+                dest_cat = trow["category"]
+                dest_sub = trow["sub_category"] if to_sub_category else ""
+
+            # 1. The items. Every row that pointed at what is going away now
+            #    points at the destination, or at nothing - an uncategorised
+            #    item is visible and fixable; one pointing at a name that no
+            #    longer exists is not.
+            if sub_category:
+                where = ("category = ? COLLATE NOCASE "
+                         "AND sub_category = ? COLLATE NOCASE")
+                params = (category, sub_category)
+            else:
+                where = "category = ? COLLATE NOCASE"
+                params = (category,)
+            cur = await db.execute(
+                "UPDATE items SET category = ?, sub_category = ? "
+                "WHERE " + where,
+                (dest_cat, dest_sub, *params),
+            )
+            moved = cur.rowcount or 0
+
+            # 2. Only now the label itself.
+            cur = await db.execute(
+                "DELETE FROM db_items_categories WHERE " + where, params)
+            removed = cur.rowcount or 0
+
+            await db.commit()
+        return {"ok": True, "reason": "ok", "moved": moved, "removed": removed}
+    except Exception as err:
+        _LOGGER.error("Deleting category failed: %s", err)
+        return {"ok": False, "reason": "error", "moved": 0, "removed": 0}
 
 
 async def async_rename_category(hass, old_category, old_sub, new_category, new_sub):
@@ -3256,6 +3875,38 @@ async def async_update_receipt_currency(hass, receipt_id, currency):
         return False
 
 
+# [ADDED v2026.10.2] Correct the date printed on the receipt.
+#
+# On the receipt, not on the item, for the same reason as the currency: every
+# line of one receipt was bought on the same day, so storing it per item
+# would let the two drift apart. An item's own item_date stays the day it was
+# scanned, which is a different fact and is still useful.
+#
+# Validated here rather than in the service. _coerce_date enforces
+# YYYY-MM-DD, which is not cosmetic: the expenses queries filter with
+# LIKE '2026-08%', so any other shape silently breaks month filtering. A
+# malformed value is REFUSED rather than stored as NULL - blanking the date
+# of a real receipt because a typo arrived is not an acceptable outcome, and
+# clearing it is not something the panel offers (RULE 31).
+async def async_update_receipt_date(hass, receipt_id, purchase_date):
+    """Set the purchase date of one receipt. Returns False if refused."""
+    stamp = _coerce_date(purchase_date)
+    if not stamp or not receipt_id:
+        return False
+    try:
+        db_path = get_db_path(hass)
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            await db.execute(
+                "UPDATE receipts SET purchase_date = ? WHERE id = ?",
+                (stamp, receipt_id),
+            )
+            await db.commit()
+        return True
+    except Exception as err:
+        _LOGGER.error("Receipt date update failed: %s", err)
+        return False
+
+
 # ==========================================================================
 # [ADDED v2026.9.5 | STAGE 2] PRODUCT KEY + PURCHASE HISTORY
 # ==========================================================================
@@ -3282,9 +3933,20 @@ def _build_product_key(barcode, name):
     Hebrew product name normalises to an empty string and they all collapse
     into one key.
     """
-    barcode = (str(barcode or "")).strip()
-    if barcode and barcode not in ("0", "-1", "none", "None"):
-        return f"bc:{barcode}"
+    # [MODIFIED v2026.10.5] A shop-local code is not an identity.
+    #
+    # The docstring above says a barcode "is globally unique and stable",
+    # which is true for a GTIN and false for the restricted ranges every
+    # supermarket assigns itself. Grouping price history by one of those
+    # merges two different products into a single series, so the expenses
+    # screen shows one product moving between two unrelated prices.
+    #
+    # Those fall back to the name key, which is the better identity for a
+    # deli item anyway. normalize_barcode also replaces the inline
+    # none/None test here - the FOURTH place in this project that had its
+    # own copy of it (RULE 33a.6).
+    if is_portable_barcode(barcode):
+        return f"bc:{normalize_barcode(barcode)}"
     text = (str(name or "")).strip().lower()
     text = re.sub(r"[^\w\s]", "", text, flags=re.UNICODE)
     text = re.sub(r"\s+", " ", text).strip()
@@ -3645,6 +4307,27 @@ async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping,
 
                         pending_list.append({
                             "id": r_dict['id'],
+                            # [ADDED v2026.10.2] The dates. The SELECT is
+                            # `SELECT *`, so these were in r_dict all
+                            # along - the builder listed every other
+                            # column and not these three, which is why no
+                            # date was visible before approval. Four other
+                            # builders in this file return them
+                            # (RULE 33a.6).
+                            #
+                            # Editing one before approval already works
+                            # end to end: async_update_item_extras writes
+                            # them by id with no filter on type, and
+                            # handle_confirm_pending approves with an
+                            # in-place UPDATE that never touches these
+                            # columns, so the value survives.
+                            #
+                            # item_date is the day of the SCAN, stamped by
+                            # async_add_item_db_safe. The date printed on
+                            # the receipt is on the receipts row, not here.
+                            "date": r_dict.get("item_date"),
+                            "expiry_date": r_dict.get("expiry_date"),
+                            "warranty_end_date": r_dict.get("warranty_end_date"),
                             "name": r_dict['name'], 
                             "qty": r_dict['quantity'], 
                             "order_qty": r_dict.get('order_qty', 1),
@@ -3939,6 +4622,10 @@ async def async_get_view_data(hass, path_parts, query, date_filter, is_shopping,
         # instead of being imported from a shipped JS file, so a category
         # the user or the scanner added is available everywhere at once.
         "categories": await async_get_categories(hass),
+        # [ADDED v2026.10.2] Beside the categories, because the screen that
+        # offers to delete one has to say how many items would be re-filed
+        # before it is pressed (RULE 33).
+        "category_counts": await async_category_item_counts(hass),
         "app_version": VERSION,
         "depth": len(path_parts),
         "hierarchy": hierarchy,

@@ -11,51 +11,31 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
-// [FIXED v2026.10.1 | 2026-10-01] Purpose: The count on a group heading was
-//   never the item count it reads as, and the box badge beside it is now a
-//   button - wired by wireBoxCountBadge after innerHTML is set, because the
-//   heading is built as a string and a handler cannot be attached to one.
+// [ADDED v2026.10.7 | 2026-10-07] Purpose: the first-run banner sits at the
+//   top of the root screen.
 //
-//   grouped[subName] is filled from attrs.items, which carries the box ROWS
-//   and the items INSIDE those boxes as well as the loose ones - so a group
-//   holding one box with three things in it showed 4: the box counted as an
-//   item, and its contents counted even though they are drawn on the box's
-//   own page and never in this list.
+//   Only the placement is here. The banner, its condition and its dismissal
+//   belong to the wizard mixin - this is just the one screen a new
+//   installation opens on and finds empty, which is where an offer to fill it
+//   has to be.
 //
-//   It counts what the group actually draws as item rows now, and the boxes
-//   are counted beside it by boxCountBadge from view-box.js. Nothing is
-//   hidden: a box card carries its own "N items". The number WILL change for
-//   any group that contains a box, which is the point.
-// [MODIFIED v2026.9.30 | 2026-09-30] Purpose: Every box method moved out to
-//   pages/view-box.js, and NO list here draws a box any more. The seam is two
-//   calls to appendBoxCards, which returns the loose rows.
+//   location_seed.py used to answer the same problem by writing eight folders
+//   of somebody else's kitchen; it was removed in v2026.10.7.
+// [MODIFIED v2026.10.2 | 2026-10-02] Purpose: The expiry-or-warranty choice
+//   moved to itemDateField in organizer-utils.js, because the review card has
+//   to make the same one and two copies would drift.
 //
-//   The move left three lists still drawing boxes themselves, which is why
-//   the box page could not be reached from them: renderLocationsView drew a
-//   box standing in a ROOM with createItemRow, the grid branch was handed the
-//   whole list including the boxes and made each one an ordinary tile, and
-//   view-search.js did the same to the results of the boxes toggle. All of
-//   them produced an item-shaped row with no way to open it, and left the
-//   box's contents loose beside it.
-//
-//   It was written here because the card belongs to this list and the box
-//   page reuses createItemRow, which is a reason of convenience: the two
-//   screens diverge from here on, and in one file each would inherit the
-//   other's changes. createItemRow is still shared, deliberately - search
-//   and shopping draw their rows with it too, and an item is an item wherever
-//   it is standing.
-//
-//   The box line under an item name keeps its .item-box-line class: the box
-//   page removes that node, because "in box3" on every row of box3 says
-//   nothing.
-//
-//   The two entries this replaces both described the card and the sheets,
-//   which are no longer in this file. See the header of view-box.js for why
-//   a box is a card rather than a row and why its page is keyed on box_id.
+//   And the item card's two category
+//   selects are built by categorySelectOptions. The hand-built loops they
+//   replace appended the item's own category as an ordinary option when it was
+//   not in the list, so a category the model invented read exactly like a real
+//   one - that is what made "frozen" look like a category. It is now marked.
+//   They also interpolated database values into HTML unescaped, which the
+//   review card's copy of the same list did not (RULE 15, RULE 33a.6).
 
 
-import { ICONS } from '../organizer-icon.js?v=10.0.13';
-import { escapeHtml } from '../organizer-utils.js?v=2026.8.26';
+import { ICONS } from '../organizer-icon.js?v=10.11.112';
+import { escapeHtml, categorySelectOptions, itemDateField } from '../organizer-utils.js?v=10.11.112';
 
 const UPLOAD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>';
 const miniBarcodeSvg = '<svg style="width:12px;height:12px" viewBox="0 0 24 24"><path fill="currentColor" d="M3,6H5V18H3V6M7,6H8V18H7V6M9,6H12V18H9V6M13,6H14V18H13V6M16,6H18V18H16V6M19,6H21V18H19V6Z"/></svg>';
@@ -122,6 +102,14 @@ export const InventoryMixin = (Base) => class extends Base {
   }
 
   renderRoomsView(content, attrs) {
+    // [ADDED v2026.10.7] The first-run offer, above everything else. Owned
+    // by the wizard mixin; this is only where it is placed, because the root
+    // screen is the one a new installation opens on and finds empty.
+    if (typeof this.wizBannerShouldShow === 'function'
+        && this.wizBannerShouldShow(attrs)) {
+      this.renderWizardBanner(content);
+    }
+
     const zoneContainer = document.createElement('div');
     zoneContainer.className = 'item-list';
     const groupedRooms = {};
@@ -637,42 +625,56 @@ export const InventoryMixin = (Base) => class extends Base {
         expandedIconHtml = `<img src="${src}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;">`;
       }
 
-      let mainCatOptions = `<option value="">${this._t('select_cat', 'Category')}</option>`;
-      const mainKeys = Object.keys(this.categories);
-      let mainFound = false;
-      mainKeys.forEach(cat => {
-        const isSel = item.category === cat;
-        if (isSel) mainFound = true;
-        mainCatOptions += `<option value="${cat}" ${isSel?'selected':''}>${this._t('cat_'+cat.replace(/[^a-zA-Z0-9]+/g,'_'), cat)}</option>`;
+      // [MODIFIED v2026.10.2] Both lists come from categorySelectOptions now.
+      //
+      // The two hand-built loops this replaces appended the item's own
+      // category as an ordinary option when it was not in the list, so a
+      // category the model invented read exactly like a real one - that is
+      // what made "frozen" look like a category. It is now marked. They also
+      // interpolated database values into HTML unescaped, which the review
+      // card's copy of the same code did not (RULE 15, RULE 33a.6).
+      const offList = this._t('off_list_hint', '(not in list)');
+      const tr = (key, dflt) => this._t(key, dflt);
+      // "+ Add" sits last so it never displaces a real choice. Categories are
+      // database rows, so one can be created from anywhere it is chosen.
+      const addLabel = this._t('add_new', 'Add');
+      const mainCatOptions = categorySelectOptions({
+        names: Object.keys(this.categories),
+        current: item.category,
+        placeholder: this._t('select_cat', 'Category'),
+        translate: tr, keyPrefix: 'cat_',
+        addLabel, offListLabel: offList,
       });
-      if (item.category && !mainFound) {
-        mainCatOptions += `<option value="${item.category}" selected>${item.category}</option>`;
+
+      const subMap = this.categories[item.category];
+      let subCatOptions;
+      if (item.category && subMap) {
+        subCatOptions = categorySelectOptions({
+          names: Object.keys(subMap),
+          current: item.sub_category,
+          placeholder: this._t('select_sub', 'Sub-Category'),
+          translate: tr, keyPrefix: 'sub_',
+          // Only when a category is chosen: a sub-category needs a parent.
+          addLabel, offListLabel: offList,
+        });
+      } else {
+        subCatOptions = categorySelectOptions({
+          names: [],
+          current: item.sub_category,
+          placeholder: this._t('select_sub', 'Sub-Category'),
+          translate: tr, keyPrefix: 'sub_',
+          offListLabel: offList,
+        });
       }
 
-      // [ADDED v2026.9.27] Same "+ Add" entry as the review card.
-      //
-      // Categories are database rows now, so they can be created from anywhere
-      // they are chosen. Offering it only on the review card meant a category
-      // could be added while approving a scan but not while filing an item
-      // already on a shelf.
-      mainCatOptions += `<option value="__ADD__">+ ${escapeHtml(this._t('add_new', 'Add'))}</option>`;
-
-      let subCatOptions = `<option value="">${this._t('select_sub', 'Sub-Category')}</option>`;
+      // The unit of the sub-category the item is actually filed under, which
+      // is what the old loop assigned as it passed the selected option. The
+      // hasOwnProperty test keeps that exactly: a sub-category present in the
+      // map with no unit still overrides the item's own, as it did before.
       let currentUnit = item.unit || "";
-      if (item.category && this.categories[item.category]) {
-        let subFound = false;
-        Object.keys(this.categories[item.category]).forEach(sub => {
-          const selected = item.sub_category === sub;
-          if (selected) { subFound = true; currentUnit = this.categories[item.category][sub]; }
-          subCatOptions += `<option value="${sub}" ${selected?'selected':''}>${this._t('sub_'+sub.replace(/[^a-zA-Z0-9]+/g,'_'), sub)}</option>`;
-        });
-        if (item.sub_category && !subFound) {
-          subCatOptions += `<option value="${item.sub_category}" selected>${item.sub_category}</option>`;
-        }
-        // Only when a category is chosen: a sub-category needs a parent.
-        subCatOptions += `<option value="__ADD__">+ ${escapeHtml(this._t('add_new', 'Add'))}</option>`;
-      } else if (item.sub_category) {
-        subCatOptions += `<option value="${item.sub_category}" selected>${item.sub_category}</option>`;
+      if (subMap && item.sub_category
+          && Object.prototype.hasOwnProperty.call(subMap, item.sub_category)) {
+        currentUnit = subMap[item.sub_category];
       }
 
       let stylistHtml = '';
@@ -759,18 +761,12 @@ export const InventoryMixin = (Base) => class extends Base {
       //
       // Rendered only when there is no receipt: when there is one, the price
       // belongs to that receipt and is shown read-only in the block above.
-      // Which date this item cares about. Food expires, a drill has a
-      // warranty, and showing both on everything would be noise - so the one
-      // that already has a value wins, and otherwise the category decides.
-      const WARRANTY_CATS = ['Electronics', 'Tools', 'Furniture', 'Appliances'];
-      const showsWarranty = item.warranty_end_date
-        || (!item.expiry_date && WARRANTY_CATS.includes(item.category));
-      const dateField = showsWarranty ? 'warranty_end_date' : 'expiry_date';
-      const dateLabel = showsWarranty
-        ? this._t('warranty_end', 'Warranty ends')
-        : this._t('expiry_date', 'Expiry date');
-      const dateValue = showsWarranty
-        ? (item.warranty_end_date || '') : (item.expiry_date || '');
+      // [MODIFIED v2026.10.2] The choice moved to itemDateField, because the
+      // review card has to make the same one. Two copies would drift, and an
+      // item could be offered a warranty date before approval and an expiry
+      // date after it, writing to two different columns (RULE 33d).
+      const { field: dateField, label: dateLabel, value: dateValue } =
+        itemDateField(item, (key, dflt) => this._t(key, dflt));
 
       const priceFieldHtml = itemReceipt ? '' : `
           <label style="flex:1;display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--text-sub);">

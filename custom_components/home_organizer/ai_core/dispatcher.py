@@ -19,6 +19,42 @@
 # entity not exposed to Assist - was answered with HA's own error text and our
 # agent never got to run. Covers and locks are unaffected: they are stopped
 # separately by async_is_delegated_request.
+# // [MODIFIED v2026.10.1 | 2026-10-01] Purpose: allow_cooking. The sous-chef
+# // is reachable from the cookbook and nowhere else.
+# //
+# // is_voice could not make the distinction: it is True for BOTH the voice
+# // service and the Home Assistant / Mind-app conversation agent, and False
+# // for both the cookbook and the panel's general chat. So the surface says
+# // whether it may cook, keyword-only and defaulting to FALSE - a new entry
+# // point cannot switch a walkthrough on by forgetting a parameter, and
+# // _dispatch in this file has already been bitten once by positional
+# // arguments (RULE 31, RULE 33a.3).
+# //
+# // FOUR ways in had to be closed, not one:
+# //
+# //   1. the stickiness - has_state() at the top of the loop. Once the
+# //      cooking agent wrote its state into a conversation, every later
+# //      message in that conversation routed to cooking. conversation.py
+# //      keeps history per conv_id and it persists, so one recipe question
+# //      captured the whole conversation until a trigger word for another
+# //      domain pulled the user out. This is the one that was reported.
+# //   2. a strict recipe trigger at the start of a message. explicit_domain
+# //      is rewritten to GENERAL, not just is_cooking, because step 5 routes
+# //      on explicit_domain first and COOKING is in that tuple.
+# //   3. the continuation heuristic - a bare "next" after any reply that
+# //      mentioned a dish.
+# //   4. the classifier returning intent "cook". The prompt is also told the
+# //      option does not exist on that surface, which is cheaper and gives a
+# //      better first answer - but the prompt is not the control, the gate
+# //      is (RULE 7).
+# //
+# // One line before the routing decision sets is_cooking False whenever
+# // cooking is not allowed, so a fifth way in cannot be opened by a future
+# // edit upstream.
+# //
+# // The STATE IS NOT CLEARED. A walkthrough in progress survives untouched
+# // and is simply unreadable from a surface that may not cook; asking in the
+# // cookbook again continues from where it was.
 # // [MODIFIED v10.0.0 | 2026-08-23] Purpose: SECURITY HARDENING (HACS review).
 # // The traffic cop now gives Home Assistant's own built-in conversation
 # // agent the first attempt at every device-control request. Locks and covers
@@ -80,7 +116,6 @@ CALENDAR_FALLBACK_TRIGGERS_EN = [
     "appointment",
 ]
 
-# // [MODIFIED v9.8.0 | 2026-05-12] Purpose: Added explicit deletion triggers.
 # Same idea for REMINDER in case the trigger_manager cache lacks it.
 REMINDER_FALLBACK_TRIGGERS_EN = [
     "remind",
@@ -424,7 +459,12 @@ def _last_assistant_mentions_recipe(messages, recipe_indicators) -> bool:
 # LLM INTENT CLASSIFIER (last resort)
 # ==========================================
 # // [MODIFIED v9.8.0 | 2026-05-12] Purpose: Refined intent #8 to explicitly include examples for deleting specific time reminders and clearing the board.
-async def _classify_with_llm(hass, entry, history_text, target_lang, is_cooking):
+# [MODIFIED v2026.10.1] allow_cooking: do not offer an intent the caller is
+# not allowed to act on. The gate in the loop is the control; this only stops
+# the model choosing an answer that will then be rewritten, which is cheaper
+# and gives a better first answer.
+async def _classify_with_llm(hass, entry, history_text, target_lang,
+                             is_cooking, *, allow_cooking=False):
     cooking_hint = ""
     if is_cooking:
         cooking_hint = (
@@ -432,6 +472,28 @@ async def _classify_with_llm(hass, entry, history_text, target_lang, is_cooking)
             "merely continuing the recipe or asking a recipe-related question, "
             'return {"intent": "cook", "recipe_name": "current"}. Only return a '
             "different intent if the user clearly wants a NON-cooking action."
+        )
+
+    # Recipes are only a domain of their own when the caller is the cookbook.
+    # Everywhere else a recipe question is an ordinary question, so the
+    # option is replaced rather than removed - renumbering the list would
+    # change nine other answers for no reason.
+    if allow_cooking:
+        cook_option = (
+            '4. If CONTINUING an active cooking session, asking for a '
+            'recipe, SAVING a recipe to the database, LOADING a saved '
+            'recipe, or navigating WITHIN a recipe in progress (e.g. "save '
+            'this recipe", "keep this recipe", "save it to your DB", "load '
+            'my saved cheesecake recipe", "jump to step 4", "go back to '
+            'step 2", as well as the standard "give me a recipe for..."): '
+            '{"intent": "cook", "recipe_name": "Name of dish or \'current\'"}'
+        )
+    else:
+        cook_option = (
+            '4. If asking for a recipe, for cooking help, or anything about '
+            'a dish: {"intent": "general"} - answer it as an ordinary '
+            'question. There is no cooking session here and there is no '
+            '"cook" intent available on this surface.'
         )
 
     intent_prompt = f"""Analyze the user's latest message within the context of the conversation history.
@@ -450,7 +512,7 @@ Return ONLY a JSON object in one of these exact formats:
 1. If adding/removing/checking items in the physical home inventory (DEFAULT): {{"intent": "inventory"}}
 2. If SPECIFICALLY asking to buy items or managing the shopping list: {{"intent": "shopping"}}
 3. If searching for an item: {{"intent": "search"}}
-4. If CONTINUING an active cooking session, asking for a recipe, SAVING a recipe to the database, LOADING a saved recipe, or navigating WITHIN a recipe in progress (e.g. "save this recipe", "keep this recipe", "save it to your DB", "load my saved cheesecake recipe", "jump to step 4", "go back to step 2", as well as the standard "give me a recipe for..."): {{"intent": "cook", "recipe_name": "Name of dish or 'current'"}}
+{cook_option}
 5. If explicitly ending the recipe or clearing history (e.g., "End session", "Clear history"): {{"intent": "end_session", "message": "Confirm in {target_lang} that the session history is cleared"}}
 6. If asking to control ANY physical device in the house - lights, switches, fans, air conditioning, media players, and ALSO doors, locks, gates, shutters, blinds, curtains or garage doors - or executing home routines (e.g., "good night", "good morning"), OR asking for the time, date, weather, or news/headlines: {{"intent": "smart_home"}}
 7. If asking for fashion/stylist advice or what to wear: {{"intent": "stylist"}}
@@ -516,10 +578,21 @@ async def _dispatch(domain_name, hass, entry, messages, target_lang,
 # ==========================================
 # MAIN ENTRY POINT (called by conversation.py)
 # ==========================================
+# [MODIFIED v2026.10.1] allow_cooking: the sous-chef is reachable from the
+# cookbook and nowhere else.
+#
+# is_voice cannot make this distinction - it is True for BOTH the voice
+# service and the Home Assistant / Mind-app conversation agent, and False for
+# both the cookbook and the panel's general chat.
+#
+# Keyword-only and defaulting to FALSE. A caller that says nothing gets no
+# sous-chef, which is the safe direction: a new entry point cannot switch a
+# recipe walkthrough on by forgetting a parameter (RULE 31).
 async def async_universal_agent_loop(hass, entry, messages, target_lang,
                                      existing_locs_str,
                                      loc_hierarchy_map=None, is_voice=False,
-                                     device_id=None, user_id=None):
+                                     device_id=None, user_id=None, *,
+                                     allow_cooking=False):
     if loc_hierarchy_map is None:
         loc_hierarchy_map = {}
 
@@ -535,7 +608,18 @@ async def async_universal_agent_loop(hass, entry, messages, target_lang,
 
     last_user_msg = ""
     history_text = ""
-    is_cooking = has_state(messages, COOKING_STATE_KEY)
+    # [MODIFIED v2026.10.1] GATE 1 of 4 - the stickiness, and the one that
+    # was actually complained about.
+    #
+    # Once the cooking agent writes its state into a conversation's history,
+    # this line used to make every later message in that conversation a
+    # cooking message. conversation.py keeps history per conv_id, so a single
+    # recipe question poisoned the whole conversation until a trigger word
+    # for some other domain pulled the user out of it.
+    #
+    # The state is NOT cleared - a walkthrough in progress survives and the
+    # cookbook picks it up again. It is simply not read here.
+    is_cooking = allow_cooking and has_state(messages, COOKING_STATE_KEY)
 
     for m in messages:
         if (
@@ -566,7 +650,17 @@ async def async_universal_agent_loop(hass, entry, messages, target_lang,
         hass, last_user_msg, entry, lang_code, strict=True
     )
 
-    if explicit_domain == "COOKING":
+    # [ADDED v2026.10.1] GATE 2 of 4 - a recipe trigger from outside the
+    # cookbook is answered as an ordinary question, which is what was asked
+    # for. explicit_domain is rewritten and not just is_cooking, because step
+    # 5 routes on explicit_domain first and "COOKING" is in that tuple.
+    if explicit_domain == "COOKING" and not allow_cooking:
+        explicit_domain = "GENERAL"
+        i_type = "general"
+        _LOGGER.info(
+            "Routing: recipe trigger outside the cookbook -> GENERAL."
+        )
+    elif explicit_domain == "COOKING":
         is_cooking = True
         recipe_name = (
             last_user_msg.lower().replace(matched_trigger, "", 1).strip()
@@ -593,7 +687,11 @@ async def async_universal_agent_loop(hass, entry, messages, target_lang,
 
     # 3. Continuation heuristic: bare "next"/"go"/etc. while the last
     #    assistant message mentions a recipe.
-    if explicit_domain == "UNKNOWN" and not is_cooking:
+    # [MODIFIED v2026.10.1] GATE 3 of 4. Without this, a bare "next" in the
+    # HA chat after any reply that happened to mention a dish started a
+    # walkthrough - which is precisely the "expecting a continuation answer"
+    # that was asked to stop.
+    if explicit_domain == "UNKNOWN" and not is_cooking and allow_cooking:
         continuation_words = await get_continuation_words(hass, entry, lang_code)
         recipe_indicators = await get_recipe_indicators(hass, entry, lang_code)
         if (
@@ -607,7 +705,8 @@ async def async_universal_agent_loop(hass, entry, messages, target_lang,
     if explicit_domain == "UNKNOWN" and i_type == "unknown" and not is_cooking:
         _LOGGER.info("No trigger word found. Falling back to LLM intent analysis.")
         parsed_intent, err = await _classify_with_llm(
-            hass, entry, history_text, target_lang, is_cooking
+            hass, entry, history_text, target_lang, is_cooking,
+            allow_cooking=allow_cooking,
         )
         if err:
             return f"❌ Connection Error (Router Phase): {err}"
@@ -617,8 +716,28 @@ async def async_universal_agent_loop(hass, entry, messages, target_lang,
                 messages.clear()
                 return parsed_intent.get("message", "✅ Session cleared.")
             elif i_type == "cook":
-                is_cooking = True
-                recipe_name = parsed_intent.get("recipe_name", recipe_name)
+                # [MODIFIED v2026.10.1] GATE 4 of 4. The prompt is told not
+                # to offer this outside the cookbook, but a prompt is not a
+                # control - this is (RULE 7).
+                if not allow_cooking:
+                    i_type = "general"
+                    _LOGGER.info(
+                        "Routing: classifier said cook outside the cookbook "
+                        "-> GENERAL."
+                    )
+                else:
+                    is_cooking = True
+                    recipe_name = parsed_intent.get(
+                        "recipe_name", recipe_name)
+
+    # [ADDED v2026.10.1] The belt, after every path that could have set it.
+    #
+    # Four gates above each close one way in. This closes a fifth that does
+    # not exist yet: whatever happens upstream, cooking is not reachable from
+    # a surface that may not cook, so a future edit cannot quietly reopen it
+    # (RULE 31).
+    if not allow_cooking:
+        is_cooking = False
 
     # 5. Final routing decision.
     domain_to_run = "INVENTORY"
@@ -764,13 +883,17 @@ async def async_universal_agent_loop(hass, entry, messages, target_lang,
 # ==========================================
 # SAFE WRAPPER WITH HYBRID FALLBACK
 # ==========================================
+# [MODIFIED v2026.10.1] allow_cooking is forwarded. This wrapper is what all
+# three surfaces call, so a flag it dropped would be a flag nobody set.
 async def safe_universal_agent_loop(hass, entry, mode, messages, target_lang,
                                     existing_locs_str, loc_hierarchy_map=None,
-                                    is_voice=False, device_id=None, user_id=None):
+                                    is_voice=False, device_id=None,
+                                    user_id=None, *, allow_cooking=False):
     try:
         reply = await async_universal_agent_loop(
             hass, entry, messages, target_lang, existing_locs_str,
             loc_hierarchy_map, is_voice, device_id, user_id,
+            allow_cooking=allow_cooking,
         )
         if (
             reply
@@ -783,7 +906,8 @@ async def safe_universal_agent_loop(hass, entry, mode, messages, target_lang,
         ):
             return await async_universal_agent_loop(
                 hass, FallbackMockEntry(entry), messages, target_lang,
-                existing_locs_str, loc_hierarchy_map, is_voice, device_id, user_id,
+                existing_locs_str, loc_hierarchy_map, is_voice, device_id,
+                user_id, allow_cooking=allow_cooking,
             )
         return reply
     except Exception as e:
@@ -791,7 +915,8 @@ async def safe_universal_agent_loop(hass, entry, mode, messages, target_lang,
             try:
                 return await async_universal_agent_loop(
                     hass, FallbackMockEntry(entry), messages, target_lang,
-                    existing_locs_str, loc_hierarchy_map, is_voice, device_id, user_id,
+                    existing_locs_str, loc_hierarchy_map, is_voice, device_id,
+                    user_id, allow_cooking=allow_cooking,
                 )
             except Exception as fe:
                 return f"Error: {fe}"

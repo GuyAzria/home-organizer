@@ -12,57 +12,51 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
-# // [ADDED v2026.9.30 | 2026-09-30] Purpose: The agent understands boxes.
-# // Five tools - put_items_in_box, put_pending_in_box, put_receipt_in_box,
-# // empty_box and delete_box_items - and a box is named by the NUMBER written
-# // on it. Nothing here creates one: allocating a box number means asking
-# // somebody to write it on a carton, so a number that names nothing is
-# // refused rather than guessed (RULE 31).
+# // [ADDED v2026.10.6 | 2026-10-06] Purpose: get_barcode_identify_prompt -
+# // one question, asked on its own.
 # //
-# // delete_box_items is gated on the USER TURN COUNT, not on the prompt. The
-# // loop below runs up to ten times per turn, so a tool that asks for
-# // confirmation and then accepts it can be confirmed by the MODEL on the
-# // next iteration with nobody having answered - and RULE 7 says plainly
-# // that prompt instructions are not a security control. Arming happens on
-# // turn N and the delete is refused on turn N however often it is called;
-# // with no history passed in at all it never runs (RULE 9, RULE 31).
+# // get_barcode_prompt asks the model to recognise a product, translate its
+# // name, choose a category and choose an icon, all in one reply. Recognition
+# // was the weakest of the four and the only one with a cheap escape hatch
+# // ("say Unknown Product"), so that is what came back.
 # //
-# // Detection of a matching receipt line is generous, because
-# // name_matches_query has to recognise "face cream" in "Jelt face cream".
-# // ACTING on one is not: an exact name wins outright and a fuzzy result is
-# // used only when it is the only one, because the same generosity matched
-# // "cream for box two" against "Jelt face cream" on the shared word and
-# // would have swept in a line the user was never shown.
+# // This prompt asks only what the barcode is, offers UNKNOWN explicitly so
+# // the model is not pushed into inventing a product, and forbids guessing
+# // from the country or manufacturer prefix - the prefix guess belongs to the
+# // formatting prompt, which still has it.
 # //
-# // Filing a receipt line in a box never approves it. It stays in the review
-# // queue and every answer says so (RULE 23).
+# // English, because the internal AI language is English and the name is
+# // translated by the formatting call that follows (RULE 20). The phrase
+# // "retail product database" is deliberate: async_smart_router keys on it to
+# // route a hybrid installation to its cloud model, which is the one more
+# // likely to recognise a barcode.
+# // [MODIFIED v2026.10.4 | 2026-10-04] Purpose: category names are identifiers,
+# // and the location rule says what "logical" means.
 # //
-# // The same four things for a LOCATION: add_item_to_ho now offers a matching
-# // receipt line instead of silently making a second row for one thing, and
-# // move_pending_to_location, empty_location and delete_location_items
-# // mirror their box counterparts - including the shared turn gate, and
-# // including exact-name-wins so a shared word cannot sweep in a line the
-# // user was never shown. ignore_pending is how a "no, add a new one anyway"
-# // gets through; without it somebody who really did buy a second face cream
-# // could never add one.
+# // Rule 1 named the two fields that must be translated and said nothing about
+# // the rest, so a model told to write "strictly in Hebrew" answered "מזון"
+# // where the category list says "Food" - a translated name matches no
+# // identifier and the item lost its category. It now says plainly that
+# // category, sub_category and expense_category are identifiers to be copied
+# // letter for letter, and rule 3b no longer asks for a proposed sub-category
+# // in the user's language, because an accepted proposal becomes an identifier
+# // beside the others (RULE 20).
 # //
-# // [FIXED v2026.9.30] A catalog id was looked up with an exact dict get and
-# // to_alpha_id builds the ids from chr(65 + n), so they are upper-case. A
-# // spoken "d2" missed, fell through a fuzzy search over path NAMES that an
-# // id can never match, and ended up as base_path = ["d2"] - a brand new
-# // top-level room called "d2" with the item inside it. An unknown id
-# // reported SUCCESS. Both call sites resolve without case now, and an id
-# // that names nothing is refused rather than becoming the name of a room
-# // (RULE 31).
-# // [ADDED v2026.9.22 | 2026-09-22] Purpose: get_reconcile_prompt - the
-# // second pass, used only when the product lines and the printed total
-# // disagree. A discount on its own line is easy to read past, and then
-# // the basket costs more than the till charged; that error is permanent
-# // once it reaches purchase_history. The prompt carries the arithmetic
-# // already done and asks for index/price pairs and nothing else. What
-# // comes back is kept only if it moves the sum closer to the total, so
-# // the rule telling it not to invent a price is guidance and the
-# // subtraction in __init__.py is the control (RULE 7, RULE 11).
+# // And the location rule:
+# // the location rule says what
+# // "logical" means, and offers a way out.
+# //
+# // Rule 2 was one sentence - "assign each item to a logical physical
+# // location" - while the category rules had been hardened into 3a-3d for
+# // exactly this reason. EXISTING LOCATIONS is built from every place that
+# // already holds something, so a child's room is in the list, and nothing
+# // said that bread does not go there.
+# //
+# // It now names where food belongs, says plainly that a room being in the
+# // list is not an invitation, and offers an empty location_id when nothing
+# // fits - the same shape as rule 3a for categories. An item with no location
+# // waits in the review queue, which costs one tap; a shopping trip scattered
+# // over the house costs finding every line.
 
 import json
 import logging
@@ -282,6 +276,36 @@ CRITICAL OUTPUT INSTRUCTIONS:
 3. NEVER mix languages. Base your recommendations ONLY on the raw inventory data provided."""
 
 
+# [ADDED v2026.10.6] Ask the model what a barcode IS, as its own question.
+#
+# This used to be a clause inside get_barcode_prompt: "guess from the
+# manufacturer prefix, and say Unknown Product if you cannot", asked in the
+# same breath as "format this name and pick an icon". A model answering three
+# things at once answers all of them worse.
+#
+# English, because the internal AI language is English and the name is
+# translated by the formatting call that follows (RULE 20). UNKNOWN is an
+# explicit, cheap answer so the model is not pushed into inventing one - this
+# is the only source that can make a product up, and what it returns is
+# untrusted either way (RULE 11).
+#
+# "retail product database" is deliberate wording: in hybrid mode the router
+# routes a prompt containing it to the cloud model, which is the one more
+# likely to recognise a barcode.
+def get_barcode_identify_prompt(barcode_str):
+    """One question: what product is this barcode?"""
+    return (
+        "You are a retail product database lookup.\n\n"
+        f"What product does this barcode identify? Barcode: {barcode_str}\n\n"
+        "Answer with the product name ONLY - brand, product, size if you know "
+        "it - on a single line, in English.\n"
+        "Do NOT explain. Do NOT add quotes. Do NOT guess from the country or "
+        "manufacturer prefix.\n"
+        "If you do not actually recognise this specific barcode, answer "
+        "exactly: UNKNOWN"
+    )
+
+
 def get_barcode_prompt(barcode_str, external_hint, target_lang):
     return f"""You are the Home Organizer AI. The user has scanned a barcode: {barcode_str}.
 
@@ -395,10 +419,45 @@ def get_invoice_prompt(target_lang, existing_locs_str, existing_cats_str,
         "  (B) ITEM level - one entry per product line.\n\n"
 
         "RULES:\n"
-        f"1. LANGUAGE: The 'name' values and the 'message' MUST be written strictly in {target_lang}.\n"
+        # [MODIFIED v2026.10.4] Which fields the language applies to, said
+        # explicitly. It used to name the two that must be translated and
+        # say nothing about the rest, and a model told to write "strictly in
+        # Hebrew" answered "מזון" where the category list says "Food". The
+        # category table holds English identifiers and the panel translates
+        # them for display, so a translated answer matches nothing and the
+        # item ends up with no category at all (RULE 20: a translation must
+        # never alter a database identifier).
+        f"1. LANGUAGE: the 'name' values and the 'message' MUST be written "
+        f"strictly in {target_lang}. NOTHING ELSE IS TRANSLATED. "
+        "\"category\", \"sub_category\" and \"expense_category\" are "
+        "IDENTIFIERS: copy them letter for letter from the lists above, in "
+        "the language the lists are written in, even when that is not the "
+        "language you are answering in. The interface translates them for "
+        "the user; you must not.\n"
 
-        "2. MAPPING & SUBLOCATIONS: Assign each item to a logical physical location "
-        "by selecting the appropriate ID from the EXISTING LOCATIONS list.\n"
+        # [MODIFIED v2026.10.4] The location rule used to be one sentence
+        # with no guidance, while the category rules had been hardened into
+        # 3a-3d for the same reason. EXISTING LOCATIONS is built from every
+        # place that already holds something, so a child's bedroom is in the
+        # list, and nothing said that bread does not go there. A grocery
+        # receipt was scattered across the house one line at a time.
+        "2. LOCATION: assign each item to a location from the EXISTING "
+        "LOCATIONS list by its ID, chosen by what the item IS and where that "
+        "kind of thing is kept. Food and drink belong in a kitchen, fridge, "
+        "freezer or pantry; frozen goods in a freezer; cleaning products "
+        "where cleaning things are kept; toiletries in a bathroom.\n"
+
+        "2a. A ROOM IN THE LIST IS NOT AN INVITATION. Those rooms are listed "
+        "because something else is stored there. Never file food or "
+        "household shopping in a bedroom, a child's room, a study or an "
+        "office because it is the nearest entry.\n"
+
+        "2b. IF NOTHING FITS, RETURN AN EMPTY \"location_id\". An item with "
+        "no location waits in the review queue for the user to place it, "
+        "which is correct and takes one tap. Guessing a room that has "
+        "nothing to do with the product is not: it scatters one shopping "
+        "trip over the whole house and every line has to be found and "
+        "undone.\n"
 
         "3. ICON SELECTION & CATEGORIES: Assign the closest standard icon_key from this list.\n"
 
@@ -408,7 +467,9 @@ def get_invoice_prompt(target_lang, existing_locs_str, existing_cats_str,
         # top-level one. A model allowed to invent top-level categories produces
         # "Food", "Groceries" and "Foodstuffs" within a week, and nothing merges
         # them afterwards.
-        "3a. CATEGORIES ARE A CLOSED LIST. Use a category from EXISTING CATEGORIES. "
+        "3a. CATEGORIES ARE A CLOSED LIST. Use a category from EXISTING "
+        "CATEGORIES and COPY ITS NAME EXACTLY as it appears there - never a "
+        "translation of it, never a synonym. "
         "Never invent a new top-level category. If nothing fits, file the item "
         "under the NEAREST existing category, leave sub_category empty, and put "
         "the name you WOULD have opened in \"suggest_category\" on that item - "
@@ -420,8 +481,10 @@ def get_invoice_prompt(target_lang, existing_locs_str, existing_cats_str,
         "under Food when Food already has Dairy and Frozen is NOT a new "
         "sub-category - it belongs in Frozen. Ice cream when Food has no frozen "
         "or dessert sub-category at all IS a fair proposal. When you do propose "
-        "one, set \"new_sub_category\": true on that item and write the name in "
-        "the user's language.\n"
+        "one, set \"new_sub_category\": true on that item and write the name "
+        "in the SAME language as the existing list, because if the user "
+        "accepts it it becomes an identifier beside them and the interface "
+        "translates it for display.\n"
 
         # [ADDED v2026.9.20] NEVER stop a scan to ask about a category.
         #
@@ -552,7 +615,28 @@ def get_invoice_prompt(target_lang, existing_locs_str, existing_cats_str,
         '     {"intent": "clarify", "question": "<Question>"}\n'
     )
 
-    if user_message and user_message.strip() != "" and user_message != "Scanned Invoice":
+    # [FIXED v2026.10.3] An empty message is the only signal for "no user
+    # instruction". The comparison against the English literal
+    # "Scanned Invoice" was the bug: the panel sent the TRANSLATED label, so
+    # the test matched in English and failed in every other language, and a
+    # Hebrew scan had this appended to its prompt -
+    #
+    #     SPECIAL USER INSTRUCTION: The user added this specific request:
+    #     '<the translated words for "scanned invoice">'. Please strictly
+    #     apply this instruction.
+    #
+    # - on every single scan. The model, told to strictly apply an
+    # instruction that is just a noun phrase, answers with "clarify", and
+    # the scan produces nothing. Backend behaviour that depends on the
+    # user's language, and a mixed-language internal instruction: RULE 20
+    # forbids both.
+    #
+    # Not extended to cover the other languages, for two reasons. The seven
+    # translated labels in this file would be natural language inside the
+    # code (RULE 17). And the contract already exists: HOAppScanView sends
+    # "message": "" for an unattended receipt scan and always has, and the
+    # panel now does the same.
+    if user_message and user_message.strip() != "":
         prompt += (
             f"\n\nSPECIAL USER INSTRUCTION:\n"
             f"The user added this specific request: '{user_message}'. \n"

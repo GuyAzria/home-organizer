@@ -11,17 +11,23 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
-// [MODIFIED v2026.9.27 | 2026-09-27] Purpose: get_data carries boxes_only, so
-//   the boxes toggle in the search bar reaches the query. Declared in the
-//   schema and read by the handler in the same change - an undeclared key is
-//   rejected before the handler runs and the toggle would silently do nothing
-//   (RULE 33a.2).
-// [ADDED v2026.9.20 | 2026-09-20] Purpose: acceptCategorySuggestion and
-//   dismissCategorySuggestion answer the category a receipt scan proposed.
-//   The click is the explicit user action that opens a top-level category;
-//   the scan never creates one and never stops to ask (RULE 22).
+// [ADDED v2026.10.7 | 2026-10-07] Purpose: addCategoryNamed, split out of
+//   promptAddCategory.
+//
+//   The creation and the asking were one function, so the categories screen
+//   could not ask with an inline field - a system prompt is a poor thing to
+//   meet on a phone - without copying the creation. The payload shape is the
+//   part that must not be copied: sub_category null on a new top-level is what
+//   makes the service create the "General" bucket (RULE 22, RULE 33d).
+// [ADDED v2026.10.2 | 2026-10-02] Purpose: the categoryCounts getter.
+//
+//   It sits beside the one that serves the categories because both arrive in
+//   the same payload and both need the same empty fallback - the first
+//   render can happen before the first fetch returns. The categories screen
+//   reads it to say how many items a delete would re-file before it is
+//   pressed (RULE 33).
 
-import { escapeHtml } from './organizer-utils.js?v=2026.8.26';
+import { escapeHtml } from './organizer-utils.js?v=10.11.112';
 
 export const APIMixin = (Base) => class extends Base {
 
@@ -225,6 +231,16 @@ export const APIMixin = (Base) => class extends Base {
     return (this.localData && this.localData.categories) || {};
   }
 
+  // [ADDED v2026.10.2] How many items each category and sub-category holds.
+  //
+  // Beside the categories because it arrives in the same payload and needs
+  // the same fallback: the first render can happen before the first fetch
+  // returns, and the categories screen reads both.
+  get categoryCounts() {
+    return (this.localData && this.localData.category_counts)
+      || { by_category: {}, by_sub: {} };
+  }
+
   // Prompt for a name and create it. Returns the created name, or null.
   //
   // The dropdowns put this behind an "+ Add" option rather than a separate
@@ -238,7 +254,23 @@ export const APIMixin = (Base) => class extends Base {
       : this.t('add_cat_prompt') || 'New category name:';
     const name = window.prompt(title, '');
     if (name === null) return null;
-    const clean = String(name).trim();
+    return this.addCategoryNamed(parentCategory, name);
+  }
+
+  // [ADDED v2026.10.7] Create one category or sub-category by name.
+  //
+  // Split out of promptAddCategory so the categories screen can ask with an
+  // inline field - a system prompt is a poor thing to meet on a phone - while
+  // the creation stays in ONE place. The payload shape is the reason: a
+  // sub-category goes in sub_category with its parent in category, and a new
+  // top-level goes in category with sub_category null, which is what makes
+  // the service supply the "General" bucket the two-step picker needs
+  // (RULE 22). Two copies of that would drift (RULE 33d).
+  //
+  // Returns the trimmed name, or null when there was nothing to create.
+  async addCategoryNamed(parentCategory, name) {
+    const isSub = !!parentCategory;
+    const clean = String(name == null ? '' : name).trim();
     if (!clean) return null;
     await this.callHA('add_category', {
       category: isSub ? parentCategory : clean,

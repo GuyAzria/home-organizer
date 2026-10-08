@@ -166,6 +166,12 @@ rename_category:
 set_receipt_currency:
   # Correct the currency recorded on a receipt.
 
+set_receipt_date:
+  # Correct the purchase date recorded on a receipt.
+
+delete_category:
+  # Remove a category or sub-category. Its items are re-filed, never deleted.
+
 update_item_extras:
   # Set the purchase price, expiry date or warranty end date of an item.
 

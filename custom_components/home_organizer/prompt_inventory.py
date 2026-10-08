@@ -17,9 +17,15 @@
 # // for the barcode-scan and invoice-OCR flows. The real implementations now
 # // live inside agents/inventory_agent.py to keep "all inventory prompts in
 # // one place". Do NOT add new logic here.
+# //
+# // [MODIFIED v2026.10.6 | 2026-10-06] Purpose: get_barcode_identify_prompt
+# // joins the re-exports, beside get_barcode_prompt. The barcode flow now
+# // asks two separate questions - what is this, then format it - and both
+# // prompts come through here so __init__.py keeps one import path.
 
 from .agents.inventory_agent import (
     get_barcode_prompt,
+    get_barcode_identify_prompt,
     get_invoice_prompt,
     get_agent_prompt,
     get_search_prompt,
@@ -27,6 +33,7 @@ from .agents.inventory_agent import (
 
 __all__ = [
     "get_barcode_prompt",
+    "get_barcode_identify_prompt",
     "get_invoice_prompt",
     "get_agent_prompt",
     "get_search_prompt",

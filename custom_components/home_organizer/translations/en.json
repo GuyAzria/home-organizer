@@ -250,6 +250,14 @@
       "name": "Set item box",
       "description": "Put an item in a box, move it to another box, or take it out."
     },
+    "delete_category": {
+      "name": "Delete category",
+      "description": "Remove a category or sub-category. Its items are re-filed under a category you choose and are never deleted."
+    },
+    "set_receipt_date": {
+      "name": "Set receipt date",
+      "description": "Correct the purchase date recorded on a receipt."
+    },
     "set_receipt_currency": {
       "name": "Set receipt currency",
       "description": "Correct the currency recorded on a receipt."

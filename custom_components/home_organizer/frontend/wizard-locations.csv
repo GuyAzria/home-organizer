@@ -1,0 +1,165 @@
+﻿Key,en,he,it,es,fr,ar,ru
+loc_above_machine,Above the machine,ארונית מעל המכונה,Sopra la lavatrice,Sobre la lavadora,Au-dessus de la machine,فوق الغسالة,Над машиной
+loc_bakeware,Bakeware cabinet,ארון כלי אפייה,Armadio da forno,Armario de repostería,Placard à pâtisserie,خزانة أدوات الخبز,Шкаф для выпечки
+loc_baskets,Baskets,סלסלות,Cesti,Cestas,Paniers,سلال,Корзины
+loc_bike_rack,Bike rack,קולב אופניים,Portabici,Soporte de bicicletas,Range-vélos,حمالة دراجات,Стойка для велосипедов
+loc_bin,Bin,פח,Cestino,Cubo,Poubelle,سلة,Корзина
+loc_bookcase,Bookcase,כוננית ספרים,Libreria,Librería,Bibliothèque,رف كتب,Книжный шкаф
+loc_cabinet,Cabinet,ארון,Armadio,Armario,Placard,خزانة,Шкаф
+loc_cable_box,Cable box,ארגז כבלים,Scatola cavi,Caja de cables,Boîte à câbles,صندوق كابلات,Ящик для кабелей
+loc_cartons,Cartons,ארגזי קרטון,Scatoloni,Cajas de cartón,Cartons,كراتين,Картонные коробки
+loc_changing_unit,Changing unit,שידת החתלה,Fasciatoio,Cambiador,Table à langer,طاولة تغيير,Пеленальный столик
+loc_chest_drawers,Chest of drawers,שידת מגירות,Cassettiera,Cómoda,Commode,خزانة أدراج,Комод
+loc_cleaning_cabinet,Cleaning cabinet,ארון ניקיון,Armadio pulizie,Armario de limpieza,Placard d'entretien,خزانة التنظيف,Шкаф для уборки
+loc_coat_rack,Coat rack,קולב,Appendiabiti,Perchero,Portemanteau,شماعة,Вешалка
+loc_coat_wardrobe,Coat wardrobe,ארון מעילים,Armadio cappotti,Armario de abrigos,Armoire à manteaux,خزانة معاطف,Шкаф для пальто
+loc_coffee_table,Coffee table,שולחן סלון,Tavolino,Mesa de centro,Table basse,طاولة قهوة,Журнальный столик
+loc_computer_desk,Computer desk,שולחן מחשב,Scrivania PC,Escritorio de ordenador,Bureau informatique,مكتب حاسوب,Компьютерный стол
+loc_costume_cabinet,Costume cabinet,ארון תחפושות,Armadio costumi,Armario de disfraces,Placard à déguisements,خزانة أزياء,Шкаф для костюмов
+loc_countertop,Countertop,משטח עבודה,Piano di lavoro,Encimera,Plan de travail,سطح العمل,Рабочая поверхность
+loc_cutlery_drawer,Cutlery drawer,"מגירת סכו""ם",Cassetto posate,Cajón de cubiertos,Tiroir à couverts,درج أدوات المائدة,Ящик для приборов
+loc_desk,Desk,שולחן כתיבה,Scrivania,Escritorio,Bureau,مكتب,Письменный стол
+loc_desk_drawer,Desk drawer,מגירת שולחן,Cassetto scrivania,Cajón del escritorio,Tiroir de bureau,درج المكتب,Ящик стола
+loc_detergent_shelf,Detergent shelf,מדף חומרי ניקוי,Mensola detersivi,Estante de detergentes,Étagère à détergents,رف منظفات,Полка для моющих средств
+loc_display_case,Display case,ויטרינה,Vetrina,Vitrina,Vitrine,واجهة عرض,Витрина
+loc_document_safe,Document safe,כספת מסמכים,Cassaforte documenti,Caja de documentos,Coffre à documents,خزنة مستندات,Сейф для документов
+loc_door_shelf,Door shelf,מדף דלת,Mensola porta,Estante de la puerta,Balconnet de porte,رف الباب,Полка на двери
+loc_door_shelf_l,Door shelf left,מדף דלת שמאל,Mensola porta sinistra,Estante puerta izquierda,Balconnet gauche,رف الباب الأيسر,Полка двери слева
+loc_door_shelf_r,Door shelf right,מדף דלת ימין,Mensola porta destra,Estante puerta derecha,Balconnet droit,رف الباب الأيمن,Полка двери справа
+loc_drawer,Drawer,מגירה,Cassetto,Cajón,Tiroir,درج,Ящик
+loc_drawer_deli,Deli drawer,מגירת מעדנייה,Cassetto salumi,Cajón de charcutería,Bac à charcuterie,درج الأجبان واللحوم,Ящик для деликатесов
+loc_drawer_fruit,Fruit drawer,מגירת פירות,Cassetto frutta,Cajón de frutas,Bac à fruits,درج الفواكه,Ящик для фруктов
+loc_drawer_veg,Vegetable drawer,מגירת ירקות,Cassetto verdura,Cajón de verduras,Bac à légumes,درج الخضروات,Ящик для овощей
+loc_equipment_box,Equipment box,ארגז ציוד,Cassa attrezzatura,Caja de equipo,Caisse de matériel,صندوق معدات,Ящик для снаряжения
+loc_filing_cabinet,Filing cabinet,ארון תיוק,Classificatore,Archivador,Classeur,خزانة ملفات,Картотека
+loc_floating_shelf,Floating shelf,מדף צף,Mensola a muro,Estante flotante,Étagère murale,رف معلق,Навесная полка
+loc_folding_counter,Folding counter,משטח קיפול,Piano per piegare,Mesa de plegado,Plan de pliage,سطح الطي,Стол для складывания
+loc_freezer,Freezer,מקפיא,Congelatore,Congelador,Congélateur,فريزر,Морозильник
+loc_freezer_lower,Freezer lower,מקפיא תחתון,Congelatore inferiore,Congelador inferior,Congélateur bas,الفريزر السفلي,Морозильник нижний
+loc_freezer_upper,Freezer upper,מקפיא עליון,Congelatore superiore,Congelador superior,Congélateur haut,الفريزر العلوي,Морозильник верхний
+loc_fridge,Fridge,מקרר,Frigorifero,Nevera,Réfrigérateur,ثلاجة,Холодильник
+loc_fruit_basket,Fruit basket,סלסלת פירות,Cesto della frutta,Frutero,Corbeille à fruits,سلة فواكه,Корзина для фруктов
+loc_game_bins,Game bins,ארגוניות משחקים,Contenitori giochi,Cajas de juegos,Bacs à jeux,صناديق ألعاب,Контейнеры для игр
+loc_games_cabinet,Games cabinet,ארון משחקים,Armadio giochi,Armario de juegos,Placard à jeux,خزانة ألعاب,Шкаф для игр
+loc_garden_cabinet,Garden cabinet,ארון גינון,Armadio giardino,Armario de jardín,Armoire de jardin,خزانة حدائق,Садовый шкаф
+loc_island,Kitchen island,אי מטבח,Isola,Isla de cocina,Îlot de cuisine,جزيرة المطبخ,Кухонный остров
+loc_jewellery,Jewellery box,ארגונית תכשיטים,Portagioie,Joyero,Boîte à bijoux,علبة حلي,Шкатулка для украшений
+loc_key_basket,Key basket,סלסלת מפתחות,Portachiavi,Cesta de llaves,Panier à clés,سلة مفاتيح,Корзина для ключей
+loc_kitchen_cabinet,Kitchen cabinet,ארון מטבח,Pensile,Armario de cocina,Placard de cuisine,خزانة مطبخ,Кухонный шкаф
+loc_laundry_basket,Laundry basket,סלסלת כביסה,Cesto biancheria,Cesto de la ropa,Panier à linge,سلة غسيل,Корзина для белья
+loc_linen_cabinet,Linen cabinet,ארון מצעים,Armadio biancheria,Armario de ropa de cama,Armoire à linge,خزانة بياضات,Шкаф для белья
+loc_makeup,Makeup organiser,ארגונית קוסמטיקה,Organizer trucchi,Organizador de maquillaje,Rangement maquillage,منظم مكياج,Органайзер для косметики
+loc_medicine_cabinet,Medicine cabinet,ארון תרופות,Armadietto medicinali,Botiquín,Armoire à pharmacie,خزانة أدوية,Аптечка
+loc_nappy_basket,Nappy basket,סלסלת חיתולים,Cesto pannolini,Cesta de pañales,Panier à couches,سلة حفاضات,Корзина для подгузников
+loc_nightstand,Nightstand,שידת לילה,Comodino,Mesita de noche,Table de nuit,طاولة سرير,Тумбочка
+loc_pantry_shelf,Pantry shelf,מדף מזווה,Mensola dispensa,Estante de despensa,Étagère garde-manger,رف مؤونة,Полка кладовой
+loc_parts_unit,Parts unit,ארון חלקים,Cassettiera minuteria,Clasificador de piezas,Casier à pièces,وحدة قطع,Шкаф для деталей
+loc_plant_shelf,Plant shelf,מדף עציצים,Mensola piante,Estante de plantas,Étagère à plantes,رف نباتات,Полка для растений
+loc_recycling,Recycling bin,פח מיחזור,Raccolta differenziata,Contenedor de reciclaje,Bac de recyclage,حاوية إعادة التدوير,Бак для вторсырья
+loc_remote_basket,Remote basket,סלסלת שלטים,Cesto telecomandi,Cesta de mandos,Panier télécommandes,سلة أجهزة التحكم,Корзина для пультов
+loc_room_attic,Attic,עליית גג,Soffitta,Desván,Grenier,غرفة علوية,Чердак
+loc_room_balcony,Balcony,מרפסת,Balcone,Balcón,Balcon,شرفة,Балкон
+loc_room_basement,Basement,מרתף,Cantina,Sótano,Sous-sol,قبو,Подвал
+loc_room_bathroom,Bathroom,אמבטיה,Bagno,Baño,Salle de bain,حمام,Ванная
+loc_room_bedroom,Bedroom,חדר שינה,Camera da letto,Dormitorio,Chambre,غرفة نوم,Спальня
+loc_room_dining,Dining room,פינת אוכל,Sala da pranzo,Comedor,Salle à manger,غرفة الطعام,Столовая
+loc_room_entrance,Entrance,כניסה,Ingresso,Entrada,Entrée,مدخل,Прихожая
+loc_room_garage,Garage,חניה,Garage,Garaje,Garage,جراج,Гараж
+loc_room_garden,Garden,גינה,Giardino,Jardín,Jardin,حديقة,Сад
+loc_room_guest_room,Guest room,חדר אורחים,Camera ospiti,Habitación de invitados,Chambre d'amis,غرفة ضيوف,Гостевая
+loc_room_gym,Gym,חדר כושר,Palestra,Gimnasio,Salle de sport,صالة رياضة,Спортзал
+loc_room_hallway,Hallway,מסדרון,Corridoio,Pasillo,Couloir,ممر,Коридор
+loc_room_kids_room,Kids room,חדר ילדים,Camera dei bambini,Habitación infantil,Chambre d'enfant,غرفة الأطفال,Детская
+loc_room_kitchen,Kitchen,מטבח,Cucina,Cocina,Cuisine,مطبخ,Кухня
+loc_room_laundry,Laundry room,חדר כביסה,Lavanderia,Lavadero,Buanderie,غرفة الغسيل,Прачечная
+loc_room_library,Library,ספרייה,Biblioteca,Biblioteca,Bibliothèque,مكتبة,Библиотека
+loc_room_living_room,Living room,סלון,Soggiorno,Salón,Salon,غرفة الجلوس,Гостиная
+loc_room_media_room,Media room,חדר מדיה,Sala multimediale,Sala multimedia,Salle multimédia,غرفة الوسائط,Медиакомната
+loc_room_nursery,Nursery,חדר תינוק,Nursery,Cuarto del bebé,Chambre de bébé,غرفة الطفل,Детская для малыша
+loc_room_pantry,Pantry,מזווה,Dispensa,Despensa,Garde-manger,مخزن مؤونة,Кладовая
+loc_room_playroom,Playroom,חדר משחקים,Stanza dei giochi,Sala de juegos,Salle de jeux,غرفة لعب,Игровая
+loc_room_roof,Roof,גג,Tetto,Tejado,Toit,سطح,Крыша
+loc_room_toilet,Toilet,שירותים,Toilette,Aseo,Toilettes,دورة مياه,Туалет
+loc_room_working_room,Study,חדר עבודה,Studio,Estudio,Bureau,غرفة مكتب,Кабинет
+loc_room_workshop,Workshop,סדנה,Officina,Taller,Atelier,ورشة,Мастерская
+loc_safe,Safe,כספת,Cassaforte,Caja fuerte,Coffre-fort,خزنة,Сейф
+loc_schoolbook_shelf,Schoolbook shelf,מדף ספרי לימוד,Mensola libri scuola,Estante de libros escolares,Étagère livres scolaires,رف كتب مدرسية,Полка для учебников
+loc_seasonal_box,Seasonal box,ארגז עונתי,Scatola stagionale,Caja de temporada,Boîte saisonnière,صندوق موسمي,Сезонный ящик
+loc_service_cupboard,Service cupboard,ארון שירות,Ripostiglio,Armario de servicio,Placard technique,خزانة خدمات,Хозяйственный шкаф
+loc_shelf,Shelf,מדף,Mensola,Estante,Étagère,رف,Полка
+loc_shelf_bottom,Bottom shelf,מדף תחתון,Mensola inferiore,Estante inferior,Étagère du bas,الرف السفلي,Нижняя полка
+loc_shelf_middle,Middle shelf,מדף אמצעי,Mensola centrale,Estante medio,Étagère du milieu,الرف الأوسط,Средняя полка
+loc_shelf_top,Top shelf,מדף עליון,Mensola superiore,Estante superior,Étagère du haut,الرف العلوي,Верхняя полка
+loc_shoe_shelf,Shoe shelf,מדף נעליים,Scarpiera,Zapatero,Étagère à chaussures,رف أحذية,Полка для обуви
+loc_shower_shelf,Shower shelf,מדף מקלחת,Mensola doccia,Estante de ducha,Étagère de douche,رف الاستحمام,Полка в душе
+loc_sideboard,Sideboard,שידה,Credenza,Aparador,Buffet,خزانة جانبية,Комод
+loc_sink_cabinet,Sink cabinet,ארונית כיור,Mobile lavabo,Mueble del lavabo,Meuble vasque,خزانة المغسلة,Шкаф под раковиной
+loc_spice_rack,Spice rack,מדף תבלינים,Portaspezie,Especiero,Étagère à épices,رف بهارات,Полка для специй
+loc_storage_box,Storage box,ארגז אחסון,Scatola,Caja de almacenaje,Boîte de rangement,صندوق تخزين,Ящик для хранения
+loc_storage_unit,Storage unit,יחידת אחסון,Unità di stoccaggio,Unidad de almacenaje,Unité de rangement,وحدة تخزين,Стеллаж
+loc_suitcases,Suitcases,מזוודות,Valigie,Maletas,Valises,حقائب,Чемоданы
+loc_supply_cabinet,Supply cabinet,ארון ציוד,Armadio forniture,Armario de material,Armoire de fournitures,خزانة لوازم,Шкаф для материалов
+loc_tool_box,Tool box,ארגז כלים,Cassetta attrezzi,Caja de herramientas,Boîte à outils,صندوق أدوات,Ящик для инструментов
+loc_towel_cabinet,Towel cabinet,ארון מגבות,Armadio asciugamani,Armario de toallas,Armoire à serviettes,خزانة مناشف,Шкаф для полотенец
+loc_toy_box,Toy box,ארגז צעצועים,Cassa dei giocattoli,Caja de juguetes,Coffre à jouets,صندوق ألعاب,Ящик для игрушек
+loc_tv_unit,TV unit,ארון טלוויזיה,Mobile TV,Mueble de TV,Meuble TV,وحدة تلفاز,ТВ-тумба
+loc_tyre_shelf,Tyre shelf,מדף צמיגים,Scaffale gomme,Estante de neumáticos,Étagère à pneus,رف إطارات,Полка для шин
+loc_under_bed,Under the bed,מתחת למיטה,Sotto il letto,Bajo la cama,Sous le lit,تحت السرير,Под кроватью
+loc_under_sink,Under the sink,מתחת לכיור,Sotto il lavello,Bajo el fregadero,Sous l'évier,تحت الحوض,Под раковиной
+loc_upper_cabinet,Upper cabinet,ארון עליון,Pensile alto,Armario alto,Placard haut,خزانة عليا,Верхний шкаф
+loc_vanity,Vanity,שולחן איפור,Toeletta,Tocador,Coiffeuse,طاولة زينة,Туалетный столик
+loc_walk_in,Walk-in closet,חדר ארונות,Cabina armadio,Vestidor,Dressing,غرفة ملابس,Гардеробная
+loc_wardrobe,Wardrobe,ארון בגדים,Armadio,Armario,Armoire,دولاب ملابس,Гардероб
+loc_wardrobe_top,Top of the wardrobe,מדף עליון בארון,Sopra l'armadio,Parte alta del armario,Haut de l'armoire,أعلى الدولاب,Верх шкафа
+loc_wine_shelf,Wine shelf,מדף יינות,Portabottiglie,Botellero,Étagère à vin,رف نبيذ,Полка для вина
+loc_workbench,Workbench,שולחן עבודה,Banco da lavoro,Banco de trabajo,Établi,طاولة عمل,Верстак
+wiz_add_spot,+ Add a place,+ הוספת מקום,+ Aggiungi un posto,+ Añadir un sitio,+ Ajouter un emplacement,+ إضافة مكان,+ Добавить место
+wiz_apply,Create these locations,צור את המיקומים,Crea queste posizioni,Crear estas ubicaciones,Créer ces emplacements,إنشاء هذه المواقع,Создать эти места
+wiz_back,Back,חזרה,Indietro,Atrás,Retour,رجوع,Назад
+wiz_change_icon,Change the icon,שינוי הסמל,Cambia l'icona,Cambiar el icono,Changer l'icône,تغيير الرمز,Изменить значок
+wiz_cleanup_none,Nothing to tidy. Your locations look consistent.,אין מה לסדר. המיקומים שלך נראים עקביים.,Nulla da sistemare. Le tue posizioni sembrano coerenti.,Nada que ordenar. Tus ubicaciones son coherentes.,Rien à ranger. Vos emplacements sont cohérents.,لا شيء للترتيب. تبدو مواقعك متسقة.,Приводить в порядок нечего. Ваши места выглядят согласованно.
+wiz_cleanup_title,Tidy what is there,סידור הקיים,Sistema quello che c'è,Ordenar lo existente,Ranger l'existant,ترتيب الموجود,Привести в порядок
+wiz_cleanup_why,"Problems found in the locations you already have. Nothing is changed unless you tick it, and no item is ever deleted - only the labels that point at them.","בעיות שנמצאו במיקומים שכבר קיימים. שום דבר לא משתנה בלי שתסמן אותו, ואף פריט לא נמחק - רק התוויות שמצביעות עליו.",Problemi trovati nelle posizioni che hai già. Nulla viene modificato senza la tua spunta e nessun articolo viene mai eliminato: solo le etichette che li indicano.,Problemas encontrados en las ubicaciones que ya tienes. Nada se cambia sin que lo marques y ningún artículo se elimina: solo las etiquetas que los señalan.,"Problèmes trouvés dans les emplacements existants. Rien n'est modifié sans que vous le cochiez, et aucun article n'est supprimé : seulement les étiquettes qui les désignent.",مشكلات وُجدت في المواقع الموجودة لديك. لا يتغير شيء دون تحديدك، ولا يُحذف أي عنصر - فقط التسميات التي تشير إليه.,"Проблемы, найденные в уже существующих местах. Ничего не меняется без вашей отметки, и ни один товар не удаляется - только метки, которые на него указывают."
+wiz_done,Created {0} locations.,נוצרו {0} מיקומים.,Create {0} posizioni.,Creadas {0} ubicaciones.,{0} emplacements créés.,تم إنشاء {0} موقعاً.,Создано мест: {0}.
+wiz_ensuite,Adjoining {0},{0} צמודים,{0} adiacente,{0} adjunto,{0} adjacent,{0} ملحق,Смежный: {0}
+wiz_exit,Exit,יציאה,Esci,Salir,Quitter,خروج,Выход
+wiz_extras,What else does the home have?,מה עוד יש בבית?,Cosa c'è ancora in casa?,¿Qué más tiene la casa?,Qu'y a-t-il d'autre ?,ماذا يوجد أيضاً في المنزل؟,Что ещё есть в доме?
+wiz_fix_doubled_marker,A doubled order marker,מסמן סדר כפול,Un marcatore d'ordine doppio,Un marcador de orden duplicado,Un marqueur d'ordre en double,علامة ترتيب مكررة,Удвоенный маркер порядка
+wiz_fix_duplicate_spots,The same place stored twice,אותו מקום שמור פעמיים,Lo stesso posto salvato due volte,El mismo sitio guardado dos veces,Le même emplacement enregistré deux fois,نفس المكان محفوظ مرتين,Одно место сохранено дважды
+wiz_fix_empty_zones,Empty floors that hold no rooms,קומות ריקות שאין בהן חדרים,Piani vuoti senza stanze,Plantas vacías sin estancias,Étages vides sans pièces,طوابق فارغة بلا غرف,Пустые этажи без комнат
+wiz_fix_general_spots,"""General"" showing as a place","""General"" מופיע כמקום","""General"" mostrato come posto","""General"" aparece como sitio","""General"" affiché comme emplacement","""General"" يظهر كمكان",«General» показывается как место
+wiz_fix_trailing_space,Names with a space on the end,שמות עם רווח בסוף,Nomi con uno spazio finale,Nombres con un espacio al final,Noms avec un espace à la fin,أسماء تنتهي بمسافة,Названия с пробелом в конце
+wiz_floor_count,How many floors?,כמה קומות?,Quanti piani?,¿Cuántas plantas?,Combien d'étages ?,كم طابقاً؟,Сколько этажей?
+wiz_floor_n,Floor {0},קומה {0},Piano {0},Planta {0},Étage {0},الطابق {0},Этаж {0}
+wiz_freezer_bottom,Bottom,תחתון,In basso,Abajo,En bas,أسفل,Снизу
+wiz_freezer_none,None,אין,Nessuno,Ninguno,Aucun,لا يوجد,Нет
+wiz_freezer_side,Side by side,בצד,Affiancato,Al lado,À côté,جانبي,Рядом
+wiz_freezer_top,Top,עליון,In alto,Arriba,En haut,أعلى,Сверху
+wiz_fridge_doors,How many doors?,כמה דלתות?,Quante porte?,¿Cuántas puertas?,Combien de portes ?,كم باباً؟,Сколько дверей?
+wiz_fridge_freezer,Freezer?,מקפיא?,Congelatore?,¿Congelador?,Congélateur ?,فريزر؟,Морозильник?
+wiz_fridge_title,Inside the fridge,בתוך המקרר,Dentro il frigorifero,Dentro de la nevera,Dans le réfrigérateur,داخل الثلاجة,Внутри холодильника
+wiz_fridge_why,"The only place the wizard suggests a shelf life, because this is where food goes off. Everywhere else the assistant sets the expiry date when you add the item. Change any name, or remove a shelf you do not have.","המקום היחיד שהאשף מציע בו חיי מדף, כי כאן מוצרים מתקלקלים. בכל מקום אחר העוזר קובע את תאריך התפוגה כשאתה מוסיף את הפריט. אפשר לשנות כל שם, או להסיר מדף שאין לך.","L'unico punto in cui la procedura propone una durata, perché è qui che il cibo si deteriora. Altrove l'assistente imposta la scadenza quando aggiungi l'articolo. Cambia i nomi o rimuovi una mensola che non hai.","El único lugar donde el asistente propone una caducidad, porque es aquí donde la comida se estropea. En el resto, el asistente fija la fecha al añadir el artículo. Cambia los nombres o quita un estante que no tengas.","Le seul endroit où l'assistant propose une durée de conservation, car c'est ici que les aliments se gâtent. Ailleurs, l'assistant fixe la date à l'ajout de l'article. Modifiez les noms ou retirez une étagère que vous n'avez pas.",المكان الوحيد الذي يقترح فيه المعالج مدة صلاحية، لأن الطعام يفسد هنا. في بقية الأماكن يحدد المساعد تاريخ الانتهاء عند إضافة العنصر. غيّر أي اسم أو أزل رفاً لا تملكه.,"Единственное место, где мастер предлагает срок хранения, потому что именно здесь портятся продукты. Во всех остальных местах ассистент задаёт срок при добавлении товара. Измените любое название или удалите полку, которой у вас нет."
+wiz_home_apartment,Apartment,דירה,Appartamento,Piso,Appartement,شقة,Квартира
+wiz_home_house,House,בית,Casa,Casa,Maison,منزل,Дом
+wiz_home_house_units,House with units,בית עם יחידות,Casa con unità,Casa con anexos,Maison avec annexes,منزل بوحدات,Дом с отдельными блоками
+wiz_home_title,Your home,הבית שלך,La tua casa,Tu casa,Votre maison,منزلك,Ваш дом
+wiz_home_why,"What kind of home is it, and how many floors. The floor becomes part of each room name, so two bathrooms on different floors stay apart.","איזה סוג בית, וכמה קומות. הקומה נכנסת לשם של כל חדר, כך ששני חדרי שירותים בקומות שונות לא מתבלבלים.","Che tipo di casa è e quanti piani ha. Il piano entra nel nome di ogni stanza, così due bagni su piani diversi restano distinti.","Qué tipo de vivienda es y cuántas plantas tiene. La planta pasa a formar parte del nombre de cada estancia, así dos baños en plantas distintas no se confunden.","Quel type de logement et combien d'étages. L'étage entre dans le nom de chaque pièce, ainsi deux salles de bain à des étages différents restent distinctes.",ما نوع المنزل وكم طابقاً فيه. يصبح الطابق جزءاً من اسم كل غرفة، لذا يبقى حمّامان في طابقين مختلفين منفصلين.,"Какой это дом и сколько в нём этажей. Этаж войдёт в название каждой комнаты, поэтому две ванные на разных этажах не перепутаются."
+wiz_lang_title,Language,שפה,Lingua,Idioma,Langue,اللغة,Язык
+wiz_lang_why,"Pick the language for the whole app. This is the same choice as in the settings menu, so everything you see from here on will be in it.","בחר את שפת כל האפליקציה. זו אותה בחירה שבתפריט ההגדרות, וכל מה שתראה מכאן והלאה יהיה בה.",Scegli la lingua per tutta l'app. È la stessa scelta del menu impostazioni e vale per tutto ciò che vedrai da qui.,Elige el idioma de toda la aplicación. Es la misma opción del menú de ajustes y se aplica a todo lo que verás a partir de aquí.,Choisissez la langue de toute l'application. C'est le même choix que dans le menu des réglages et il vaut pour tout ce qui suit.,اختر لغة التطبيق بالكامل. هذا هو نفس الخيار الموجود في قائمة الإعدادات وينطبق على كل ما ستراه من الآن.,"Выберите язык для всего приложения. Это тот же выбор, что и в меню настроек, и он действует на всё дальнейшее."
+wiz_new_spot,New place,מקום חדש,Nuovo posto,Nuevo sitio,Nouvel emplacement,مكان جديد,Новое место
+wiz_next,Next,הבא,Avanti,Siguiente,Suivant,التالي,Далее
+wiz_review_title,Review,סקירה,Riepilogo,Revisión,Récapitulatif,مراجعة,Проверка
+wiz_review_why,"Nothing has been written yet. This is what will be created. Anything marked EXISTS is already there and will be left alone - the wizard only adds, and never deletes a location.","עדיין לא נכתב שום דבר. זה מה שייווצר. כל מה שמסומן ""קיים"" כבר נמצא וייוותר כמו שהוא - האשף רק מוסיף, ואף פעם לא מוחק מיקום.",Non è stato ancora scritto nulla. Questo è ciò che verrà creato. Ciò che è contrassegnato ESISTE è già presente e non sarà toccato: la procedura aggiunge soltanto e non elimina mai una posizione.,Todavía no se ha escrito nada. Esto es lo que se creará. Lo marcado como EXISTE ya está y no se tocará: el asistente solo añade y nunca elimina una ubicación.,Rien n'a encore été écrit. Voici ce qui sera créé. Ce qui est marqué EXISTE est déjà là et ne sera pas touché : l'assistant ajoute seulement et ne supprime jamais un emplacement.,"لم يُكتب أي شيء بعد. هذا ما سيتم إنشاؤه. ما هو موسوم بـ""موجود"" موجود بالفعل ولن يُمس - المعالج يضيف فقط ولا يحذف موقعاً أبداً.",Пока ничего не записано. Вот что будет создано. Отмеченное как «ЕСТЬ» уже существует и останется как есть - мастер только добавляет и никогда не удаляет место.
+wiz_rooms_title,Rooms,חדרים,Stanze,Estancias,Pièces,الغرف,Комнаты
+wiz_rooms_why,"Tap a room to add it, and use minus and plus for more than one. Two of the same room are numbered, and you can rename them on the next screen.","הקש על חדר להוספה, והשתמש במינוס ופלוס ליותר מאחד. שני חדרים מאותו סוג ימוספרו, ואפשר לשנות להם שם במסך הבא.",Tocca una stanza per aggiungerla e usa meno e più per più di una. Due stanze uguali vengono numerate e puoi rinominarle nella schermata successiva.,Toca una estancia para añadirla y usa menos y más para varias. Dos iguales se numeran y puedes renombrarlas en la pantalla siguiente.,"Touchez une pièce pour l'ajouter, et utilisez moins et plus pour en avoir plusieurs. Deux pièces identiques sont numérotées et vous pourrez les renommer à l'écran suivant.",اضغط على غرفة لإضافتها، واستخدم ناقص وزائد لأكثر من واحدة. تُرقَّم الغرف المتشابهة ويمكنك تغيير أسمائها في الشاشة التالية.,"Нажмите на комнату, чтобы добавить её, и используйте минус и плюс для нескольких. Одинаковые комнаты нумеруются, переименовать их можно на следующем экране."
+wiz_shelf_life,Shelf life in days,חיי מדף בימים,Durata in giorni,Caducidad en días,Conservation en jours,مدة الصلاحية بالأيام,Срок хранения в днях
+wiz_summary,"{0} new, {1} already there","{0} חדשים, {1} קיימים","{0} nuovi, {1} già presenti","{0} nuevos, {1} ya existentes","{0} nouveaux, {1} déjà présents",{0} جديد، {1} موجود مسبقاً,"{0} новых, {1} уже есть"
+wiz_tag_have,EXISTS,קיים,ESISTE,EXISTE,EXISTE,موجود,ЕСТЬ
+wiz_tag_new,NEW,חדש,NUOVO,NUEVO,NOUVEAU,جديد,НОВОЕ
+wiz_theme_dark,Dark,כהה,Scuro,Oscuro,Sombre,غامق,Тёмное
+wiz_theme_light,Light,בהיר,Chiaro,Claro,Clair,فاتح,Светлое
+wiz_theme_title,Appearance,מראה,Aspetto,Apariencia,Apparence,المظهر,Оформление
+wiz_theme_why,"Light or dark, for the whole app. The same choice as in the settings menu, and the rest of this wizard will follow it.","בהיר או כהה, לכל האפליקציה. אותה בחירה שבתפריט ההגדרות, ושאר האשף ייראה לפיה.","Chiaro o scuro, per tutta l'app. La stessa scelta del menu impostazioni; il resto della procedura la seguirà.","Claro u oscuro, para toda la aplicación. La misma opción del menú de ajustes; el resto del asistente la seguirá.","Clair ou sombre, pour toute l'application. Le même choix que dans les réglages ; la suite de l'assistant le suivra.",فاتح أو غامق، للتطبيق بالكامل. نفس الخيار في قائمة الإعدادات، وبقية المعالج ستتبعه.,"Светлое или тёмное, для всего приложения. Тот же выбор, что и в настройках; остальная часть мастера будет ему следовать."
+wiz_title,Set up your home,הגדרת הבית,Configura la casa,Configura tu casa,Configurer votre maison,إعداد المنزل,Настройка дома
+wiz_units_title,Storage,רהיטים ואחסון,Contenitori,Almacenaje,Rangements,أماكن التخزين,Места хранения
+wiz_units_why,"What stands in each room. Anything you save will go into one of these, so include whatever you actually keep things in. The common ones are already ticked - untick what you do not have.","מה עומד בכל חדר. כל פריט שתשמור ייכנס לאחד מאלה, לכן כדאי שיהיה כאן כל מה שאתה מאחסן בו דברים. הנפוצים כבר מסומנים - הסר סימון ממה שאין לך.","Cosa c'è in ogni stanza. Tutto ciò che salvi finirà in uno di questi, quindi includi ciò in cui conservi davvero le cose. I più comuni sono già selezionati: togli la spunta a ciò che non hai.","Qué hay en cada estancia. Todo lo que guardes irá a uno de estos, así que incluye aquello donde realmente guardas cosas. Los más comunes ya están marcados: desmarca lo que no tengas.","Ce qui se trouve dans chaque pièce. Tout ce que vous enregistrerez ira dans l'un d'eux, incluez donc ce dans quoi vous rangez vraiment. Les plus courants sont déjà cochés : décochez ce que vous n'avez pas.",ما يوجد في كل غرفة. كل ما تحفظه سيوضع في أحدها، لذا أدرج ما تخزن فيه أشياءك فعلاً. الشائعة محددة مسبقاً - أزل التحديد عما لا تملكه.,"Что стоит в каждой комнате. Всё, что вы сохраните, попадёт в одно из них, поэтому укажите то, в чём вы действительно храните вещи. Обычные уже отмечены - снимите галочку с того, чего у вас нет."

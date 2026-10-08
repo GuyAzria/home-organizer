@@ -16,8 +16,24 @@
 # // implementation now lives in ai_core/ and agents/. This file exists only
 # // so that existing imports in __init__.py and conversation.py keep working
 # // with zero changes. Do NOT add new logic here.
+# //
+# // [MODIFIED v2026.10.6 | 2026-10-06] Purpose: FallbackMockEntry joins the
+# // re-exports. The barcode AI source needs to force LOCAL routing for
+# // hybrid's second attempt, and that class is how the router already does it
+# // after a cloud failure. A re-export is not new logic, and one import path
+# // means the test harness replaces this module and gets everything
+# // (RULE 33d).
 
-from .ai_core.router import async_smart_router, safe_smart_router
+# FallbackMockEntry is re-exported, not reimplemented: it is how the router
+# itself forces LOCAL routing after a cloud failure, and the barcode AI source
+# needs the same thing to try both routes in hybrid mode. A re-export is not
+# new logic, and keeping one import path means the test harness replaces this
+# module and gets everything.
+from .ai_core.router import (
+    async_smart_router,
+    safe_smart_router,
+    FallbackMockEntry,
+)
 from .ai_core.dispatcher import (
     async_universal_agent_loop,
     safe_universal_agent_loop,
@@ -27,6 +43,7 @@ from .ai_core.dispatcher import (
 __all__ = [
     "async_smart_router",
     "safe_smart_router",
+    "FallbackMockEntry",
     "async_universal_agent_loop",
     "safe_universal_agent_loop",
     "determine_explicit_domain",

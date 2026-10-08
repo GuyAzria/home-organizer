@@ -12,6 +12,12 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
+# // [MODIFIED v2026.10.5 | 2026-10-05] Purpose: the barcode lookup order is a
+# // setting in the database, chosen from the barcode page.
+# //
+# // The step this file carried for an hour is gone. See const.py: the
+# // config entry has a reload listener, so it is the wrong home for
+# // something a panel sheet writes.
 # // [MODIFIED v10.0.0 | 2026-08-23] Purpose: SECURITY HARDENING (HACS review).
 # //   1. Every credential field (cloud key, local key, VTO key) is now a
 # //      password TextSelector instead of a bare `str`, so keys are masked
@@ -19,12 +25,6 @@
 # //   2. Added CONF_ALLOW_SCRIPTS to BOTH the config flow and the options
 # //      flow. It is OFF by default: the AI agent cannot start user-written
 # //      scripts or scenes unless the owner explicitly opts in.
-# // [MODIFIED v9.5.0 | 2026-04-18] Purpose: Added CONF_TRIGGER_REMINDER and
-# // CONF_TRIGGER_CALENDAR fields to BOTH the initial config flow and the
-# // options flow triggers step. Cleaned up every hardcoded non-English
-# // default in this file so ALL defaults are English-only; the trigger_manager
-# // now handles per-UI-language translation, and users can still override
-# // each trigger string from the Options UI in any language they want.
 
 import logging
 import voluptuous as vol

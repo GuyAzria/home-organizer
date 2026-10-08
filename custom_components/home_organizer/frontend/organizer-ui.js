@@ -11,31 +11,30 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
-// [ADDED v2026.9.30 | 2026-09-30] Purpose: the box page is dispatched here,
-//   and left here - and btn-up, the app's one back arrow beside Home, is
-//   what leaves it, since the page no longer carries an arrow of its own.
-//   That button is shown on the box page whatever the depth, because it is
-//   the only way off that screen. pages/box.css is linked beside the other
-//   eight sheets;
-//   renderBoxView itself lives in pages/view-box.js, so this file only names
-//   it.
+// [ADDED v2026.10.7 | 2026-10-07] Purpose: mountOverlay - a full-screen
+//   overlay belongs INSIDE #app.
 //
-//   openBoxId is its whole state. There is no isBoxMode, deliberately: two
-//   things to clear is how isReceiptsMode, isRecipesMode and isBarcodeMode
-//   each shipped stuck on, and one value is one thing to forget instead of
-//   two (RULE 33a.1). All nine entry points clear it, the dispatch clears it
-//   when the box is not in the data this screen was loaded with - which would
-//   otherwise be an empty page with no way off it - and the header names the
-//   open box rather than the shelf behind it. New box is hidden while a box
-//   is open, because a box does not go in a box.
-// [ADDED v2026.9.27 | 2026-09-27] Purpose: New box beside the pencil, to-box
-//   beside bulk delete once something is ticked, and a boxes toggle in the
-//   search bar. The toggle is what replaces a magic keyword: a keyword would
-//   have to be translated and the back end would then read a word in the
-//   user language (RULE 20).
+//   setTheme puts .light-mode on #app and the light values are declared on
+//   that class, so every overlay appended to the shadow root directly kept the
+//   dark variables for ever: choosing Light turned the panel light and left
+//   the box sheet, the categories window, the chat overlay and the locations
+//   wizard dark behind it.
+//
+//   The wizard also showed the second half of the same fault - `color` is
+//   declared on .app-container, so an overlay outside it inherits no text
+//   colour and every label was drawn in the browser default black on a dark
+//   background. One helper rather than the same line in five files (RULE 33d).
+// [ADDED v2026.10.7 | 2026-10-07] Purpose: the locations wizard in the gear
+//   menu, under a wand.
+//
+//   In that menu because the language and the theme the wizard opens with are
+//   already there and are the same controls. The label comes from the MAIN
+//   translations file: the menu is drawn long before the wizard's own CSV is
+//   fetched, so a label living only in that file would read English until the
+//   first time anyone opened it.
 
-import { ICONS } from './organizer-icon.js?v=10.3.0';
-import { escapeHtml } from './organizer-utils.js?v=2026.8.26';
+import { ICONS } from './organizer-icon.js?v=10.11.112';
+import { escapeHtml } from './organizer-utils.js?v=10.11.112';
 
 const UPLOAD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>';
 const MENU_SVG   = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z"/></svg>';
@@ -320,6 +319,16 @@ export const UIMixin = (Base) => class extends Base {
                 <div id="menu-main">
                   <div class="dropdown-item" onclick="event.stopPropagation();this.getRootNode().host.showMenu('lang')">${ICONS.language} <span id="lbl-lang">Language</span></div>
                   <div class="dropdown-item" onclick="event.stopPropagation();this.getRootNode().host.showMenu('theme')">${ICONS.theme} <span id="lbl-theme">Theme</span></div>
+                  <!-- [ADDED v2026.10.2] The categories screen. Opens an
+                       overlay rather than a submenu: this dropdown holds
+                       short lists and a category list with a destination
+                       picker per row does not fit in one. -->
+                  <!-- [ADDED v2026.10.7] The locations wizard. A wand,
+                       because it builds a whole house from a few taps, and
+                       in the gear menu because that is where the language
+                       and the theme it starts with already live. -->
+                  <div class="dropdown-item" onclick="event.stopPropagation();this.getRootNode().host.openLocationsWizard()">${ICONS.wand} <span id="lbl-wizard">Locations wizard</span></div>
+                  <div class="dropdown-item" onclick="event.stopPropagation();this.getRootNode().host.openCategoriesScreen()">${ICONS.tag} <span id="lbl-cats">Categories</span></div>
                   <div class="dropdown-item" onclick="event.stopPropagation();this.getRootNode().host.showAbout()">${INFO_SVG} <span id="lbl-about">About</span></div>
                   <div style="height:1px;background:var(--border-light);margin:8px 0;width:100%;"></div>
                   <div class="dropdown-item" id="btn-setup-ext-app"><span id="lbl-ext-menu">📱 HO_Mind_AI</span></div>
@@ -647,6 +656,22 @@ export const UIMixin = (Base) => class extends Base {
     this.makeFabDraggable();
   }
 
+  // [ADDED v2026.10.7] Where a full-screen overlay belongs: INSIDE #app.
+  //
+  // setTheme puts .light-mode on #app, and the light values are declared on
+  // that class, so anything appended to the shadow root directly keeps the
+  // dark variables for ever - every overlay in the panel stayed dark while
+  // the rest of it went light, and the text in one of them was drawn in the
+  // browser's default black because `color` is declared on .app-container
+  // and nothing outside it inherits that either.
+  //
+  // A position:fixed child is out of flow, so #app's flex layout is not
+  // affected. One helper rather than the same line in five files (RULE 33d).
+  mountOverlay(el) {
+    (this.shadowRoot.getElementById('app') || this.shadowRoot).appendChild(el);
+    return el;
+  }
+
   applyStaticTranslations() {
     const el = id => this.shadowRoot.getElementById(id);
     const set = (id, key, def) => { 
@@ -673,6 +698,11 @@ export const UIMixin = (Base) => class extends Base {
     };
 
     set('lbl-lang',        'language', 'Language');
+    // The wizard's own strings live in wizard-locations.csv, which is
+    // fetched only when it opens - so the MENU label has to come from
+    // the main file, or it would read English until first use.
+    set('lbl-wizard',      'wiz_menu', 'Locations wizard');
+    set('lbl-cats',        'cats_manage', 'Categories');
     set('lbl-theme',       'theme', 'Theme');
     set('lbl-about',       'about', 'About');
     set('lbl-back1',       'back', 'Back');
@@ -865,6 +895,11 @@ export const UIMixin = (Base) => class extends Base {
       this.isShopMode=false; this.isSearch=false; this.isChatMode=false; this.isStylistMode=false; this.isReviewMode=false; this.isEditMode=false; this.isReceiptsMode=false; this.isDashboardMode = false;
       this.isRecipesMode=false;
       this.isBarcodeMode=true;
+      // [ADDED v2026.10.5] A fresh arrival shows no leftover status and no
+      // half-answered question from the last scan.
+      this.barcodeStatus = null;
+      this.barcodePrompt = null;
+      this.barcodeSheet = false;
       
       localStorage.removeItem('ho_pending_item_id');
       localStorage.removeItem('ho_pending_item_name');
@@ -1127,7 +1162,9 @@ export const UIMixin = (Base) => class extends Base {
     // the way in is gone on the way out, and the stylesheet decides again.
     content.removeAttribute('style');
 
-    if (this.isBarcodeMode && typeof this.renderBarcodeView === 'function') return this.renderBarcodeView(content);
+    // [MODIFIED v2026.10.5] attrs too: the barcode page lists what was
+    // scanned and not yet filed, which lives in the pending list.
+    if (this.isBarcodeMode && typeof this.renderBarcodeView === 'function') return this.renderBarcodeView(content, attrs);
     if (this.isStylistMode && typeof this.renderStylistView === 'function') return this.renderStylistView(content, attrs);
     // [FIXED v2026.9.15] isReceiptsMode was missing from this condition, so
     // opening the Receipts tab cleared the other two flags, matched nothing

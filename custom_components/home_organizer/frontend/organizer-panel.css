@@ -1,16 +1,22 @@
 /* Home Organizer CSS - Ver 7.7.33 */
+/* [MODIFIED v2026.10.2 | 2026-10-02] Purpose: two phone-width fixes on the
+   review card. .move-select gets min-width:0, so a long option cannot widen
+   the row past the viewport - a select's content-based minimum is its widest
+   option and flex:1 cannot shrink below it. And under the existing 450px
+   breakpoint .pending-top wraps, so the quantity and price group drops to a
+   row of its own and the name input keeps the full width. */
 /* [MODIFIED v2026.9.22 | 2026-09-22] Purpose: .title-box keeps room for
    the FAB, which now starts in the top bar. Padding on the side the
    button is anchored to, plus min-width:0 and an ellipsis - without those
    a long room name ignores the padding and runs under the button. */
-/* [ADDED v2026.9.22 | 2026-09-22] Purpose: The pale fills take a darker
-   value on the dark theme. The contour is drawn in currentColor, which is
-   WHITE there, so a white-filled shape had a white outline on a white body
-   and every interior line disappeared - a fridge became a blob. The fill
-   was never fighting the page; it was fighting its own outline. */
 
 :host { 
     --primary: #03a9f4; --accent: #4caf50; --danger: #f44336; --warning: #ffeb3b; --icon-btn-bg: #444;
+    /* [ADDED v2026.10.7] Three confirm buttons ask for var(--success)
+       with no fallback, and it was never declared - so the property was
+       dropped and they had no colour at all. Declared in both themes:
+       the dark green that reads on #1c1c1e is too dark on #f5f5f5. */
+    --success: #4caf50;
     --bg-body: #1c1c1e; --bg-bar: #242426; --bg-sub-bar: #2a2a2c;
     --bg-card: #2c2c2e; --bg-card-hover: #3a3a3c;
     --bg-input: #111; --bg-input-edit: #222;
@@ -34,7 +40,7 @@
     --bg-dropdown: #ffffff; --bg-qty-ctrl: #e0e0e0;
     --text-main: #333; --text-sub: #666;
     --border-color: #ddd; --border-light: #ccc; --border-input: #ccc;
-    --icon-btn-bg: #e0e0e0;
+    --icon-btn-bg: #e0e0e0; --success: #2e7d32;
     --bg-badge: #e0e0e0; --text-badge: #000000;
     --fab-ring: #2f9e52; --fab-ring-soft: rgba(47,158,82,0.30);
     --bg-icon-box: #e0e0e0; --text-icon-box: #03a9f4;
@@ -249,7 +255,14 @@ svg { width: 24px; height: 24px; fill: currentColor; }
 .btn-danger { color: #ff8a80; border-color: #d32f2f; }
 .btn-text { width: auto; padding: 0 15px; font-weight: bold; color: white; background: var(--primary); border: none; }
 .move-container { display: flex; gap: 5px; align-items: center; flex: 1; }
-.move-select { flex: 1; padding: 8px; background: var(--bg-input-edit); color: var(--text-main); border: 1px solid var(--border-light); border-radius: 6px; }
+/* [MODIFIED v2026.10.2] min-width:0 beside the flex:1 it belongs to.
+   A flex item defaults to min-width:auto, and a select's content-based
+   minimum is its WIDEST option - so flex:1 could not shrink one of these
+   below its longest entry and a long option pushed the row past the
+   viewport on a phone. The item card already set this inline; the review
+   card did not, and marking an off-list category made its options longer.
+   One rule now covers all four selects (RULE 33d, RULE 36). */
+.move-select { flex: 1; min-width: 0; padding: 8px; background: var(--bg-input-edit); color: var(--text-main); border: 1px solid var(--border-light); border-radius: 6px; }
 .search-box { display:none; padding:10px; background:var(--bg-sub-bar); display:flex; gap: 5px; align-items: center; }
 
 .loader-container { position: absolute; inset:0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 5; border-radius: inherit; }
@@ -314,6 +327,21 @@ svg { width: 24px; height: 24px; fill: currentColor; }
    are 450 and 768; nothing new is invented). Above it not one of these
    rules applies, so the tablet and desktop window is untouched. */
 @media (max-width: 450px) {
+    /* [ADDED v2026.10.2] The review card's name field gets its own row.
+
+       .pending-top was five children on one flex row - icon, name, quantity,
+       the word "Price", price - and the name input is the one that has to
+       shrink, so on a phone it was unusable. The quantity and the price are
+       now one element, so they drop to a row of their own and the name keeps
+       the width: the order a normal item in a location already uses.
+
+       align-items:flex-start so a wrapped row does not stretch the icon, and
+       the name column loses its inline-end margin because nothing follows it
+       on that row any more. Logical properties only (RULE 33b). */
+    .pending-top { flex-wrap: wrap; align-items: flex-start; }
+    .pending-name-col { margin-inline-end: 0 !important; }
+    .pending-qty-group { flex-basis: 100%; justify-content: flex-end; }
+
 
   /* One box, one height, no scroll of its own. min-height: 0 on a column
      flex parent is what lets a child scroll instead of growing - without it

@@ -11,14 +11,21 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
-// [ADDED v2026.9.30 | 2026-09-30] Purpose: dots - three of them, stacked. The
-//   box page keeps everything the box itself can be told to do behind them,
-//   because five 40px icons in that header leave no room for the title on a
-//   phone (RULE 36).
-// [ADDED v2026.9.27 | 2026-09-27] Purpose: A box icon - a closed carton with
-//   its lid seam and tape, because a plain cube reads as a 3D shape and not as
-//   a box. This file had no history block of its own; this is the first entry.
+// [FIXED v2026.10.7 | 2026-10-07] Purpose: two icons that said the wrong
+//   thing.
 //
+//   The wand was three four-pointed stars and no stick at all, so it read as
+//   "sparkle" or "AI" rather than as a wand. A wand IS a stick with a star at
+//   the tip - that is the whole silhouette - so it has one now, on the
+//   diagonal, with the burst over its end and two sparkles for movement.
+//
+//   And `tag` is new, for the categories row in the gear menu. That row used
+//   `item`, which is a gift box with a ribbon, and on a row that means labels
+//   it reads as a present. The gift box goes back to meaning an item.
+// [ADDED v2026.10.5 | 2026-10-05] Purpose: a spanner, for the barcode page.
+//
+//   settings is a gear and already means the panel's own preferences. A spanner
+//   reads as "adjust how this works" and is what the lookup-order sheet needed.
 
 /**
  * Icon Library
@@ -49,17 +56,25 @@ export const ICONS = {
   image: '<svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>',
   sparkles: '<svg viewBox="0 0 24 24"><path d="M9 9l1.5-4 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5zM19 19l-2.5-1 2.5-1 1-2.5 1 2.5 2.5 1-2.5 1 1 2.5-1-2.5z"/></svg>',
   refresh: '<svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>',
-  wand: '<svg viewBox="0 0 24 24"><path d="M7.5 5.6L10 7 7.5 8.4 6.1 10.9 4.7 8.4 2.2 7 4.7 5.6 6.1 3.1 7.5 5.6zm12 9.8L17 14l2.5-1.4L18.1 10.1 19.5 12.6 22 14 19.5 15.4 18.1 17.9 17 15.4zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5L22 2zm-8.8 11.2l-1.4-2.5L10.4 13.2 8 14.6 10.4 16 11.8 18.5 13.2 16 15.6 14.6 13.2 13.2z"/></svg>',
+  wand:       '<svg viewBox="0 0 24 24"><path d="M2.8 19.8a1.1 1.1 0 0 0 1.6 1.6l10.2-10.2-1.6-1.6L2.8 19.8z"/><path d="M17 3.4l1.25 2.6 2.6 1.25-2.6 1.25L17 11.1l-1.25-2.6L13.15 7.25l2.6-1.25L17 3.4z"/><path d="M7.6 2.6l.62 1.6 1.6.62-1.6.62-.62 1.6-.62-1.6-1.6-.62 1.6-.62L7.6 2.6z"/><path d="M20.2 14.4l.5 1.3 1.3.5-1.3.5-.5 1.3-.5-1.3-1.3-.5 1.3-.5.5-1.3z"/></svg>',
   move: '<svg viewBox="0 0 24 24"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg>',
   chevron_right: '<svg viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>',
   chevron_down: '<svg viewBox="0 0 24 24"><path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z"/></svg>',
   
   // AI & Settings Icons
+  // [ADDED v2026.10.5] A spanner, for the barcode page's lookup-order
+  // sheet. settings is a gear and already means the panel's own
+  // preferences; a spanner reads as 'adjust how this works'.
+  wrench: '<svg viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>',
   settings: '<svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.58 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>',
   robot: '<svg viewBox="0 0 24 24"><path d="M9.5,7H11.5L14.5,17H12.5L12,15H9L8.5,17H6.5L9.5,7M10.5,10L9.6,13.5H11.4L10.5,10M16,7H18V17H16V7Z" /></svg>',
   send: '<svg viewBox="0 0 24 24"><path d="M2,21l21-9L2 3v7l15 2-15 2v7z"/></svg>',
   language: '<svg viewBox="0 0 24 24"><path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-6V2H9v2H2v2h2.18c.69 2.8 1.95 5.23 3.64 7.23L4.25 16.8l1.41 1.41 3.58-3.56 3.63 4.08-1.41 1.41-1.41-1.41zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>',
   theme: '<svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 0 1-4.4 2.26 5.403 5.403 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></svg>',
+  // [ADDED v2026.10.7] A label with a hole for the string. The
+  // categories row used `item`, which is a gift box with a ribbon
+  // and reads as a present on a row that means labels.
+  tag:        '<svg viewBox="0 0 24 24"><path d="M21.41 11.58l-9-9A2 2 0 0 0 11 2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 .59 1.42l9 9a2 2 0 0 0 2.82 0l7-7a2 2 0 0 0 0-2.84zM6.5 8A1.5 1.5 0 1 1 8 6.5A1.5 1.5 0 0 1 6.5 8z"/></svg>',
   back: '<svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>',
   id_card: '<svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 12H4v-1h8v1zm0-3H4v-1h8v1zm0-3H4V9h8v1zm5 6h-3v-1h3v1zm0-3h-3v-1h3v1zm0-3h-3V9h3v1z"/></svg>',
   view_grid: '<svg viewBox="0 0 24 24"><path d="M4 11h5V5H4v6zm0 7h5v-6H4v6zm6 0h5v-6h-5v6zm6 0h5v-6h-5v6zm-6-7h5V5h-5v6zm6-6v6h5V5h-5z"/></svg>',
