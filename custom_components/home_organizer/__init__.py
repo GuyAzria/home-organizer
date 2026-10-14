@@ -12,108 +12,80 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
-# [ADDED v2026.10.7 | 2026-10-07] Purpose: one websocket command for the
-#   locations wizard - get, save, apply, scan_cleanup.
+# [FIXED v2026.10.13 | 2026-10-13] Purpose: choosing /media at setup puts
+#   ALL of the user's data in /media, not only the items.
 #
-#   IT CREATES NOTHING ITSELF. add_item with item_type=folder is how the panel
-#   has always made a folder and handle_update_item_details is how it renames
-#   one, both called through hass.services.async_call - so there stays exactly
-#   one creation path and one rename path in the integration (RULE 33d). What
-#   this adds is the plan: which paths are missing, and ask for those.
+#   Setup decided two paths for the storage choice - the main database and
+#   the item images - and left the rest where it had always been: the
+#   recipe database in /config, receipts in /config/www (the receipt writer
+#   reads "receipt_path", which setup never set) and the Stylist photo in
+#   /config/www. A user who chose /media saw the items start from nothing
+#   while the recipes of an earlier www installation appeared anyway. Every
+#   path now comes from storage.storage_paths(), in setup and in the
+#   uninstall cleanup alike; the www layout is unchanged path for path.
 #
-#   THE SHAPE IT PRODUCES was read out of a real database first:
+#   storage.prepare_media_sync runs before either database is opened. A
+#   FRESH media installation copies nothing. An EXISTING one gets the
+#   recipe database and the Stylist photos that older versions kept in
+#   /config copied across, once - recorded in app_settings after
+#   async_init_db - and a copy that fails leaves the recipes readable where
+#   they are. Nothing is moved or deleted (RULE 5). The /media receipts
+#   folder gets its own static route, and get_data hands the panel the
+#   images' URL prefix, and the Stylist photo's file comes from
+#   storage.avatar_path, shared with the Stylist. Uninstall still deletes
+#   exactly what it did before. st59 and prove59.
 #
-#       level_1 = '[Floor 1] Kitchen'   the room, floor as a PREFIX
-#       level_2 = 'Fridge'
-#       level_3 = '[ORDER_MARKER_020] Top shelf'
+#   Same day: the images may live on network storage (options flow, media
+#   only). Their route is registered on its own and under its own URL per
+#   folder, so a network folder that is not connected cannot take the
+#   receipts' route down and a change of folder needs no restart. Repairs
+#   says when the folder is not connected, and _async_follow_images_folder
+#   copies the images into a newly chosen folder in the background,
+#   recording it only once that is done. st60 and prove60.
 #
-#   The floor is not a level. level_4..level_10 exist as columns and nothing
-#   reads them, and the inventory view produces folders only for depth 0 and 1.
-#   location_seed.py put its worked example in at level_4, where the panel
-#   never looks, so those shelves were invisible; that seed was removed in
-#   v2026.10.7 and the wizard replaces what it was for.
+#   Later the same day: the receipts, images and PDF, follow the images onto
+#   the network folder; the databases never do. _async_follow_receipts_folder
+#   moves the existing ones - files copied, rows re-pointed - and the local
+#   receipts route stays registered for any not moved yet.
 #
-#   APPLY IS ADDITIVE AND IDEMPOTENT. A path that exists is skipped, because
-#   add_item does not check and a second call would make two folder markers for
-#   one shelf. Nothing is ever deleted: a tick removed from the profile means
-#   the wizard stops proposing it, not that the location goes - items may be
-#   living in it (RULE 5, RULE 6). A service that raises is reported in
-#   "failed" and never in "created" (RULE 2, RULE 10).
-# [MODIFIED v2026.10.6 | 2026-10-06] Purpose: the barcode lookup finds
-#   general products, not only food - and says so when it cannot ask.
+#   And the storage method itself can now be changed in the options;
+#   _storage_method reads them first, for setup and uninstall alike.
+#   Changing it moves nothing, as the user decided: the other location
+#   starts empty, or carries on with the Home Organizer data already there.
+#   And the network folder is for www too now, the files in one folder of
+#   their own on it: <share>/home_organizer/images and .../receipts.
+# [FIXED v2026.10.11 | 2026-10-11] Purpose: no "Removing unknown panel"
+#   warning on every start - and the v2026.10.10 changes, recorded late.
 #
-#   The order is a setting in the database, chosen from the barcode page.
+#   Setup removes the panel before registering it, so a reload cannot leave
+#   the sidebar pinned to an old build. On a fresh start there is nothing to
+#   remove, and the comment there said that case RAISES and is caught. It
+#   does not: async_remove_panel logs "Removing unknown panel organizer" and
+#   returns. The call now passes warn_if_unknown=False - checked against
+#   Home Assistant's own source, absent in 2024.6.0 and present from 2024.7.0,
+#   which is exactly hacs.json's minimum. st57 runs the real upstream function
+#   and pins that minimum. Unload is deliberately left warning: there the
+#   panel should exist, and finding none means registration never happened.
 #
-#   _barcode_source_order reads app_settings rather than the entry, and one
-#   websocket command reads and writes it. What comes back is what is STORED,
-#   not what was sent - the list is repaired on read - so the sheet always
-#   draws the order that will really be asked. A refused write returns the
-#   unchanged list with saved=False (RULE 2, RULE 10).
+#   RECORDED LATE - v2026.10.10 changed this file without an entry:
+#   safe_universal_agent_loop is called with recipe_open (a recipe on screen
+#   owns the question); the recipes websocket gained "versions",
+#   "restore_version" and "delete_version" with version_no / version_label in
+#   its schema; and the "update" action snapshots the recipe before and after
+#   a content edit. The forwarding of recipe_open through the wrapper was
+#   itself missing until v2026.10.11 and broke every chat message - see
+#   ai_core/dispatcher.py and st53.
 #
-#   A source that could not be REACHED is also no longer silent. The original
-#   code passed no timeout at all, so aiohttp allowed five minutes; the
-#   refactor capped it at 8 seconds and every lookup on a slow connection was
-#   cut off, logged at debug, and handed to the model as "guess, and say
-#   Unknown Product if you cannot" - a network fault wearing the face of a
-#   shop full of unknown products. The cap is 30s and the give-up is a
-#   WARNING naming each source and why.
-#
-#   _SourceUnavailable carries that distinction, and each source decides for
-#   itself, because the services do not agree. Measured against the live
-#   endpoints: the unified Open*Facts endpoint answers 404 for a code it does
-#   not hold, so 404 is NOT a fault - warning on those would warn on every
-#   obscure product; UPCitemdb's trial endpoint allows 100 lookups a day and
-#   answers 429, which IS a fault and was being returned as ""; and
-#   html.duckduckgo.com answers 202 with a challenge page.
-#
-#   Open Food Facts also moved off the v0 url, which is FOOD ONLY and answered
-#   404 for every general product, cosmetic and pet food. The v2 endpoint with
-#   product_type=all redirects to whichever Open*Facts database holds the code,
-#   so one request covers all four. This is the whole reason a tin of beans was
-#   recognised and a bottle of shampoo was not.
-#
-#   Open Library is a fourth source, gated to 978/979 so it costs nothing on a
-#   scan it cannot help with, and the lookup now has a total budget so that
-#   adding it did not lengthen the worst case.
-#
-#   The configured model is a fifth, _barcode_src_ai. It was already asked at
-#   the end of every lookup, but the question about what the barcode IS was a
-#   clause inside a formatting prompt - "guess from the manufacturer prefix,
-#   and say Unknown Product if you cannot" - in the same breath as translate
-#   this, categorise it, pick an icon. One question gets a better answer, and
-#   as a source it can be ordered and switched off like the rest.
-#
-#   HYBRID ASKS BOTH ROUTES. The router sends a barcode prompt to the cloud in
-#   hybrid mode, and FallbackMockEntry then forces the local model for a second
-#   attempt. safe_smart_router's own fallback could not do this: it triggers on
-#   a cloud FAILURE, and a cloud model answering UNKNOWN has not failed.
-#
-#   The hint also stopped lying. _async_external_product_name always returned
-#   which source answered and the caller threw it away, so a name the model
-#   recalled by itself was introduced to the next prompt as something "found in
-#   an external barcode database" - which is how a guess becomes a fact
-#   (RULE 2, RULE 11).
-#
-#   _BarcodeCtx exists so all five take the same arguments. The alternative was
-#   a branch on the source name inside the loop, and this project has twice
-#   shipped a defect from a call site whose arguments did not match the
-#   signature (RULE 33a.3).
-#
-#   AND THE SCAN BOUNDARY FAILS CLOSED. _async_lookup_barcode took
-#   str(msg.get("barcode")) with no validation at all, so a misread was
-#   looked up, missed by every source, and handed to the model to invent a
-#   product for a number that was never on the packet. BOTH scan routes pass
-#   through here - the panel's websocket and the companion app's own scanner
-#   via HOAppScanView - and that app lives in another repository, so this is
-#   the only place reachable from here that protects it (RULE 31).
-#
-#   is_gtin and not normalize_barcode, because the lenient test has nothing
-#   to check on the even-length numeric short read an ITF misread produces.
+#   Same release: the "update" action no longer versions by itself - it
+#   hands its description to async_save, which now takes every version, so
+#   an assistant edit approved through recipe_edits is versioned too. "get"
+#   reports latest_version beside active_version, for the numbered save
+#   button.
 
 import logging
 from homeassistant.components import frontend
+from . import storage
 import os
-from functools import partial
 import time
 import json
 import re
@@ -129,6 +101,7 @@ from homeassistant.components import panel_custom, websocket_api
 from homeassistant.components.http import StaticPathConfig, HomeAssistantView
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
 import homeassistant.helpers.config_validation as cv
 import homeassistant.util.dt as dt_util
 
@@ -136,8 +109,10 @@ from .const import (
     BARCODE_SOURCE_OFF_FACTS, BARCODE_SOURCE_UPCITEMDB,
     BARCODE_SOURCE_WEB, BARCODE_SOURCE_OPEN_LIBRARY, BARCODE_SOURCE_AI,
     BARCODE_SOURCE_TIMEOUT, BARCODE_LOOKUP_BUDGET,
-    DOMAIN, CONF_API_KEY, CONF_DEBUG, DB_FILE, IMG_DIR,
+    DOMAIN, CONF_API_KEY, CONF_DEBUG, IMG_DIR,
     CONF_STORAGE_METHOD, CONF_DELETE_ON_REMOVE, STORAGE_METHOD_WWW, STORAGE_METHOD_MEDIA,
+    # [ADDED v2026.10.13] Where a media installation keeps its images.
+    CONF_IMAGES_LOCATION,
     CONF_AI_PROVIDER, CONF_PROCESSING_MODE, MODE_LOCAL_ONLY, MODE_CLOUD_ONLY, MODE_HYBRID, PROVIDER_OPENAI, PROVIDER_GEMINI
 )
 from .database import (
@@ -172,6 +147,11 @@ from .database import (
     # same rule the rest of the integration uses (RULE 33d).
     _clean_level,
     name_matches_query,
+    # [ADDED v2026.10.13] Records that the one-time /media step has run,
+    # and which folder holds the images.
+    async_set_setting, async_get_setting,
+    # [ADDED v2026.10.13] Moves the receipts onto a network folder.
+    async_move_receipt_files,
 )
 from .services import register_services
 from .ai_logic import (
@@ -509,6 +489,13 @@ async def websocket_get_data(hass, connection, msg):
     boxes_only = msg.get("boxes_only", False)
     data = await async_get_view_data(hass, path, query, date_filter, is_shopping,
                                      boxes_only=boxes_only)
+    # [ADDED v2026.10.13] The images' URL prefix, for the one screen that
+    # builds an image address itself - the Stylist's photo. It is /local/...
+    # only when www was chosen; with /media it is a route of its own, and a
+    # hard-coded /local/ shows a broken picture.
+    if isinstance(data, dict):
+        data["img_url_prefix"] = hass.data.get(DOMAIN, {}).get(
+            "config", {}).get("url_prefix", f"/local/{IMG_DIR}")
     connection.send_result(msg["id"], data)
 
 @websocket_api.async_response
@@ -534,6 +521,23 @@ async def websocket_get_all_items(hass, connection, msg):
                     fp = [r_dict.get(f"level_{i}") for i in range(1, 11) if r_dict.get(f"level_{i}")]
 
                     results.append({
+                        # [ADDED v2026.10.8] The fields this builder - the
+                        # sixth of six - was the only one missing. The
+                        # category drill-down shows a price and an expiry
+                        # date on every line, and the catalogue-id search
+                        # already fed these same rows to createItemRow, so
+                        # both were drawing from a row that did not carry
+                        # them (RULE 33a.6).
+                        #
+                        # icon_spec with them: an icon the assistant DREW
+                        # lives in its own column, and a list built without
+                        # it falls back to the default picture.
+                        "icon_spec": r_dict.get("icon_spec"),
+                        "expiry_date": r_dict.get("expiry_date"),
+                        "warranty_end_date": r_dict.get("warranty_end_date"),
+                        "purchase_price": r_dict.get("purchase_price"),
+                        "quantity_purchased": r_dict.get("quantity_purchased"),
+                        "receipt_id": r_dict.get("receipt_id"),
                         "id": r_dict['id'],
                         "name": r_dict['name'],
                         "qty": r_dict['quantity'],
@@ -1013,7 +1017,27 @@ def _wiz_exists(tree, kind, path, name):
 
 @websocket_api.async_response
 async def websocket_locations_wizard(hass, connection, msg):
-    """Read, save, apply, and tidy. The wizard's only way in."""
+    """Read, save, apply, and tidy. The wizard's only way in.
+
+    IT CREATES NOTHING ITSELF. add_item with item_type=folder is how the
+    panel has always made a folder and handle_update_item_details is how it
+    renames one, both called through hass.services.async_call - so there
+    stays exactly one creation path and one rename path in the integration
+    (RULE 33d). What this adds is the plan: which paths are missing, and ask
+    for those.
+
+    THE SHAPE IT PRODUCES is the one a real database already had -
+    level_1 '[Floor 1] Kitchen', level_2 'Fridge', level_3
+    '[ORDER_MARKER_020] Top shelf'. The floor is a PREFIX on the room, not a
+    level; see the header of pages/view-wizard.js for why.
+
+    APPLY IS ADDITIVE AND IDEMPOTENT. A path that exists is skipped, because
+    add_item does not check and a second call would make two folder markers
+    for one shelf. Nothing is ever deleted: a tick removed from the profile
+    means the wizard stops proposing it, not that the location goes - items
+    may be living in it (RULE 5, RULE 6). A service that raises is reported
+    in "failed" and never in "created" (RULE 2, RULE 10).
+    """
     action = msg.get("action") or "get"
 
     if action == "get":
@@ -2259,6 +2283,10 @@ async def _async_ai_chat(hass, connection, msg):
             hass, entry, mode, ACTIVE_SESSIONS[session_key], target_lang,
             existing_locs_str, loc_hierarchy_map, user_id=ws_user_id,
             allow_cooking=("recipe_id" in msg),
+            # [ADDED v2026.10.10] Not the same thing as allow_cooking: that
+            # says the cookbook is the caller, this says a recipe is open
+            # on screen. A question asked with one open is about it.
+            recipe_open=bool(ws_recipe_id),
         )
 
         if len(ACTIVE_SESSIONS[session_key]) > 10:
@@ -2447,21 +2475,28 @@ async def websocket_ai_chat(hass, connection, msg):
 async def websocket_save_avatar(hass, connection, msg):
     try:
         import base64
-        import os
         user_id = connection.user.id
         img_b64 = msg.get("image_data")
         if img_b64 and "," in img_b64:
             img_b64 = img_b64.split(",")[1]
         
-        www_dir = hass.config.path("www", "home_organizer_images")
-        # [MODIFIED v10.0.0] exist_ok must be a keyword: the second positional
-        # parameter of os.makedirs is `mode`, not `exist_ok`, so this raised
-        # FileExistsError on every call after the first.
+        # [MODIFIED v2026.10.13] Where the images are, not always www. This
+        # photo is of the user; it goes where they chose to keep their data.
+        cfg = hass.data.get(DOMAIN, {}).get("config", {})
+        www_dir = cfg.get("img_path", hass.config.path("www", IMG_DIR))
+        # [MODIFIED v2026.10.13] Made ready through storage.ready_dir_sync:
+        # the images may be on a network folder, and one that is not
+        # connected must not be recreated on the Home Assistant disk.
         await hass.async_add_executor_job(
-            partial(os.makedirs, www_dir, exist_ok=True)
-        )
+            storage.ready_dir_sync, www_dir, cfg.get("images_mount"))
         
-        avatar_path = os.path.join(www_dir, f"user_avatar_{user_id}.jpg")
+        # [FIXED v2026.10.13] The Stylist's own definition of the file, so
+        # the photo written here is the photo it reads. Refuses an id that
+        # is not a plain id, through the error path below.
+        avatar_path = storage.avatar_path(www_dir, user_id)
+        if not avatar_path:
+            raise ValueError("not a plain user id; no photo file is named "
+                             "after it")
         
         def write_file():
             with open(avatar_path, "wb") as f:
@@ -2707,6 +2742,43 @@ def _resolve_scan_category(cat_map, raw_cat, raw_sub, item_name):
             if real_cat:
                 break
 
+    # [ADDED v2026.10.8] The model sent the hierarchy one level DOWN.
+    #
+    # Measured on a real database: 22 items were written with a SUB-category
+    # name in the category column - category='Beverages' sub='Instant coffee'
+    # where the truth is Food > Beverages, category='Snacks' sub='Chips'
+    # where it is Food > Snacks, category='Dietary Supplements' sub=''.
+    # Those names are not top-level categories, so they appear on the
+    # dashboard breakdown as rows the Categories screen has no entry for -
+    # which is what the user sees as an untranslated English row among the
+    # translated ones.
+    #
+    # The recovery above only looks for the SUB among known subs, so it
+    # rescues the case where the sub happens to be real and leaves this one.
+    # Of the 22 real shapes it resolved 4; the other 18 lost both values.
+    #
+    # Runs only when nothing above resolved, so a genuine top-level match
+    # and the existing sub-based recovery both still win first. The name the
+    # model put in the sub field is dropped rather than proposed: the item
+    # is now correctly filed and that string was a product description
+    # ("Instant coffee", "Croissants"), not a sub-category anyone wants
+    # opened. No new top-level category is ever created here (RULE 22).
+    if not real_cat and want_cat:
+        # EXACTLY ONE parent, or nothing. 42 of the 108 sub-category names in
+        # a real installation exist under more than one category -
+        # "Accessories" under seven - and "General" is the default sub every
+        # new top-level category is given (RULE 22), so it is ambiguous by
+        # design. Taking the first match would file the item by dictionary
+        # order, which is a guess (RULE 31). Two of the names actually seen
+        # in the wild, "Personal Hygiene" and "Paper Products", have two
+        # parents each; those stay unresolved, which leaves the item
+        # uncategorised - visible and fixable - rather than silently wrong.
+        owners = [str(name) for name, subs in cats.items()
+                  for sub in (subs or {})
+                  if str(sub).casefold() == want_cat.casefold()]
+        if len(set(owners)) == 1:
+            real_cat, want_sub = owners[0], want_cat
+
     real_sub = ""
     if real_cat and want_sub:
         for sub in (cats.get(real_cat) or {}):
@@ -2945,6 +3017,140 @@ async def websocket_draw_item_icon(hass, connection, msg):
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     return True
 
+def _storage_method(entry):
+    """[ADDED v2026.10.13] www or media - the options first, since it can be
+    changed after installation, and the setup answer otherwise. Setup and
+    uninstall both ask here, so the two cannot disagree (RULE 33d)."""
+    return entry.options.get(
+        CONF_STORAGE_METHOD,
+        entry.data.get(CONF_STORAGE_METHOD, STORAGE_METHOD_WWW))
+
+
+# [ADDED v2026.10.13] The Repairs entry for a network images folder that is
+# not connected. Its id is also its translation key in strings.json.
+IMAGES_ISSUE = "images_folder_unavailable"
+
+
+def _report_images_folder(hass, paths, ready):
+    """Say so in Repairs while the images folder is a network folder that
+    is not connected, and remove the entry once it is.
+
+    A NAS that is switched off is an ordinary event, and a log line nobody
+    reads is not how anyone finds out why the pictures are gone and why a new
+    photo was not kept.
+    """
+    if paths.get("images_mount") and not ready:
+        _LOGGER.error(
+            "Home Organizer: the network folder %s chosen for the images and "
+            "receipts is not connected. Their files cannot be shown or saved "
+            "until it is, and nothing is written to the Home Assistant disk "
+            "in its place. Reload Home Organizer once it is connected.",
+            paths["images_mount"])
+        ir.async_create_issue(
+            hass, DOMAIN, IMAGES_ISSUE, is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key=IMAGES_ISSUE,
+            translation_placeholders={"folder": paths["images_mount"]})
+    else:
+        ir.async_delete_issue(hass, DOMAIN, IMAGES_ISSUE)
+
+
+async def _async_follow_images_folder(hass, paths, fresh):
+    """Bring the images into a newly chosen folder.
+
+    app_settings records which folder HOLDS the images. When the option names
+    another one, every image is copied across - in the background, because
+    thousands of photos over a network share take a while and setup must not
+    wait for them - and the record moves only once the copy has finished. A
+    copy that cannot finish, because a network folder on either side is not
+    connected, records nothing, and the next start tries again.
+
+    Nothing is deleted: the old folder is left for the user to remove once
+    every picture shows, which the log says. A FRESH installation has nothing
+    of its own to bring, so it only records the folder - the same rule as its
+    recipes (storage.prepare_media_sync).
+    """
+    want = paths["images_location"]
+    try:
+        have = await async_get_setting(hass, storage.IMAGES_SETTING)
+        if have is None:
+            # Never recorded: the images are where they always were.
+            have = storage.IMAGES_LOCAL
+        if have == want:
+            return
+        if not fresh:
+            src_dir, src_mount = storage.files_folder(paths, have, "images")
+            try:
+                copied = await hass.async_add_executor_job(
+                    storage.copy_images_sync, src_dir, src_mount,
+                    paths["img_path"], paths["images_mount"])
+            except OSError as err:
+                _LOGGER.error(
+                    "Home Organizer: the images could not be copied to the "
+                    "newly chosen folder yet (%s). Nothing was deleted, and "
+                    "the next start tries again.", err)
+                return
+            if copied:
+                _LOGGER.info(
+                    "Home Organizer: copied %d images from %s to %s. The "
+                    "originals were left in place; once every picture "
+                    "shows, %s can be deleted to free the space.",
+                    copied, src_dir, paths["img_path"], src_dir)
+        await async_set_setting(hass, storage.IMAGES_SETTING, want)
+    except Exception:
+        _LOGGER.exception("Home Organizer: moving the images folder failed")
+
+
+async def _async_follow_receipts_folder(hass, paths, fresh):
+    """Move the receipts into a newly chosen folder - files and rows.
+
+    The images' rule exactly - in the background, recorded only once done,
+    nothing deleted, a FRESH installation only records - with one difference:
+    a receipt row stores the full path of its file, so the move copies each
+    file AND points its rows at the copy. database.async_move_receipt_files
+    does both, and re-points a row only onto a copy of the same size.
+    """
+    want = paths["images_location"]
+    try:
+        have = await async_get_setting(hass, storage.RECEIPTS_SETTING)
+        if have is None:
+            # Never recorded: the receipts are where they always were.
+            have = storage.IMAGES_LOCAL
+        if have == want:
+            return
+        if not fresh:
+            src_dir, src_mount = storage.files_folder(paths, have,
+                                                      "receipts")
+            try:
+                moved, left = await async_move_receipt_files(
+                    hass, src_dir, src_mount, paths["receipt_path"],
+                    paths["receipts_mount"])
+            except OSError as err:
+                _LOGGER.error(
+                    "Home Organizer: the receipts could not be moved to the "
+                    "newly chosen folder yet (%s). Nothing was deleted, and "
+                    "the next start tries again.", err)
+                return
+            if moved or left:
+                _LOGGER.info(
+                    "Home Organizer: %d receipt files copied to %s and their "
+                    "receipts pointed at the copies; %d stayed where they "
+                    "were (missing, or the name was taken by a different "
+                    "file). The originals in %s were kept; once every "
+                    "receipt opens, they can be deleted to free the space.",
+                    moved, paths["receipt_path"], left, src_dir)
+        await async_set_setting(hass, storage.RECEIPTS_SETTING, want)
+    except Exception:
+        _LOGGER.exception("Home Organizer: moving the receipts folder failed")
+
+
+async def _async_follow_network_folder(hass, paths, fresh):
+    """The images, then the receipts, into a newly chosen folder - one
+    after the other, not side by side over the same network share."""
+    await _async_follow_images_folder(hass, paths, fresh)
+    await _async_follow_receipts_folder(hass, paths, fresh)
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if entry.options.get(CONF_DEBUG): _LOGGER.setLevel(logging.DEBUG)
 
@@ -2964,34 +3170,113 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})
     
-    storage_method = entry.data.get(CONF_STORAGE_METHOD, STORAGE_METHOD_WWW)
-    db_path = hass.config.path(DB_FILE)
-    img_folder_path = hass.config.path("www", IMG_DIR)
-    img_url_prefix = f"/local/{IMG_DIR}"
+    # [MODIFIED v2026.10.13] Every data path from ONE place.
+    #
+    # Only the main database and the item images used to follow the user's
+    # storage choice. The recipe database always opened /config, receipts
+    # always went to /config/www (receipt_path was read by the writer and
+    # never set here), and the Stylist photo was hard-coded to /config/www.
+    # Choosing /media therefore started the items from nothing while the old
+    # recipes carried on from the other place. storage_paths decides all of
+    # it; www mode comes out path-for-path as it always was.
+    storage_method = _storage_method(entry)
+    media_available = (
+        storage_method == STORAGE_METHOD_MEDIA
+        and await hass.async_add_executor_job(os.path.exists,
+                                              storage.MEDIA_ROOT))
+    paths = storage.storage_paths(
+        hass.config.config_dir, storage_method, media_available,
+        entry.options.get(CONF_IMAGES_LOCATION, storage.IMAGES_LOCAL))
+    if paths["images_location_invalid"]:
+        _LOGGER.warning(
+            "Home Organizer: %r is not a folder name the images may use; "
+            "they stay on the Home Assistant disk.",
+            paths["images_location_invalid"])
+    if paths["fell_back"]:
+        _LOGGER.warning(
+            "Home Organizer: /media was chosen but does not exist - storing "
+            "everything under /config/www instead.")
 
-    if storage_method == STORAGE_METHOD_MEDIA:
-        media_root = "/media"
-        # [MODIFIED v2026.8.26] os.path.exists touches the filesystem and was
-        # running on the event loop inside this async function.
-        if await hass.async_add_executor_job(os.path.exists, media_root):
-             db_path = os.path.join(media_root, DB_FILE)
-             img_folder_path = os.path.join(media_root, IMG_DIR)
-             await hass.http.async_register_static_paths([
-                StaticPathConfig(
-                    url_path="/home_organizer_media",
-                    path=img_folder_path,
-                    cache_headers=False
-                )
-             ])
-             img_url_prefix = "/home_organizer_media"
-        else:
-            _LOGGER.warning("Home Organizer: /media folder not found. Fallback to /config/www.")
+    media = None
+    if paths["method"] == storage.METHOD_MEDIA:
+        # BEFORE either database is first opened - the order is the whole
+        # point, see storage.prepare_media_sync - and in the executor,
+        # because it copies files (RULE 13). A fresh installation copies
+        # nothing; an existing one gets, once, what older versions kept in
+        # /config on its behalf.
+        media = await hass.async_add_executor_job(
+            storage.prepare_media_sync, paths)
+        if media["state"] == storage.STATE_FAILED:
+            _LOGGER.error(
+                "Home Organizer: preparing /media did not finish (%s). "
+                "Nothing was moved or deleted, and the next start tries "
+                "again. Until then the recipes are read from %s.",
+                media["error"], media["recipes_db_path"])
+        elif media["recipes_db"] or media["photos"] or media["avatars"]:
+            # Logged at info, not debug: a user looking for where their
+            # recipes went needs to be able to see that they were copied and
+            # that the originals are still in place.
+            _LOGGER.info(
+                "Home Organizer: copied to /media - recipe database: %s, "
+                "dish photos: %d, Stylist photos: %d. The originals in "
+                "/config were left in place.",
+                "yes" if media["recipes_db"] else "no", media["photos"],
+                media["avatars"])
+    # [MODIFIED v2026.10.13] Routes for media's own folders, and for a
+    # network folder whichever method chose it. www's own folder needs none:
+    # Home Assistant serves it at /local.
+    if paths["method"] == storage.METHOD_MEDIA or paths["images_mount"]:
+        # [MODIFIED v2026.10.13] One route at a time. A folder on a network
+        # folder that is not connected cannot be served - aiohttp refuses a
+        # folder that does not exist - and that must not take any other
+        # route down with it. prepare_folders_sync makes the images and
+        # receipts folders first, and will not make one in place of a
+        # network folder that is not connected.
+        ready = await hass.async_add_executor_job(
+            storage.prepare_folders_sync, paths)
+        routes = []
+        if ready["images"]:
+            routes.append((paths["url_prefix"], paths["img_path"]))
+        if ready["receipts"]:
+            routes.append((paths["receipt_url_prefix"],
+                           paths["receipt_path"]))
+        if ready["local_receipts"]:
+            # Receipts still on the Home Assistant disk keep their address
+            # until _async_follow_receipts_folder has moved them.
+            routes.append((storage.MEDIA_RECEIPTS_URL,
+                           paths["local_receipt_path"]))
+        for url, folder in routes:
+            try:
+                await hass.http.async_register_static_paths([
+                    StaticPathConfig(url_path=url, path=folder,
+                                     cache_headers=False)])
+            except Exception as err:
+                # On a reload the route is already there and still serving.
+                # A failure here must not take setup down with it.
+                _LOGGER.debug("Media static path %s not re-registered: %s",
+                              url, err)
+        _report_images_folder(hass, paths,
+                              ready["images"] and ready["receipts"])
+    else:
+        _report_images_folder(hass, paths, True)
 
     hass.data[DOMAIN]["config"] = {
-        "db_path": db_path,
-        "img_path": img_folder_path,
-        "url_prefix": img_url_prefix,
-        "method": storage_method
+        "db_path": paths["db_path"],
+        # From the report when there is one: a copy that could not be made
+        # leaves the recipes where they were for this run, readable.
+        "recipes_db_path": (media["recipes_db_path"] if media
+                            else paths["recipes_db_path"]),
+        "img_path": paths["img_path"],
+        "receipt_path": paths["receipt_path"],
+        "url_prefix": paths["url_prefix"],
+        "receipt_url_prefix": paths["receipt_url_prefix"],
+        "served_roots": storage.served_roots(paths),
+        "method": paths["method"],
+        # [ADDED v2026.10.13] The network folder the images are on, or None.
+        # Every image writer hands it to storage.ready_dir_sync.
+        "images_mount": paths["images_mount"],
+        # [ADDED v2026.10.13] Likewise for the receipts, which go with them.
+        "receipts_mount": paths["receipts_mount"],
     }
 
     sidebar_translations = {
@@ -3016,11 +3301,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     #
     # Done here as well as on unload, because an unload that failed for any
     # reason must not leave the panel pinned to an old build.
+    #
+    # [FIXED v2026.10.11] warn_if_unknown=False. This is a "remove it IF it
+    # is there" call, and on every Home Assistant start it is not: the
+    # comment that used to sit in the except below said the first-run case
+    # RAISES and is quietly caught. It does not raise - async_remove_panel
+    # logs "Removing unknown panel organizer" as a WARNING and returns - so
+    # every restart, and every reload (unload has just removed it), wrote
+    # that warning to the user's log.
+    #
+    # THE KEYWORD IS VERSION-BOUND, checked against Home Assistant's own
+    # source rather than remembered: absent in 2024.6.0, whose signature is
+    # async_remove_panel(hass, frontend_url_path); present from 2024.7.0 -
+    # exactly this integration's declared minimum in hacs.json - through
+    # 2026.10.1. On anything older it would raise "unexpected keyword
+    # argument" and stop setup. st57 pins the minimum so it cannot be
+    # lowered past 2024.7.0 without this line being looked at (RULE 4).
     try:
-        frontend.async_remove_panel(hass, "organizer")
+        frontend.async_remove_panel(hass, "organizer", warn_if_unknown=False)
     except Exception as err:
-        # The normal first-run case: there is no panel to remove yet.
-        _LOGGER.debug("No existing panel to remove: %s", err)
+        # Not the first-run case - that returns quietly now. Only something
+        # genuinely unexpected lands here, and it must not stop setup: the
+        # registration below is what matters.
+        _LOGGER.warning("Removing the previous panel failed: %s", err)
 
     try:
         await panel_custom.async_register_panel(
@@ -3040,7 +3343,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                       "keep its previous build until Home Assistant "
                       "restarts: %s", e)
 
+    # [ADDED v2026.10.13] Whether this installation's database was there
+    # before this start - asked before async_init_db creates it. A FRESH one
+    # has no files of its own to move onto a network folder.
+    fresh = not await hass.async_add_executor_job(
+        os.path.exists, paths["db_path"])
     await async_init_db(hass)
+    # [ADDED v2026.10.13] Record that the one-time /media step has run. Here,
+    # after async_init_db, because app_settings has to exist to hold it -
+    # and only for a step that FINISHED: a failed one stays unrecorded so the
+    # next start tries again, and one already recorded is not rewritten.
+    if media and media["state"] in (storage.STATE_FRESH,
+                                    storage.STATE_UPGRADED):
+        await async_set_setting(hass, storage.UPGRADE_SETTING,
+                                storage.UPGRADE_VERSION)
+    # [ADDED v2026.10.13] After async_init_db, because app_settings holds
+    # which folder has the files, and in the background - see
+    # _async_follow_images_folder. For www and media alike: either may use a
+    # network folder now.
+    entry.async_create_background_task(
+        hass, _async_follow_network_folder(hass, paths, fresh),
+        "home_organizer network folder")
 
     async_register_startup_restore(hass)
     await recipes_db.async_init(hass)
@@ -3253,9 +3576,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
              # page. Deleting a chapter never deletes its recipes.
              "rename_category", "delete_category",
              # [ADDED v2026.9.17] Show a recipe in the panel's language.
-             "translate"]
+             "translate",
+             # [ADDED v2026.10.10] The version history. "versions" lists
+             # it, "restore_version" chooses which one is on screen, and
+             # "delete_version" removes one - never the last.
+             "versions", "restore_version", "delete_version"]
         ),
         vol.Optional("recipe_id"): vol.Any(str, None),
+        # [ADDED v2026.10.10] Which version to show or remove.
+        vol.Optional("version_no"): vol.Any(int, None),
+        vol.Optional("version_label"): vol.Any(str, None),
         vol.Optional("language"): vol.Any(str, None),
         vol.Optional("name"): vol.Any(str, None),
         vol.Optional("prep_time"): vol.Any(str, None),
@@ -3538,6 +3868,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 if rec:
                     rec = dict(rec)
                     rec["image_url"] = _recipe_image_url(hass, rec.get("image_path"))
+                    # [ADDED v2026.10.11] The newest version number, beside
+                    # active_version (which one is on screen). The save
+                    # button is numbered after the NEWEST: once an older
+                    # version has been chosen, those two differ.
+                    rec["latest_version"] = await recipes_db.async_latest_version(
+                        hass, rec.get("id"))
                 connection.send_result(msg["id"], {"recipe": rec})
                 return
 
@@ -3600,6 +3936,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     recipe_id=rec["id"],
                     prep_time=msg.get("prep_time"),
                     category=msg.get("category"),
+                    # [MODIFIED v2026.10.11] async_save takes the version
+                    # now; this only says what to call it.
+                    version_label=msg.get("version_label"),
                 )
                 # [ADDED v2026.9.17] An edit locks the recipe against
                 # automatic translation, and drops the cached translations -
@@ -3614,8 +3953,50 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         or msg.get("notes") is not None
                         or msg.get("prep_time") is not None):
                     await recipes_db.async_lock_translation(hass, rec["id"])
+                    # [MODIFIED v2026.10.11] The two version snapshots that
+                    # stood here moved INTO async_save. They lived in this
+                    # one caller, so an assistant edit approved through
+                    # recipe_edits - which calls async_save directly - saved
+                    # its change and made no version at all.
                 hass.bus.async_fire("home_organizer_db_update")
                 connection.send_result(msg["id"], {"recipe_id": rid, "result": result})
+                return
+
+            if action == "versions":
+                connection.send_result(msg["id"], {
+                    "versions": await recipes_db.async_list_versions(
+                        hass, msg.get("recipe_id")),
+                })
+                return
+
+            if action == "restore_version":
+                # Choosing which version is on screen. Nothing is deleted
+                # and no new version is written - this is not an edit.
+                ok = await recipes_db.async_restore_version(
+                    hass, msg.get("recipe_id"), msg.get("version_no"))
+                if ok:
+                    hass.bus.async_fire("home_organizer_db_update")
+                connection.send_result(msg["id"], {"ok": bool(ok)})
+                return
+
+            if action == "delete_version":
+                # The outcome is returned AND logged, because a refusal has
+                # to be distinguishable from a delete that did nothing
+                # (RULE 10).
+                res = await recipes_db.async_delete_version(
+                    hass, msg.get("recipe_id"), msg.get("version_no"))
+                if res.get("ok"):
+                    _LOGGER.info(
+                        "recipe %s: version %s deleted, now showing %s",
+                        msg.get("recipe_id"), msg.get("version_no"),
+                        res.get("active"))
+                    hass.bus.async_fire("home_organizer_db_update")
+                else:
+                    _LOGGER.warning(
+                        "recipe %s: version %s NOT deleted (%s). Nothing "
+                        "was changed.", msg.get("recipe_id"),
+                        msg.get("version_no"), res.get("reason"))
+                connection.send_result(msg["id"], res)
                 return
 
             if action == "check_stock":
@@ -3913,15 +4294,22 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     if entry.options.get(CONF_DELETE_ON_REMOVE, False):
         _LOGGER.info("Home Organizer: Deleting all data as requested.")
         try:
-            storage_method = entry.data.get(CONF_STORAGE_METHOD, STORAGE_METHOD_WWW)
-            db_path = hass.config.path(DB_FILE)
-            img_path = hass.config.path("www", IMG_DIR)
-            
-            if storage_method == STORAGE_METHOD_MEDIA:
-                # [MODIFIED v2026.8.26] Executor-wrapped, as above.
-                if await hass.async_add_executor_job(os.path.exists, "/media"):
-                    db_path = os.path.join("/media", DB_FILE)
-                    img_path = os.path.join("/media", IMG_DIR)
+            # [MODIFIED v2026.10.13] The same paths setup uses, from the
+            # same function - they were computed twice and could disagree
+            # (RULE 33d). WHAT is deleted is unchanged: the main database and
+            # the images folder, exactly as before. The recipe database and
+            # the receipts are not added here without the user's say-so
+            # (RULE 33).
+            storage_method = _storage_method(entry)
+            media_available = (
+                storage_method == STORAGE_METHOD_MEDIA
+                and await hass.async_add_executor_job(os.path.exists,
+                                                      storage.MEDIA_ROOT))
+            paths = storage.storage_paths(
+                hass.config.config_dir, storage_method, media_available,
+                entry.options.get(CONF_IMAGES_LOCATION, storage.IMAGES_LOCAL))
+            db_path = paths["db_path"]
+            img_path = paths["img_path"]
 
             # [MODIFIED v10.0.0] os.remove / shutil.rmtree are blocking disk
             # operations and were running directly on the event loop inside

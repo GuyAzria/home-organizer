@@ -96,13 +96,15 @@
     "step": {
       "init": {
         "title": "Home Organizer Settings",
-        "description": "Change how Home Organizer processes AI requests.",
+        "description": "Where Home Organizer keeps its data, and how it processes AI requests.",
         "data": {
+          "storage_method": "Storage location",
           "processing_mode": "AI Processing Mode",
           "ai_provider": "Cloud AI Provider",
           "use_stylist": "Enable Virtual Try-On Stylist"
         },
         "data_description": {
+          "storage_method": "www keeps the data in Home Assistant's config folder, media in its media folder - both on the Home Assistant disk. Changing it moves nothing: the other location starts empty, or carries on with the Home Organizer data already there, and changing back returns to the data left behind. Either way, the next page offers a network folder for the images and receipts.",
           "processing_mode": "Hybrid uses your local AI for text and a cloud model for images.",
           "ai_provider": "Only used in Cloud or Hybrid mode."
         }
@@ -170,7 +172,20 @@
           "allow_scripts": "Off by default. A script can perform any action you wrote into it, including operating a lock, so enable this only if you want the assistant to start your scripts. Locks, covers and alarm panels are never controlled by the assistant directly; those requests are handled by Home Assistant's own voice assistant.",
           "delete_on_remove": "Caution: this permanently wipes the database and all stored images."
         }
+      },
+      "storage": {
+        "title": "Images and receipts folder",
+        "description": "Where item photos, dish photos, the Stylist pictures and scanned receipts (images and PDF) are kept. On a network folder they go into a folder named home_organizer, with images and receipts inside. The databases always stay on the Home Assistant disk.",
+        "data": {
+          "images_location": "Folder for images and receipts"
+        },
+        "data_description": {
+          "images_location": "The Home Assistant disk, or a network storage folder added in Home Assistant under Settings > System > Storage. Only folders that are connected right now are listed. Existing images and receipts are copied to a newly chosen folder in the background, and the old copies are kept until you delete them. While a network folder is not connected, images and receipts cannot be shown or saved."
+        }
       }
+    },
+    "error": {
+      "invalid_images_location": "That folder is not one of the connected network storage folders."
     }
   },
   "services": {
@@ -293,6 +308,19 @@
     "update_stock": {
       "name": "Update stock",
       "description": "Mark an item as in stock or out of stock."
+    }
+  },
+  "selector": {
+    "images_location": {
+      "options": {
+        "home_organizer_local": "Home Assistant disk (default)"
+      }
+    }
+  },
+  "issues": {
+    "images_folder_unavailable": {
+      "title": "The Home Organizer folder for images and receipts is not connected",
+      "description": "The network folder {folder}, chosen for Home Organizer's images and receipts, is not connected. Their files cannot be shown or saved until it is, and nothing is written to the Home Assistant disk in its place. Once the folder is connected again, reload Home Organizer or restart Home Assistant."
     }
   }
 }

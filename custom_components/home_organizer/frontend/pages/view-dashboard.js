@@ -11,19 +11,72 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
-// [MODIFIED v2026.9.27 | 2026-09-27] Purpose: The dashboard draws from the last
-//   answer it stored, so entering the panel no longer waits on fifteen queries
-//   before showing anything. The copy is dropped whenever the database says it
-//   changed, and one quiet request per visit confirms it in case the change
-//   happened while the panel was closed.
-// [MODIFIED v2026.9.22 | 2026-09-22] Purpose: The sections are grid AREAS
-//   rather than a stack, and the year total is built as a hero figure -
-//   two elements, so the currency code sits small beside a large number.
-//   renderDashboardView names each section so the stylesheet can place it,
-//   and gives the attention band the whole row when nothing went up in
-//   price, because an empty half reads as a card that failed to load.
+// [MODIFIED v2026.10.9 | 2026-10-09] Purpose: the year is ONE wave, not
+//   twelve bars.
+//
+//   This is the change the file header warned about - "THE CHART IS DIVS,
+//   NOT AN SVG ... nothing is positioned by coordinate, so it resizes
+//   without arithmetic". A smooth curve through twelve points IS
+//   coordinates. Asked for twice, with a reference image the second time.
+//
+//   IT STILL RESIZES WITHOUT ARITHMETIC. The viewBox is 0..100 in both
+//   axes and preserveAspectRatio is none, so the browser stretches it and
+//   nothing is measured or recomputed - no resize handler, no observer.
+//   vector-effect exempts the stroke, which would otherwise come out thick
+//   on a wide screen and a hairline on a narrow one.
+//
+//   MONOTONE CUBIC, AND FLAT AT EVERY TURNING POINT. A spline through
+//   data is a claim about the values BETWEEN the points, and a careless
+//   one overshoots: measured on the real year, 0, 355, 96, 0, 0, 0, 0,
+//   1688, 1857, 642, 0, 0, the September peak was drawn 1.58% above the
+//   top of the chart and a 0, 900, 0 run dipped 0.28% BELOW the baseline -
+//   money that was never spent. Fritsch-Carlson limits each tangent, and
+//   zeroing it at every change of direction is the half that the limiter
+//   cannot do on its own. st51 samples the curve and measures this.
+//
+//   Every month keeps its hit area, its printed value and its label: the
+//   columns are still there, they have simply stopped drawing a bar. That
+//   is what keeps tap-to-reveal working where there is no hover (RULE 36).
+//   The marker is an HTML element and not an SVG circle, because the
+//   stretch would make a circle an ellipse whose shape changed with the
+//   window - and it is placed from the SAME two numbers the curve is drawn
+//   from, so it sits ON the line rather than near it.
+//
+//   The SVG is assembled with createElementNS. Nothing in it is user text,
+//   and a markup string is how that stops being true (RULE 15).
+// [ADDED v2026.10.8 | 2026-10-08] Purpose: a breakdown row opens the items
+//   behind it.
+//
+//   "Where the money went" named a category and stopped there. The row is
+//   now a button, and openCategoryItems fills localData.items with
+//   everything filed under that category so renderSearchView draws it -
+//   which means the rows are the real createItemRow and a tap opens the
+//   real item editor, not a copy of either (RULE 33a.6, RULE 33d).
+//
+//   NO NEW MODE FLAG. isFooMode has shipped broken three times here
+//   (RULE 33a.1) and isSearch alone is set or cleared in eighteen places.
+//   The marker is localData.category_view, and localData is replaced
+//   wholesale by fetchData on every navigation, so it cannot outlive the
+//   screen and there is nothing to remember to clear.
+//
+//   THE CATEGORY IS MATCHED AS STORED, never as the translated label. The
+//   chart groups purchase_history.category and an item carries
+//   items.category; they are the same string. Matching the label would
+//   empty the screen the moment a category is renamed (RULE 20).
+//
+//   Only a row with something behind it is a button: the remainder is an
+//   arithmetic residue, the no-receipt row is not a category, and a service
+//   bucket is a different vocabulary entirely (see topicName).
+//
+//   FIXED IN THE SAME RELEASE: the first cut replaced localData with four
+//   keys. localData is not just a list of items - `categories` is what the
+//   category dropdown reads through its getter, `hierarchy` is what the room
+//   and location pickers read - so the editor opened from this screen had an
+//   empty dropdown and empty pickers. It now keeps what it was given and
+//   replaces only the view, spread rather than copied key by key, because a
+//   list of keys is what goes stale when the payload grows a field.
 
-import { ICONS } from '../organizer-icon.js?v=10.11.112';
+import { ICONS } from '../organizer-icon.js?v=10.11.120';
 
 // THE CHART'S TWO COLOURS, AS TOKENS RATHER THAN HEX.
 //
@@ -326,6 +379,12 @@ export const DashboardMixin = (Base) => class extends Base {
     });
     const plot = document.createElement('div');
     plot.className = 'dash-plot';
+    // [ADDED v2026.10.9] One layer for the markers, given the gridlines'
+    // inset so a dot's `bottom` percentage means the same thing as the
+    // curve's y. Appended to it inside the loop, so a month can place its
+    // own dot while it builds its own column.
+    const dots = document.createElement('div');
+    dots.className = 'dash-dots';
     cells.forEach(c => {
       const name = this.monthName(c.m);
       const col = document.createElement('div');
@@ -345,13 +404,27 @@ export const DashboardMixin = (Base) => class extends Base {
       // A month with nothing in it gets no bar at all, not a stub. The
       // minimum height exists so a small month still shows; a month with
       // no receipts is not small, it is absent.
-      if (c.v > 0) {
-        const bar = document.createElement('div');
-        bar.className = 'dash-col-bar';
-        bar.style.height = Math.max(2, Math.round(c.v / peak * 100)) + '%';
-        bar.style.background = c.now ? C_NOW : C_BAR;
-        track.appendChild(bar);
+      // [MODIFIED v2026.10.9] No bar. The whole year is one curve now,
+      // drawn once across the plot by buildWave; the column survives as
+      // the hit area, the printed value and the month label, which is
+      // what keeps tap-to-reveal working where there is no hover.
+      track.classList.add('is-wave');
+      // [ADDED v2026.10.9] The marker, for the months worth finding - the
+      // current one and whichever is being read. Positioned from the SAME
+      // two numbers the curve is drawn from, so it sits ON the line and
+      // not near it: x is the column centre, y is the share of the peak.
+      //
+      // A month with nothing in it gets no dot. A dot on the baseline
+      // would read as a reading taken, and zero spending is the absence
+      // of one.
+      if (c.v > 0 && (c.now || c.v === peak)) {
+        const dot = document.createElement('span');
+        dot.className = 'dash-dot' + (c.now ? ' now' : '');
+        dot.style.insetInlineStart = ((c.m + 0.5) * (100 / 12)) + '%';
+        dot.style.bottom = ((c.v / peak) * 100) + '%';
+        dots.appendChild(dot);
       }
+
       // Two labels, one hidden by width. Twelve month names do not fit
       // across a phone in any language, and a number does.
       const lab = document.createElement('span');
@@ -366,6 +439,12 @@ export const DashboardMixin = (Base) => class extends Base {
       col.appendChild(val); col.appendChild(track); col.appendChild(lab);
       plot.appendChild(col);
     });
+    // [ADDED v2026.10.9] The curve itself, behind the columns and over
+    // the gridlines. Inserted first so the invisible column hit areas stay
+    // on top of it and a tap still finds the month and not the path.
+    plot.insertBefore(this.buildWave(cells, peak), plot.firstChild);
+    plot.appendChild(dots);
+
     // Plot first, axis second, and the chart forces direction: ltr - so the
     // numbers sit on the RIGHT in both languages. Everything else on this
     // screen follows the reading direction; a scale does not, because it is
@@ -557,8 +636,23 @@ export const DashboardMixin = (Base) => class extends Base {
     main.forEach(r => {
       const isDiff = r.kind === 'diff';
       const isTail = TAIL.indexOf(r.kind) !== -1;
-      const row = document.createElement('div');
-      row.className = 'dash-topic' + (isTail ? ' ' + r.kind : '');
+      // [MODIFIED v2026.10.8] A category row is a way in, like the tiles.
+      //
+      // A button only for the rows that HAVE something behind them: the
+      // remainder is an arithmetic residue and the no-receipt row is not a
+      // category, so neither opens anything and neither pretends it can.
+      // A service bucket is not an item category either - it is the kind
+      // of a whole receipt, a different vocabulary (see topicName) - so it
+      // stays a plain row too.
+      const canOpen = !isTail && r.kind !== 'service' && !!r.cat;
+      const row = document.createElement(canOpen ? 'button' : 'div');
+      if (canOpen) {
+        row.type = 'button';
+        row.title = this._t('dash_topic_open', 'Show the items');
+        row.onclick = () => this.openCategoryItems(r.cat);
+      }
+      row.className = 'dash-topic' + (isTail ? ' ' + r.kind : '')
+        + (canOpen ? ' dash-topic-link' : '');
       const nm = document.createElement('span');
       nm.className = 'dash-topic-name';
       nm.textContent = this.topicName(r);
@@ -593,6 +687,241 @@ export const DashboardMixin = (Base) => class extends Base {
       list.appendChild(row);
     });
     return list;
+  }
+
+  // [ADDED v2026.10.8] Open everything filed under one category.
+  //
+  // The items come from allDbItems, which the panel already holds and
+  // already refreshes on home_organizer_db_update - so this costs no new
+  // websocket command, no new query and no seventh row builder.
+  //
+  // THE CATEGORY IS MATCHED AS IT IS STORED. The chart groups
+  // purchase_history.category, and an item carries items.category; they are
+  // the same string, so the match is a plain case-insensitive compare and
+  // never the translated label. Translating first and matching on that
+  // would break the moment the user renames a category, which is the whole
+  // family of defects this release is about (RULE 20).
+  openCategoryItems(rawCategory, sub) {
+    const cat = String(rawCategory || '').trim();
+    if (!cat) return;
+    const fold = (x) => String(x || '').trim().toLowerCase();
+    const mine = (this.allDbItems || []).filter(
+      (it) => fold(it.category) === fold(cat));
+
+    // Every sub-category actually present, with its count, in the order
+    // they are met. An item with none is collected under its own chip
+    // rather than dropped: "no sub-category" is where the awkward ones are,
+    // and a filter that cannot reach them hides exactly the rows the user
+    // is looking for.
+    const subs = [];
+    const seen = {};
+    mine.forEach((it) => {
+      const k = String(it.sub_category || '').trim();
+      const key = k.toLowerCase();
+      if (!(key in seen)) { seen[key] = { name: k, n: 0 }; subs.push(seen[key]); }
+      seen[key].n += 1;
+    });
+
+    const want = (sub === undefined || sub === null) ? null : String(sub);
+    const items = (want === null) ? mine
+      : mine.filter((it) => fold(it.sub_category) === fold(want));
+
+    // One mode, and it is an existing one. See the header of this patch:
+    // a flag of its own would have to be cleared in eighteen places.
+    this.openBoxId = null;
+    this.isDashboardMode = false;
+    this.isShopMode = false;
+    this.isChatMode = false;
+    this.isReviewMode = false;
+    this.isReceiptsMode = false;
+    this.isStylistMode = false;
+    this.isBarcodeMode = false;
+    this.isRecipesMode = false;
+    this.isEditMode = false;
+    this.isSearch = true;
+
+    // Nothing is expanded on the way in: the list is the point, and an
+    // editor already open on arrival hides the rows under it.
+    this.expandedIdx = null;
+
+    // [FIXED v2026.10.8] KEEP what localData already carries.
+    //
+    // It is not just a list of items: `categories` is what the category
+    // dropdown reads through the getter, `hierarchy` is what the room and
+    // location pickers read, `category_counts` is what the categories
+    // screen reads. Building a fresh object with four keys emptied every
+    // one of them, and the editor opened from this screen had a dropdown
+    // with nothing in it.
+    //
+    // Spread rather than a list of keys to copy: a list is what goes stale
+    // the next time the payload grows a field, which is RULE 33a.6 wearing
+    // a different coat. `folders` is cleared on purpose - this screen has
+    // none, and a stale set from the last shelf is not better than none.
+    const prev = this.localData || {};
+    this.localData = {
+      ...prev,
+      path_display: this.topicName({ cat: cat, kind: 'item' }),
+      category_view: { category: cat, sub: want, subs: subs,
+                       total: mine.length },
+      items: items,
+      folders: [],
+      depth: 0,
+    };
+    this.updateUI();
+  }
+
+  // A chip was pressed. Re-filtering goes back through openCategoryItems so
+  // the counts, the title and the list are built once, in one place.
+  setCategorySubFilter(sub) {
+    const view = this.localData && this.localData.category_view;
+    if (!view) return;
+    this.openCategoryItems(view.category, sub);
+  }
+
+  // [ADDED v2026.10.9] Tangents that cannot overshoot (Fritsch-Carlson).
+  //
+  // A plain Catmull-Rom spline through these points dips below the line
+  // joining them whenever a tall month sits beside a short one - and this
+  // user's year is 0, 355, 96, 0, 0, 0, 0, 1688, 1857, 642, 0, 0. Below
+  // the baseline means money that was never spent. This limits each
+  // tangent to the interval its two endpoints define, so the curve stays
+  // inside the data: a month with nothing in it reads as nothing.
+  //
+  // Returns one slope per point, in the same order.
+  waveSlopes(ys) {
+    const n = ys.length;
+    if (n < 2) return [0];
+    const d = [];
+    for (let i = 0; i < n - 1; i++) d.push(ys[i + 1] - ys[i]);
+    const m = [d[0]];
+    for (let i = 1; i < n - 1; i++) m.push((d[i - 1] + d[i]) / 2);
+    m.push(d[n - 2]);
+    // [FIXED v2026.10.9] Flat at every turning point.
+    //
+    // The averaged tangent is wrong wherever the data changes direction:
+    // at a peak it still leans uphill, and the curve sails ABOVE the
+    // highest month before coming down. Measured on the real year -
+    // ...1688, 1857, 642... - the September peak overshot the top of the
+    // chart by 1.58% of its height, and a run of 0, 900, 0, 900 dipped
+    // 0.28% BELOW the baseline, which is money that was never spent.
+    //
+    // The limiter underneath cannot fix this on its own: it only scales a
+    // tangent that is already pointing the right way. A turning point has
+    // to be told it is one.
+    for (let i = 1; i < n - 1; i++) {
+      if (d[i - 1] * d[i] <= 0) m[i] = 0;
+    }
+    for (let i = 0; i < n - 1; i++) {
+      if (d[i] === 0) { m[i] = 0; m[i + 1] = 0; continue; }
+      const a = m[i] / d[i];
+      const b = m[i + 1] / d[i];
+      const h = a * a + b * b;
+      if (h > 9) {
+        const t = 3 / Math.sqrt(h);
+        m[i] = t * a * d[i];
+        m[i + 1] = t * b * d[i];
+      }
+    }
+    return m;
+  }
+
+  // The curve, as an SVG path in a 0..100 box.
+  //
+  // The box is unitless and preserveAspectRatio is none, so the browser
+  // stretches it to whatever the plot is: no resize handler, no measuring,
+  // and the chart still "resizes without arithmetic" the way the column
+  // version did. y is inverted because SVG counts downward.
+  //
+  // The curve runs edge to edge rather than centre to centre - it is
+  // flat-extended past the first and last month - so the fill reaches the
+  // sides of the plot instead of leaving two wedges of background.
+  buildWavePath(cells, peak) {
+    const n = cells.length;
+    const xs = [];
+    const ys = [];
+    for (let i = 0; i < n; i++) {
+      xs.push((i + 0.5) * (100 / n));
+      ys.push(100 - (Math.max(0, cells[i].v) / peak) * 100);
+    }
+    const m = this.waveSlopes(ys);
+    // dx is the same for every segment here, so the Hermite-to-Bezier
+    // conversion is a third of it either side.
+    const dx = 100 / n;
+    const k = dx / 3;
+    let dPath = 'M 0,' + ys[0].toFixed(3) + ' L ' + xs[0].toFixed(3)
+      + ',' + ys[0].toFixed(3);
+    for (let i = 0; i < n - 1; i++) {
+      dPath += ' C ' + (xs[i] + k).toFixed(3) + ','
+        + (ys[i] + m[i] / 3).toFixed(3) + ' '
+        + (xs[i + 1] - k).toFixed(3) + ','
+        + (ys[i + 1] - m[i + 1] / 3).toFixed(3) + ' '
+        + xs[i + 1].toFixed(3) + ',' + ys[i + 1].toFixed(3);
+    }
+    dPath += ' L 100,' + ys[n - 1].toFixed(3);
+    return dPath;
+  }
+
+  // The two paths and the gradient, built with createElementNS rather than
+  // an innerHTML string: nothing here is user text, and a markup string is
+  // how one stops being true (RULE 15).
+  buildWave(cells, peak) {
+    const NS = 'http://www.w3.org/2000/svg';
+    // [FIXED v2026.10.9] A div takes the inset and the svg fills it.
+    //
+    // The inset used to be on the svg, which is a REPLACED element: there
+    // `width: auto` means the intrinsic size and not the box the insets
+    // describe, so the browser sized it from its own fallback rules and
+    // the curve was drawn down the whole page. A div sizes from insets,
+    // which is why the dots beside it were always in the right place.
+    const holder = document.createElement('div');
+    holder.className = 'dash-wave';
+
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 100 100');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+
+    // The id is scoped to this shadow root, and the whole chart is rebuilt
+    // from scratch on every render, so there is never a second one.
+    const defs = document.createElementNS(NS, 'defs');
+    const grad = document.createElementNS(NS, 'linearGradient');
+    grad.setAttribute('id', 'dash-wave-fill');
+    // Vertical, and in objectBoundingBox units, so it spans the whole plot
+    // whatever the curve does - the strong end is at the TOP of the chart
+    // and not at the top of each hump.
+    grad.setAttribute('x1', '0'); grad.setAttribute('y1', '0');
+    grad.setAttribute('x2', '0'); grad.setAttribute('y2', '1');
+    [['0%', 'dash-wave-stop-hi'], ['55%', 'dash-wave-stop-mid'],
+     ['100%', 'dash-wave-stop-lo']].forEach(pair => {
+      const st = document.createElementNS(NS, 'stop');
+      st.setAttribute('offset', pair[0]);
+      // Classed, not coloured here: the stops are theme tokens and the
+      // stylesheet is where their contrast was measured.
+      st.setAttribute('class', pair[1]);
+      grad.appendChild(st);
+    });
+    defs.appendChild(grad);
+    svg.appendChild(defs);
+
+    const line = this.buildWavePath(cells, peak);
+
+    const area = document.createElementNS(NS, 'path');
+    area.setAttribute('class', 'dash-wave-area');
+    area.setAttribute('d', line + ' L 100,100 L 0,100 Z');
+    area.setAttribute('fill', 'url(#dash-wave-fill)');
+    svg.appendChild(area);
+
+    const stroke = document.createElementNS(NS, 'path');
+    stroke.setAttribute('class', 'dash-wave-line');
+    stroke.setAttribute('d', line);
+    stroke.setAttribute('fill', 'none');
+    // Without this the stroke is stretched with the box and comes out
+    // thick on a wide screen and hairline on a narrow one.
+    stroke.setAttribute('vector-effect', 'non-scaling-stroke');
+    svg.appendChild(stroke);
+    holder.appendChild(svg);
+    return holder;
   }
 
   // ---- 2. the tiles ------------------------------------------------------

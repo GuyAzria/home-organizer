@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/GuyAzria/home-organizer/releases"><img src="https://img.shields.io/github/v/release/GuyAzria/home-organizer?style=flat-square" alt="Release"></a>
   <a href="https://github.com/GuyAzria/home-organizer/blob/main/LICENSE"><img src="https://img.shields.io/github/license/GuyAzria/home-organizer?style=flat-square&cacheSeconds=3600" alt="License"></a>
-  <a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Custom-orange.svg?style=flat-square" alt="HACS"></a>
+  <a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Default-blue.svg?style=flat-square" alt="HACS Default"></a>
 </p>
 <p align="center">
   <img src="https://img.shields.io/badge/Cloud_AI-Google_Gemini-blue.svg?style=flat-square" alt="Google Gemini">
@@ -82,7 +82,8 @@ Navigate to **Settings** > **Devices & Services**. Click the **+ Add Integration
 ### Step 5: Choose Your Architecture & Storage
 The setup wizard will guide you through the initial configuration:
 * **Processing Mode & AI Provider:** Choose how you want the AI to process your data—Local Only (for maximum privacy), Cloud Only, or a Hybrid approach.
-* **Storage Method:** Choose where to store your database. **Highly Recommended:** Select `media` if your main Home Assistant drive is low on storage space. Because all item photos and scanned receipts are saved directly into the SQLite DB, the file size can grow significantly over time.
+* **Storage Method:** Where Home Organizer keeps its data - `www` uses Home Assistant's `/config` folder, `media` uses its `/media` folder. **Both are on the Home Assistant disk.** The databases hold text only; item photos, dish photos and scanned receipts are image files kept beside them. The choice can be changed later, on the first page of *Settings → Devices & services → Home Organizer → Configure*. Changing it moves nothing: the other location starts empty, or carries on with the Home Organizer data already there, and changing back returns to the data you left. With `media`, make sure **Media** is included in your Home Assistant backups (*Settings → System → Backups*) — `www` is inside `/config`, which every backup includes, but `media` is a folder of its own.
+  * **Images and receipts on network storage (`www` or `media`):** if the Home Assistant disk is short of space, the files - item photos, dish photos and scanned receipts (images and PDF), the part that grows with thousands of items - can live on a NAS, in one folder of their own there: `home_organizer`, with `images` and `receipts` inside. Add the share in Home Assistant under *Settings → System → Storage → Add network storage* (usage: Media), then open *Settings → Devices & services → Home Organizer → Configure*: the second page, **Images and receipts folder**, lists the network folders that are connected. Existing images and receipts are copied there in the background, and the old copies are kept until you delete them. The databases always stay on the Home Assistant disk, because a database on a network share can be corrupted by the share's file locking. While the NAS is off, pictures and receipts are not shown and new files are not saved - nothing is written to the Home Assistant disk in their place - and Home Assistant says so under *Settings → Repairs*.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst6.png" width="60%" alt="Processing Mode and Storage Selection">
@@ -112,7 +113,9 @@ Configure the voice keywords that will trigger specific AI actions.
 ### Step 8: Welcome to Home Organizer!
 Once the setup is complete, a new **HO-AI** icon will appear in your Home Assistant sidebar. 
 
-**You do not start from nothing.** A brand new install arrives with a starter layout already in place — *Floor A ➔ Kitchen ➔ Fridge*, with its shelves, the door and the freezer — and with two recipes in every chapter of the cookbook. Rename them, delete them, or build around them. They are written once, on a genuinely new database, and never again, so nothing is ever re-created after you have tidied up.
+**You do not start from nothing.** The cookbook arrives with two recipes in every chapter, ready to read, cook from or delete. They are written once, on a genuinely new database, and never again, so nothing is re-created after you have tidied up.
+
+**Your rooms, though, are yours.** Earlier versions put a worked example in — *Floor A ➔ Kitchen ➔ Fridge* — which meant everybody began by deleting somebody else's kitchen. Instead, a new install now offers to build **your** house: a card reading **"Set up your home in 2 minutes"** opens the wizard described in [section 2](#2-setting-up-your-home). Take it or dismiss it — either way nothing is created until you ask for it.
 
 **No Hidden Menus:** There are no complicated settings screens or hidden menus to learn! The entire interface is designed to be completely intuitive. Simply click the **Pencil icon (✏️)** in the top right corner to enter Edit Mode, and all your management options (adding, renaming, deleting, and changing icons) will instantly appear exactly where you need them. 
 
@@ -123,7 +126,10 @@ Once the setup is complete, a new **HO-AI** icon will appear in your Home Assist
 <p align="center"><i>Click the new HO-AI sidebar icon. Click the <b>Pencil icon (✏️)</b> in the top right corner to start shaping your rooms and adding items.</i></p>
 
  ### 2. Setting up Zones and Rooms
-To start building your home layout, click the **Pencil Icon (✏️)** in the top right corner of the navigation bar to enter **Edit Mode**.
+
+**The fast route is the wizard.** Press **Set up my home** on the card you are shown on first launch, or open it later from the **gear menu (⚙️) ▸ Locations wizard** — the magic wand. It asks what rooms you have, what stands in them and what is inside the fridge, and creates the lot in one go. Full walkthrough in [section 2 of the user manual](#2-setting-up-your-home).
+
+**Or lay it out by hand**, which is what the rest of this section shows, and what you will use later to add one room to a house that already exists. Click the **Pencil Icon (✏️)** in the top right corner of the navigation bar to enter **Edit Mode**.
 
 **Creating a Zone:**
 Click the **Add Zone** button at the bottom of the screen to create a broad area. Then, click the small pencil icon next to the zone's title to rename it (for example, "FIRST FLOOR").
@@ -215,25 +221,44 @@ If you are using Apple AirPods with this app on an Android device, please note t
 Choose how your AI runs: **Local Only** (for ultimate privacy), **Cloud**, or a **Hybrid API** mode that utilizes the cloud but gracefully falls back to local processing if your connection drops.
 
 **Privacy & External Services:**
-While the core inventory database (SQLite) is 100% local and private, please note that the **Barcode Scanner** feature requires an active internet connection to identify scanned retail products. To fetch product names and details, the integration queries the following external public servers:
-* **OpenFoodFacts** (`world.openfoodfacts.org`)
-* **UPCItemDB** (`api.upcitemdb.com`)
-* **DuckDuckGo** (`html.duckduckgo.com` - used strictly as a fallback search if the product is not found in the main databases).
+Your inventory database (SQLite) is 100% local and private. The one feature that reaches outside your house is the **Barcode Scanner**: a barcode is only a number, and turning it into *"Heinz tomato ketchup 500g"* means asking somebody who keeps that list. These are the servers it may ask, and **you decide which of them, and in what order**:
+
+| Source | Server | What it knows |
+|---|---|---|
+| **Open Food Facts** | `world.openfoodfacts.org` | Food, drink, toiletries, cleaning products and pet food — an open, community-run catalogue. |
+| **UPCitemdb** | `api.upcitemdb.com` | General retail. Keyless, and the free endpoint allows about 100 lookups a day — when that runs out you are told so, rather than being shown "unknown product". |
+| **Open Library** | `openlibrary.org` | Books. Only ever asked for a barcode starting `978` or `979`, because that is what an ISBN looks like — a tin of beans is never sent there. |
+| **Web search** | `html.duckduckgo.com` | A last-resort text search. |
+| **Your own AI** | whatever you configured | The same provider you already set up for receipts and chat — Gemini, OpenAI, Claude, Ollama or LM Studio. Nothing new leaves your network that was not already going there, and on a local model nothing leaves at all. |
+
+Open the **spanner** on the Barcode page to see the list. Each row has a number: **type a different number into it and the two rows swap places**, so you can put the one you trust first. **Untick anything you would rather was never contacted** — and if you untick all five, no barcode lookup leaves your house at all; you can still type the product name in yourself. The first source that answers is the one used, so the order is also what makes a scan fast.
+
 ---
 
 ## ✨ Core Features
 
+### 🪄 Set up your home in two minutes
+* **The wizard builds the house for you** — Rooms, the cupboards and wardrobes in them, and the shelves inside the fridge. Answer a handful of questions and the whole structure is created in one go, instead of fifty folders made one at a time, each with its own rename and icon.
+* **It knows what rooms contain** — 24 kinds of room, from Kitchen and Nursery to Workshop, Attic and Garden. Pick one and you are offered the storage that room actually has: a kitchen suggests cabinets, a fridge, a pantry shelf and a spice rack; a bedroom suggests a wardrobe, nightstands and a place under the bed. The common ones are already ticked — untick what you do not have.
+* **Two bathrooms stay two bathrooms** — The floor becomes part of the room's name, so *Floor 1 Bathroom* and *Floor 2 Bathroom* never get confused with each other.
+* **Nothing is written until you say so** — The last screen shows you exactly what will be created, with anything that already exists marked so and left alone. **The wizard only ever adds.** It never deletes a room, a cupboard or an item, so running it again later to add the garage is safe.
+* **Run it again whenever you like** — It is in the **gear menu (⚙️)** under the magic-wand icon, and it remembers every tick. Put the kitchen on the wrong floor and you can correct that one answer instead of starting over.
+
 ### 🏠 Your Home Screen
-* **Spending, a year at a time** — Twelve columns, one per month, with the month you are in drawn in its own colour so you can see whether this one is unusual. Pick a different year from a dropdown that only ever offers years you actually have receipts in.
+* **Spending, a year at a time** — The twelve months drawn as one smooth wave, with the month you are in marked in its own colour so you can see whether this one is unusual. The curve never invents money: between two months it never rises above the higher one or dips below zero, so the shape is honest. Pick a different year from a dropdown that only ever offers years you actually have receipts in.
 * **Where the money went** — A breakdown summed from the individual **product lines** on your receipts, not from the receipts themselves. One supermarket trip is food *and* a toy *and* sunscreen, and filing the whole receipt under "Groceries" would be a comfortable lie. A receipt with no products at all — fuel, a hotel, a restaurant — is filed under its own heading instead.
 * **Needs attention** — The things that are wrong *right now*: items expiring, scans waiting for approval, things out of stock. Rows showing zero are never drawn, so the strip is always worth reading.
 * **Nothing goes missing quietly** — If money is not in the total because a scan is unconfirmed or a receipt has no readable date, the screen says so and how much.
+* **Tap a category to see what is in it** — Every row of *Where the money went* is a button. It opens the items filed under that category, with a filter for its sub-categories, and every item opens the full editor — fix a quantity, a price or a category without leaving the page.
+* **The chart follows your categories** — Rename a category, or remove one and choose where its items go, and past purchases move with it, so an old name never lingers in the breakdown. Fixing the category of a single item moves its purchase history too.
 
 ### 👨‍🍳 The Cookbook
 * **A real recipe book** — Chapters, pages that turn, and your own photo of the finished dish on the plate.
 * **Cooks from your inventory** — Ask what you can make and the assistant builds the dish out of what is actually on your shelves, not a recipe you cannot cook tonight. It tells you what you are missing; water, salt, oil and pepper are assumed to be in the house.
 * **Cooks *with* you** — It reads the steps one at a time and **offers** to set a timer when a step has a wait in it. It asks; it never sets timers behind your back.
 * **Rewrite, shorten, translate** — Ask for any of them and you are shown the proposal before anything is saved. Your own handwritten notes are never overwritten.
+* **Every change is kept** — Double the quantities, make it kosher, swap an ingredient: each change becomes a new version, and the ones before it stay. Show an older version with one tap, or delete one you no longer want.
+* **It knows which recipe you mean** — With a recipe open, what you say to the assistant is about that recipe. *"Make it two teaspoons of sugar"* works without saying the word *recipe*.
 
 ### 🤖 Advanced AI Capabilities
 * **Receipt & Invoice Scanning (Visual)** — Snap a photo (multi-page supported) or upload a PDF of your grocery receipt. The AI extracts every item, quantity and price, maps them to your existing home locations, and keeps the receipt itself permanently archived and searchable in the **Receipts** tab.
@@ -249,6 +274,7 @@ While the core inventory database (SQLite) is 100% local and private, please not
 * **Live Stock Tracking & Shopping Mode** — Instantly update stock. When an item hits `0`, it is marked **Out of Stock** and sent directly to your Shopping List.
 * **Price History & Expiry Tracking** — Every item remembers what you paid and where you bought it. Expiry dates for food and medicine, and warranty end dates for electronics and tools, are estimated automatically based on the item and its storage location, and are always editable.
 * **Management Tools** — Rename, Move (Cut/Paste), Duplicate, and Delete items or entire locations.
+* **Categories are yours to edit** — **Gear menu (⚙️) ▸ Categories** lists every category and sub-category with the number of items in it. Add one with **+**, fix a typo with the pencil, or remove one — and when you remove one you choose where its items go first, so **nothing is ever deleted along with the label**. Renaming moves the items with the name in a single step; they are never left pointing at a category that no longer exists.
 
 ### 📸 Camera & Visual Tools
 * **AI Background Removal** — Take photos of your items directly in the app. The built-in camera tool automatically filters out messy backgrounds to create clean, professional item thumbnails.
@@ -260,12 +286,23 @@ While the core inventory database (SQLite) is 100% local and private, please not
 
 Welcome to Home Organizer! This step-by-step guide will walk you through setting up your home, managing your items, and unleashing the power of the AI Assistant.
 
-### 0. Finding your way around
+### 0. Your first five minutes
+
+A brand-new installation has no rooms in it — it does not invent somebody else's kitchen for you. What you get instead is a card offering to build yours: **"Set up your home in 2 minutes"**, with the magic wand on it.
+
+* Press **Set up my home** and the wizard opens. See [section 2](#2-setting-up-your-home).
+* Press **Not now** and the card goes away and stays away, on this browser.
+* Either way the card stops appearing the moment your home has rooms in it — whether the wizard made them or you did, with the pencil.
+
+Nothing on that card is required. If you would rather lay the house out by hand, skip it entirely; the wizard writes nothing you cannot change afterwards, and changes nothing you have already made.
+
+### 0b. Finding your way around
 
 The **Home button (🏠)** opens your dashboard — the spending chart, the tiles, and the way to every other screen.
 
 * **Change the year** from the dropdown next to *Spending by month*.
-* **On a phone, tap a column** to see that month's exact amount.
+* **On a phone, tap a month** on the wave to see its exact amount.
+* **Tap a row of *Where the money went*** to see the items behind it, filter them by sub-category, and open any one of them to edit it.
 * **Every tile is a button.** *Expiring soon* opens a list of the products **and the shelf each one is on** — knowing the yoghurt expires is no use without knowing where it is.
 * **The room list is still there.** It is the first, full-width button on the dashboard, and it is in the **⊕** menu as *Locations*. Nothing was taken away; it simply is not the first thing you see any more.
 
@@ -283,7 +320,35 @@ Click the **Gear Icon (⚙️)** in the top right corner of the navigation bar.
   <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/23.png" width="48%" alt="Light Theme View">
 </p>
 
-### 2. Setting up Zones and Rooms
+### 2. Setting up your home
+
+There are two ways to do this, and they produce the same thing. Use the wizard for the whole house at once, and the pencil for a single room you thought of later. Neither one locks you out of the other.
+
+#### The quick way: the wizard 🪄
+
+Press **Set up my home** on the first-run card, or open it any time from the **gear menu (⚙️) ▸ Locations wizard**. Seven screens on a first run, each of which tells you what it is for, with **Back**, **Next** and **Exit** at the bottom. **Exit changes nothing in your home** — but it does keep your answers, so you can walk away halfway through and carry on later from where you stopped.
+
+| Screen | What it asks |
+|---|---|
+| **Language** | The language for the whole app. The same choice as in the settings menu, so everything from here on is in it. |
+| **Appearance** | Light or dark, again for the whole app. The rest of the wizard follows it immediately. |
+| **Your home** | Apartment, house, or house with units — and how many floors. |
+| **Rooms** | Tap the rooms you have. **+** and **−** set how many of the same kind — two bedrooms are numbered for you, and you can rename either on the next screen. |
+| **Storage** | For each room, what stands in it. The usual ones are pre-ticked. |
+| **Inside the fridge** | How many doors, whether there is a freezer, and which shelves and drawers it has. |
+| **Tidy what is there** | The eighth screen, and you will not see it the first time — only once the wizard has built something at least once. It reports anything inconsistent in the locations you already have, and touches nothing you do not tick. |
+| **Review** | Everything that is about to be created, with **EXISTS** against anything already there. Nothing has been written until you press the button on this screen. |
+
+**The fridge is the only place a shelf life is suggested**, because it is the only place food goes off on a shelf rather than when you open it. Everywhere else the assistant works out the expiry date when you add the item. Every suggested name is editable and any shelf you do not have can be removed.
+
+**Your rooms are stored in your own language.** If you set the app to Hebrew, the wizard offers you Hebrew room names and that is what is saved — nothing is stored in English behind your back and translated back for you.
+
+**Every room gets a sensible icon**, and you can change any of them afterwards in the usual Icon Picker (section 3) — including **Draw with AI** if the built-in set has nothing for your pottery studio.
+
+#### The manual way: Edit Mode ✏️
+
+Unchanged, and still the right way to add one room to a house you already laid out.
+
 Click the **Pencil Icon (✏️)** in the top right to enter **Edit Mode**.
 * Click **Add Zone** at the bottom to create broad areas like "First Floor".
 * Inside those zones, click the large green **+ Add Room** button to create specific rooms like "Kitchen".
@@ -377,6 +442,8 @@ Open the **⊕** menu and choose **My Recipes**. A brand new install already has
 * **Cook along.** The assistant walks you through the steps one at a time. When a step has a wait in it, it **offers** a timer with a yes/no — it never sets one silently.
 * **Add your own photo.** Press the plate to put a picture of the finished dish on the recipe, and press the picture to see it full screen. A recipe with no photo gets an emblem the assistant designs for that specific dish.
 * **Rewrite, shorten or translate.** Ask, and you are shown the proposal before anything is saved. Your own handwritten notes, prep time and category are never overwritten.
+* **Just say what to change.** With a recipe open, everything you ask the assistant is about that recipe — *"two teaspoons of sugar instead of three"* or *"for ten people"* — without having to say *recipe*.
+* **Versions.** Every change you approve becomes a new version of the recipe, and the versions before it are kept. The save button says which one it will create — *Save as V4* — and the **V** button after *Check my inventory* shows the version on screen and opens the list: each version with what was changed in it, so *V2 — kosher version* is easy to find again. Tap one to show it. The bin deletes a version you no longer want; it is not offered while a recipe has only one, because a recipe always keeps at least one. Going back to an older version brings back everything it said — name, ingredients, steps, timers, prep time and notes — but keeps today's photo, chapter and cook count, which belong to the recipe rather than to a version.
 
 ### 8. Setting up the Voice Assistant & HO-Mind AI
 
@@ -394,9 +461,11 @@ Open the **⊕** menu and choose **My Recipes**. A brand new install already has
 6. Enable **Shake to Speak** to activate the Ghost Screen, choose your **Language**, and adjust the **Volume Override** so the assistant speaks aloud even if your phone is on silent!
 
 ## 🌍 Languages
-Home Organizer is available in **7 languages**: English, Hebrew (עברית), Italian, Spanish, French, Arabic (العربية), and Russian (Русский). This covers the panel itself, the setup wizard, and the AI's own replies — including full right-to-left (RTL) layout for Hebrew and Arabic.
+Home Organizer is available in **7 languages**: English, Hebrew (עברית), Italian, Spanish, French, Arabic (العربية), and Russian (Русский). This covers the panel itself, the locations wizard, and the AI's own replies — including full right-to-left (RTL) layout for Hebrew and Arabic.
 
-**Want your language added?** Open an issue on GitHub with the language you'd like to see — the translation file is a single spreadsheet-style CSV, so adding a language is usually a quick addition rather than a code change.
+**Your own room names are never translated.** The language setting changes the app; it does not rewrite what you called your rooms. Whatever language you were in when a room was created is the language it keeps.
+
+**Want your language added?** Open an issue on GitHub with the language you'd like to see — the translations are two spreadsheet-style CSV files (one for the panel, one for the wizard), so adding a language is usually a quick addition rather than a code change.
 
 ---
 

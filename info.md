@@ -5,6 +5,8 @@
 Home Organizer is a dedicated full-screen sidebar application that allows you to manage your home inventory with ease using nested folders, live stock tracking, and a powerful **Google Gemini AI** integration that acts as your personal home assistant.
 
 ## ✨ Key Features
+* **🪄 Locations Wizard:** Set up your whole home in two minutes - rooms, what stands in them and the shelves in the fridge - shown to you in full before anything is created, and never deleting a thing.
+* **🗄️ Photos & Receipts on a NAS:** Keep item photos and scanned receipts on network storage when the Home Assistant disk runs short - the databases always stay local.
 * **Smart Inventory Management:** Track stock levels, organize by rooms/sublocations, and auto-sync out-of-stock items to your Shopping List.
 * **📦 Boxes:** The carton on the shelf, with a number written on it. A box holds items, has its own page, and moves with everything inside it in one operation - and deleting a box never deletes what was in it. Ask out loud: *"Put M8 screws in box 1."*
 * **Visual AI Receipt Scanning:** Snap a photo of a grocery receipt, and the AI will extract, auto-categorize, and map items to your storage locations with beautiful 3D icons.

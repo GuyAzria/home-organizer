@@ -13,6 +13,8 @@
 # more details. <https://www.gnu.org/licenses/>.
 #
 
+# // [ADDED v2026.10.13 | 2026-10-13] Purpose: CONF_IMAGES_LOCATION, where
+# // the images and receipts are kept - see the comment on it.
 # // [ADDED v2026.10.7 | 2026-10-07] Purpose: SETTING_HOME_PROFILE, the
 # // locations wizard's answer sheet.
 # //
@@ -20,39 +22,6 @@
 # // `items`. This is what the user TICKED, so reopening the wizard shows their
 # // own answers rather than a blank form, and "the kitchen is actually on floor
 # // 2" is a correction instead of starting again.
-# // [MODIFIED v2026.10.6 | 2026-10-06] Purpose: which product databases a
-# // barcode scan asks, in what order, and for how long.
-# //
-# // It was a config-entry option for about an hour, which could not work:
-# // __init__.py registers entry.add_update_listener(update_listener) and that
-# // calls async_reload, so writing an option from a panel sheet would reload
-# // the whole integration every time a checkbox is ticked.
-# //
-# // It lives in app_settings now, as one JSON list in ranked order, and the
-# // options-flow step was removed rather than left behind writing somewhere
-# // else - two surfaces for one setting is the drift RULE 21 forbids.
-# //
-# // BARCODE_SOURCE_OFF went with it. "Disabled" was only ever the dropdown's
-# // own choice, nothing else referenced it, and a user-visible English string
-# // here would have needed a translation it never had (RULE 33d).
-# //
-# // BARCODE_SOURCE_TIMEOUT is 30, not 8. The original code passed no timeout
-# // at all, so aiohttp allowed five minutes; capping it at 8 cut off answers
-# // that were still coming, and a scan that could have been named exactly fell
-# // back to guessing from the manufacturer prefix instead.
-# //
-# // BARCODE_LOOKUP_BUDGET bounds the lookup as a whole. The per-source timeout
-# // bounds nothing on its own - four sources at 30 seconds is two minutes, and
-# // every source added made it worse. The budget is checked before each source,
-# // so the ceiling is budget + one timeout whatever is enabled.
-# //
-# // BARCODE_SOURCE_OPEN_LIBRARY and BARCODE_SOURCE_AI are the fourth and
-# // fifth sources, both LAST on purpose - see the comment on
-# // DEFAULT_BARCODE_SOURCE_ORDER. The AI one is the model the user already
-# // configured, asked what the barcode is as its own question. It is last
-# // because a real product database beats a recollection, because it is the
-# // only source that costs money per scan, and because it is the only one
-# // that can invent an answer.
 
 """Constants for the Home Organizer integration."""
 
@@ -74,6 +43,14 @@ CONF_STORAGE_METHOD = "storage_method"
 CONF_DELETE_ON_REMOVE = "delete_on_remove"
 STORAGE_METHOD_WWW = "www"
 STORAGE_METHOD_MEDIA = "media"
+# [ADDED v2026.10.13] Where the IMAGES and the RECEIPTS are kept, for www
+# and media alike: "" for the installation's own folders on the Home
+# Assistant disk, or the name of a network-storage folder Home Assistant
+# mounts under /media. The databases never move with it - see storage.py. An option rather than an app setting
+# on purpose: changing it changes paths, and the reload that follows every
+# options change is exactly what it needs. Anything a panel sheet writes
+# belongs in app_settings instead, for the same reason in reverse.
+CONF_IMAGES_LOCATION = "images_location"
 
 # Providers
 PROVIDER_GEMINI = "Google Gemini"

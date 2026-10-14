@@ -1,4 +1,4 @@
-/* pages/dashboard.css | v2026.9.22 */
+/* pages/dashboard.css | v2026.10.9 */
 /* [MODIFIED v2026.9.22] The page is a GRID, and the chart has a scale.
 
    It was one column at every width - a phone screen enlarged onto a
@@ -49,6 +49,20 @@
 :host {
   --dash-bar: #3987e5;
   --dash-bar-now: #d95926;
+  /* [ADDED v2026.10.9] The two ends of each column's gradient.
+     Strong at the top, pale at the foot. Every value computed against the
+     card it is drawn on (sRGB relative luminance, WCAG) and kept at or
+     above the 3:1 this file already required of the flat colours:
+         #3987e5 3.83:1   #98c1f1 7.45:1   on #2c2c2e
+         #d95926 3.59:1   #eba98e 7.03:1
+     On a near-black card the mechanics invert - paler means MORE
+     contrast - so the limit here is the STRONG end, and the flat tokens
+     above already sit at it. They are reused as the tops rather than
+     deepened, because deepening them fails: #2f6fbc is 2.73:1. */
+  --dash-bar-hi: #3987e5;
+  --dash-bar-lo: #98c1f1;
+  --dash-bar-now-hi: #d95926;
+  --dash-bar-now-lo: #eba98e;
   --dash-manual: #199e70;
   /* Depth has to be built twice. A dark shadow on a near-black card is
      invisible and the card floats on nothing; on white it is the only thing
@@ -59,6 +73,18 @@
 .light-mode {
   --dash-bar: #2a78d6;
   --dash-bar-now: #eb6834;
+  /* [ADDED v2026.10.9] The light theme is the one that constrains this.
+     On white a genuinely pale blue falls through the floor - #7fb3ea is
+     2.20:1 - so the faint end stops at the palest tint that still clears
+     3:1 and goes no further:
+         #205aa0 6.93:1   #5b97df 3.03:1   on #ffffff
+         #b04e27 5.30:1   #ec703e 3.02:1
+     Here there is room to DEEPEN the top, which is why these tops are
+     darker than the flat tokens above while the dark theme's are not. */
+  --dash-bar-hi: #205aa0;
+  --dash-bar-lo: #5b97df;
+  --dash-bar-now-hi: #b04e27;
+  --dash-bar-now-lo: #ec703e;
   --dash-manual: #1baf7a;
   --dash-shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 12px 32px rgba(16, 24, 40, .09);
 }
@@ -194,6 +220,8 @@
      fixed further down for that reason. Change one and change all four. */
   padding-bottom: 24px;      /* .dash-col-label 18px + its 6px margin */
   padding-top: 15px;         /* .dash-col-val 12px + its 3px margin */
+  /* [ADDED v2026.10.9] The 8px that used to sit on the plot. */
+  padding-inline-start: 8px;
   font-size: 10px;
   color: var(--text-sub);
   font-variant-numeric: tabular-nums;
@@ -208,10 +236,17 @@
   display: flex;
   align-items: stretch;
   justify-content: space-around;
-  gap: 6px;
+  /* [MODIFIED v2026.10.9] No gap, and no padding on this side.
+     The gap existed because twelve BARS with nothing between them read as
+     a wall. There are no bars now, and it has to go for a second reason:
+     with a gap, a column's centre is not at (i+0.5)/12 of the width, and
+     the x positions the curve is drawn at could not line up with the
+     months underneath it. The 8px that separated plot from axis has moved
+     to the axis, so the plot box, the gridlines and the SVG are all one
+     rectangle. */
+  gap: 0;
   min-width: 0;
   border-inline-end: 1px solid var(--border-light);
-  padding-inline-end: 8px;
 }
 /* [ADDED v2026.9.22] Gridlines, so a column can be read against the scale
    instead of guessed at from the number beside it.
@@ -275,20 +310,100 @@
    A column caps at 24px and never fills its slot: the leftover is what
    makes twelve of them read as a series rather than as a wall. At 54 the
    bars touched on a tablet and the chart became a solid block. */
+/* [MODIFIED v2026.10.9] The track holds no bar any more - it reserves
+   the height the value and the label are positioned against, and nothing
+   else. max-width is gone with the bar it used to constrain: the column
+   is now a full-width hit area, which is a bigger target than the 24px
+   bar ever was (RULE 36). */
 .dash-col-track {
   flex: 1;
   width: 100%;
-  max-width: 24px;
-  display: flex;
-  align-items: flex-end;
 }
-.dash-col-bar {
+/* A month under the pointer lifts its own slice, so there is still
+   something to aim at on a desktop. Nothing essential is hover-only:
+   the value is revealed by a tap as well (RULE 36). */
+.dash-col:hover .dash-col-track {
+  background: linear-gradient(to top,
+              transparent, rgba(127, 127, 127, .14));
+}
+/* [MODIFIED v2026.10.9] The year is ONE curve now, not twelve bars.
+
+   The SVG is given the gridlines' own inset, so the curve is read against
+   them exactly as the columns were. It is inserted before the columns and
+   carries no pointer events, so every month keeps its hit area and a tap
+   still finds the month rather than the path.
+
+   THE STROKE IS THE DATUM AND THE FILL IS SHADING. That is what lets the
+   fill fade to nothing: with a bar, the block of colour WAS the value and
+   a faint foot meant an unreadable one. Here the line carries it, so the
+   line keeps the 3:1 floor this file has required since v2026.9.22 and
+   the shading underneath is free to disappear. */
+/* [FIXED v2026.10.9] The inset is on a DIV, and the svg fills it.
+
+   This rule used to be on the <svg> itself. An <svg> is a replaced
+   element, and for a replaced element `width: auto` means its INTRINSIC
+   size, not the box four insets describe - so the browser sized it from
+   its own fallback and stretched the viewBox across the result. The curve
+   ran out of the chart, over the topic list and past the bottom of the
+   page.
+
+   That the dots were in the right places at the time is the proof it was
+   the box and never the geometry: .dash-dots is a plain div with the
+   identical inset, and a div sizes from insets as expected.
+
+   overflow is left alone, so the svg keeps the clip it has by default.
+   Setting it to visible is what let the mistake cover the page instead of
+   showing as a cropped chart. */
+.dash-wave {
+  position: absolute;
+  inset: 15px 0 24px 0;   /* the same four numbers as .dash-plot::before */
+  pointer-events: none;
+}
+.dash-wave > svg {
+  display: block;         /* no inline-element baseline gap under it */
   width: 100%;
-  border-radius: 4px 4px 0 0;
-  min-height: 3px;
-  transition: height .35s cubic-bezier(.2, .8, .3, 1), filter .15s;
+  height: 100%;
 }
-.dash-col:hover .dash-col-bar { filter: brightness(1.15); }
+.dash-wave-line {
+  stroke: var(--dash-bar-hi);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.dash-wave-stop-hi  { stop-color: var(--dash-bar-hi); stop-opacity: .55; }
+.dash-wave-stop-mid { stop-color: var(--dash-bar-hi); stop-opacity: .22; }
+.dash-wave-stop-lo  { stop-color: var(--dash-bar-hi); stop-opacity: 0; }
+
+/* The layer the markers live in. The gridlines' inset again, so a dot's
+   `bottom` percentage is measured against the same box the curve's y is -
+   that is what puts the dot ON the line instead of near it. */
+.dash-dots {
+  position: absolute;
+  inset: 15px 0 24px 0;
+  pointer-events: none;
+}
+
+/* The marker on a month worth finding. An HTML element and not an SVG
+   circle: preserveAspectRatio="none" stretches the box, and a circle in
+   there would be an ellipse whose shape changed with the window.
+   translate(-50%, 50%) puts its centre on the curve rather than its
+   corner. */
+.dash-dot {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--dash-bar-hi);
+  border: 2px solid var(--bg-card);
+  transform: translate(-50%, 50%);
+  pointer-events: none;
+  transition: bottom .35s cubic-bezier(.2, .8, .3, 1);
+}
+.dash-dot.now {
+  background: var(--dash-bar-now-hi);
+  width: 13px;
+  height: 13px;
+}
 /* A month name is one short word now, not a wrapped category, so the row
    is one line high and the chart gets the rest. */
 .dash-col-label {
@@ -383,6 +498,52 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+/* [ADDED v2026.10.8] A breakdown row that opens its items.
+
+   It is a <button> so the keyboard and a screen reader get what the eye
+   gets, which means undoing the browser's button defaults so it still
+   lines up with the plain rows beside it. font: inherit matters most -
+   without it the row would be drawn in the browser's UI font while its
+   neighbours are not.
+
+   The cue is NOT hover-only. Most of this panel is used on a phone, where
+   there is no hover at all, so the name carries a dotted underline all the
+   time and hover only brightens it (RULE 36). */
+.dash-topic-link {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  margin: 0;
+  text-align: start;
+  cursor: pointer;
+  border-radius: 6px;
+  padding-inline: 4px;
+}
+.dash-topic-link .dash-topic-name {
+  text-decoration: underline dotted var(--text-sub);
+  text-underline-offset: 3px;
+}
+.dash-topic-link:hover {
+  background: var(--bg-input-edit);
+}
+.dash-topic-link:hover .dash-topic-name {
+  text-decoration-color: var(--primary);
+}
+.dash-topic-link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+/* A thumb, not a mouse pointer. Only where there is no hover, so the
+   desktop list keeps its density and a phone still gets a 40px target
+   (RULE 36). */
+@media (hover: none) {
+  .dash-topic-link {
+    min-height: 40px;
+  }
+}
+
 /* The two rows that are NOT categories, below a rule.
 
    The remainder is discounts, deposits and lines nobody approved - the gap

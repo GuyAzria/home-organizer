@@ -11,22 +11,25 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [MODIFIED v2026.10.8 | 2026-10-08] Purpose: fetchAllItems re-applies the
+//   category drill-down.
+//
+//   That screen is filtered FROM allDbItems, so until this list arrives it
+//   is still showing the old answer - an item re-filed a moment ago would
+//   still be listed under the category it had just left. Both refreshers
+//   re-apply through the one helper; the work is a client-side filter and
+//   costs nothing to repeat.
 // [FIXED v2026.10.5 | 2026-10-05] Purpose: a scanned product appears on the
 //   BARCODE page.
 //
 //   isBarcodeScanned is the one rule both screens read, so an item cannot end
 //   up on both or on neither (RULE 33a.6).
-// [MODIFIED v2026.9.22 | 2026-09-22] Purpose: localeTag maps the panel
-//   language onto a BCP-47 tag, in ONE place. view-recipes had the table
-//   for the speech engines and the dashboard was about to grow a second
-//   one for month names and money; two copies drift and then one language
-//   formats its dates in another's (RULE 33d).
 
-import { ICONS, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=10.11.112';
+import { ICONS, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=10.11.120';
 // [ADDED v2026.9.20] Item icons the assistant designed, drawn from the
 // spec it sent. See item-icon.js for why they carry no background and
 // inherit their colour.
-import { itemIconFromSpec } from './item-icon.js?v=10.11.112';
+import { itemIconFromSpec } from './item-icon.js?v=10.11.120';
 
 // [ADDED v2026.8.26] HTML escaping for any value that reaches innerHTML.
 //
@@ -420,6 +423,14 @@ export const UtilsMixin = (Base) => class extends Base {
     try {
       this._hass.callWS({ type: 'home_organizer/get_all_items' }).then(items => {
         this.allDbItems = items || [];
+        // [ADDED v2026.10.8] The category drill-down is filtered FROM this
+        // list, so until it arrives the screen is showing the old answer -
+        // an item re-filed a moment ago would still be listed under the
+        // category it just left. Both refreshers re-apply; the work is a
+        // client-side filter and costs nothing to repeat.
+        if (typeof this.reapplyCategoryView === 'function') {
+          this.reapplyCategoryView();
+        }
       });
     } catch (e) { console.error("Failed to fetch all items", e); }
   }

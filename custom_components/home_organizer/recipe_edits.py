@@ -12,15 +12,14 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
-# [MODIFIED v2026.9.20 | 2026-09-20] Purpose: A proposal can carry a new
-#   TITLE and a new LANGUAGE, not just ingredients and steps. Without
-#   them, asking for a recipe to be rewritten in another language left
-#   the title untranslated and the language column claiming the old one.
-#   Both are checked here rather than trusted: the language against the
-#   integration's own list, the title against a length. Same release:
-#   async_apply no longer CLEARS a list the proposal omitted. put() only
-#   requires that one of the two changes, so a steps-only proposal would
-#   have stored a recipe with no ingredients at all (RULE 33a.8).
+# [MODIFIED v2026.10.11 | 2026-10-11] Purpose: approving with "save" makes
+#   a new version of the recipe, described with this proposal's summary.
+#
+#   async_apply passes the summary to async_save as version_label - the
+#   sentence the user read on the proposal before pressing save, so the
+#   version list shows the words they agreed to. It returns the number it
+#   created, for the panel. "Just this time" writes nothing and so creates
+#   no version and claims none (RULE 10).
 # [ADDED v2026.9.17 | 2026-09-17] Purpose: Holds a proposed recipe change
 #   between the turn that suggests it and the turn that approves it.
 #
@@ -275,10 +274,20 @@ async def async_apply(hass, user_id, recipe_id, scope):
         source_type=rec["source_type"],
         recipe_id=rec["id"],
         category=rec.get("category"),
+        # [ADDED v2026.10.11] Saving makes a new version, numbered and kept
+        # beside the ones before it - async_save does that for every
+        # update. Its description is the summary the user read on this very
+        # proposal before approving it, so the version list shows the words
+        # they agreed to rather than a description written afterwards.
+        version_label=proposal.get("summary"),
     )
     hass.bus.async_fire("home_organizer_db_update")
-    _LOGGER.info("[HO-EDIT] Saved into recipe %s", recipe_id)
+    version = await recipes_db.async_latest_version(hass, recipe_id)
+    _LOGGER.info("[HO-EDIT] Saved into recipe %s as version %s",
+                 recipe_id, version)
     return {
+        # The number just created, so the panel can say which one it was.
+        "version": version,
         "applied": SCOPE_SAVE,
         "ingredients": proposal["ingredients"] or rec["ingredients"],
         "steps": proposal["steps"] or rec["steps"],

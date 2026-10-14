@@ -11,6 +11,13 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [MODIFIED v2026.10.8 | 2026-10-08] Purpose: the header names the
+//   category, not "Search Results".
+//
+//   A drill-down borrows the search mode, so the title chain claimed it as
+//   a search. It now prefers the marker on the DATA - attrs.category_view -
+//   which keeps the back arrow and the Home button behaving exactly as they
+//   do for a search, because the mode really is the search mode.
 // [ADDED v2026.10.7 | 2026-10-07] Purpose: mountOverlay - a full-screen
 //   overlay belongs INSIDE #app.
 //
@@ -24,17 +31,9 @@
 //   declared on .app-container, so an overlay outside it inherits no text
 //   colour and every label was drawn in the browser default black on a dark
 //   background. One helper rather than the same line in five files (RULE 33d).
-// [ADDED v2026.10.7 | 2026-10-07] Purpose: the locations wizard in the gear
-//   menu, under a wand.
-//
-//   In that menu because the language and the theme the wizard opens with are
-//   already there and are the same controls. The label comes from the MAIN
-//   translations file: the menu is drawn long before the wizard's own CSV is
-//   fetched, so a label living only in that file would read English until the
-//   first time anyone opened it.
 
-import { ICONS } from './organizer-icon.js?v=10.11.112';
-import { escapeHtml } from './organizer-utils.js?v=10.11.112';
+import { ICONS } from './organizer-icon.js?v=10.11.120';
+import { escapeHtml } from './organizer-utils.js?v=10.11.120';
 
 const UPLOAD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>';
 const MENU_SVG   = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z"/></svg>';
@@ -327,6 +326,10 @@ export const UIMixin = (Base) => class extends Base {
                        because it builds a whole house from a few taps, and
                        in the gear menu because that is where the language
                        and the theme it starts with already live. -->
+                  <!-- The label comes from the MAIN translations file, not the
+                       wizard's own CSV: this menu is drawn long before that CSV is
+                       fetched, so a label living only there would read English
+                       until the first time anyone opened the wizard. -->
                   <div class="dropdown-item" onclick="event.stopPropagation();this.getRootNode().host.openLocationsWizard()">${ICONS.wand} <span id="lbl-wizard">Locations wizard</span></div>
                   <div class="dropdown-item" onclick="event.stopPropagation();this.getRootNode().host.openCategoriesScreen()">${ICONS.tag} <span id="lbl-cats">Categories</span></div>
                   <div class="dropdown-item" onclick="event.stopPropagation();this.getRootNode().host.showAbout()">${INFO_SVG} <span id="lbl-about">About</span></div>
@@ -1030,7 +1033,15 @@ export const UIMixin = (Base) => class extends Base {
     else if (this.isReceiptsMode) pathDisplay = this._t('receipts_tab', 'Receipts');
     else if (this.isReviewMode)   pathDisplay = this._t('review_tab', 'AI Receipts Exports');
     else if (this.isShopMode)     pathDisplay = this._t('shopping_list', 'Shopping List');
-    else if (this.isSearch)       pathDisplay = this._t('search_results', 'Search Results');
+    // [MODIFIED v2026.10.8] A category drill-down borrows the search
+    // mode, so without this it announced itself as "Search Results". The
+    // marker is on the DATA, not a flag of its own: localData is replaced
+    // wholesale on every navigation, so it cannot outlive the screen - and
+    // a flag would have to be cleared in the eighteen places that clear
+    // isSearch, which is the mistake RULE 33a.1 is about.
+    else if (this.isSearch)       pathDisplay = attrs.category_view
+      ? (attrs.path_display || this._t('search_results', 'Search Results'))
+      : this._t('search_results', 'Search Results');
     else if (this.isBarcodeMode)  pathDisplay = this._t('barcode_scanner', 'Barcode Scanner'); 
     else if (attrs.path_display && attrs.path_display !== "Main") pathDisplay = attrs.path_display;
 

@@ -11,10 +11,14 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [FIXED v2026.10.13 | 2026-10-13] Purpose: the personal photo's address
+// comes from the backend (localData.img_url_prefix) instead of a
+// hard-coded /local/home_organizer_images, which showed a broken picture
+// when the data is kept in /media.
 // [MODIFIED v10.2.5 | 2026-04-17] Purpose: Replaced generic shoe icon with a highly detailed, clear Sneaker SVG. Connected all Wizard UI elements to the dynamic translation dictionary for all languages based on the new CSV structure.
 
-import { ICONS } from '../organizer-icon.js?v=10.11.112';
-import { escapeHtml, formatAiText } from '../organizer-utils.js?v=10.11.112';
+import { ICONS } from '../organizer-icon.js?v=10.11.120';
+import { escapeHtml, formatAiText } from '../organizer-utils.js?v=10.11.120';
 
 export const StylistMixin = (Base) => class extends Base {
 
@@ -319,7 +323,13 @@ export const StylistMixin = (Base) => class extends Base {
       const ts = new Date().getTime();
       const userId = this._hass.user ? this._hass.user.id : "default";
       const personalAvatarFile = "user_avatar_" + userId + ".jpg";
-      const personalAvatarUrl = "/local/home_organizer_images/" + personalAvatarFile + "?v=" + ts;
+      // [FIXED v2026.10.13] The prefix comes from the backend. It is
+      // /local/... only when www storage was chosen; with /media the photo
+      // is served from a route of its own, and a hard-coded /local/ shows
+      // a broken picture.
+      const imgPrefix = (this.localData && this.localData.img_url_prefix)
+        || "/local/home_organizer_images";
+      const personalAvatarUrl = imgPrefix + "/" + personalAvatarFile + "?v=" + ts;
 
       const profile = this.getBodyProfile();
       let basicStatsStr = this._t('stylist_no_meas', "No measurements set");

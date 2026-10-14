@@ -57,7 +57,7 @@
 //   or dismiss it. The dismissal is per browser, in localStorage
 //   beside the language and the theme, and writes nothing to the home.
 
-import { ICONS, ICON_LIB_ROOM, ICON_LIB_LOCATION } from '../organizer-icon.js?v=10.11.112';
+import { ICONS, ICON_LIB_ROOM, ICON_LIB_LOCATION } from '../organizer-icon.js?v=10.11.120';
 
 // How many of a thing the wizard offers to make at once. Six kitchen
 // cabinets is a normal kitchen; sixty is a typo.

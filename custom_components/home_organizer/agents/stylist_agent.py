@@ -12,6 +12,16 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
+# // [FIXED v2026.10.13 | 2026-10-13] Purpose: the Stylist's photo and the
+# // try-on image are kept where the user chose to keep their data. Both
+# // were written to /config/www whatever storage was chosen, and the try-on
+# // address sent to WhatsApp was hard-coded to /local/. _img_dir and
+# // _img_url read the folder and URL prefix setup decided, and the photo's
+# // file comes from storage.avatar_path - the same function the upload
+# // uses, which takes a plain user id or none and checks containment.
+# // Same day: the try-on folder is made ready through storage.ready_dir_sync,
+# // which will not recreate a network images folder that is not connected
+# // on the Home Assistant disk.
 # // [MODIFIED v10.0.0 | 2026-08-23] Purpose: Event-loop and session fixes
 # // raised in the HACS review.
 # //   1. The two `with open(result_path, "wb")` calls inside async render
@@ -23,27 +33,47 @@
 # //      aiohttp.ClientSession. They now use Home Assistant's shared
 # //      session via async_get_clientsession(hass), which is why `hass` is
 # //      now their first argument.
-# // [MODIFIED v9.3.1 | 2026-08-02] Purpose: Refactored database interactions to use aiosqlite for full asynchronous I/O. Replaced get_db_connection with get_db_path and removed async_add_executor_job wrappers to prevent Event Loop blocking.
 
 import logging
 import os
-from functools import partial
 import aiosqlite
 import aiohttp
 
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from ..database import get_db_path
+from .. import storage
 from ..ai_core.router import safe_smart_router
 from ..ai_core.json_utils import safe_parse_json, apply_voice_rules
 from ..ai_core.localized_strings import get_strings_for_language
 from ..const import (
+    IMG_DIR,
     DOMAIN, CONF_VTO_PROVIDER, CONF_VTO_URL, CONF_VTO_KEY, 
     VTO_PROVIDER_FAL, VTO_PROVIDER_COMFYUI, 
     VTO_PROVIDER_HUGGINGFACE, VTO_PROVIDER_FASHN
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+# [ADDED v2026.10.13] Where the images are, and the URL they are served at.
+# The user's photo and the try-on result went to /config/www whatever
+# storage was chosen, and the try-on URL sent to WhatsApp was hard-coded to
+# /local/. Both now follow the choice made at setup.
+def _img_dir(hass):
+    return hass.data.get(DOMAIN, {}).get("config", {}).get(
+        "img_path", hass.config.path("www", IMG_DIR))
+
+
+def _img_url(hass, filename):
+    prefix = hass.data.get(DOMAIN, {}).get("config", {}).get(
+        "url_prefix", "/local/" + IMG_DIR)
+    return prefix + "/" + filename
+
+
+def _img_mount(hass):
+    """The network folder the images are on, or None."""
+    return hass.data.get(DOMAIN, {}).get("config", {}).get("images_mount")
 
 
 # ==========================================
@@ -120,15 +150,16 @@ async def _async_get_weather_and_clothes(hass):
 # VTO API IMPLEMENTATIONS
 # ==========================================
 async def _get_user_avatar(hass, user_id):
-    filename = f"user_avatar_{user_id}.jpg" if user_id else "user_avatar.jpg"
-    avatar_path = hass.config.path("www", "home_organizer_images", filename)
-    
-    generic_path = hass.config.path("www", "home_organizer_images", "user_avatar.jpg")
+    # [FIXED v2026.10.13] The upload's own definition of the file, not a
+    # second copy of it. A user id that is not a plain id has no photo of
+    # its own - None - and falls through to the shared one.
+    avatar_path = storage.avatar_path(_img_dir(hass), user_id)
+    generic_path = storage.avatar_path(_img_dir(hass), None)
 
     # [MODIFIED v2026.8.26] Both existence checks are filesystem calls and were
     # running directly on the event loop. One executor hop covers both.
     def _pick_existing():
-        if os.path.exists(avatar_path):
+        if avatar_path and os.path.exists(avatar_path):
             return avatar_path
         if os.path.exists(generic_path):
             return generic_path
@@ -292,12 +323,15 @@ async def execute_tool(hass, tool_name, kwargs, user_id):
             vto_url = entry.options.get(CONF_VTO_URL, entry.data.get(CONF_VTO_URL, ""))
             vto_key = entry.options.get(CONF_VTO_KEY, entry.data.get(CONF_VTO_KEY, ""))
 
-            www_dir = hass.config.path("www", "home_organizer_images")
-            # [MODIFIED v10.0.0] exist_ok must be a keyword: the second
-            # positional parameter of os.makedirs is `mode`, not `exist_ok`.
-            await hass.async_add_executor_job(
-                partial(os.makedirs, www_dir, exist_ok=True)
-            )
+            www_dir = _img_dir(hass)
+            # [MODIFIED v2026.10.13] Made ready through storage.ready_dir_sync:
+            # a network images folder that is not connected must not be
+            # recreated on the Home Assistant disk.
+            try:
+                await hass.async_add_executor_job(
+                    storage.ready_dir_sync, www_dir, _img_mount(hass))
+            except storage.ImageFolderUnavailable as err:
+                return f"Error: the images folder is not available ({err})."
             vto_result_path = os.path.join(www_dir, "vto_result.jpg")
             
             avatar_path = await _get_user_avatar(hass, user_id)
@@ -332,7 +366,7 @@ async def execute_tool(hass, tool_name, kwargs, user_id):
 
             service_data = {
                 "message": whatsapp_message,
-                "data": {"image": "/local/home_organizer_images/vto_result.jpg"},
+                "data": {"image": _img_url(hass, "vto_result.jpg")},
             }
             await hass.services.async_call(
                 "notify", "whatsapp", service_data, blocking=False

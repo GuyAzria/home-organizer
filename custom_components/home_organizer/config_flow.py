@@ -12,29 +12,37 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
+# // [MODIFIED v2026.10.13 | 2026-10-13] Purpose: storage in the options.
+# // The first page now asks www or media - it could only be chosen at
+# // installation - and a media installation gets the folder page for its
+# // images and receipts right after it, instead of at the very end where it
+# // could not be found. Changing the method moves nothing, as the user
+# // decided: the other location starts empty, or carries on with the Home
+# // Organizer data already there, and changing back returns to what was
+# // left. The databases always stay local. The folder page is offered to
+# // www as well, since either may keep its files on a network folder. See
+# // async_step_storage and storage.py.
 # // [MODIFIED v2026.10.5 | 2026-10-05] Purpose: the barcode lookup order is a
 # // setting in the database, chosen from the barcode page.
 # //
 # // The step this file carried for an hour is gone. See const.py: the
 # // config entry has a reload listener, so it is the wrong home for
 # // something a panel sheet writes.
-# // [MODIFIED v10.0.0 | 2026-08-23] Purpose: SECURITY HARDENING (HACS review).
-# //   1. Every credential field (cloud key, local key, VTO key) is now a
-# //      password TextSelector instead of a bare `str`, so keys are masked
-# //      in the UI rather than typed and displayed in clear.
-# //   2. Added CONF_ALLOW_SCRIPTS to BOTH the config flow and the options
-# //      flow. It is OFF by default: the AI agent cannot start user-written
-# //      scripts or scenes unless the owner explicitly opts in.
 
 import logging
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers.selector import (
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
 )
+
+from . import storage
 
 from .const import (
     DOMAIN, CONF_API_KEY, CONF_DEBUG,
@@ -50,6 +58,7 @@ from .const import (
     VTO_PROVIDER_FAL, VTO_PROVIDER_COMFYUI,
     VTO_PROVIDER_HUGGINGFACE, VTO_PROVIDER_FASHN,
     CONF_ALLOW_SCRIPTS,
+    CONF_IMAGES_LOCATION,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -299,11 +308,22 @@ class HomeOrganizerOptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         if user_input is not None:
             self.data.update(user_input)
-            return await self.async_step_api_keys()
+            # [ADDED v2026.10.13] Next: where the images and receipts are
+            # kept - the Home Assistant disk or a network folder, for www and
+            # media alike.
+            return await self.async_step_storage()
 
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema({
+                # [ADDED v2026.10.13] www or media, changeable after
+                # installation. Changing it moves nothing - see its hint in
+                # strings.json - so it is offered as plainly as at setup.
+                vol.Required(
+                    CONF_STORAGE_METHOD,
+                    default=self.data.get(CONF_STORAGE_METHOD,
+                                          STORAGE_METHOD_WWW),
+                ): vol.In([STORAGE_METHOD_WWW, STORAGE_METHOD_MEDIA]),
                 vol.Required(
                     CONF_PROCESSING_MODE,
                     default=self.data.get(CONF_PROCESSING_MODE, MODE_HYBRID),
@@ -480,4 +500,57 @@ class HomeOrganizerOptionsFlowHandler(config_entries.OptionsFlow):
                     description="CAUTION: If enabled, removing this integration will permanently wipe the database and images."
                 ): bool,
             })
+        )
+
+    async def async_step_storage(self, user_input=None):
+        """[ADDED v2026.10.13] Where the images and receipts are kept.
+
+        The second page, right after the first one chose www or media.
+
+        The Home Assistant disk, or a network-storage folder Home Assistant
+        has mounted under /media - a NAS share added under Settings >
+        System > Storage. The images and the receipts move; the databases
+        stay on the Home Assistant disk (see storage.py for why).
+
+        The list is the folders that are connected right now. The folder
+        already chosen stays in it even while it is not, so saving some
+        other option does not quietly move the images back. The answer is
+        checked again by storage.images_choice rather than trusted from
+        the form: a name that was not offered is refused (RULE 31).
+        """
+        folders = await self.hass.async_add_executor_job(
+            storage.network_folders_sync)
+        current = self.data.get(CONF_IMAGES_LOCATION) or storage.IMAGES_LOCAL
+        offered = set(folders)
+        if storage.valid_folder_name(current):
+            offered.add(current)
+        offered = sorted(offered)
+        errors = {}
+        if user_input is not None:
+            choice = storage.images_choice(
+                user_input.get(CONF_IMAGES_LOCATION), offered)
+            if choice is not None:
+                self.data[CONF_IMAGES_LOCATION] = choice
+                # On to the AI pages; the last page saves everything.
+                return await self.async_step_api_keys()
+            errors[CONF_IMAGES_LOCATION] = "invalid_images_location"
+
+        # The default's label comes from strings.json through
+        # translation_key; a folder is shown by its own name.
+        options = [{"value": storage.IMAGES_LOCAL_CHOICE,
+                    "label": storage.IMAGES_LOCAL_CHOICE}]
+        options += [{"value": name, "label": name} for name in offered]
+        return self.async_show_form(
+            step_id="storage",
+            data_schema=vol.Schema({
+                vol.Required(
+                    CONF_IMAGES_LOCATION,
+                    default=current or storage.IMAGES_LOCAL_CHOICE,
+                ): SelectSelector(SelectSelectorConfig(
+                    options=options,
+                    mode=SelectSelectorMode.DROPDOWN,
+                    translation_key=CONF_IMAGES_LOCATION,
+                )),
+            }),
+            errors=errors,
         )

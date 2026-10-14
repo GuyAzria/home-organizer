@@ -1551,3 +1551,150 @@ button.cookbook-emblem-plate:focus-visible {
   .cookbook-chapter { font-size: 15.5px; }
   .cookbook-chapter-body { padding-inline: 16px 0; }
 }
+
+/* [ADDED v2026.10.10] The version sheet.
+
+   Over the tools menu rather than beside it: z-index 3200 against the
+   menu's 3100, because this opens FROM that menu and must not appear
+   under it.
+
+   Centred at every width. recipes.css records a docked 380px column
+   squeezing the book on a tablet, which is the thing RULE 36 says is
+   always forgotten; this list is a handful of rows and wants no column
+   anywhere. */
+.cookbook-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 3190;
+  background: rgba(0, 0, 0, .45);
+}
+.cookbook-sheet {
+  position: fixed;
+  z-index: 3200;
+  inset-inline: 50%;
+  top: 50%;
+  transform: translate(50%, -50%);
+  width: min(420px, calc(100vw - 32px));   /* the 16px gutter, both sides */
+  max-height: min(70vh, 540px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--bg-card);
+  color: var(--text-main);
+  border: 1px solid var(--border-light);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .35);
+}
+.cookbook-sheet-head {
+  font-size: 16px;
+  font-weight: 700;
+}
+.cookbook-sheet-hint {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-sub);
+}
+.cookbook-sheet-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  min-height: 0;          /* or the flex child refuses to scroll */
+}
+.cookbook-sheet-empty {
+  padding: 14px 4px;
+  font-size: 13px;
+  color: var(--text-sub);
+}
+.cookbook-version-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+/* 44px, because this is a touch target and most of this panel is used on
+   a phone (RULE 36). */
+.cookbook-version-pick {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  text-align: start;
+  padding-inline: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.cookbook-version-row.active .cookbook-version-pick {
+  border-color: var(--primary);
+  background: var(--bg-input-edit);
+}
+.cookbook-version-no {
+  font-size: 13px;
+  font-weight: 600;
+  /* [ADDED v2026.10.11] V2 is an identifier: isolated left-to-right so a
+     Hebrew row does not move the digit to the wrong side of the letter. */
+  direction: ltr;
+  unicode-bidi: isolate;
+  align-self: flex-start;
+}
+/* [ADDED v2026.10.11] The version button beside the stock check. Same
+   isolation, and a minimum width so V1 and V12 are the same target. */
+.cookbook-version-btn {
+  direction: ltr;
+  unicode-bidi: isolate;
+  min-width: 44px;
+  font-weight: 700;
+}
+/* The bin is an SVG now, not a letter, so it is sized and coloured here. */
+.cookbook-version-del {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cookbook-version-del svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+/* A label is whatever the user asked for, so it can be long. One line
+   with an ellipsis rather than a row that grows to three. */
+.cookbook-version-label {
+  font-size: 11px;
+  color: var(--text-sub);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cookbook-version-del {
+  flex: 0 0 auto;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  background: transparent;
+  color: var(--danger, #e05252);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.cookbook-sheet-close {
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .cookbook-version-pick:hover,
+  .cookbook-version-del:hover,
+  .cookbook-sheet-close:hover { background: var(--bg-card-hover); }
+}

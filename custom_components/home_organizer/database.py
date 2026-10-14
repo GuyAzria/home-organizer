@@ -12,57 +12,67 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
-# // [ADDED v2026.10.7 | 2026-10-07] Purpose: what the locations wizard needed
-# // and nothing else provided.
+# // [FIXED v2026.10.13 | 2026-10-13] Purpose: a receipt kept in /media has
+# // an address. _path_to_browser_url knew only /config/www, so once the
+# // receipts follow the storage choice a receipt in /media would have had
+# // no URL and could not be opened. It now tries each folder setup serves
+# // (storage.served_roots) with the same containment test, and keeps
+# // /config/www in the list, so a receipt saved there before a move to
+# // /media stays viewable. A path in none of them still has no URL.
 # //
-# // async_get/set_home_profile - the answer sheet, one JSON value in
-# // app_settings. Reading REPAIRS rather than refusing: a profile written by an
-# // older release must still open, so a missing key becomes a default and a
-# // value of the wrong type is dropped. A form that will not open because one
-# // field changed shape is worse than one field reset.
+# // Same day: the images folder is made through storage.ready_dir_sync -
+# // async_init_db, and _write_receipt_file_sync when it writes a dish photo
+# // - which refuses to make it in place of a network folder that is not
+# // connected. And the receipts may follow the images there:
+# // async_store_receipt_file passes receipts_mount, and
+# // async_move_receipt_files moves the existing ones - each file copied, its
+# // row re-pointed only onto a copy of the same size, nothing deleted.
+# // [FIXED v2026.10.8 | 2026-10-08] Purpose: the spending breakdown kept
+# // the old category names.
 # //
-# // async_set_shelf_life - the FIRST thing ever to write location_settings.
-# // The table has carried "Renaming a location must update this table too,
-# // which is wired up in a later stage" since it was created, and no row was
-# // ever written. The wizard seeds the fridge and only the fridge, because
-# // everywhere else the expiry comes from the assistant when the item is made.
+# // async_get_dashboard_data sums `ph.category` from purchase_history for
+# // the item rows of "Where the money went". async_rename_category and
+# // async_delete_category both updated `items` and db_items_categories and
+# // neither ever touched purchase_history, so every past purchase went on
+# // pointing at a label that had been renamed away or deleted and the chart
+# // redrew it for ever. The refresh path was never at fault: both handlers
+# // already broadcast, the panel already drops its cached copy, and the view
+# // already re-fetches - it was re-fetching the same stale names.
 # //
-# // async_location_tree - the names and nothing else. async_get_view_data
-# // builds the same map, but as part of a page render with items, boxes and
-# // shopping in it; the wizard needs it before it has drawn anything.
+# // Measured by replaying a rename on a real database through the real
+# // functions: 121 of 121 history rows follow Food -> Groceries, with the
+# // 290 items, and nothing is created or deleted. Before the fix nothing
+# // wrote that column outside the one-time v2026.9.22 migration, so the
+# // answer was always zero.
 # //
-# // async_scan_location_issues - what is wrong with the locations that already
-# // exist. Every finding was measured in a real installation: 15 copies of one
-# // empty zone marker, six names with a trailing space, one shelf stored twice
-# // because one copy had an order marker and the other did not, a doubled
-# // ORDER_MARKER from a rename that re-applied the prefix, and "General"
-# // showing as a sub-location heading. It only REPORTS; the user ticks what to
-# // fix and no item row is ever touched (RULE 5).
+# // NOT evidence of this defect, though it looks like it: that database
+# // also holds 15 history rows naming nine categories which are not in
+# // db_items_categories - but `items` carries the same nine names on the
+# // same 15 products, so nothing was ever renamed away from them. The
+# // receipt scanner wrote a category it had not added to the list, into
+# // both tables at once. A separate problem with a separate cause, and one
+# // this change neither causes nor repairs.
 # //
-# // AND THE STARTER LOCATIONS ARE GONE. location_seed.py wrote one worked
-# // example - Floor A / Kitchen / Fridge and five shelves - on an install
-# // where the `items` table had never existed. The wizard replaces what that
-# // was for, and the seed used a shape the panel cannot show: it put the
-# // shelves in level_4, and the inventory view produces folders only for
-# // depth 0 and 1, so those five were never visible in the panel at all.
+# // _repoint_purchase_history is ONE helper called from both, so the two
+# // cannot drift (RULE 33d). It runs BEFORE the `items` UPDATE in each,
+# // because purchase_history has no sub_category column and the
+# // sub-category case can only find its rows through the item they came
+# // from - which must still carry the old category when it looks. The link
+# // is receipt_id + name, the same link the v2026.9.22 backfill uses, not a
+# // second copy of _build_product_key (RULE 33a.6).
 # //
-# // The module, the block that ran it, and the is_first_install probe that
-# // existed only to gate it all went together - a helper left behind after
-# // the thing it served is removed is exactly the plausible-looking code
-# // that causes the next defect (RULE 33d). No user data can be affected:
-# // it only ever wrote where the table had never existed (RULE 5). The
-# // CATEGORY seed is untouched and still runs.
-# // [ADDED v2026.10.6 | 2026-10-06] Purpose: is_gtin, for the scan boundary.
+# // THE THIRD WAY an item's category can change is the item editor, and
+# // async_repoint_item_history covers it. It matters more than it sounds:
+# // an item filed under a name that is NOT in the category list cannot be
+# // reached by a rename or a delete at all, because the Categories screen
+# // has no row for a name it does not hold - so editing the item is the
+# // only route, and it used to leave the chart exactly as it was. Scope is
+# // one item, matched on receipt_id + name, guarded on the old category.
 # //
-# // normalize_barcode is deliberately lenient about length - it only
-# // check-digits a GTIN shape, so a short code the user TYPED survives, which
-# // st24 exists to protect. That leniency is wrong for a SCANNED code: an
-# // Interleaved 2 of 5 short read is numeric and even-length, six digits say,
-# // so a lenient length test has nothing to check and waves it through.
-# //
-# // A retail barcode IS a GTIN, so this one is strict. The panel has the same
-# // rule in JavaScript as isValidGtin - they cannot share an implementation,
-# // so st43 asserts the two agree instead of assuming it.
+# // This is NOT a rewrite of history. Product, price, quantity, date,
+# // vendor and currency are untouched; `category` is a POINTER at a row in
+# // db_items_categories, a list the user edits, and a pointer whose target
+# // moved has to move with it. No history row is created or deleted.
 
 import json
 import logging
@@ -71,7 +81,7 @@ import os
 import shutil
 import secrets
 import base64
-from functools import partial
+from . import storage
 import re
 import time
 from datetime import datetime, timedelta
@@ -117,15 +127,17 @@ def _backup_db_sync(db_path, marker_path):
 
 
 async def async_init_db(hass):
-    img_path = hass.data.get(DOMAIN, {}).get("config", {}).get("img_path", hass.config.path("www", IMG_DIR))
-    # [MODIFIED v10.0.0] os.path.exists and os.makedirs are blocking disk
-    # operations and were running directly on the event loop inside this
-    # async function. Same class of issue as the ones raised in review.
-    # NOTE: exist_ok MUST be passed by keyword. The second positional
-    # parameter of os.makedirs is `mode`, not `exist_ok`.
-    await hass.async_add_executor_job(
-        partial(os.makedirs, img_path, exist_ok=True)
-    )
+    cfg = hass.data.get(DOMAIN, {}).get("config", {})
+    img_path = cfg.get("img_path", hass.config.path("www", IMG_DIR))
+    # [MODIFIED v2026.10.13] Made through storage.ready_dir_sync, in the
+    # executor (RULE 13). It will not make the folder in place of a network
+    # folder that is not connected; setup has already said so in Repairs,
+    # and the database does not depend on it, so setup carries on.
+    try:
+        await hass.async_add_executor_job(
+            storage.ready_dir_sync, img_path, cfg.get("images_mount"))
+    except storage.ImageFolderUnavailable as err:
+        _LOGGER.debug("Images folder not made: %s", err)
     
     db_path = get_db_path(hass)
 
@@ -470,6 +482,11 @@ async def async_init_db(hass):
                 except Exception as seed_err:
                     _LOGGER.error("Expense seeding failed: %s", seed_err)
 
+            # Categories are seeded; locations deliberately are not. The
+            # starter locations of location_seed.py went in v2026.10.7, when
+            # the locations wizard replaced them - and their shelves sat at
+            # level_4, which the inventory view never shows.
+            #
             # Seeded only when empty. Re-seeding a populated table would undo
             # a rename the user made, which is exactly the failure this table
             # exists to prevent.
@@ -2491,6 +2508,83 @@ async def async_link_receipt_pages(hass, receipt_id, paths, mime_type=None):
         return False
 
 
+def _copy_receipt_files_sync(paths, src_mount, dst_dir, dst_mount):
+    """Copy receipt files into dst_dir under their own names.
+
+    Returns {old path: new path} for every file that is now in dst_dir with
+    the same size as the original - the only copies a row may be pointed
+    at. A missing original is skipped, and so is a name already taken in
+    dst_dir by a different file: both rows stay as they are. Never
+    overwrites, never deletes. Runs in the executor.
+    """
+    if src_mount and not storage.is_connected_sync(src_mount):
+        raise storage.ImageFolderUnavailable(
+            "the network folder %s, which holds the receipts, is not "
+            "connected" % src_mount)
+    storage.ready_dir_sync(dst_dir, dst_mount)
+    moved = {}
+    for old in paths:
+        if not os.path.isfile(old):
+            continue
+        new = os.path.join(dst_dir, os.path.basename(old))
+        if not os.path.exists(new):
+            shutil.copy2(old, new)
+        if os.path.getsize(new) == os.path.getsize(old):
+            moved[old] = new
+    return moved
+
+
+async def async_move_receipt_files(hass, src_dir, src_mount, dst_dir,
+                                   dst_mount):
+    """[ADDED v2026.10.13] Move the receipts into a newly chosen folder.
+
+    A receipt row stores the FULL path of its file - receipts.file_path and
+    receipt_pages.file_path - so moving them is two steps: copy each file
+    that is in src_dir, then point its rows at the copy. A row is pointed
+    only at a copy of the same size, and the original is never deleted, so
+    at every moment every row names a file that exists: the old folder is
+    left for the user to remove once every receipt opens.
+
+    Only files inside src_dir move. A receipt kept under www before a move to
+    media is not in it and stays where it is, served from there.
+
+    Returns (moved, left). Raises OSError when a network folder on either
+    side is not connected; then no row has changed.
+    """
+    base = os.path.abspath(src_dir)
+
+    def inside(path):
+        try:
+            return bool(path) and os.path.commonpath(
+                [base, os.path.abspath(path)]) == base
+        except ValueError:
+            # Paths on different drives on Windows have no common path.
+            return False
+
+    db_path = get_db_path(hass)
+    async with aiosqlite.connect(db_path, timeout=10.0) as db:
+        found = []
+        for table in ("receipts", "receipt_pages"):
+            async with db.execute(
+                f"SELECT file_path FROM {table} WHERE file_path IS NOT NULL"
+            ) as cur:
+                found += [r[0] for r in await cur.fetchall()]
+    paths = sorted({p for p in found if inside(p)})
+    if not paths:
+        return 0, 0
+    moved = await hass.async_add_executor_job(
+        _copy_receipt_files_sync, paths, src_mount, dst_dir, dst_mount)
+    if moved:
+        async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            for old, new in moved.items():
+                for table in ("receipts", "receipt_pages"):
+                    await db.execute(
+                        f"UPDATE {table} SET file_path = ? WHERE file_path = ?",
+                        (new, old))
+            await db.commit()
+    return len(moved), len(paths) - len(moved)
+
+
 def _path_to_browser_url(hass, path):
     """Map a stored filesystem path to a URL the panel can open, or None.
 
@@ -2504,16 +2598,31 @@ def _path_to_browser_url(hass, path):
     """
     if not path:
         return None
+    # [MODIFIED v2026.10.13] /config/www is no longer the only folder served.
+    # With /media chosen, receipts are written to /media and served from
+    # their own route, so a receipt there must map to THAT route - and a
+    # receipt saved before the move keeps its absolute /config/www path in
+    # the database, so www stays in the list and old receipts stay viewable.
+    # The containment test is applied per folder, unchanged: a path that is
+    # in none of them has no URL at all.
+    roots = hass.data.get(DOMAIN, {}).get("config", {}).get("served_roots") \
+        or [(hass.config.path("www"), "/local")]
     try:
-        www_root = os.path.abspath(hass.config.path("www"))
         target = os.path.abspath(path)
-        if os.path.commonpath([www_root, target]) != www_root:
-            return None
-        relative = os.path.relpath(target, www_root).replace(os.sep, "/")
-        return f"/local/{relative}"
     except (ValueError, OSError):
-        # ValueError: paths on different drives on Windows have no common path.
         return None
+    for root, url in roots:
+        try:
+            base = os.path.abspath(root)
+            if os.path.commonpath([base, target]) != base:
+                continue
+            relative = os.path.relpath(target, base).replace(os.sep, "/")
+            return f"{url}/{relative}"
+        except (ValueError, OSError):
+            # ValueError: paths on different drives on Windows have no
+            # common path. Not this folder; try the next.
+            continue
+    return None
 
 
 async def async_get_receipt_pages(hass, receipt_id):
@@ -3620,6 +3729,139 @@ async def async_category_item_counts(hass):
 #                   that is not there is a worse version of this same problem
 #                   (RULE 31).
 #   same          - the destination is what is being deleted.
+async def async_repoint_item_history(db, receipt_id, item_name,
+                                    old_category, new_category):
+    """Move ONE item's spending when that item is re-filed.
+
+    [ADDED v2026.10.8] handle_update_item_details wrote items.category and
+    nothing else, so re-filing an item left the purchase-history row that
+    came from it under the category it was approved with - and the
+    dashboard breakdown went on drawing the old name. That is the only
+    remaining way to change an item's category: a rename and a delete were
+    fixed with _repoint_purchase_history, and an item that is filed under a
+    name which is not in the category list cannot be reached by either,
+    because the Categories screen has no row for it.
+
+    Takes the open connection, so it joins the caller's single commit.
+
+    receipt_id + name is the same link the rest of this file uses to tie a
+    history row to its item. The OLD name, because a history row carries
+    the name the product was bought under and a rename may be happening in
+    the same call; and guarded on the OLD category, so a line approved as
+    something else is left alone.
+
+    Returns the number of rows moved. Zero is the normal answer: an item
+    added by hand has no receipt_id and therefore no history at all.
+    """
+    if receipt_id is None:
+        return 0
+    name = str(item_name or "").strip()
+    old_category = _coerce_text(old_category, 60) or ""
+    new_category = _coerce_text(new_category, 60) or ""
+    if not name or not old_category:
+        return 0
+    if new_category.casefold() == old_category.casefold():
+        return 0
+    cur = await db.execute(
+        "UPDATE purchase_history SET category = ? "
+        "WHERE receipt_id = ? AND name = ? "
+        "  AND category = ? COLLATE NOCASE",
+        (new_category or None, receipt_id, name, old_category),
+    )
+    return cur.rowcount or 0
+
+
+async def _repoint_purchase_history(db, old_category, old_sub,
+                                    new_category):
+    """Move purchase_history.category when the label it names moves.
+
+    [ADDED v2026.10.8] The spending breakdown on the dashboard sums
+    `ph.category` for its item rows (async_get_dashboard_data). Renaming or
+    deleting a category used to update `items` and db_items_categories and
+    leave this column alone, so every past purchase went on pointing at a
+    name that had moved or gone - and the chart kept drawing the old labels.
+
+    Measured by replaying a rename through the real functions on a real
+    database: 121 of 121 history rows follow, and 290 items with them, with
+    nothing created or deleted. Before this, no code path wrote the column
+    at all outside the one-time v2026.9.22 migration.
+
+    This does NOT rewrite history. The facts of a purchase - product, price,
+    quantity, date, vendor, currency - are immutable and none is touched.
+    `category` is a POINTER at a row in db_items_categories, a list the user
+    edits; when that row moves the pointer must move with it or it dangles.
+
+    Takes the open connection, not hass: both callers do all their work on
+    one connection and one commit, and this has to be part of that commit.
+
+    MUST be called BEFORE the `items` UPDATE. purchase_history has no
+    sub_category column, so the sub-category case can only find its rows by
+    looking at the item they came from, and that item still has to be
+    carrying the OLD category when it does.
+
+    Returns the number of history rows moved.
+    """
+    # `or ""` on each: _coerce_text returns None for an empty string, and
+    # "leave uncategorised" arrives here as "" from async_delete_category.
+    # Without this the casefold below raised AttributeError on None, the
+    # outer except swallowed it, and a delete with no destination came back
+    # {"ok": False, "reason": "error"} having changed nothing - which at
+    # least failed closed, but failed (RULE 33a.4: None is not "").
+    old_category = _coerce_text(old_category, 60) or ""
+    old_sub = _coerce_text(old_sub, 60) or ""
+    new_category = _coerce_text(new_category, 60) or ""
+    if not old_category:
+        return 0
+
+    # The breakdown groups by top-level category only, so a sub-category
+    # that stays inside its own category changes nothing in the chart and
+    # there is nothing here to do. This is also the plain no-op case of
+    # renaming a category to the name it already has.
+    if new_category.casefold() == old_category.casefold():
+        return 0
+
+    # NULL, not '', for "no category": that is what async_record_purchase
+    # writes, and one representation in the column is what lets the
+    # COALESCE/NULLIF in the breakdown query mean one thing.
+    target = new_category or None
+
+    if old_sub:
+        # receipt_id + name is the link the v2026.9.22 backfill already uses
+        # to tie a history row to the item it came from. Reusing it keeps one
+        # definition of that join instead of a second copy of
+        # _build_product_key (RULE 33a.6).
+        #
+        # The `category = old_category` guard matters: the same product may
+        # appear in history under some third category from an earlier
+        # purchase, and that line genuinely WAS bought as something else at
+        # the time. Only rows filed under the label being moved are moved.
+        #
+        # A product bought long ago and since consumed has no `items` row
+        # left, so its history row cannot be attributed to a sub-category -
+        # that information was never stored. Those rows stay where they are,
+        # which is the honest answer rather than a guess.
+        cur = await db.execute(
+            "UPDATE purchase_history SET category = ? "
+            "WHERE category = ? COLLATE NOCASE "
+            "  AND EXISTS (SELECT 1 FROM items i "
+            "              WHERE i.receipt_id = purchase_history.receipt_id "
+            "                AND i.name = purchase_history.name "
+            "                AND i.category = ? COLLATE NOCASE "
+            "                AND i.sub_category = ? COLLATE NOCASE)",
+            (target, old_category, old_category, old_sub),
+        )
+    else:
+        # The whole category is moving, so every row naming it moves. No
+        # join needed, which is why this half also works for a product that
+        # was consumed years ago.
+        cur = await db.execute(
+            "UPDATE purchase_history SET category = ? "
+            "WHERE category = ? COLLATE NOCASE",
+            (target, old_category),
+        )
+    return cur.rowcount or 0
+
+
 async def async_delete_category(hass, category, sub_category=None,
                                 to_category=None, to_sub_category=None):
     """Remove a category or one sub-category; its items are re-filed."""
@@ -3628,14 +3870,16 @@ async def async_delete_category(hass, category, sub_category=None,
     to_category = _coerce_text(to_category, 60)
     to_sub_category = _coerce_text(to_sub_category, 60)
     if not category:
-        return {"ok": False, "reason": "no_category", "moved": 0, "removed": 0}
+        return {"history": 0, "ok": False, "reason": "no_category",
+                "moved": 0, "removed": 0}
 
     # Deleting something into itself would re-file the items onto a row that
     # is about to disappear.
     if (to_category and to_category.casefold() == category.casefold()
             and (sub_category or "").casefold()
             == (to_sub_category or "").casefold()):
-        return {"ok": False, "reason": "same", "moved": 0, "removed": 0}
+        return {"history": 0, "ok": False, "reason": "same",
+                "moved": 0, "removed": 0}
 
     try:
         db_path = get_db_path(hass)
@@ -3659,7 +3903,7 @@ async def async_delete_category(hass, category, sub_category=None,
                 ) as cur:
                     exists = (await cur.fetchone())["n"]
             if not exists:
-                return {"ok": False, "reason": "unknown",
+                return {"history": 0, "ok": False, "reason": "unknown",
                         "moved": 0, "removed": 0}
 
             # The destination has to be real BEFORE anything moves.
@@ -3680,7 +3924,7 @@ async def async_delete_category(hass, category, sub_category=None,
                     ) as cur:
                         ok_target = (await cur.fetchone())["n"]
                 if not ok_target:
-                    return {"ok": False, "reason": "unknown_target",
+                    return {"history": 0, "ok": False, "reason": "unknown_target",
                             "moved": 0, "removed": 0}
 
             # The stored spelling of the destination, so the items carry the
@@ -3701,7 +3945,17 @@ async def async_delete_category(hass, category, sub_category=None,
                 dest_cat = trow["category"]
                 dest_sub = trow["sub_category"] if to_sub_category else ""
 
-            # 1. The items. Every row that pointed at what is going away now
+            # [ADDED v2026.10.8] 1. The spending history, FIRST, while the
+            #    item rows still carry the old category - the sub-category
+            #    case reads them to find out which history rows are its own.
+            #
+            #    Without this the dashboard breakdown went on showing the
+            #    deleted category for ever, because that chart sums
+            #    purchase_history.category and nothing here ever moved it.
+            history = await _repoint_purchase_history(
+                db, category, sub_category, dest_cat)
+
+            # 2. The items. Every row that pointed at what is going away now
             #    points at the destination, or at nothing - an uncategorised
             #    item is visible and fixable; one pointing at a name that no
             #    longer exists is not.
@@ -3719,16 +3973,20 @@ async def async_delete_category(hass, category, sub_category=None,
             )
             moved = cur.rowcount or 0
 
-            # 2. Only now the label itself.
+            # 3. Only now the label itself.
             cur = await db.execute(
                 "DELETE FROM db_items_categories WHERE " + where, params)
             removed = cur.rowcount or 0
 
             await db.commit()
-        return {"ok": True, "reason": "ok", "moved": moved, "removed": removed}
+        # `history` first, as a new key, rather than appended after
+        # `removed` (RULE 33a.6). Additive: the panel reads ok/reason/moved.
+        return {"history": history, "ok": True, "reason": "ok",
+                "moved": moved, "removed": removed}
     except Exception as err:
         _LOGGER.error("Deleting category failed: %s", err)
-        return {"ok": False, "reason": "error", "moved": 0, "removed": 0}
+        return {"history": 0, "ok": False, "reason": "error",
+                "moved": 0, "removed": 0}
 
 
 async def async_rename_category(hass, old_category, old_sub, new_category, new_sub):
@@ -3737,6 +3995,12 @@ async def async_rename_category(hass, old_category, old_sub, new_category, new_s
     Both updates run on one connection and one commit. A rename that changed
     the category list but not the items pointing at it would leave those items
     filed under a name that no longer exists anywhere.
+
+    [MODIFIED v2026.10.8] purchase_history moves too. The same argument the
+    paragraph above makes about `items` applies to the spending breakdown on
+    the dashboard, which sums purchase_history.category: a rename that left
+    that column alone made the chart go on drawing the old name for ever.
+    See _repoint_purchase_history.
     """
     old_category = _coerce_text(old_category, 60)
     new_category = _coerce_text(new_category, 60) or old_category
@@ -3747,6 +4011,12 @@ async def async_rename_category(hass, old_category, old_sub, new_category, new_s
     try:
         db_path = get_db_path(hass)
         async with aiosqlite.connect(db_path, timeout=10.0) as db:
+            # FIRST, while the item rows still carry the old category: the
+            # sub-category case has to read them to find its history rows.
+            # A sub-category renamed inside its own category is a no-op in
+            # there, because the breakdown groups by category alone.
+            await _repoint_purchase_history(
+                db, old_category, old_sub, new_category)
             if old_sub:
                 await db.execute(
                     "UPDATE OR IGNORE db_items_categories "
@@ -3956,9 +4226,21 @@ def _build_product_key(barcode, name):
 async def async_record_purchase(hass, entry_data):
     """Append one immutable purchase-history row.
 
-    Deliberately append-only. Nothing in the codebase updates or deletes from
-    this table: a purchase is a fact that happened, and rewriting it would
-    destroy exactly the history this table exists to keep.
+    Append-only for the FACTS of a purchase: product, price, quantity, date,
+    vendor and currency are written once and never changed, because a
+    purchase is a thing that happened and rewriting it would destroy exactly
+    the history this table exists to keep.
+
+    [MODIFIED v2026.10.8] Two things do write here, and both are about the
+    LABEL rather than the facts, so the paragraph above is not a promise that
+    no row is ever touched:
+
+      * `category` points at a row in db_items_categories, a list the user
+        edits. _repoint_purchase_history moves it when that row is renamed
+        or deleted, or the dashboard breakdown draws a name that no longer
+        exists. The v2026.9.22 migration backfills the same column.
+      * async_delete_receipt removes the rows belonging to a receipt that is
+        being deleted outright, since the purchase is being withdrawn.
 
     A row is written even when the price is unknown, because the fact that
     the product was bought on that date from that vendor is still useful.
@@ -4047,7 +4329,7 @@ async def async_get_price_history(hass, barcode=None, name=None, limit=50):
         return {"product_key": None, "purchases": [], "summary": []}
 
 
-def _write_receipt_file_sync(target_dir, filename, raw_bytes):
+def _write_receipt_file_sync(target_dir, filename, raw_bytes, mount=None):
     """Write the scanned document. Runs in the executor.
 
     The containment check repeats what services.py does at its own write
@@ -4055,8 +4337,13 @@ def _write_receipt_file_sync(target_dir, filename, raw_bytes):
     currently escape - but this function may be called from elsewhere later,
     and a write guard that depends on the caller being careful is not a
     guard at all.
+
+    [MODIFIED v2026.10.13] mount is the network folder the target is on,
+    for a receipt or a dish photo whose folder lives there:
+    storage.ready_dir_sync makes the folder, and refuses to while that
+    network folder is not connected.
     """
-    os.makedirs(target_dir, exist_ok=True)
+    storage.ready_dir_sync(target_dir, mount)
     target = os.path.join(target_dir, filename)
     if os.path.commonpath(
         [os.path.abspath(target_dir), os.path.abspath(target)]
@@ -4122,8 +4409,13 @@ async def async_store_receipt_file(hass, image_b64, mime_type):
         # with a default image mime still gets a .pdf extension.
         ext = ".pdf" if "pdf" in (mime_type or "").lower() else ".jpg"
         filename = f"r_{secrets.token_hex(5)}{ext}"
+        # [MODIFIED v2026.10.13] receipts_mount: the receipts may be on a
+        # network folder, which ready_dir_sync will not recreate on the Home
+        # Assistant disk while it is not connected. The scan is then kept
+        # without its file - see the except below.
         stored = await hass.async_add_executor_job(
-            _write_receipt_file_sync, target_dir, filename, raw
+            _write_receipt_file_sync, target_dir, filename, raw,
+            cfg.get("receipts_mount")
         )
         return stored
     except Exception as err:
@@ -4856,7 +5148,8 @@ async def async_store_recipe_photo(hass, image_b64, mime_type="image/jpeg"):
         ext = ".png" if "png" in kind else (".webp" if "webp" in kind else ".jpg")
         filename = f"rp_{secrets.token_hex(5)}{ext}"
         stored = await hass.async_add_executor_job(
-            _write_receipt_file_sync, target_dir, filename, raw
+            _write_receipt_file_sync, target_dir, filename, raw,
+            cfg.get("images_mount")
         )
         if not stored:
             return None

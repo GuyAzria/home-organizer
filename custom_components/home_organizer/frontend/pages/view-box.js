@@ -98,8 +98,8 @@
 //   such row and drops back to it - the guard written for a box deleted in
 //   another session answers this case too.
 
-import { ICONS } from '../organizer-icon.js?v=10.11.112';
-import { escapeHtml } from '../organizer-utils.js?v=10.11.112';
+import { ICONS } from '../organizer-icon.js?v=10.11.120';
+import { escapeHtml } from '../organizer-utils.js?v=10.11.120';
 
 // The canonical box types, in English.
 //

@@ -11,6 +11,41 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [ADDED v2026.10.10 | 2026-10-10] Purpose: the version sheet, from the
+//   three-dot menu.
+//
+//   Fetched when the sheet opens rather than with the recipe: most recipes
+//   have no history at all, and a list nobody looks at is a round trip on
+//   every page turn. null means "loading" and [] means "none" - two
+//   different screens, and `if (list)` would have shown the empty one for
+//   both (RULE 33a.4).
+//
+//   recipeVersions is a sub-state of the open recipe, so it is cleared at
+//   BOTH the places recipeCatPicker and recipeMenu are, together with the
+//   list it holds - otherwise the next recipe is offered this one's
+//   history (RULE 33a.1).
+//
+//   Every string from the database is set with textContent. A version's
+//   label is whatever the user asked the assistant for, which is user text
+//   (RULE 15).
+//
+//   [FIXED v2026.10.11] As first shipped this file did not PARSE: the
+//   sheet's hint was two string literals side by side, which Python joins
+//   and JavaScript rejects with "missing ) after argument list". The panel
+//   imports this file at load time, so the whole panel failed to load.
+//   It got out because the JS check was run with no arguments and passed
+//   by reading nothing; st54 now parses every panel file in the suite loop.
+//
+//   [MODIFIED v2026.10.11] Three controls. A button after "Check my
+//   inventory" shows the version on screen - V3, or V1 for a recipe never
+//   changed - and opens this sheet. The proposal's save button says which
+//   version it will create, "Save as V4", counted from the NEWEST version
+//   rather than the one on screen, since after choosing an older one those
+//   differ. And the bin is the shared trash icon, drawn only when there is
+//   more than one version: the backend refuses deleting the last, and a
+//   button whose only possible answer is "no" should not be shown. V{n} is
+//   an identifier like box3, not a word, so it is not translated and is
+//   isolated left-to-right.
 // [MODIFIED v2026.10.1 | 2026-10-01] Purpose: The stock-check buttons.
 //
 //   "Add missing to shopping list" says what it does and carries no count -
@@ -27,20 +62,15 @@
 //   A staple the check assumes present - salt, water, oil - is neither
 //   deducted nor bought. Putting salt on the shopping list after every
 //   recipe is the exact noise that assumption exists to prevent.
-// [FIXED v2026.10.1 | 2026-10-01] Purpose: Two chat calls did not send
-//   recipe_id, which __init__.py documents as something the cookbook sends on
-//   EVERY message. The key is now what tells the back end the cookbook is
-//   calling, and the sous-chef is reachable from nowhere else - so without it
-//   the finish command and the finish BUTTON would both have been answered as
-//   ordinary questions, leaving a user unable to end a session they asked to
-//   end. All five calls send it now, which also makes that documented
-//   invariant true.
 
-import { escapeHtml } from '../organizer-utils.js?v=10.11.112';
+import { escapeHtml } from '../organizer-utils.js?v=10.11.120';
+// [ADDED v2026.10.11] The bin on the version sheet - the same icon the
+// categories screen and the box page use for a delete.
+import { ICONS } from '../organizer-icon.js?v=10.11.120';
 // [MODIFIED v2026.9.19] Only the assistant's drawing is built here now. The
 // local part library that composed emblems from the recipe's chapter has been
 // removed - see the plate in renderCookbookPage for why.
-import { emblemFromSpec } from './recipe-emblem.js?v=10.11.112';
+import { emblemFromSpec } from './recipe-emblem.js?v=10.11.120';
 
 const CHEF_HAT_SVG =
   '<svg viewBox="0 0 24 24"><path d="M12 3a5 5 0 0 0-4.9 4.02A4 4 0 0 0 6 15v1h12v-1a4 4 0 0 0-1.1-7.98A5 5 0 0 0 12 3zM6 18h12v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-2z"/></svg>';
@@ -917,12 +947,189 @@ export const RecipesMixin = (Base) => class extends Base {
       this._t('recipe_move', 'Move to another category'),
       this.categoryLabel(rec.category),
       () => { this.recipeCatPicker = true; this.render(); }));
+    // [ADDED v2026.10.10] The history. The note says how many there are,
+    // so the entry answers "is there anything in here" without opening.
+    menu.appendChild(item('',
+      this._t('recipe_versions', 'Versions'),
+      (rec.active_version ? String(rec.active_version) : ''),
+      () => this.openRecipeVersions()));
     menu.appendChild(item('cookbook-menu-danger',
       this._t('delete', 'Delete'), '',
       () => this.deleteRecipe()));
 
     wrapEl.appendChild(menu);
     return wrapEl;
+  }
+
+  // [ADDED v2026.10.10] The version history of the open recipe.
+  //
+  // Fetched when the sheet is opened rather than with the recipe: most
+  // recipes have no history at all, and a list nobody looks at is a
+  // round trip on every page turn.
+  async openRecipeVersions() {
+    if (!this.openRecipe) return;
+    this.recipeVersions = true;
+    this.recipeVersionList = null;   // null is "loading", [] is "none"
+    this.render();
+    try {
+      const res = await this._hass.callWS({
+        type: 'home_organizer/recipes', action: 'versions',
+        recipe_id: this.openRecipe.id,
+      });
+      this.recipeVersionList = (res && res.versions) || [];
+    } catch (e) {
+      console.error(e);
+      this.recipeVersionList = [];
+    }
+    this.render();
+  }
+
+  async pickRecipeVersion(versionNo) {
+    if (!this.openRecipe) return;
+    try {
+      await this._hass.callWS({
+        type: 'home_organizer/recipes', action: 'restore_version',
+        recipe_id: this.openRecipe.id, version_no: Number(versionNo),
+      });
+      // Re-read the recipe: restoring copies that version into the recipe
+      // row, so what is on screen has genuinely changed.
+      await this.openRecipeById(this.openRecipe.id);
+    } catch (e) { console.error(e); }
+  }
+
+  async removeRecipeVersion(versionNo) {
+    if (!this.openRecipe) return;
+    const msg = this._t('recipe_version_del_confirm',
+      'Delete version {n}? The recipe itself is not changed.')
+      .replace('{n}', String(versionNo));
+    if (!window.confirm(msg)) return;
+    try {
+      const res = await this._hass.callWS({
+        type: 'home_organizer/recipes', action: 'delete_version',
+        recipe_id: this.openRecipe.id, version_no: Number(versionNo),
+      });
+      if (res && !res.ok && res.reason === 'last_one') {
+        window.alert(this._t('recipe_version_del_last',
+          'This is the only version. A recipe keeps at least one.'));
+        return;
+      }
+      await this.openRecipeVersions();
+      await this.openRecipeById(this.openRecipe.id);
+      this.recipeVersions = true;
+      this.render();
+    } catch (e) { console.error(e); }
+  }
+
+  // The sheet. A list, newest first, with the one on screen ticked.
+  //
+  // Every string that comes from the database - a version's label, its
+  // name - is set with textContent. The label is whatever the user asked
+  // the assistant for, which is user text (RULE 15).
+  renderRecipeVersions(wrap) {
+    const close = () => { this.recipeVersions = false; this.render(); };
+
+    const ov = document.createElement('div');
+    ov.className = 'cookbook-sheet-backdrop';
+    ov.onclick = close;
+    wrap.appendChild(ov);
+
+    const sheet = document.createElement('div');
+    sheet.className = 'cookbook-sheet';
+
+    const head = document.createElement('div');
+    head.className = 'cookbook-sheet-head';
+    head.textContent = this._t('recipe_versions', 'Versions');
+    sheet.appendChild(head);
+
+    const hint = document.createElement('div');
+    hint.className = 'cookbook-sheet-hint';
+    // [FIXED v2026.10.11] Joined with +. This was two string literals side
+    // by side - which Python concatenates and JavaScript rejects with
+    // "missing ) after argument list". This file is imported by the panel
+    // at load time, so the one line took the whole panel down, not just
+    // the cookbook.
+    hint.textContent = this._t('recipe_versions_hint',
+      'Every change keeps the one before it. Pick one to show it; the '
+      + 'others stay.');
+    sheet.appendChild(hint);
+
+    const list = document.createElement('div');
+    list.className = 'cookbook-sheet-list';
+
+    const rows = this.recipeVersionList;
+    if (rows === null) {
+      const l = document.createElement('div');
+      l.className = 'cookbook-sheet-empty';
+      l.textContent = this._t('loading', 'Loading...');
+      list.appendChild(l);
+    } else if (!rows.length) {
+      const e = document.createElement('div');
+      e.className = 'cookbook-sheet-empty';
+      e.textContent = this._t('recipe_versions_none',
+        'No versions yet. The next change will keep this one.');
+      list.appendChild(e);
+    } else {
+      const active = Number(
+        (this.openRecipe && this.openRecipe.active_version) || 0);
+      // [MODIFIED v2026.10.11] No bin when there is one version. The backend
+      // refuses that delete anyway, and a button whose only possible answer
+      // is "no" should not be drawn.
+      const canDelete = rows.length > 1;
+      rows.forEach((v) => {
+        const row = document.createElement('div');
+        row.className = 'cookbook-version-row'
+          + (Number(v.version_no) === active ? ' active' : '');
+
+        const pick = document.createElement('button');
+        pick.type = 'button';
+        pick.className = 'cookbook-version-pick';
+        // V2 is an identifier, like box3: it reads the same in every
+        // language and is isolated left-to-right so a Hebrew line does not
+        // reorder it.
+        const no = document.createElement('span');
+        no.className = 'cookbook-version-no';
+        no.textContent = 'V' + String(v.version_no);
+        pick.appendChild(no);
+        // The description is the summary the user approved; version 1 with
+        // none is the recipe as it was before anything was changed.
+        const desc = v.label
+          || (Number(v.version_no) === 1
+            ? this._t('recipe_version_original', 'Original') : '');
+        if (desc) {
+          const lab = document.createElement('span');
+          lab.className = 'cookbook-version-label';
+          lab.textContent = desc;
+          pick.appendChild(lab);
+        }
+        pick.onclick = () => this.pickRecipeVersion(v.version_no);
+        row.appendChild(pick);
+
+        if (canDelete) {
+          const del = document.createElement('button');
+          del.type = 'button';
+          del.className = 'cookbook-version-del';
+          del.title = this._t('delete', 'Delete');
+          del.setAttribute('aria-label', del.title + ' V' + v.version_no);
+          // ICONS.delete is a constant SVG shipped with the panel, never
+          // data, so innerHTML is safe here (RULE 15).
+          del.innerHTML = ICONS.delete;
+          del.onclick = () => this.removeRecipeVersion(v.version_no);
+          row.appendChild(del);
+        }
+
+        list.appendChild(row);
+      });
+    }
+    sheet.appendChild(list);
+
+    const done = document.createElement('button');
+    done.type = 'button';
+    done.className = 'cookbook-sheet-close';
+    done.textContent = this._t('close', 'Close');
+    done.onclick = close;
+    sheet.appendChild(done);
+
+    wrap.appendChild(sheet);
   }
 
   // --------------------------------------------------------- the open book
@@ -944,6 +1151,11 @@ export const RecipesMixin = (Base) => class extends Base {
       // describes.
       this.recipeCatPicker = false;
       this.recipeMenu = false;
+      // [ADDED v2026.10.10] And the version sheet, with the list it holds.
+      // Leaving the list behind would offer the next recipe this one's
+      // history (RULE 33a.1).
+      this.recipeVersions = false;
+      this.recipeVersionList = null;
       this.pendingTimer = null;
       // A proposed change belongs to the recipe that was open. Leaving must
       // not carry it to the next one (RULE 33a.1).
@@ -963,6 +1175,19 @@ export const RecipesMixin = (Base) => class extends Base {
       : this._t('recipe_check_stock', 'Check my inventory');
     checkBtn.onclick = () => this.checkRecipeStock();
     back.appendChild(checkBtn);
+
+    // [ADDED v2026.10.11] Which version is on screen, and the way to the
+    // others - right after the stock check, where it was asked for. A recipe
+    // nobody has changed is version 1 even though no history row exists yet,
+    // so it says V1 rather than nothing.
+    const verBtn = document.createElement('button');
+    verBtn.type = 'button';
+    verBtn.className = 'cookbook-tool cookbook-version-btn';
+    verBtn.textContent = 'V' + String(Number(rec.active_version) || 1);
+    verBtn.title = this._t('recipe_versions', 'Versions');
+    verBtn.setAttribute('aria-label', verBtn.title + ' ' + verBtn.textContent);
+    verBtn.onclick = () => this.openRecipeVersions();
+    back.appendChild(verBtn);
 
     // Only offered once a check has actually run and found something missing.
     // A button that adds nothing is worse than no button.
@@ -1284,6 +1509,7 @@ export const RecipesMixin = (Base) => class extends Base {
     // The category sheet sits over everything, so it is mounted after even
     // the Sous-Chef column.
     if (this.recipeCatPicker) this.renderRecipeCategoryPicker(wrap);
+    if (this.recipeVersions) this.renderRecipeVersions(wrap);
 
     // [ADDED v2026.9.17] The plate is a button. Wired here rather than in the
     // template, because a handler cannot be attached from an innerHTML string.
@@ -1551,6 +1777,8 @@ export const RecipesMixin = (Base) => class extends Base {
         // (RULE 33a.1).
         this.recipeCatPicker = false;
         this.recipeMenu = false;
+        this.recipeVersions = false;
+        this.recipeVersionList = null;
         this.pendingTimer = null;
         this.pendingEdit = null;
         this.render();
@@ -2774,8 +3002,17 @@ export const RecipesMixin = (Base) => class extends Base {
       // rewrites the stored recipe is never the default.
       row.appendChild(btn('', 'recipe_edit_once', 'Just this time',
                           'session'));
-      row.appendChild(btn('cookbook-editbox-save', 'recipe_edit_save',
-                          'Save to recipe', 'save'));
+      // [MODIFIED v2026.10.11] Saving makes a new version, and the button
+      // says which: numbered after the NEWEST version, not the one on
+      // screen. A recipe with no history yet becomes V1 (as it was) and V2
+      // (this change) in the same save, so its first save is V2.
+      const newest = Number(this.openRecipe && this.openRecipe.latest_version)
+        || 0;
+      const saveBtn = btn('cookbook-editbox-save', 'recipe_edit_save',
+                          'Save to recipe', 'save');
+      saveBtn.textContent = this._t('recipe_edit_save_as', 'Save as V{n}')
+        .replace('{n}', String(Math.max(newest, 1) + 1));
+      row.appendChild(saveBtn);
       row.appendChild(btn('', 'cancel', 'Cancel', null));
       box.appendChild(row);
 

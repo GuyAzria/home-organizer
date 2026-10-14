@@ -11,6 +11,23 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [MODIFIED v2026.10.8 | 2026-10-08] Purpose: the window keeps its place,
+//   and a category can be renamed.
+//
+//   Every change here redraws the whole window, so pressing the bin on a
+//   category near the bottom put the user back at the top - and the panel
+//   that had just opened, the one that asks WHERE the items should go, was
+//   then somewhere below the fold. The card's scrollTop is carried across
+//   the rebuild, and the open panel is scrolled into view afterwards:
+//   it can sit off screen even from the same offset, which is the half
+//   that scrollTop alone does not solve.
+//
+//   RENAME. async_rename_category already existed and nothing on this
+//   screen called it, so correcting a typo meant deleting the category -
+//   which re-files every item in it - and making a new one. The service
+//   moves the items with the name in a single commit; renaming the list
+//   alone would leave them filed under something that exists nowhere
+//   (RULE 33d).
 // [ADDED v2026.10.7 | 2026-10-07] Purpose: a "+" to add a category, and one
 //   inside every category to add a sub-category.
 //
@@ -28,23 +45,9 @@
 //   sub_category null, which is what makes the service supply the "General"
 //   bucket the two-step picker needs - and two copies of that would drift
 //   (RULE 22, RULE 33d).
-// [ADDED v2026.10.2 | 2026-10-02] Purpose: The categories screen. There was no
-//   way to remove a category or sub-category at all - only to add or rename
-//   one - so an inventory accumulated whatever the scanner had registered and
-//   the list could only grow.
-//
-//   It is a module of its own, like the box page, because it shares nothing
-//   with the views: no path, no selection, no edit mode. It builds its overlay
-//   on demand and removes it on close, so it holds no state between openings
-//   beyond which row is mid-delete.
-//
-//   It reuses .modal-content from organizer-panel.css rather than bringing a
-//   stylesheet. That class is the panel's generic modal shell - scrollable,
-//   capped at 90vh, 450px wide - not another feature's styling, so this is
-//   reuse and not the borrowing RULE 33a.7 warns about.
 
-import { ICONS } from '../organizer-icon.js?v=10.11.112';
-import { escapeHtml, categorySelectOptions } from '../organizer-utils.js?v=10.11.112';
+import { ICONS } from '../organizer-icon.js?v=10.11.120';
+import { escapeHtml, categorySelectOptions } from '../organizer-utils.js?v=10.11.120';
 
 export const CategoriesMixin = (Base) => class extends Base {
 
@@ -77,7 +80,15 @@ export const CategoriesMixin = (Base) => class extends Base {
   // patching three of those by hand is how they end up disagreeing.
   // ------------------------------------------------------------------
   renderCategoriesScreen() {
+    // [ADDED v2026.10.7] Keep the place on the list across the rebuild.
+    //
+    // This window is drawn from scratch on every change, so pressing the bin
+    // on a category near the bottom used to throw the user back to the top -
+    // and the panel they had just opened, the one that asks where the items
+    // should go, was then somewhere below the fold.
     const prev = this.shadowRoot.getElementById('categories-modal');
+    const keptScroll = prev
+      ? (prev.querySelector('.modal-content') || {}).scrollTop || 0 : 0;
     if (prev) prev.remove();
 
     const cats = this.categories || {};
@@ -132,6 +143,15 @@ export const CategoriesMixin = (Base) => class extends Base {
 
     ov.appendChild(card);
     this.mountOverlay(ov);
+
+    // Restore the position, then make sure the open panel is actually on
+    // screen: it can sit below the fold even from the same scroll offset,
+    // which is the half of this that scrollTop alone does not solve.
+    if (keptScroll) card.scrollTop = keptScroll;
+    const open = card.querySelector('[data-cat-panel]');
+    if (open && typeof open.scrollIntoView === 'function') {
+      open.scrollIntoView({ block: 'nearest' });
+    }
   }
 
   // [ADDED v2026.10.7] "+" - a new category, or a new sub-category inside
@@ -215,6 +235,48 @@ export const CategoriesMixin = (Base) => class extends Base {
     input.focus();
   }
 
+  // [ADDED v2026.10.7] The inline rename. Same shape as the add rows: Enter
+  // or blur saves, Escape abandons, an unchanged or empty name does nothing.
+  startCategoryRename(row, nameEl, spec) {
+    const input = document.createElement('input');
+    input.value = spec.label;
+    input.style.cssText = 'flex:1;min-width:0;min-height:40px;padding:6px;'
+      + 'border-radius:6px;background:var(--bg-input);color:var(--text-main);'
+      + 'border:1px solid var(--primary);font-size:13px;';
+    row.replaceChild(input, nameEl);
+
+    let settled = false;
+    const finish = async (save) => {
+      if (settled) return;
+      settled = true;
+      const next = input.value.trim();
+      if (!save || !next || next === spec.label) {
+        this.renderCategoriesScreen();
+        return;
+      }
+      try {
+        // A sub-category renames within its category; a top-level renames
+        // itself and every sub-category keeps its place under the new name.
+        await this.callHA('rename_category', spec.sub
+          ? { category: spec.category, sub_category: spec.sub,
+              new_sub_category: next }
+          : { category: spec.category, new_category: next });
+        await this.fetchData();
+      } catch (e) {
+        console.error('The category could not be renamed', e);
+      }
+      this.renderCategoriesScreen();
+    };
+
+    input.onblur = () => finish(true);
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+      else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    };
+    input.focus();
+    input.select();
+  }
+
   // One top-level category and its sub-categories.
   buildCategoryBlock(cat, cats, counts) {
     const block = document.createElement('div');
@@ -288,6 +350,24 @@ export const CategoriesMixin = (Base) => class extends Base {
       .replace('{n}', String(spec.count));
     row.appendChild(tally);
 
+    // [ADDED v2026.10.7] Rename, beside the bin.
+    //
+    // async_rename_category already existed and nothing on this screen
+    // called it, so the only way to correct a typo in a category name was to
+    // delete it - which re-files every item in it - and make a new one.
+    // The service moves the items with the name in one commit; a rename that
+    // changed the list but not the items would leave them pointing at
+    // something that exists nowhere.
+    const pen = document.createElement('button');
+    pen.className = 'action-btn';
+    pen.type = 'button';
+    pen.style.cssText = 'flex-shrink:0;display:flex;align-items:center;'
+      + 'justify-content:center;min-width:40px;min-height:40px;';
+    pen.title = this._t('cats_rename', 'Rename');
+    pen.innerHTML = ICONS.edit;
+    pen.onclick = () => this.startCategoryRename(row, name, spec);
+    row.appendChild(pen);
+
     const bin = document.createElement('button');
     bin.className = 'action-btn btn-danger';
     bin.type = 'button';
@@ -321,8 +401,12 @@ export const CategoriesMixin = (Base) => class extends Base {
   // it would produce the "same" refusal from the backend, and a control whose
   // only effect is an error should not be drawn.
   // ------------------------------------------------------------------
+  // Marked so the renderer can scroll it back into view after a rebuild.
   buildCategoryDeletePanel(spec) {
     const panel = document.createElement('div');
+    // The marker the renderer looks for, so the panel can be put
+    // back on screen after the window is rebuilt.
+    panel.setAttribute('data-cat-panel', '');
     panel.style.cssText = 'display:flex;flex-direction:column;gap:6px;'
       + 'padding:8px;border-radius:8px;background:var(--bg-input-edit);';
 

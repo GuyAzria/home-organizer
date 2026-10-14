@@ -11,6 +11,28 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [FIXED v2026.10.8 | 2026-10-08] Purpose: a refresh no longer throws the
+//   user off the screen they are on.
+//
+//   Saving anything fires home_organizer_db_update, the panel answers it
+//   with fetchData, and fetchData set localData to the server's view of
+//   currentPath - so a save made from the category drill-down replaced it
+//   with whatever shelf had been open last. The marker is read before the
+//   assignment, carried onto the fresh payload, and reapplyCategoryView
+//   puts the screen back. ONE restore, called from both refreshers, never
+//   written out twice (RULE 33d).
+//
+//   The open editor survives that refresh, because a save IS a database
+//   event and closing the row being edited would make every edit feel like
+//   it failed - unless the edit moved the item out of this category, in
+//   which case the row is gone and so is its editor, which is the right
+//   answer rather than a lost one.
+//
+//   handleCatalogIdSearch had the other half of this since long before the
+//   drill-down existed: it built a three-key localData, so the category
+//   dropdown in an item opened from a catalogue-id result has never had
+//   anything in it. Same cause, same change, rather than a second copy of
+//   a defect that is now understood.
 // [ADDED v2026.10.7 | 2026-10-07] Purpose: addCategoryNamed, split out of
 //   promptAddCategory.
 //
@@ -19,15 +41,8 @@
 //   meet on a phone - without copying the creation. The payload shape is the
 //   part that must not be copied: sub_category null on a new top-level is what
 //   makes the service create the "General" bucket (RULE 22, RULE 33d).
-// [ADDED v2026.10.2 | 2026-10-02] Purpose: the categoryCounts getter.
-//
-//   It sits beside the one that serves the categories because both arrive in
-//   the same payload and both need the same empty fallback - the first
-//   render can happen before the first fetch returns. The categories screen
-//   reads it to say how many items a delete would re-file before it is
-//   pressed (RULE 33).
 
-import { escapeHtml } from './organizer-utils.js?v=10.11.112';
+import { escapeHtml } from './organizer-utils.js?v=10.11.120';
 
 export const APIMixin = (Base) => class extends Base {
 
@@ -64,6 +79,32 @@ export const APIMixin = (Base) => class extends Base {
     return this._hass.callService('home_organizer', service, data);
   }
 
+  // [ADDED v2026.10.8] Put the category drill-down back after a refresh.
+  //
+  // Saving anything fires home_organizer_db_update, and the panel answers
+  // it by fetching the view for currentPath - which replaced the
+  // drill-down with whatever shelf the user had been on last. One helper,
+  // called from both refreshers, so the two cannot drift (RULE 33d).
+  //
+  // The open editor survives, because a save IS a database event and
+  // closing the row being edited would make every edit feel like it
+  // failed. It does not survive the edit that moves the item out of this
+  // category: then the row is gone and so is its editor, which is the
+  // correct answer and not a lost one.
+  reapplyCategoryView() {
+    const v = this.localData && this.localData.category_view;
+    if (!v || !this.isSearch) return false;
+    if (typeof this.openCategoryItems !== 'function') return false;
+    const keepOpen = this.expandedIdx;
+    this.openCategoryItems(v.category, v.sub);
+    if (keepOpen !== null && keepOpen !== undefined
+        && (this.localData.items || []).some(i => i.id === keepOpen)) {
+      this.expandedIdx = keepOpen;
+      this.updateUI();
+    }
+    return true;
+  }
+
   async fetchData() {
     if (!this._hass) return;
 
@@ -85,7 +126,18 @@ export const APIMixin = (Base) => class extends Base {
         boxes_only: this.isSearch && this.boxesOnly === true
       });
       if (data.catalog_map) this.persistentIds = data.catalog_map;
+      // [MODIFIED v2026.10.8] The drill-down is re-applied on top of the
+      // fresh payload, so it gets the new categories and hierarchy and the
+      // user keeps the screen they were on. Read BEFORE the assignment -
+      // `data` has no category_view, so afterwards there is nothing left
+      // to read.
+      const keepCat = this.localData && this.localData.category_view;
       this.localData = data;
+      // The marker is carried onto the fresh payload so the one helper can
+      // do the rest. Writing the restore out again here would be a second
+      // copy of it, which is what RULE 33d forbids.
+      if (keepCat) this.localData.category_view = keepCat;
+      if (this.reapplyCategoryView()) return;
       this.updateUI();
     } catch (e) { console.error("Fetch error", e); }
   }
@@ -107,9 +159,20 @@ export const APIMixin = (Base) => class extends Base {
       if (pathArray.length === 3) return l1m && l2m && l3m;
       return false;
     });
+    // [FIXED v2026.10.8] Keep the reference data, replace the view.
+    //
+    // This built a three-key object, so `categories` and `hierarchy` were
+    // empty for as long as a catalogue-id search was on screen: the
+    // category dropdown in an item opened from one of these results has
+    // never had anything in it. Same cause as the category drill-down,
+    // fixed in the same change rather than left as a second copy of a
+    // defect that is now understood (RULE 33d).
+    const prev = this.localData || {};
     this.localData = {
+      ...prev,
       path_display: `Search: ${query} (${pathArray.join(' > ').replace(/(ZONE|ORDER)_MARKER_\d+_/g, '')})`,
-      items: filteredItems, depth: 0
+      category_view: null,
+      items: filteredItems, folders: [], depth: 0
     };
     this.updateUI();
   }

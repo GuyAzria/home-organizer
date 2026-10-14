@@ -12,6 +12,26 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
+# [FIXED v2026.10.10] A recipe open in the cookbook owns the question.
+#
+# "Update the quantity to 2 teaspoons of sugar", asked while looking at a
+# recipe, was answered by the INVENTORY agent. Step 2 runs a loose trigger
+# pass so that someone mid-recipe can say "add milk to the shopping list",
+# and it let any loose match overrule the open recipe - that sentence
+# matches the inventory vocabulary loosely. The only way to be heard by
+# the cookbook was to say the word "recipe" out loud.
+#
+# recipe_open is sent by the panel and is true only when a recipe is on
+# screen. allow_cooking already means "the cookbook is the caller", which
+# is a weaker thing: a question typed on the contents page is still routed
+# on its own merits. It is a KEYWORD argument, because a new positional on
+# a signature starting with domain_name is exactly how `hass` once landed
+# in domain_name and the agent silently never ran (RULE 33a.3).
+#
+# The STRICT pass still runs first and still wins, so a sentence whose
+# whole point is "add milk to the shopping list" routes away as before.
+# What stops is a loose word in the middle of a recipe question carrying
+# it off.
 # [FIXED v2026.8.25] Any error returned by Home Assistant's built-in
 # conversation agent now counts as "not handled", and the request continues to
 # the Home Organizer agent. Previously only NO_INTENT_MATCH fell through, so a
@@ -531,6 +551,12 @@ JSON ONLY:"""
 # ==========================================
 # LAZY-IMPORT DISPATCH (per-agent isolation)
 # ==========================================
+# [MODIFIED v2026.10.10] recipe_open is a KEYWORD argument, here and on
+# async_route_and_dispatch. _dispatch(hass, entry, ...) called against a
+# signature that starts with domain_name is in this project's rulebook by
+# name - `hass` landed in domain_name, the lookup found nothing, and the
+# agent silently never ran (RULE 33a.3). A new positional is how that
+# happens again.
 async def _dispatch(domain_name, hass, entry, messages, target_lang,
                     existing_locs_str, loc_hierarchy_map, history_text,
                     last_user_msg, recipe_name, is_voice, device_id, user_id,
@@ -592,7 +618,8 @@ async def async_universal_agent_loop(hass, entry, messages, target_lang,
                                      existing_locs_str,
                                      loc_hierarchy_map=None, is_voice=False,
                                      device_id=None, user_id=None, *,
-                                     allow_cooking=False):
+                                     allow_cooking=False,
+                                     recipe_open=False):
     if loc_hierarchy_map is None:
         loc_hierarchy_map = {}
 
@@ -620,6 +647,21 @@ async def async_universal_agent_loop(hass, entry, messages, target_lang,
     # The state is NOT cleared - a walkthrough in progress survives and the
     # cookbook picks it up again. It is simply not read here.
     is_cooking = allow_cooking and has_state(messages, COOKING_STATE_KEY)
+
+    # [ADDED v2026.10.10] A recipe open in the cookbook OWNS the question.
+    #
+    # Asking "update the quantity to 2 teaspoons of sugar" while looking
+    # at a recipe used to reach the inventory agent: step 2 below runs a
+    # LOOSE trigger pass and let any match overrule the open recipe, and
+    # that sentence matches the inventory vocabulary loosely. The only way
+    # to be heard by the cookbook was to say the word "recipe" out loud.
+    #
+    # recipe_open is sent by the panel and is true only when a recipe is
+    # actually on screen - not merely when the cookbook is the caller,
+    # which is what allow_cooking already means. A question typed on the
+    # contents page is still routed on its own merits.
+    if recipe_open:
+        is_cooking = True
 
     for m in messages:
         if (
@@ -673,7 +715,14 @@ async def async_universal_agent_loop(hass, entry, messages, target_lang,
 
     # 2. Loose trigger detection if a cooking session is active (user wants
     #    to do something other than cook mid-recipe).
-    if explicit_domain == "UNKNOWN" and is_cooking:
+    #
+    # [MODIFIED v2026.10.10] Not while a recipe is open on screen. This
+    # pass is why a recipe question containing an everyday food word was
+    # answered by the inventory agent. The STRICT pass above still runs
+    # and still wins, so a sentence whose whole point is "add milk to the
+    # shopping list" routes away exactly as before - what stops is a loose
+    # word in the middle of a question about the recipe carrying it off.
+    if explicit_domain == "UNKNOWN" and is_cooking and not recipe_open:
         loose_domain, loose_trig = await determine_explicit_domain(
             hass, last_user_msg, entry, lang_code, strict=False
         )
@@ -888,12 +937,22 @@ async def async_universal_agent_loop(hass, entry, messages, target_lang,
 async def safe_universal_agent_loop(hass, entry, mode, messages, target_lang,
                                     existing_locs_str, loc_hierarchy_map=None,
                                     is_voice=False, device_id=None,
-                                    user_id=None, *, allow_cooking=False):
+                                    user_id=None, *, allow_cooking=False,
+                                    recipe_open=False):
+    # [FIXED v2026.10.11] recipe_open was added to the INNER loop only.
+    #
+    # This is the function every caller actually calls, so passing the
+    # new keyword raised "got an unexpected keyword argument" on every
+    # single message - not only recipe ones. The wrapper has to accept
+    # what its callers send and hand it on, and it hands on to the inner
+    # loop in THREE places: the normal path, the hybrid retry, and the
+    # hybrid rescue after an exception. Missing one would lose the
+    # routing on a fallback and nothing would say so.
     try:
         reply = await async_universal_agent_loop(
             hass, entry, messages, target_lang, existing_locs_str,
             loc_hierarchy_map, is_voice, device_id, user_id,
-            allow_cooking=allow_cooking,
+            allow_cooking=allow_cooking, recipe_open=recipe_open,
         )
         if (
             reply
@@ -908,6 +967,7 @@ async def safe_universal_agent_loop(hass, entry, mode, messages, target_lang,
                 hass, FallbackMockEntry(entry), messages, target_lang,
                 existing_locs_str, loc_hierarchy_map, is_voice, device_id,
                 user_id, allow_cooking=allow_cooking,
+                recipe_open=recipe_open,
             )
         return reply
     except Exception as e:
@@ -917,6 +977,7 @@ async def safe_universal_agent_loop(hass, entry, mode, messages, target_lang,
                     hass, FallbackMockEntry(entry), messages, target_lang,
                     existing_locs_str, loc_hierarchy_map, is_voice, device_id,
                     user_id, allow_cooking=allow_cooking,
+                    recipe_open=recipe_open,
                 )
             except Exception as fe:
                 return f"Error: {fe}"

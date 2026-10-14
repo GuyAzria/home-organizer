@@ -12,41 +12,33 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
-# [FIXED v2026.10.7 | 2026-10-07] Purpose: renaming a location left its
-#   barcode memory behind.
+# [MODIFIED v2026.10.13 | 2026-10-13] Purpose: item photos may live on a
+#   network folder.
 #
-#   handle_update_item_details has renamed a folder for a long time, and it
-#   moved items.level_N, the folder_marker row that carries the folder's icon,
-#   and persistent_ids. It did not move barcode_history, which is keyed by the
-#   same level columns and is what remembers where a product lives so the next
-#   scan or receipt files itself.
+#   Both photo writers - add_item and update_image - make the images folder
+#   ready through storage.ready_dir_sync before writing, so a network folder
+#   that is not connected is never recreated on the Home Assistant disk; the
+#   write fails instead. And add_item no longer keeps the name of a photo it
+#   could not write: the item is saved without a picture rather than with a
+#   broken one.
+# [MODIFIED v2026.10.8 | 2026-10-08] Purpose: say what the delete actually
+#   moved.
 #
-#   Measured on a real installation before the fix: renaming one room moved
-#   381 items and stranded 142 barcode rows on a path that no longer existed,
-#   so scanning any of those products filed it into a room that was not there.
-#   After the fix all 142 move, and no row is created or deleted.
+#   handle_delete_category logged the labels removed and the items re-filed.
+#   It did not log the purchase-history rows, because until v2026.10.8
+#   nothing moved them - and that count is precisely the one that answers
+#   "why is the spending chart still showing the category I deleted"
+#   (RULE 10). handle_rename_category's docstring says the same.
 #
-#   location_settings moves too, descendants included. Nothing writes that
-#   table yet - the per-location shelf-life feature stopped at the CREATE
-#   TABLE, and database.py says so in a comment that has been waiting for
-#   this - but the locations wizard seeds it for the fridge, and a settings
-#   row orphaned by a rename is worse than no row.
+#   handle_update_item_details now carries an item's spending with it when
+#   the item is re-filed. It reads the item's OLD category, name and receipt
+#   BEFORE the UPDATE - the same call can change the name, and a history row
+#   carries the name it was bought under - and moves the history after, in
+#   the same commit. Without it, an item filed under a name that is not in
+#   the category list had no route at all to a corrected chart.
 #
-#   And a folder rename now needs two real names. orig and nn arrived straight
-#   from call.data with nothing checked while the UPDATE wrote nn into the
-#   level column unconditionally, so an empty new name blanked that column and
-#   every item under the folder lost the only thing that said where it was.
-#   Refused rather than guessed (RULE 31).
-#
-#   NOT a new function. Writing async_rename_location beside this would have
-#   been two copies of one piece of logic, which is what RULE 33d forbids and
-#   what this project has already been bitten by.
-# [MODIFIED v2026.10.5 | 2026-10-05] Purpose: two questions about a barcode.
-#
-#   Every barcode_history writer here asks is_portable_barcode instead of
-#   testing the code by hand. Two of them already carried their own
-#   `not in ("0", "None", "")` test - the same bug met and patched where it
-#   was found rather than at the source (RULE 33a.6).
+#   The work itself is in database._repoint_purchase_history and
+#   database.async_repoint_item_history, not here.
 
 import logging
 import os
@@ -59,6 +51,7 @@ import voluptuous as vol
 import homeassistant.helpers.config_validation as cv
 
 from .const import DOMAIN, IMG_DIR
+from . import storage
 from .database import (
     get_db_path, async_normalize_zone_path, async_repair_path_against_db,
     # [ADDED v2026.9.6 | STAGE 2] Purchase history is now written when an
@@ -70,6 +63,7 @@ from .database import (
     async_delete_receipt_completely,
     # [ADDED v2026.9.19] Categories now live in the database.
     async_add_category, async_rename_category, async_update_item_extras,
+    async_repoint_item_history,
     is_portable_barcode,
     async_delete_category,
     # [ADDED v2026.9.27] Boxes.
@@ -127,7 +121,8 @@ async def register_services(hass, entry):
         measurements = call.data.get("measurements", "")
         
         fname = ""
-        img_path_base = hass.data.get(DOMAIN, {}).get("config", {}).get("img_path", hass.config.path("www", IMG_DIR))
+        cfg = hass.data.get(DOMAIN, {}).get("config", {})
+        img_path_base = cfg.get("img_path", hass.config.path("www", IMG_DIR))
         
         if icon_key:
             fname = _safe_filename_part(icon_key, fallback="icon")
@@ -138,11 +133,21 @@ async def register_services(hass, entry):
                 target = os.path.join(img_path_base, fname)
 
                 def _write_image():
+                    # [MODIFIED v2026.10.13] Made ready first: the folder
+                    # may be on a network folder, and one that is not
+                    # connected must not be recreated on the Home Assistant
+                    # disk - ready_dir_sync raises instead.
+                    storage.ready_dir_sync(img_path_base,
+                                           cfg.get("images_mount"))
                     with open(target, "wb") as f:
                         f.write(base64.b64decode(img_b64))
 
                 await hass.async_add_executor_job(_write_image)
             except Exception as img_err:
+                # [FIXED v2026.10.13] Saved without a picture rather than
+                # pointing at a file that was never written, which is a
+                # broken image on every screen that shows the item.
+                fname = ""
                 _LOGGER.warning("Could not store item image: %s", img_err)
 
         parts = call.data.get("current_path", [])
@@ -542,6 +547,22 @@ async def register_services(hass, entry):
                         new_sub_scope = f"{parts[0]}_{nn}"
                         await db.execute("UPDATE persistent_ids SET scope = ? WHERE scope = ?", (new_sub_scope, old_sub_scope))
                 else:
+                    # [ADDED v2026.10.8] What the item is filed under NOW,
+                    # read before anything is written. The history row that
+                    # came from this item is found by the name and receipt
+                    # it was BOUGHT under, and both can be changed by this
+                    # same call, so they have to be read first.
+                    was_cat, was_name, was_receipt = None, None, None
+                    if cat is not None and item_id:
+                        async with db.execute(
+                            "SELECT category, name, receipt_id FROM items "
+                            "WHERE id = ?", (item_id,)
+                        ) as cursor:
+                            prev = await cursor.fetchone()
+                        if prev:
+                            was_cat, was_name, was_receipt = (
+                                prev[0], prev[1], prev[2])
+
                     sql = "UPDATE items SET "
                     updates = []
                     params = []
@@ -590,6 +611,21 @@ async def register_services(hass, entry):
                                 for i, p in enumerate(parts): sql += f" AND level_{i+1} = ?"; params.append(p)
 
                         await db.execute(sql, tuple(params))
+
+                        # [ADDED v2026.10.8] And the spending that came
+                        # from this item, so the dashboard breakdown
+                        # follows the re-filing instead of keeping the
+                        # category the line was approved under. Same
+                        # commit as the item itself.
+                        if was_cat is not None:
+                            moved_hist = await async_repoint_item_history(
+                                db, was_receipt, was_name, was_cat, cat)
+                            if moved_hist:
+                                _LOGGER.info(
+                                    "update_item_details: item %s re-filed "
+                                    "%r -> %r, %s purchase-history row(s) "
+                                    "moved with it",
+                                    item_id, was_cat, cat, moved_hist)
                         
                         if item_id:
                             async with db.execute("SELECT barcode, name, category, sub_category, image_path, level_1, level_2, level_3 FROM items WHERE id=?", (item_id,)) as cursor:
@@ -641,7 +677,8 @@ async def register_services(hass, entry):
             
         ext = ".pdf" if "pdf" in mime_type else ".jpg"
         fname = ""
-        img_path_base = hass.data.get(DOMAIN, {}).get("config", {}).get("img_path", hass.config.path("www", IMG_DIR))
+        cfg = hass.data.get(DOMAIN, {}).get("config", {})
+        img_path_base = cfg.get("img_path", hass.config.path("www", IMG_DIR))
 
         if icon_key:
             # [MODIFIED v2026.8.28] icon_key is caller-supplied and is stored in
@@ -662,6 +699,10 @@ async def register_services(hass, entry):
                 return
 
             def _write_image():
+                # [MODIFIED v2026.10.13] Made ready first - see add_item. A
+                # failure raises before the row is touched, so the item keeps
+                # the picture it had.
+                storage.ready_dir_sync(img_path_base, cfg.get("images_mount"))
                 with open(target, "wb") as f:
                     f.write(base64.b64decode(img_b64))
 
@@ -730,10 +771,15 @@ async def register_services(hass, entry):
                 call.data.get("to_sub_category"),
             )
             if res.get("ok"):
+                # [MODIFIED v2026.10.8] The purchase-history count too.
+                # The dashboard breakdown sums purchase_history.category, so
+                # this number is what says whether the spending chart will
+                # follow the delete or go on drawing the old name.
                 _LOGGER.info(
-                    "delete_category: removed %s rows, re-filed %s items "
+                    "delete_category: removed %s rows, re-filed %s items, "
+                    "moved %s purchase-history rows "
                     "(category=%r sub=%r -> %r/%r)",
-                    res.get("removed"), res.get("moved"),
+                    res.get("removed"), res.get("moved"), res.get("history"),
                     call.data.get("category"), call.data.get("sub_category"),
                     call.data.get("to_category"),
                     call.data.get("to_sub_category"),
@@ -775,7 +821,12 @@ async def register_services(hass, entry):
             _LOGGER.error(f"Service add category error: {e}")
 
     async def handle_rename_category(call):
-        """Rename a category or sub-category, moving its items with it."""
+        """Rename a category or sub-category, moving its items with it.
+
+        [MODIFIED v2026.10.8] And its purchase history. The dashboard
+        spending breakdown sums purchase_history.category, which used to be
+        left behind, so the chart kept the old name after a rename.
+        """
         try:
             ok = await async_rename_category(
                 hass,

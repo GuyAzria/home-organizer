@@ -12,36 +12,62 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
-# // [MODIFIED v2026.9.20 | 2026-09-20] Purpose: Added async_photo_in_use,
-# // asked before a dish photo is deleted from disk. Photo names are ten
-# // random hex characters so two recipes sharing one is not something that
-# // happens by accident, but a row copied by hand would do it, and deleting
-# // the file would then blank a picture on a recipe nobody touched. Fails
-# // CLOSED: any error answers "in use", so an unreadable database ends with
-# // an orphaned file rather than a missing one (RULE 31). Same release:
-# // async_save now writes the LANGUAGE column on update. It was set only
-# // on insert, so a recipe rewritten in another language kept claiming the
-# // one it was first written in - and that column is what every later
-# // translation decision reads.
-# // [MODIFIED v2026.9.19 | 2026-09-19] Purpose: async_save now honours an
-# // explicit recipe_id. It previously used the id only when inserting and
-# // otherwise looked the row up by name and language, so filling in an
-# // empty page the user had already created wrote a SECOND recipe under
-# // the same name - or collided on the primary key. An id that names an
-# // existing row updates that row; the name lookup is the fallback for
-# // callers that have no id, which is how the assistant saves a recipe
-# // nobody opened a page for. The UPDATE now writes name_lower alongside
-# // name: a row used to be findable only BY name_lower, so the column could
-# // never drift, but an update reached by id can rename the recipe, and
-# // async_find_by_name matches on that column alone. async_set_emblem lost
-# // its only_if_missing guard: it settled a race between several renders
-# // each deciding a recipe had no emblem, and nothing draws speculatively
-# // any more, so every write that reaches it is a deliberate replacement.
+# // [FIXED v2026.10.13 | 2026-10-13] Purpose: the recipe database is kept
+# // where the user chose to keep their data. _db_path returned /config
+# // every time, so with /media chosen the items started from nothing while
+# // the recipes went on being read from the old file. It now reads the path
+# // setup decided (storage.storage_paths); /config is only the default for
+# // a call made before setup has run.
+# // [ADDED v2026.10.10 | 2026-10-10] Purpose: every update to a recipe
+# // keeps the one before it.
+# //
+# // recipe_versions is a history BESIDE the recipe, not inside it. The
+# // recipe row goes on holding what is shown, so the cookbook, the
+# // sous-chef, the shopping check, the translations and the dashboard all
+# // read exactly what they read before and none of them had to learn
+# // about versions. Choosing a version copies it back into the row, so
+# // "show version 1" and "the recipe IS version 1" are one statement
+# // (RULE 25, RULE 30).
+# //
+# // VERSION 1 IS WRITTEN LAZILY, on the first update, from the content as
+# // it stood BEFORE that update - which is why async_snapshot_version_from
+# // takes a dict rather than reading the row: by then the row holds
+# // version 2. A recipe that already exists gains its history the first
+# // time it changes and needs no migration that rewrites it (RULE 5).
+# // active_version defaults to 0, not 1, because a recipe nobody has
+# // changed has no version 1 to point at.
+# //
+# // A version holds only what an update can change. The emblem, the photo,
+# // the chapter and the cook count belong to the recipe, so restoring
+# // version 1 does not drag the old drawing back with it (RULE 33a.8).
+# //
+# // Nothing in the table is ever rewritten, and the LAST version cannot be
+# // deleted: a recipe pointing at an empty history is worse than one with
+# // none. Deleting the version on screen leaves the words on screen and
+# // re-points at the newest that remains.
+# //
+# // [FIXED v2026.10.11] Versioning moved INTO async_save. It lived in one
+# // caller - the websocket "update" action - so a change the assistant
+# // proposed and the user approved with "save" went through
+# // recipe_edits.async_apply, which calls async_save directly, and was
+# // saved with no version at all. async_save's UPDATE branch is where every
+# // content update passes, so the versions are taken there now: on the same
+# // connection and in the same commit as the edit, and only when the stored
+# // content actually changes - so a re-save of the same text, or a move to
+# // another chapter, makes none. async_snapshot_version and
+# // async_snapshot_version_from, named above, are GONE: version 1 is read
+# // from the row on that connection just before the UPDATE, and one insert
+# // helper, _insert_version, writes every version row. async_latest_version
+# // gives the newest number, which the save button counts from.
 
 import json
 import logging
 import aiosqlite
 import uuid
+
+# [ADDED v2026.10.13] For the storage path setup chose. const imports
+# nothing from this package, so there is no cycle.
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,13 +85,21 @@ TABLE_NAME = "recipes"
 # that name. The two are merged for display, so an older install whose
 # recipes carry categories this table has never seen keeps every one of them.
 CATEGORIES_TABLE = "recipe_categories"
+# [ADDED v2026.10.10] One row per saved version of one recipe.
+VERSIONS_TABLE = "recipe_versions"
 # [ADDED v2026.9.17] Cached translations. Never the authority - the recipe
 # row is - so any row here can be discarded and rebuilt.
 TRANSLATIONS_TABLE = "recipe_translations"
 
 
 def _db_path(hass):
-    return hass.config.path(RECIPES_DB_FILE)
+    # [FIXED v2026.10.13] Where the user chose to keep their data. This
+    # returned /config every time, so choosing /media started the items
+    # from nothing while the recipes carried on from the old file. setup
+    # decides the path in storage.storage_paths; /config is only the
+    # fallback for a call made before setup has run.
+    return hass.data.get(DOMAIN, {}).get("config", {}).get(
+        "recipes_db_path", hass.config.path(RECIPES_DB_FILE))
 
 
 async def async_init(hass):
@@ -170,6 +204,16 @@ async def async_init(hass):
                 # the text, and a machine rewriting it afterwards would throw
                 # that statement away.
                 "translate_lock": "INTEGER DEFAULT 0",
+                # [ADDED v2026.10.10] Which version of itself this recipe
+                # is currently showing. The CONTENT of that version lives
+                # in the recipe's own columns, so every existing reader
+                # keeps working unchanged; this only records which one of
+                # them it is, for the picker to tick.
+                #
+                # 0 means "no history yet", which is every recipe until
+                # the first time it is updated. Defaulting to 1 would
+                # claim a version 1 that was never written.
+                "active_version": "INTEGER DEFAULT 0",
             }.items():
                 if col not in existing_cols:
                     try:
@@ -178,6 +222,44 @@ async def async_init(hass):
                         )
                     except Exception:
                         pass
+
+            # [ADDED v2026.10.10] The history. One row per version of
+            # one recipe, and nothing in here is ever rewritten.
+            #
+            # IF NOT EXISTS and nothing is ever seeded, so this is safe on
+            # a fresh install, on an upgrade that has never seen it, on an
+            # upgrade that already has it, and on every restart after
+            # (RULE 6).
+            #
+            # The columns are the ones an update can change. Everything
+            # else about a recipe - its emblem, its photo, its chapter,
+            # how often it has been cooked - belongs to the recipe and not
+            # to a version of it, so restoring version 1 does not take the
+            # drawing back with it (RULE 33a.8: an omitted field means
+            # leave alone, never clear).
+            #
+            # UNIQUE(recipe_id, version_no) is what makes the numbering
+            # safe against two writes racing: the second fails rather than
+            # creating a second version 3.
+            await db.execute(f"""
+                CREATE TABLE IF NOT EXISTS {VERSIONS_TABLE} (
+                    recipe_id    TEXT NOT NULL,
+                    version_no   INTEGER NOT NULL,
+                    label        TEXT,
+                    name         TEXT,
+                    ingredients  TEXT NOT NULL DEFAULT '[]',
+                    steps        TEXT NOT NULL DEFAULT '[]',
+                    timers       TEXT NOT NULL DEFAULT '[]',
+                    prep_time    TEXT,
+                    notes        TEXT,
+                    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (recipe_id, version_no)
+                )
+            """)
+            await db.execute(
+                f"CREATE INDEX IF NOT EXISTS idx_{VERSIONS_TABLE}_recipe "
+                f"ON {VERSIONS_TABLE}(recipe_id, version_no)"
+            )
 
             # [ADDED v2026.9.16] Chapters that hold no recipe yet.
             #
@@ -282,10 +364,75 @@ async def async_init(hass):
         _LOGGER.error(f"[HO-RECIPES] Table init failed: {e}", exc_info=True)
 
 
+# [ADDED v2026.10.11] The version helpers async_save uses. They take the
+# open connection, so a version is written inside the same transaction as
+# the edit it records - never on a second connection, which would wait on
+# the first one's lock until it timed out.
+
+_LABEL_MAX = 120
+
+
+def _clean_label(raw):
+    """A version's description: one line, capped, or None.
+
+    It is usually the assistant's own summary of the change - the text the
+    user read on the proposal before approving it. That is model output, so
+    it is stored as data and drawn with textContent, never markup (RULE 15),
+    and capped so one long answer cannot become a paragraph in a list row.
+    """
+    text = " ".join(str(raw or "").split())
+    return text[:_LABEL_MAX] or None
+
+
+def _content_differs(before, after):
+    """Whether an update changes what a version would record.
+
+    Compared as DATA, not as stored text: older rows were written by other
+    releases, and the same list can be serialised more than one way.
+    """
+    def lst(v):
+        if isinstance(v, (list, tuple)):
+            return list(v)
+        try:
+            return json.loads(v or "[]")
+        except (TypeError, ValueError):
+            return []
+    return (str(before["name"] or "") != str(after["name"] or "")
+            or lst(before["ingredients"]) != lst(after["ingredients"])
+            or lst(before["steps"]) != lst(after["steps"])
+            or lst(before["timers"]) != lst(after["timers"])
+            or (before["prep_time"] or None) != (after["prep_time"] or None)
+            or (before["notes"] or None) != (after["notes"] or None))
+
+
+async def _version_count(db, recipe_id):
+    async with db.execute(
+        f"SELECT COUNT(*) FROM {VERSIONS_TABLE} WHERE recipe_id = ?",
+        (recipe_id,)
+    ) as cur:
+        return int((await cur.fetchone())[0])
+
+
+async def _insert_version(db, recipe_id, label, name, ingredients, steps,
+                          timers, prep_time, notes):
+    """THE one place a version row is written. Returns its number."""
+    n = await _next_version_no(db, recipe_id)
+    await db.execute(
+        f"INSERT INTO {VERSIONS_TABLE} "
+        f"(recipe_id, version_no, label, name, ingredients, steps, "
+        f" timers, prep_time, notes) "
+        f"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (recipe_id, n, label, name, ingredients, steps, timers, prep_time,
+         notes),
+    )
+    return n
+
+
 async def async_save(hass, name, ingredients, steps, timers,
                      language="en", tags=None, notes=None,
                      source_type="ai_generated", recipe_id=None,
-                     prep_time=None, handwritten_notes=None, category=None):
+                     prep_time=None, handwritten_notes=None, category=None,
+                     version_label=None):
     """Upsert a recipe by name+language.
 
     [MODIFIED v2026.10.9] prep_time and handwritten_notes were added at the end
@@ -340,6 +487,15 @@ async def async_save(hass, name, ingredients, steps, timers,
 
             if row:
                 rid = row[0]
+                # [ADDED v2026.10.11] What is stored NOW, read on this
+                # connection just ahead of the write - the content version 1
+                # is made of, and what "did anything change" is measured
+                # against.
+                async with db.execute(
+                    f"SELECT name, ingredients, steps, timers, prep_time, "
+                    f"notes FROM {TABLE_NAME} WHERE id = ?", (rid,)
+                ) as cursor:
+                    before = await cursor.fetchone()
                 # Only the columns we were actually given are written. An
                 # omitted prep_time or handwritten_notes is preserved, so an
                 # AI re-save cannot erase the user's drawing.
@@ -388,10 +544,50 @@ async def async_save(hass, name, ingredients, steps, timers,
                     sets.append("category = ?")
                     vals.append(category)
                 vals.append(rid)
+
+                # [ADDED v2026.10.11] Every content update keeps the one
+                # before it - HERE, where every update passes, rather than in
+                # one caller. Approving a change the assistant proposed went
+                # through recipe_edits and made no version at all, because
+                # the only versioning lived in the websocket "update" action.
+                after = {
+                    "name": rec["name"],
+                    "ingredients": rec.get("ingredients") or [],
+                    "steps": rec.get("steps") or [],
+                    "timers": rec.get("timers") or [],
+                    # None means "leave alone" for prep_time, so the stored
+                    # value is what it will still be.
+                    "prep_time": (prep_time if prep_time is not None
+                                  else (before["prep_time"] if before
+                                        else None)),
+                    "notes": rec.get("notes"),
+                }
+                changed = before is not None and _content_differs(before,
+                                                                  after)
+                if changed and not await _version_count(db, rid):
+                    # Version 1 is what was there before this edit.
+                    await _insert_version(db, rid, None, before["name"],
+                                          before["ingredients"],
+                                          before["steps"], before["timers"],
+                                          before["prep_time"], before["notes"])
+
                 await db.execute(
                     f"UPDATE {TABLE_NAME} SET {', '.join(sets)} WHERE id = ?",
                     tuple(vals),
                 )
+
+                if changed:
+                    n = await _insert_version(
+                        db, rid, _clean_label(version_label), after["name"],
+                        json.dumps(after["ingredients"], ensure_ascii=False),
+                        json.dumps(after["steps"], ensure_ascii=False),
+                        json.dumps(after["timers"], ensure_ascii=False),
+                        after["prep_time"], after["notes"])
+                    await db.execute(
+                        f"UPDATE {TABLE_NAME} SET active_version = ? "
+                        f"WHERE id = ?", (n, rid))
+                # One commit: the edit and its versions land together or not
+                # at all.
                 await db.commit()
                 return rid, "updated"
 
@@ -472,6 +668,10 @@ def _row_to_dict(row):
         "emblem_svg":        get("emblem_svg"),
         "image_path":        get("image_path"),
         "translate_lock":    int(get("translate_lock", 0) or 0),
+        # [ADDED v2026.10.10] Which version is on screen. 0 means this
+        # recipe has no history yet, which is every recipe until the
+        # first time it is changed.
+        "active_version":    int(get("active_version", 0) or 0),
     }
 
 
@@ -856,6 +1056,159 @@ async def async_put_translation(hass, recipe_id, language, payload):
     except Exception as e:
         _LOGGER.error(f"[HO-RECIPES] translation write failed: {e}")
         return False
+
+
+# ---------------------------------------------------------------------
+# VERSIONS
+# ---------------------------------------------------------------------
+
+async def async_list_versions(hass, recipe_id):
+    """Every version of one recipe, newest first.
+
+    [ADDED v2026.10.10] An empty list is the normal answer for a recipe
+    nobody has updated yet - it has no history because nothing has
+    happened to it, which is not the same as a history that failed to
+    load.
+    """
+    if not recipe_id:
+        return []
+    try:
+        async with aiosqlite.connect(_db_path(hass), timeout=10.0) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                f"SELECT version_no, label, name, prep_time, created_at "
+                f"FROM {VERSIONS_TABLE} WHERE recipe_id = ? "
+                f"ORDER BY version_no DESC", (recipe_id,)
+            ) as cur:
+                return [dict(r) for r in await cur.fetchall()]
+    except Exception as err:
+        _LOGGER.error("Could not list versions of %s: %s", recipe_id, err)
+        return []
+
+
+async def _next_version_no(db, recipe_id):
+    async with db.execute(
+        f"SELECT COALESCE(MAX(version_no), 0) FROM {VERSIONS_TABLE} "
+        f"WHERE recipe_id = ?", (recipe_id,)
+    ) as cur:
+        return int((await cur.fetchone())[0]) + 1
+
+
+async def async_latest_version(hass, recipe_id):
+    """The highest version number this recipe has, or 0 for none.
+
+    [ADDED v2026.10.11] Not active_version: after choosing an older version
+    the one on screen is not the newest, and the NEXT save is numbered after
+    the newest. The panel uses this to say, on the button, which version a
+    save will create.
+    """
+    if not recipe_id:
+        return 0
+    try:
+        async with aiosqlite.connect(_db_path(hass), timeout=10.0) as db:
+            return (await _next_version_no(db, recipe_id)) - 1
+    except Exception as err:
+        _LOGGER.error("Could not read the latest version of %s: %s",
+                      recipe_id, err)
+        return 0
+
+
+async def async_restore_version(hass, recipe_id, version_no):
+    """Show an earlier version: copy it back into the recipe row.
+
+    [ADDED v2026.10.10] The recipe row is what everything else reads, so
+    choosing a version means putting that version's words there. Nothing
+    is deleted and no new version is written - this is a choice about
+    which one is on screen, not an edit.
+
+    ONLY the columns a version holds are written. The emblem, the photo,
+    the chapter and the use count belong to the recipe and not to a
+    version of it, so they are untouched (RULE 33a.8).
+    """
+    if not recipe_id or not version_no:
+        return False
+    try:
+        async with aiosqlite.connect(_db_path(hass), timeout=10.0) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                f"SELECT name, ingredients, steps, timers, prep_time, notes "
+                f"FROM {VERSIONS_TABLE} "
+                f"WHERE recipe_id = ? AND version_no = ?",
+                (recipe_id, int(version_no)),
+            ) as cur:
+                v = await cur.fetchone()
+            if not v:
+                return False
+            await db.execute(
+                f"UPDATE {TABLE_NAME} SET name = ?, name_lower = ?, "
+                f"ingredients = ?, steps = ?, timers = ?, prep_time = ?, "
+                f"notes = ?, active_version = ? WHERE id = ?",
+                (v["name"], (v["name"] or "").strip().lower(),
+                 v["ingredients"], v["steps"], v["timers"], v["prep_time"],
+                 v["notes"], int(version_no), recipe_id),
+            )
+            await db.commit()
+            return True
+    except Exception as err:
+        _LOGGER.error("Could not restore %s v%s: %s",
+                      recipe_id, version_no, err)
+        return False
+
+
+async def async_delete_version(hass, recipe_id, version_no):
+    """Remove one version. The last one cannot be removed.
+
+    [ADDED v2026.10.10] Deleting the only version would leave the recipe
+    claiming a history that is not there. The recipe's own content is
+    never touched by this: if the version being deleted is the one on
+    screen, the recipe keeps those words and is re-pointed at the newest
+    one that remains, so nothing a user is reading disappears under them
+    (RULE 5).
+
+    Returns {"ok": bool, "reason": str, "active": int}.
+    """
+    if not recipe_id or not version_no:
+        return {"ok": False, "reason": "no_version", "active": 0}
+    try:
+        async with aiosqlite.connect(_db_path(hass), timeout=10.0) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                f"SELECT COUNT(*) AS n FROM {VERSIONS_TABLE} "
+                f"WHERE recipe_id = ?", (recipe_id,)
+            ) as cur:
+                total = int((await cur.fetchone())["n"])
+            if total <= 1:
+                return {"ok": False, "reason": "last_one", "active": 0}
+            cur = await db.execute(
+                f"DELETE FROM {VERSIONS_TABLE} "
+                f"WHERE recipe_id = ? AND version_no = ?",
+                (recipe_id, int(version_no)),
+            )
+            if not (cur.rowcount or 0):
+                return {"ok": False, "reason": "unknown", "active": 0}
+            # Re-point only if the one that went was the one on screen.
+            async with db.execute(
+                f"SELECT active_version FROM {TABLE_NAME} WHERE id = ?",
+                (recipe_id,),
+            ) as c2:
+                row = await c2.fetchone()
+            active = int((row["active_version"] if row else 0) or 0)
+            if active == int(version_no):
+                async with db.execute(
+                    f"SELECT MAX(version_no) AS m FROM {VERSIONS_TABLE} "
+                    f"WHERE recipe_id = ?", (recipe_id,)
+                ) as c3:
+                    active = int((await c3.fetchone())["m"] or 0)
+                await db.execute(
+                    f"UPDATE {TABLE_NAME} SET active_version = ? WHERE id = ?",
+                    (active, recipe_id),
+                )
+            await db.commit()
+            return {"ok": True, "reason": "ok", "active": active}
+    except Exception as err:
+        _LOGGER.error("Could not delete %s v%s: %s",
+                      recipe_id, version_no, err)
+        return {"ok": False, "reason": "error", "active": 0}
 
 
 async def async_lock_translation(hass, recipe_id):

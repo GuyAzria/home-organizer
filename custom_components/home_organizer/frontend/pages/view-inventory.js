@@ -11,6 +11,22 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [MODIFIED v2026.10.8 | 2026-10-08] Purpose: price and expiry on the
+//   line, in the category drill-down.
+//
+//   createItemRow showed the name, the barcode, the box and the location.
+//   The drill-down asks for a price and an expiry date as well, and they
+//   are drawn ONLY there - putting them on every item row everywhere would
+//   change the shelf view nobody asked to change (RULE 30).
+//
+//   Read from localData.category_view rather than taken as a third
+//   positional argument: createItemRow is called from four places, and
+//   _dispatch(hass, entry, ...) is in this project's rulebook by name
+//   (RULE 33a.3).
+//
+//   A price of 0 is a real answer - something was free, or the line was
+//   fully discounted - so the test is "is it a number", never `if (price)`
+//   (RULE 33a.4).
 // [ADDED v2026.10.7 | 2026-10-07] Purpose: the first-run banner sits at the
 //   top of the root screen.
 //
@@ -21,21 +37,10 @@
 //
 //   location_seed.py used to answer the same problem by writing eight folders
 //   of somebody else's kitchen; it was removed in v2026.10.7.
-// [MODIFIED v2026.10.2 | 2026-10-02] Purpose: The expiry-or-warranty choice
-//   moved to itemDateField in organizer-utils.js, because the review card has
-//   to make the same one and two copies would drift.
-//
-//   And the item card's two category
-//   selects are built by categorySelectOptions. The hand-built loops they
-//   replace appended the item's own category as an ordinary option when it was
-//   not in the list, so a category the model invented read exactly like a real
-//   one - that is what made "frozen" look like a category. It is now marked.
-//   They also interpolated database values into HTML unescaped, which the
-//   review card's copy of the same list did not (RULE 15, RULE 33a.6).
 
 
-import { ICONS } from '../organizer-icon.js?v=10.11.112';
-import { escapeHtml, categorySelectOptions, itemDateField } from '../organizer-utils.js?v=10.11.112';
+import { ICONS } from '../organizer-icon.js?v=10.11.120';
+import { escapeHtml, categorySelectOptions, itemDateField } from '../organizer-utils.js?v=10.11.120';
 
 const UPLOAD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>';
 const miniBarcodeSvg = '<svg style="width:12px;height:12px" viewBox="0 0 24 24"><path fill="currentColor" d="M3,6H5V18H3V6M7,6H8V18H7V6M9,6H12V18H9V6M13,6H14V18H13V6M16,6H18V18H16V6M19,6H21V18H19V6Z"/></svg>';
@@ -584,6 +589,35 @@ export const InventoryMixin = (Base) => class extends Base {
       iconHtml = `<div style="position:relative;width:40px;height:40px"><img src="${src}" class="item-thumbnail" alt="${escapeHtml(item.name)}" onclick="event.stopPropagation();this.getRootNode().host.showImg('${cleanPath}?v=${ver}')">${loader}</div>`;
     }
 
+    // [ADDED v2026.10.8] Price and expiry, on the line, in the category
+    // drill-down only. escapeHtml on both: a price comes from a receipt the
+    // AI read and a date is database content, and this is an innerHTML
+    // template (RULE 15).
+    let metaHtml = '';
+    if (this.localData && this.localData.category_view) {
+      const bits = [];
+      const price = Number(item.purchase_price);
+      // A price of 0 is a real answer - something was free, or the line was
+      // fully discounted - so the test is "is it a number", not "is it
+      // truthy". `if (price)` would hide exactly the rows worth seeing
+      // (RULE 33a.4).
+      if (item.purchase_price !== null && item.purchase_price !== undefined
+          && item.purchase_price !== '' && !Number.isNaN(price)) {
+        bits.push(this._t('price', 'Price') + ' ' + price.toFixed(2));
+      }
+      if (item.expiry_date) {
+        bits.push(this._t('expiry_date', 'Expiry') + ' '
+          + String(item.expiry_date));
+      }
+      if (bits.length) {
+        metaHtml = `<div class="item-meta-line" style="font-size:10px;`
+          + `color:var(--text-sub);margin-top:2px;display:flex;gap:10px;`
+          + `flex-wrap:wrap;">`
+          + bits.map(b => `<span>${escapeHtml(b)}</span>`).join('')
+          + `</div>`;
+      }
+    }
+
     const barcodeHtml = (item.barcode && item.barcode !== '0')
       ? `<div style="font-size:10px;color:var(--text-sub);margin-top:2px;display:inline-flex;align-items:center;gap:4px;opacity:.8;direction:ltr;">${miniBarcodeSvg} ${escapeHtml(item.barcode)}</div>` : '';
 
@@ -600,7 +634,7 @@ export const InventoryMixin = (Base) => class extends Base {
           ${checkboxHtml}${iconHtml}
           <div class="item-text" style="display:flex;flex-direction:column;justify-content:center;">
             <div class="item-name">${escapeHtml(item.name)}</div>
-            ${barcodeHtml}${boxHtml}
+            ${metaHtml}${barcodeHtml}${boxHtml}
             ${typeof subText==='string'&&subText.startsWith('<') ? subText : `<div class="sub-title">${subText}</div>`}
           </div>
         </div>

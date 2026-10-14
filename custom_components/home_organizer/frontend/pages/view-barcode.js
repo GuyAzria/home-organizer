@@ -40,8 +40,8 @@
 //
 // [ADDED v10.0.4] Barcode View
 
-import { ICONS } from '../organizer-icon.js?v=10.11.112';
-import { escapeHtml, isBarcodeScanned } from '../organizer-utils.js?v=10.11.112';
+import { ICONS } from '../organizer-icon.js?v=10.11.120';
+import { escapeHtml, isBarcodeScanned } from '../organizer-utils.js?v=10.11.120';
 
 export const BarcodeMixin = (Base) => class extends Base {
 
