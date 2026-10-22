@@ -1,11 +1,6 @@
 {
   "domain": "home_organizer",
   "name": "Home Organizer",
-  "categories": [
-    "productivity_information.shopping_groceries",
-    "finance",
-    "productivity_information.documents_photos"
-  ],
   "codeowners": [
     "@GuyAzria"
   ],
