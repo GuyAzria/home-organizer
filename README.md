@@ -33,10 +33,11 @@ Home Organizer is a dedicated full-screen application for your Home Assistant si
 ## 📥 Installation (Zero YAML Required! 🎉)
 
 <!-- Installation video, in the repository root - outside custom_components, so HACS never downloads them:
-     HO_Install.gif plays here; HO_Install.mp4 is the full-quality copy it links to.
+     HO_Install.gif plays here; HO_Install.mp4 is the full-quality copy it links to, through jsDelivr,
+     which serves it as video/mp4 so the browser plays it - GitHub's own file page only offers a download.
      Absolute URLs, because HACS shows this README too and a relative path breaks there. -->
 <p align="center">
-  <a href="https://github.com/GuyAzria/home-organizer/blob/main/HO_Install.mp4">
+  <a href="https://cdn.jsdelivr.net/gh/GuyAzria/home-organizer@main/HO_Install.mp4">
     <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/HO_Install.gif" width="360" alt="Installing Home Organizer, step by step">
   </a>
 </p>
