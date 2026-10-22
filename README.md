@@ -136,7 +136,7 @@ HO can now be configured as your official **Home Assistant Conversation Agent**!
 * **Calendar Secretary:** Seamlessly manage your schedule. Just say, *"Add a meeting tomorrow morning with Mr. Bean,"* and it's booked.
 * **Free-Speech HA Control:** Control your lights, switches, and devices using completely natural language, or ask for the time, weather, and daily news.
 
-### 📱 `HO_Mind_AI` (Native Android Companion App) - Version: "2026.10.22"
+### 📱 `HO_Mind_AI` (Native Android Companion App) - Version: "2026.10.21"
 Modern browsers often block camera and microphone access over local HTTP connections. We built **HO_Mind_AI**—a native Android companion app that fixes this and adds serious magic:
 * **🎧 True Hands-Free Wireless Control (AirPods Supported):** The ultimate smart home experience! Simply click the button on your Bluetooth headset, hear an instant activation beep, speak your command, and get the AI's verbal response directly in your ear. This completely eliminates the need to shout *"Hey Google"* or use any other wake words. Full hardware button interception works seamlessly even when the screen is locked or external music apps (like Spotify) are running.
 * **"Ghost Screen" & Shake-to-Speak:** Run the app silently in the background as a transparent overlay. Enable "Shake to Speak" to wake the assistant with a simple physical shake—no need to press any buttons!
