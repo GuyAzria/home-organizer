@@ -25,11 +25,11 @@
 //   isBarcodeScanned is the one rule both screens read, so an item cannot end
 //   up on both or on neither (RULE 33a.6).
 
-import { ICONS, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=10.11.120';
+import { ICONS, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=10.11.122';
 // [ADDED v2026.9.20] Item icons the assistant designed, drawn from the
 // spec it sent. See item-icon.js for why they carry no background and
 // inherit their colour.
-import { itemIconFromSpec } from './item-icon.js?v=10.11.120';
+import { itemIconFromSpec } from './item-icon.js?v=10.11.122';
 
 // [ADDED v2026.8.26] HTML escaping for any value that reaches innerHTML.
 //

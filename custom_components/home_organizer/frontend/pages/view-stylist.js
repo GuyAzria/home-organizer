@@ -17,8 +17,8 @@
 // when the data is kept in /media.
 // [MODIFIED v10.2.5 | 2026-04-17] Purpose: Replaced generic shoe icon with a highly detailed, clear Sneaker SVG. Connected all Wizard UI elements to the dynamic translation dictionary for all languages based on the new CSV structure.
 
-import { ICONS } from '../organizer-icon.js?v=10.11.120';
-import { escapeHtml, formatAiText } from '../organizer-utils.js?v=10.11.120';
+import { ICONS } from '../organizer-icon.js?v=10.11.122';
+import { escapeHtml, formatAiText } from '../organizer-utils.js?v=10.11.122';
 
 export const StylistMixin = (Base) => class extends Base {
 

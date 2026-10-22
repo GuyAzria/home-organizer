@@ -12,22 +12,12 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
-# // [MODIFIED v2026.10.13 | 2026-10-13] Purpose: storage in the options.
-# // The first page now asks www or media - it could only be chosen at
-# // installation - and a media installation gets the folder page for its
-# // images and receipts right after it, instead of at the very end where it
-# // could not be found. Changing the method moves nothing, as the user
-# // decided: the other location starts empty, or carries on with the Home
-# // Organizer data already there, and changing back returns to what was
-# // left. The databases always stay local. The folder page is offered to
-# // www as well, since either may keep its files on a network folder. See
-# // async_step_storage and storage.py.
-# // [MODIFIED v2026.10.5 | 2026-10-05] Purpose: the barcode lookup order is a
-# // setting in the database, chosen from the barcode page.
-# //
-# // The step this file carried for an hour is gone. See const.py: the
-# // config entry has a reload listener, so it is the wrong home for
-# // something a panel sheet writes.
+# // [MODIFIED v2026.10.21 | 2026-10-21] Purpose: the Gemini model offered at
+# // setup is gemini-3.5-flash-lite instead of gemini-3.5-flash - the lighter
+# // model is enough for this integration's requests and costs less.
+# // [MODIFIED v2026.10.18 | 2026-10-18] Purpose: the Gemini model offered
+# // at setup is gemini-3.5-flash. The model field is now prefilled with it
+# // when Gemini is the provider, and left empty for the others.
 
 import logging
 import voluptuous as vol
@@ -142,10 +132,12 @@ class HomeOrganizerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 default="",
                 description="Cloud API Key. For Gemini: Get it free at aistudio.google.com. For OpenAI: platform.openai.com."
             )] = PASSWORD_SELECTOR
+            # [MODIFIED v2026.10.21] Prefilled for Gemini only; another
+            # provider would be sent a model name it does not have.
             schema[vol.Optional(
-                "cloud_model", 
-                default="",
-                description="Exact Cloud Model Name. Gemini: 'gemini-1.5-flash-latest'. OpenAI: 'gpt-4o'."
+                "cloud_model",
+                default="gemini-3.5-flash-lite" if provider == PROVIDER_GEMINI else "",
+                description="Exact Cloud Model Name. Gemini: 'gemini-3.5-flash-lite'. OpenAI: 'gpt-4o'."
             )] = str
 
             if provider == PROVIDER_CLAUDE:
@@ -362,7 +354,7 @@ class HomeOrganizerOptionsFlowHandler(config_entries.OptionsFlow):
             schema[vol.Optional(
                 "cloud_model",
                 default=self.data.get("cloud_model", ""),
-                description="Exact Cloud Model Name. Gemini: 'gemini-3.1-flash-lite'. OpenAI: 'gpt-4o'."
+                description="Exact Cloud Model Name. Gemini: 'gemini-3.5-flash-lite'. OpenAI: 'gpt-4o'."
             )] = str
 
             if provider == PROVIDER_CLAUDE:

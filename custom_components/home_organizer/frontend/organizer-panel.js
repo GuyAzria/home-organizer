@@ -11,6 +11,11 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [FIXED v2026.10.14 | 2026-10-14] Purpose: Cache version 10.11.122. The
+//   receipts tab changed - an undated receipt is labelled, and dated on its
+//   row from a field that starts at the day it was scanned - and a browser
+//   holding an older view-chat.js would go on showing the old row.
+//   10.11.121 carried the first half of the same change.
 // [FIXED v2026.10.13 | 2026-10-13] Purpose: Cache version 10.11.120. The
 //   Stylist page builds its photo address from the backend's prefix now,
 //   and a browser still holding the old file would go on asking /local/
@@ -21,51 +26,33 @@
 //   the recipe versions, the parse error that left the panel blank - and
 //   st56 now refuses a module whose content changes under a tag it has
 //   already recorded. 10.11.119 was this change's first build.
-// [FIXED v2026.10.7 | 2026-10-07] Purpose: Cache version 10.11.113 - and it is
-//   now the ONLY version string in the frontend.
-//
-//   organizer-icon.js was imported by twelve files under ELEVEN different
-//   tags, and organizer-utils.js by eight files under eight. A browser
-//   treats each url as its own module, so the same file was downloaded and
-//   instantiated many times over and most of those copies were stale: the
-//   gear menu imported the icons as ?v=10.3.0 and was therefore drawn from
-//   a cache older than several releases. A newly added icon came out as the
-//   word `undefined` on screen and an icon that had been redrawn kept
-//   appearing in its old form, with nothing wrong in either file.
-//
-//   Bumping the panel never fixed it, because the panel's tag reaches only
-//   the modules the panel imports DIRECTLY. Every import in the frontend
-//   now carries this one number, so one bump invalidates everything, and
-//   st41 asserts that no module is ever served under two of them again.
-//
-//   The locations wizard is the eighteenth mixin in the chain.
-//
-//   109 rather than 108: the wizard gained its first-run banner, and a
-//   browser still holding the old files would show neither it nor the
-//   menu entry that opens the wizard by hand.
 
-import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=10.11.120';
-import { UtilsMixin }  from './organizer-utils.js?v=10.11.120';
-import { StateMixin }  from './organizer-state.js?v=10.11.120';
-import { APIMixin }    from './organizer-api.js?v=10.11.120';
-import { CameraMixin } from './organizer-camera.js?v=10.11.120';
-import { NavMixin }    from './organizer-nav.js?v=10.11.120';
-import { IconsMixin }  from './organizer-icons.js?v=10.11.120';
-import { UIMixin }     from './organizer-ui.js?v=10.11.120';
+// ONE version tag for every import in the frontend. A browser treats each url
+// as its own module, so a file imported under two tags is loaded twice and one
+// copy goes stale - a new icon then shows as the word `undefined`. Bump this
+// number in every file whenever any module changes; st41 and st56 enforce it.
+import { ICONS, ICON_LIB, ICON_LIB_ROOM, ICON_LIB_LOCATION, ICON_LIB_ITEM } from './organizer-icon.js?v=10.11.122';
+import { UtilsMixin }  from './organizer-utils.js?v=10.11.122';
+import { StateMixin }  from './organizer-state.js?v=10.11.122';
+import { APIMixin }    from './organizer-api.js?v=10.11.122';
+import { CameraMixin } from './organizer-camera.js?v=10.11.122';
+import { NavMixin }    from './organizer-nav.js?v=10.11.122';
+import { IconsMixin }  from './organizer-icons.js?v=10.11.122';
+import { UIMixin }     from './organizer-ui.js?v=10.11.122';
 
-import { StylistMixin }   from './pages/view-stylist.js?v=10.11.120';
-import { BarcodeMixin }   from './pages/view-barcode.js?v=10.11.120';
-import { InventoryMixin } from './pages/view-inventory.js?v=10.11.120';
-import { BoxMixin }       from './pages/view-box.js?v=10.11.120';
-import { ChatMixin }      from './pages/view-chat.js?v=10.11.120';
+import { StylistMixin }   from './pages/view-stylist.js?v=10.11.122';
+import { BarcodeMixin }   from './pages/view-barcode.js?v=10.11.122';
+import { InventoryMixin } from './pages/view-inventory.js?v=10.11.122';
+import { BoxMixin }       from './pages/view-box.js?v=10.11.122';
+import { ChatMixin }      from './pages/view-chat.js?v=10.11.122';
 // [ADDED v2026.9.22] The home dashboard.
-import { DashboardMixin } from './pages/view-dashboard.js?v=10.11.120';
+import { DashboardMixin } from './pages/view-dashboard.js?v=10.11.122';
 // [ADDED v10.11.45] The cookbook screen.
-import { RecipesMixin }   from './pages/view-recipes.js?v=10.11.120';
-import { ShoppingMixin }  from './pages/view-shopping.js?v=10.11.120';
-import { SearchMixin }    from './pages/view-search.js?v=10.11.120';
-import { CategoriesMixin } from './pages/view-categories.js?v=10.11.120';
-import { WizardMixin }     from './pages/view-wizard.js?v=10.11.120';
+import { RecipesMixin }   from './pages/view-recipes.js?v=10.11.122';
+import { ShoppingMixin }  from './pages/view-shopping.js?v=10.11.122';
+import { SearchMixin }    from './pages/view-search.js?v=10.11.122';
+import { CategoriesMixin } from './pages/view-categories.js?v=10.11.122';
+import { WizardMixin }     from './pages/view-wizard.js?v=10.11.122';
 
 class HomeOrganizerPanel extends APIMixin(WizardMixin(CategoriesMixin(CameraMixin(SearchMixin(ShoppingMixin(RecipesMixin(ChatMixin(DashboardMixin(BoxMixin(InventoryMixin(BarcodeMixin(StylistMixin(UIMixin(NavMixin(IconsMixin(UtilsMixin(StateMixin(HTMLElement)))))))))))))))))) {
   set hass(hass) {

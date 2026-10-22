@@ -63,14 +63,14 @@
 //   deducted nor bought. Putting salt on the shopping list after every
 //   recipe is the exact noise that assumption exists to prevent.
 
-import { escapeHtml } from '../organizer-utils.js?v=10.11.120';
+import { escapeHtml } from '../organizer-utils.js?v=10.11.122';
 // [ADDED v2026.10.11] The bin on the version sheet - the same icon the
 // categories screen and the box page use for a delete.
-import { ICONS } from '../organizer-icon.js?v=10.11.120';
+import { ICONS } from '../organizer-icon.js?v=10.11.122';
 // [MODIFIED v2026.9.19] Only the assistant's drawing is built here now. The
 // local part library that composed emblems from the recipe's chapter has been
 // removed - see the plate in renderCookbookPage for why.
-import { emblemFromSpec } from './recipe-emblem.js?v=10.11.120';
+import { emblemFromSpec } from './recipe-emblem.js?v=10.11.122';
 
 const CHEF_HAT_SVG =
   '<svg viewBox="0 0 24 24"><path d="M12 3a5 5 0 0 0-4.9 4.02A4 4 0 0 0 6 15v1h12v-1a4 4 0 0 0-1.1-7.98A5 5 0 0 0 12 3zM6 18h12v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-2z"/></svg>';

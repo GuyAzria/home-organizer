@@ -22,7 +22,7 @@
 //   with no emblem shows a camera on an empty plate instead of a drawing
 //   chosen from its chapter - see below.
 
-import { shapesFromSpec } from '../spec-draw.js?v=10.11.120';
+import { shapesFromSpec } from '../spec-draw.js?v=10.11.122';
 
 // ---------------------------------------------------------------- identity
 

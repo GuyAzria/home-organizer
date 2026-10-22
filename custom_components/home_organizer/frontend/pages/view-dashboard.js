@@ -76,7 +76,7 @@
 //   replaces only the view, spread rather than copied key by key, because a
 //   list of keys is what goes stale when the payload grows a field.
 
-import { ICONS } from '../organizer-icon.js?v=10.11.120';
+import { ICONS } from '../organizer-icon.js?v=10.11.122';
 
 // THE CHART'S TWO COLOURS, AS TOKENS RATHER THAN HEX.
 //

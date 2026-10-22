@@ -25,156 +25,105 @@
 
 Home Organizer is a dedicated full-screen application for your Home Assistant sidebar. It manages your home inventory with nested folders, live stock tracking, receipt scanning with price and expiry tracking, and a powerful **Cloud & Local AI** integration (Gemini, OpenAI, Claude, Ollama, LM Studio).
 
-**Talking to it in plain language happens through Home Assistant's own conversation agent** — set HO-AI as your assistant once (see Step 8) and every device with Assist already talks to it: no separate chat screen inside the panel.
+**Talking to it in plain language happens through Home Assistant's own conversation agent** — set HO-AI as your assistant once (see [Part 3 of the installation](#part-3-make-ho-ai-your-assistant)) and every device with Assist already talks to it: no separate chat screen inside the panel.
 
 **Developed by Guy Azria.**
 
 ---
- ## 📥 Installation (Zero YAML Required! 🎉)
-There is absolutely no need to write a single line of code or touch your `configuration.yaml` file. The entire installation and setup process is handled seamlessly through the Home Assistant UI!
+## 📥 Installation (Zero YAML Required! 🎉)
 
-**Home Organizer is in the official HACS default store.** For almost everyone, that means installation is two steps:
-
-1. In Home Assistant, go to **HACS**, search for **Home Organizer**, open it, and click **Download**.
-2. Restart Home Assistant (see Step 3 below).
-
-No repository URL, no custom repository step — HACS already knows about it.
-
+<!-- Installation video, in the repository root - outside custom_components, so HACS never downloads them:
+     HO_Install.gif plays here; HO_Install.mp4 is the full-quality copy it links to.
+     Absolute URLs, because HACS shows this README too and a relative path breaks there. -->
 <p align="center">
-  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst3.png" width="80%" alt="Searching for Home Organizer in HACS">
+  <a href="https://github.com/GuyAzria/home-organizer/blob/main/HO_Install.mp4">
+    <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/HO_Install.gif" width="360" alt="Installing Home Organizer, step by step">
+  </a>
 </p>
-<p align="center"><i>Search for “Home Organizer” directly in HACS and download it — no custom repository needed.</i></p>
+<p align="center"><i>The whole installation in five parts (about 5 minutes). Click for the full-quality video.</i></p>
 
-### Prefer to install manually, or want the very latest commit before it reaches HACS?
-You can still add the repository by hand:
 
-1. In Home Assistant, go to **HACS**.
-2. Open the top right menu (⋮) and select **Custom repositories**.
-3. Paste `https://github.com/GuyAzria/home-organizer` into the Repository field, select **Integration** as the category, and click **ADD**.
-4. Search for **Home Organizer** in the HACS search bar, click on it, and select **Download**.
+No YAML, no code, no `configuration.yaml` - everything is done in the Home Assistant UI. The video above walks through the whole installation in five parts; the same steps are written out below.
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst1.png" width="45%" alt="Adding Custom Repository URL">
-  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst2.png" width="45%" alt="Home Organizer in Custom Repositories">
-</p>
-<p align="center"><i>Only needed for a manual install: paste the GitHub URL and verify Home Organizer is added to your custom repositories list.</i></p>
+### Part 1: Download from HACS
+Home Organizer is in the official HACS default store - no repository URL, no custom repository.
 
-### Step 3: Restart Home Assistant
-Go to **Settings** > **System** (or click the repair notification) and **Restart** Home Assistant to load the new files.
+1. Open **HACS** in the sidebar.
+2. Search for **Home Organizer**.
+3. Open **Home Organizer**.
+4. Open the menu (⋮) ▸ **Download**.
+5. Confirm with **Download**.
+6. A restart is needed: go to **Settings**.
+7. On **Restart required**, press **Submit**.
+8. Home Assistant restarts. Wait about a minute.
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst4.png" width="80%" alt="Restart Home Assistant">
-</p>
-<p align="center"><i>A restart is required before Home Assistant can recognize the new integration.</i></p>
+### Part 2: Set up HO-AI
+1. **Settings ▸ Devices & services ▸ Add Integration**.
+2. Search for **Home Organizer**.
+3. The first form:
+   * **AI Processing Mode** - *Local*: your own Ollama · *Cloud*: Gemini, OpenAI or Claude · *Hybrid*: local for chat, cloud for photos.
+   * **Cloud AI Provider** - Google Gemini has a free tier.
+   * **Virtual Try-On Stylist** - optional. Leave it off for now.
+   * **Image storage location** - `www` is recommended. `media` keeps the files in `/media`.
+   * **Submit**.
+4. **API Keys and Models**:
+   * **Cloud API Key** - free at [aistudio.google.com/apikey](https://aistudio.google.com/apikey): sign in ▸ **Create API key** ▸ copy ▸ paste.
+   * **Cloud model name** - type `gemini-3.5-flash-lite`.
+   * **Local AI URL** - your Ollama server: `http://YOUR-IP:11434/v1`. It must end in `/v1`, lowercase.
+   * **Local API Key** - Ollama ignores it, but it must not be empty. Type `ollama`.
+   * **Local text model** - run `ollama list` and copy the exact name, e.g. `gemma4:31b-cloud`.
+   * **Local vision model (photos)** - in Hybrid mode photos go to the cloud, so it can stay empty.
+   * **Submit**.
+5. **Trigger Words and Permissions**:
+   * **Trigger words** - already in your language. Leave them as they are.
+   * **Allow scripts and scenes** - off by default. Turn it on only if the assistant should start your scripts.
+   * **Delete all data when removed** - leave it off.
+   * **Submit**, then **Finish**.
+6. **HO-AI** is now in the sidebar.
+
+### Part 3: Make HO-AI your assistant
+1. **Settings ▸ Voice assistants**.
+2. Open the **Home Assistant** assistant.
+3. **Conversation agent** - choose **HO-AI Agent**.
+4. **Prefer handling commands locally** - on: Home Assistant tries simple commands first, the rest go to HO-AI.
+5. Save with **Update**.
+6. Open **HO-AI** from the sidebar. Done - ask HO-AI from Assist on any device.
+
+### Part 4: Set up your home - the locations wizard
+> **Tip:** the more precisely you set up your rooms and storage here, the easier it is for the AI to place your items. You can add or remove places later.
+
+1. Open **HO-AI** from the sidebar.
+2. **Locations** - the set-up wizard opens.
+3. **Language** - for the whole app.
+4. **Appearance** - light or dark, for the whole app.
+5. **Your home** - apartment, house or house with units, and how many floors. **What else does the home have?** Tick the attic, the garden... ▸ **Next**.
+6. **Rooms** - tap a room to add it, **+** and **-** for more. Two bedrooms become Bedroom 1 and Bedroom 2. ▸ **Next**.
+7. **Storage** - what stands in each room; the common ones are already ticked. Every room has its own list: untick what you do not have. ▸ **Next**.
+8. **Inside the fridge** - shelves with a suggested shelf life in days. Rename or remove what you do not have. ▸ **Next**.
+9. **Review** - nothing is written yet, and the wizard only adds, it never deletes. Check everything that will be created ▸ **Create these locations**.
+10. Done: every room is ready for your items - the kitchen with its cabinets, the fridge and the pantry shelf; the fridge with its top, middle and bottom shelf, vegetable drawer and door shelf.
+
+### Part 5: HO_Mind_AI, the Android app (optional)
+**Optional · Android only** - everything in Home Organizer works without it. Open-source software, no ads, no charges.
+
+Why install it:
+* **Talk freely** - tap a wireless earbud, or shake the phone. No "Hey Google" needed.
+* **Free speech recognition** - Google's engine, excellent in other languages too. No paid Whisper.
+* **100% local** - plain `http` on your home network or VPN. Receipt and item photos, barcodes - no HTTPS needed.
+
+1. Download the APK from the [Releases page](https://github.com/GuyAzria/HO_Mind_AI/releases/latest) - or in the Home Organizer panel: **Settings ▸ HO_Mind_AI**.
+2. **Install**. Android warns about apps from outside the Play Store - tap **Install anyway**, then **Open**.
+3. Allow **Appear on top** - for the floating voice screen.
+4. Allow the **microphone** and **nearby devices** (for Bluetooth earbuds).
+5. **⋮ ▸ HO Settings**.
+6. **HA URL** - as you open it in the browser: `http://YOUR-HA-IP:8123` at home or on a VPN, `https://name.duckdns.org:8123` with a certificate. Write the `http://` and the port `:8123`.
+7. **The access token** - in Home Assistant: your name ▸ **Security** ▸ **Long-lived access tokens** ▸ **Create token**, and give it a name. Copy it at once - it is shown only once - and paste it into **Access Token**. Keep your token private.
+8. **"Home Assistant did not answer"?** Using a VPN? Add HO_Mind_AI to the VPN's allowed apps, then disconnect and reconnect the VPN.
+9. **Load household** adds every phone in the house in one tap. Tap a phone field: every device with the Home Assistant app, by owner and name. Remove what you do not need - the TV, old phones. Name each person the way you say it, and pick their phone.
+10. **Shake to Speak**, language and volume - then **Save**.
+11. Ask by typing... or by voice: shake the phone or tap your earbud, and just talk.
 
 ---
-
-## ⚙️ Setup & Configuration
-
-### Step 4: Add the Integration
-Navigate to **Settings** > **Devices & Services**. Click the **+ Add Integration** button in the bottom right corner and search for **Home Organizer**.
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst5.png" width="60%" alt="Add Integration Menu">
-</p>
-<p align="center"><i>Find Home Organizer in the official integrations list.</i></p>
-
-### Step 5: Choose Your Architecture & Storage
-The setup wizard will guide you through the initial configuration:
-* **Processing Mode & AI Provider:** Choose how you want the AI to process your data—Local Only (for maximum privacy), Cloud Only, or a Hybrid approach.
-* **Storage Method:** Where Home Organizer keeps its data - `www` uses Home Assistant's `/config` folder, `media` uses its `/media` folder. **Both are on the Home Assistant disk.** The databases hold text only; item photos, dish photos and scanned receipts are image files kept beside them. The choice can be changed later, on the first page of *Settings → Devices & services → Home Organizer → Configure*. Changing it moves nothing: the other location starts empty, or carries on with the Home Organizer data already there, and changing back returns to the data you left. With `media`, make sure **Media** is included in your Home Assistant backups (*Settings → System → Backups*) — `www` is inside `/config`, which every backup includes, but `media` is a folder of its own.
-  * **Images and receipts on network storage (`www` or `media`):** if the Home Assistant disk is short of space, the files - item photos, dish photos and scanned receipts (images and PDF), the part that grows with thousands of items - can live on a NAS, in one folder of their own there: `home_organizer`, with `images` and `receipts` inside. Add the share in Home Assistant under *Settings → System → Storage → Add network storage* (usage: Media), then open *Settings → Devices & services → Home Organizer → Configure*: the second page, **Images and receipts folder**, lists the network folders that are connected. Existing images and receipts are copied there in the background, and the old copies are kept until you delete them. The databases always stay on the Home Assistant disk, because a database on a network share can be corrupted by the share's file locking. While the NAS is off, pictures and receipts are not shown and new files are not saved - nothing is written to the Home Assistant disk in their place - and Home Assistant says so under *Settings → Repairs*.
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst6.png" width="60%" alt="Processing Mode and Storage Selection">
-</p>
-<p align="center"><i>Select your processing mode, primary AI provider, and preferred storage location.</i></p>
-
-### Step 6: Enter API Keys & Connections
-Depending on the AI provider you selected, you need to provide the correct connection details so Home Organizer can communicate with the AI:
-* **Cloud Providers (Gemini/OpenAI/Claude):** Paste your secure API Key and the specific Model Name you want to use (e.g., `gemini-1.5-flash-latest`).
-* **Local Providers (Ollama/LM Studio):** Enter the exact local URL of your AI server (ensure it ends with `/v1`) and the local API Key (type `ollama` or `local`). Then set **two** model names: a **Local Text Model** for ordinary questions and chat (e.g., `llama3:8b`), and a **Local Vision Model** for receipt and barcode photos — this one *must* support images (e.g., `llama3.2-vision`, `qwen2-vl`, `minicpm-v`). Most compact text models cannot see images at all, so leaving the vision field blank only works if your text model happens to support them too.
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst7.png" width="60%" alt="API Keys Configuration - now with separate Local Text and Local Vision model fields">
-</p>
-<p align="center"><i>Carefully input your respective API keys and model names. Ensure local URLs include the port and end with /v1.</i></p>
-
-### Step 7: Customize Trigger Words & Advanced Settings
-Configure the voice keywords that will trigger specific AI actions. 
-* **Multilingual Support:** You don't have to use English! You can write these trigger words in your native language (Hebrew, Spanish, etc.) so the assistant perfectly understands your natural speech.
-* **⚠️ Danger Zone (`delete_on_remove`):** If you check this box, uninstalling the integration will **permanently delete** your entire Home Organizer database (including all your saved items, rooms, and images). It is highly recommended to leave this unchecked to keep your data safe in case you ever need to reinstall the integration!
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst8.png" width="60%" alt="Trigger Words and Advanced Settings">
-</p>
-<p align="center"><i>Set your custom wake words and carefully review the delete_on_remove checkbox.</i></p>
-
-### Step 8: Welcome to Home Organizer!
-Once the setup is complete, a new **HO-AI** icon will appear in your Home Assistant sidebar. 
-
-**You do not start from nothing.** The cookbook arrives with two recipes in every chapter, ready to read, cook from or delete. They are written once, on a genuinely new database, and never again, so nothing is re-created after you have tidied up.
-
-**Your rooms, though, are yours.** Earlier versions put a worked example in — *Floor A ➔ Kitchen ➔ Fridge* — which meant everybody began by deleting somebody else's kitchen. Instead, a new install now offers to build **your** house: a card reading **"Set up your home in 2 minutes"** opens the wizard described in [section 2](#2-setting-up-your-home). Take it or dismiss it — either way nothing is created until you ask for it.
-
-**No Hidden Menus:** There are no complicated settings screens or hidden menus to learn! The entire interface is designed to be completely intuitive. Simply click the **Pencil icon (✏️)** in the top right corner to enter Edit Mode, and all your management options (adding, renaming, deleting, and changing icons) will instantly appear exactly where you need them. 
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst9.png" width="30%" alt="HO-AI Sidebar Icon">
-  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst10.png" width="60%" alt="Home Organizer on first launch">
-</p>
-<p align="center"><i>Click the new HO-AI sidebar icon. Click the <b>Pencil icon (✏️)</b> in the top right corner to start shaping your rooms and adding items.</i></p>
-
- ### 2. Setting up Zones and Rooms
-
-**The fast route is the wizard.** Press **Set up my home** on the card you are shown on first launch, or open it later from the **gear menu (⚙️) ▸ Locations wizard** — the magic wand. It asks what rooms you have, what stands in them and what is inside the fridge, and creates the lot in one go. Full walkthrough in [section 2 of the user manual](#2-setting-up-your-home).
-
-**Or lay it out by hand**, which is what the rest of this section shows, and what you will use later to add one room to a house that already exists. Click the **Pencil Icon (✏️)** in the top right corner of the navigation bar to enter **Edit Mode**.
-
-**Creating a Zone:**
-Click the **Add Zone** button at the bottom of the screen to create a broad area. Then, click the small pencil icon next to the zone's title to rename it (for example, "FIRST FLOOR").
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst12.png" width="60%" alt="Adding a new Zone and Renaming">
-</p>
-<p align="center"><i>Click "Add Zone" (1), then use the pencil icon (2) to give your zone a custom name.</i></p>
-
-**Adding a Room:**
-Once your zone is ready, click the large green **+ Add Room** button inside it to create a specific room (like a Kitchen or a Garage).
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst11.png" width="60%" alt="Adding a Room">
-</p>
-<p align="center"><i>A new "kitchen" room has been added to the FIRST FLOOR zone. The blue and red icons indicate you are still in Edit Mode.</i></p>
-
-### 3. Customizing Icons
-While still in **Edit Mode (✏️)**, you can personalize the look of your rooms to make them easily recognizable. Click the small **picture icon** on the corner of any room folder to open the Icon Picker.
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst13.png" width="45%" alt="Change Icon Modal">
-</p>
-<p align="center"><i>Click the picture icon (highlighted in red) to open the menu. Pick a built-in icon, paste an image URL, upload your own picture — or press <b>Draw with AI</b> and describe what you want in your own words.</i></p>
- 
-### 8. Setting up the Voice Assistant & HO_Mind_AI
-
-**Part A: Set HO-AI as Your HA Conversation Agent**
-To make Home Organizer the default "brain" for voice commands across your entire smart home:
-1. In your main Home Assistant menu, navigate to **Settings** > **Voice assistants**.
-2. Click on the default **Home Assistant** assistant (or click **+ Add Assistant** to create a new one).
-3. In the window that opens, scroll down to the **Conversation agent** section and select **HO-AI Agent** from the dropdown menu. Save your changes.
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/GuyAzria/home-organizer/main/images/inst14.png" width="60%" alt="Selecting HO-AI Agent in Voice Assistants">
-</p>
-<p align="center"><i>Change the Conversation agent to HO-AI Agent so your new AI can process all incoming voice and text commands.</i></p>
-
-**Part B: Install & Configure HO_Mind_AI (Android Users Only)**
-1. Open the HO dashboard on your phone, open **Settings** (⚙️) in the top bar, and click **Download Android APK**. Install it.
-2. Open the app and tap the Gear icon (⚙️) to open Settings.
-3. **URL:** Enter your exact internal HA IP (e.g., `http://192.168.1.100:8123`).
-4. **Token:** Generate a Long-Lived Access Token in your HA profile.
-5. **Device ID:** Find your phone under HA Settings ➔ Devices. Look at your browser's address bar and copy the long string of characters at the very end of the URL. *(Pro-tip: Do this on a PC and WhatsApp the Token and ID to yourself!)*
-6. Enable **Shake to Speak** to activate the Ghost Screen, choose your **Language**, and adjust the **Volume Override** so the assistant speaks aloud even if your phone is on silent!
 
 ### 🎙️ The Ultimate Voice Assistant Capabilities
 HO can now be configured as your official **Home Assistant Conversation Agent**! You can speak naturally and ask for almost anything:
@@ -187,7 +136,7 @@ HO can now be configured as your official **Home Assistant Conversation Agent**!
 * **Calendar Secretary:** Seamlessly manage your schedule. Just say, *"Add a meeting tomorrow morning with Mr. Bean,"* and it's booked.
 * **Free-Speech HA Control:** Control your lights, switches, and devices using completely natural language, or ask for the time, weather, and daily news.
 
-### 📱 `HO_Mind_AI` (Native Android Companion App) - Version: "2026.6.16"
+### 📱 `HO_Mind_AI` (Native Android Companion App) - Version: "2026.10.22"
 Modern browsers often block camera and microphone access over local HTTP connections. We built **HO_Mind_AI**—a native Android companion app that fixes this and adds serious magic:
 * **🎧 True Hands-Free Wireless Control (AirPods Supported):** The ultimate smart home experience! Simply click the button on your Bluetooth headset, hear an instant activation beep, speak your command, and get the AI's verbal response directly in your ear. This completely eliminates the need to shout *"Hey Google"* or use any other wake words. Full hardware button interception works seamlessly even when the screen is locked or external music apps (like Spotify) are running.
 * **"Ghost Screen" & Shake-to-Speak:** Run the app silently in the background as a transparent overlay. Enable "Shake to Speak" to wake the assistant with a simple physical shake—no need to press any buttons!
@@ -447,18 +396,7 @@ Open the **⊕** menu and choose **My Recipes**. A brand new install already has
 
 ### 8. Setting up the Voice Assistant & HO-Mind AI
 
-**Part A: Set HO as Your HA Voice Assistant**
-1. In your main Home Assistant menu, go to **Settings ➔ Voice Assistants**.
-2. Click **+ Add Assistant**.
-3. Under **Conversation Agent**, select **HO-AI Agent** (`conversation.ho_ai_agent`). Save.
-
-**Part B: Install & Configure HO-Mind AI (Android Users Only)**
-1. Open the HO dashboard on your phone, open **Settings** (⚙️) in the top bar, and click **Download Android APK**. Install it.
-2. Open the app and tap the Gear icon (⚙️) to open Settings.
-3. **URL:** Enter your exact internal HA IP (e.g., `http://192.168.1.100:8123`).
-4. **Token:** Generate a Long-Lived Access Token in your HA profile.
-5. **Device ID:** Find your phone under HA Settings ➔ Devices. Look at your browser's address bar and copy the long string of characters at the very end of the URL. *(Pro-tip: Do this on a PC and WhatsApp the Token and ID to yourself!)*
-6. Enable **Shake to Speak** to activate the Ghost Screen, choose your **Language**, and adjust the **Volume Override** so the assistant speaks aloud even if your phone is on silent!
+Both are shown in the installation video and written out step by step there: [Part 3: Make HO-AI your assistant](#part-3-make-ho-ai-your-assistant) and [Part 5: HO_Mind_AI, the Android app](#part-5-ho_mind_ai-the-android-app-optional).
 
 ## 🌍 Languages
 Home Organizer is available in **7 languages**: English, Hebrew (עברית), Italian, Spanish, French, Arabic (العربية), and Russian (Русский). This covers the panel itself, the locations wizard, and the AI's own replies — including full right-to-left (RTL) layout for Hebrew and Arabic.

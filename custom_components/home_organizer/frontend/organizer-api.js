@@ -42,7 +42,7 @@
 //   part that must not be copied: sub_category null on a new top-level is what
 //   makes the service create the "General" bucket (RULE 22, RULE 33d).
 
-import { escapeHtml } from './organizer-utils.js?v=10.11.120';
+import { escapeHtml } from './organizer-utils.js?v=10.11.122';
 
 export const APIMixin = (Base) => class extends Base {
 

@@ -31,7 +31,7 @@
         },
         "data_description": {
           "api_key": "Gemini: aistudio.google.com. OpenAI: platform.openai.com.",
-          "cloud_model": "For example gemini-1.5-flash-latest or gpt-4o.",
+          "cloud_model": "For example gemini-3.5-flash-lite or gpt-4o.",
           "custom_cloud_url": "Optional. Typically only used for enterprise proxies.",
           "local_api_url": "Ollama: http://YOUR_IP:11434/v1. LM Studio: http://YOUR_IP:1234/v1. Must end in /v1.",
           "local_api_key": "Local servers usually ignore this, but do not leave it blank. Type 'ollama' or 'local'.",
@@ -123,7 +123,7 @@
         },
         "data_description": {
           "api_key": "Gemini: aistudio.google.com. OpenAI: platform.openai.com.",
-          "cloud_model": "For example gemini-3.1-flash-lite or gpt-4o.",
+          "cloud_model": "For example gemini-3.5-flash-lite or gpt-4o.",
           "custom_cloud_url": "Optional. Typically only used for enterprise proxies.",
           "local_api_url": "Ollama: http://YOUR_IP:11434/v1. LM Studio: http://YOUR_IP:1234/v1. Must end in /v1.",
           "local_api_key": "Local servers usually ignore this, but do not leave it blank.",

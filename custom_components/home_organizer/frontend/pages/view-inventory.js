@@ -39,8 +39,8 @@
 //   of somebody else's kitchen; it was removed in v2026.10.7.
 
 
-import { ICONS } from '../organizer-icon.js?v=10.11.120';
-import { escapeHtml, categorySelectOptions, itemDateField } from '../organizer-utils.js?v=10.11.120';
+import { ICONS } from '../organizer-icon.js?v=10.11.122';
+import { escapeHtml, categorySelectOptions, itemDateField } from '../organizer-utils.js?v=10.11.122';
 
 const UPLOAD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>';
 const miniBarcodeSvg = '<svg style="width:12px;height:12px" viewBox="0 0 24 24"><path fill="currentColor" d="M3,6H5V18H3V6M7,6H8V18H7V6M9,6H12V18H9V6M13,6H14V18H13V6M16,6H18V18H16V6M19,6H21V18H19V6Z"/></svg>';

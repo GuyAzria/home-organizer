@@ -11,6 +11,22 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
+// [FIXED v2026.10.14 | 2026-10-14] Purpose: an undated receipt says so, and
+//   can be given its date where it is listed.
+//
+//   The receipts tab lists a receipt with no date by the day it was scanned
+//   now (async_list_receipts), and its row says exactly that - "No date on
+//   the receipt · scanned 2026-10-14", in the warning colour - instead of an
+//   empty line where the date should be. A date field sits under it, on
+//   that row only: the review tab was the one place a date could be set, and
+//   an approved receipt never goes back there.
+//
+//   The field starts at the day it was scanned, and a Confirm date button
+//   beside it saves what the field holds - that day as it is, or the day
+//   the user changed it to. The button saves, not the field: a value that
+//   starts filled in fires no change event when it is accepted as it is.
+//   It calls the existing setReceiptDate and reloads the list; clicks on
+//   the field and the button stop there, so they never toggle the row.
 // [FIXED v2026.10.5 | 2026-10-05] Purpose: a scanned product appears on the
 //   BARCODE page.
 //
@@ -19,36 +35,10 @@
 //   is the shape RULE 33a.6 warns about. The review tab also stops listing and
 //   counting barcode scans: a badge for items a tab does not show is a badge
 //   that cannot be cleared.
-// [FIXED v2026.10.3 | 2026-10-03] Purpose: the scan sends an empty control
-//   message, the banner exists on both tabs, and the reply is no longer
-//   thrown away.
-//
-//   The message field is a control signal, not display text: an empty
-//   message is what tells get_invoice_prompt there is no user instruction,
-//   and HOAppScanView has sent "" for a receipt all along. Sending
-//   _t('scanned_invoice') meant every non-English scan had a SPECIAL USER
-//   INSTRUCTION appended to its prompt, after which the model asked a
-//   clarifying question instead of reading the receipt (RULE 20). That
-//   question arrives with no receipt_id and was discarded here, so the
-//   screen stayed blank - any reply that saved no receipt and carries text
-//   is now shown.
-//
-//   Two silences. The success branch read result.receipt_id and nothing
-//   else, so a scan that stored a header and no product lines - which the
-//   backend reports, and which the invoice prompt explicitly asks the
-//   model to return for a receipt with no products - showed an empty
-//   review queue and no message at all.
-//
-//   And the banner was built inline in the review branch only, so on the
-//   Receipts tab no scan message of any kind could appear - not progress,
-//   not an error, not the duplicate notice. That is the tab the user is on
-//   when they have just deleted a receipt and are re-scanning it, which is
-//   the one moment it matters. renderScanBanner is now one method called
-//   from both (RULE 33d).
 //
 
-import { ICONS } from '../organizer-icon.js?v=10.11.120';
-import { escapeHtml, formatAiText, categorySelectOptions, itemDateField, isBarcodeScanned } from '../organizer-utils.js?v=10.11.120';
+import { ICONS } from '../organizer-icon.js?v=10.11.122';
+import { escapeHtml, formatAiText, categorySelectOptions, itemDateField, isBarcodeScanned } from '../organizer-utils.js?v=10.11.122';
 const UPLOAD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>';
 const miniBarcodeSvg = '<svg style="width:12px;height:12px" viewBox="0 0 24 24"><path fill="currentColor" d="M3,6H5V18H3V6M7,6H8V18H7V6M9,6H12V18H9V6M13,6H14V18H13V6M16,6H18V18H16V6M19,6H21V18H19V6Z"/></svg>';
 
@@ -1101,17 +1091,77 @@ export const ChatMixin = (Base) => class extends Base {
       const draftTag = isDraft
         ? `<span style="font-size:10px;color:var(--warning-color,#FFA726);border:1px solid var(--warning-color,#FFA726);border-radius:3px;padding:0 4px;margin-inline-start:6px;">${escapeHtml(this._t('receipt_unreviewed', 'unreviewed'))}</span>`
         : '';
+      // [ADDED v2026.10.14] The backend says whether a receipt has no date
+      // (date_missing) and the day it was scanned (scanned_on); the row says
+      // so rather than leaving the date line empty.
+      const undated = !!r.date_missing;
+      const dateText = undated
+        ? this._t('receipt_no_date', 'No date on the receipt · scanned {date}')
+            .replace('{date}', r.scanned_on || '')
+        : (r.purchase_date || '');
       row.innerHTML = `
-        <div style="flex:1;min-width:0;">
+        <div class="rc-main" style="flex:1;min-width:0;">
           <div style="font-weight:bold;">${escapeHtml(r.vendor || this._t('receipt_no_vendor', 'Unnamed receipt'))}${draftTag}</div>
-          <div style="font-size:11px;color:var(--text-sub);">
-            ${escapeHtml(r.purchase_date || '')}${r.receipt_number ? ' | #' + escapeHtml(r.receipt_number) : ''}
+          <div style="font-size:11px;color:${undated ? 'var(--warning-color,#FFA726)' : 'var(--text-sub)'};">
+            ${escapeHtml(dateText)}${r.receipt_number ? ' | #' + escapeHtml(r.receipt_number) : ''}
           </div>
         </div>
         <div style="text-align:end;white-space:nowrap;">
           <div style="font-weight:bold;">${r.total_amount != null ? escapeHtml(String(r.total_amount)) : '-'} <span style="font-size:11px;color:var(--text-sub);" title="${escapeHtml(r.currency || '')}">${escapeHtml(this.currencySymbol(r.currency))}</span></div>
           <div style="font-size:11px;color:var(--text-sub);">${escapeHtml(String(r.linked_items ?? 0))} ${escapeHtml(this._t('receipts_items_col', 'Items'))}</div>
         </div>`;
+      // [ADDED v2026.10.14] Give an undated receipt its date, here. The field
+      // starts at the day it was scanned - to confirm as it is, or to change
+      // first - and the button saves what the field holds. The button, not
+      // the field: a value that starts filled in fires no change event when
+      // it is accepted unchanged, and nothing is written until the user
+      // says so. Built as elements, not markup; clicks stop at the field and
+      // the button, so they never toggle the row; 40px tall, because they
+      // are touched. The bar wraps, so on a phone the button drops under the
+      // field instead of squeezing it. Outlined in --success rather than
+      // filled: white text on the dark theme's green is 2.8:1, the green on
+      // either background is above 4.5:1.
+      if (undated) {
+        const bar = document.createElement('div');
+        bar.style.cssText = 'display:flex;align-items:center;flex-wrap:wrap;'
+          + 'gap:8px;margin-top:6px;';
+        const pick = document.createElement('input');
+        pick.type = 'date';
+        pick.value = r.scanned_on || '';
+        pick.title = this._t('purchase_date', 'Purchase date');
+        pick.setAttribute('aria-label', pick.title);
+        pick.style.cssText = 'min-height:40px;'
+          + 'padding:4px 8px;border-radius:6px;border:1px solid var(--border-light);'
+          + 'background:var(--bg-input-edit);color:var(--text-main);font-size:12px;';
+        const accept = document.createElement('button');
+        accept.type = 'button';
+        accept.className = 'action-btn';
+        accept.style.cssText = 'width:auto;height:auto;min-height:40px;gap:6px;'
+          + 'padding:0 12px;background:transparent;border:1px solid var(--success);'
+          + 'color:var(--success);font-size:12px;font-weight:bold;';
+        accept.innerHTML = ICONS.check;
+        const acceptText = document.createElement('span');
+        acceptText.textContent = this._t('receipt_date_confirm', 'Confirm date');
+        accept.appendChild(acceptText);
+        // A field emptied by hand has nothing to confirm.
+        const sync = () => {
+          accept.disabled = !pick.value;
+          accept.style.opacity = pick.value ? '' : '0.5';
+        };
+        sync();
+        pick.oninput = sync;
+        pick.onclick = (e) => e.stopPropagation();
+        accept.onclick = async (e) => {
+          e.stopPropagation();
+          if (!pick.value) return;
+          accept.disabled = true;
+          await this.setReceiptDate(r.id, pick.value);
+          this.loadReceipts();
+        };
+        bar.append(pick, accept);
+        row.querySelector('.rc-main').appendChild(bar);
+      }
+
       // [ADDED v2026.9.16] Delete this receipt for good.
       //
       // stopPropagation so it never opens the viewer by accident, and it sits

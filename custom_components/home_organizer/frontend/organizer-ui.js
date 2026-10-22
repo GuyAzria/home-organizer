@@ -11,29 +11,25 @@
 // FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 // more details. <https://www.gnu.org/licenses/>.
 //
-// [MODIFIED v2026.10.8 | 2026-10-08] Purpose: the header names the
-//   category, not "Search Results".
+// [FIXED v2026.10.22 | 2026-10-22] Purpose: a key missing from
+//   translations.csv shows its English default instead of the key itself.
 //
-//   A drill-down borrows the search mode, so the title chain claimed it as
-//   a search. It now prefers the marker on the DATA - attrs.category_view -
-//   which keeps the back arrow and the Home button behaving exactly as they
-//   do for a search, because the mode really is the search mode.
-// [ADDED v2026.10.7 | 2026-10-07] Purpose: mountOverlay - a full-screen
-//   overlay belongs INSIDE #app.
-//
-//   setTheme puts .light-mode on #app and the light values are declared on
-//   that class, so every overlay appended to the shadow root directly kept the
-//   dark variables for ever: choosing Light turned the panel light and left
-//   the box sheet, the categories window, the chat overlay and the locations
-//   wizard dark behind it.
-//
-//   The wizard also showed the second half of the same fault - `color` is
-//   declared on .app-container, so an overlay outside it inherits no text
-//   colour and every label was drawn in the browser default black on a dark
-//   background. One helper rather than the same line in five files (RULE 33d).
+//   _t() took t()'s answer for a missing key - the key with underscores
+//   turned into spaces - for a translation, so the whole HO_Mind_AI guide
+//   read "ext app title", "ext app save btn", "ext app download btn" in
+//   every language (seen in the setup video). _t() now checks that the key
+//   has a row before asking t(). A user-made category, sub-category, unit or
+//   zone with no row is shown by the name the user gave it - the default
+//   those calls pass - instead of that name with underscores turned to
+//   spaces.
+// [MODIFIED v2026.10.21 | 2026-10-21] Purpose: the HO_Mind_AI guide's Device
+//   ID step points at the app's phone dropdown and Load household
+//   instead of copying 32 characters out of a desktop address bar - the
+//   app now reads the phones from GET /api/home_organizer/phones. The
+//   hint is the second key of this guide in translations.csv.
 
-import { ICONS } from './organizer-icon.js?v=10.11.120';
-import { escapeHtml } from './organizer-utils.js?v=10.11.120';
+import { ICONS } from './organizer-icon.js?v=10.11.122';
+import { escapeHtml } from './organizer-utils.js?v=10.11.122';
 
 const UPLOAD_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>';
 const MENU_SVG   = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z"/></svg>';
@@ -43,6 +39,14 @@ const SHARE_SVG  = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="2
 export const UIMixin = (Base) => class extends Base {
 
   _t(key, defaultText) {
+    // [FIXED v2026.10.22] A key with no row in translations.csv shows the
+    // English default it was given. t() answers a missing key with the key
+    // itself made readable ("ext_app_save_btn" -> "ext app save btn"), which
+    // is not equal to the key, so the test below took it for a translation:
+    // the HO_Mind_AI guide showed "ext app title", "ext app save btn" and the
+    // like in every language. Without a default the old behaviour stands.
+    const known = !!(this.translations && this.translations[key]);
+    if (!known && defaultText !== undefined && defaultText !== null) return defaultText;
     let res = this.t(key);
     if (typeof res === 'string') {
         res = res.replace(/^"|"$/g, '').trim();
@@ -485,8 +489,8 @@ export const UIMixin = (Base) => class extends Base {
                     <div style="text-align:center; color:#03a9f4; font-size:20px; font-weight:bold; margin-bottom:20px;" id="lbl-ext-settings-title">HO Settings</div>
                     
                     <div style="margin-bottom:15px;">
-                        <div class="mockup-input">http://192.168.31.111:8123</div>
-                        <div class="mockup-hint" id="lbl-ext-url-hint">☝️ <b>URL:</b> Enter the exact internal IP of your home server.<br>For example:<br><span dir="ltr">http://192.168.1.100:8123</span></div>
+                        <div class="mockup-input">http://192.168.1.100:8123</div>
+                        <div class="mockup-hint" id="lbl-ext-url-hint">☝️ <b>URL:</b> Your Home Assistant address, exactly as you open it in the browser.<br>At home:<br><span dir="ltr">http://192.168.1.100:8123</span><br>From anywhere, with a valid certificate:<br><span dir="ltr">https://yourname.duckdns.org:8123</span><br>A self-signed certificate is not accepted.</div>
                     </div>
 
                     <div style="margin-bottom:20px;">
@@ -496,7 +500,7 @@ export const UIMixin = (Base) => class extends Base {
 
                     <div class="mockup-label" id="lbl-ext-device">HA Notify Device ID:</div>
                     <div class="mockup-input" style="margin-bottom:4px; overflow-wrap:break-word; text-align:left;">adbb9e6436d8e5c273ebb69</div>
-                    <div class="mockup-hint" id="lbl-ext-device-hint">☝️ <b>Device ID:</b><br>Careful, this is NOT the phone's name!<br>In Home Assistant go to:<br><b>Settings ➔ Devices</b><br>Find your phone under Mobile App.<br>Look at the web browser's address bar (at the top),<br>and copy the long string of letters and numbers at the very end of the URL.</div>
+                    <div class="mockup-hint" id="lbl-ext-device-hint">☝️ <b>Device ID:</b><br>Tap the phone field and pick your phone from the list.<br>Tap <b>Load household</b> to add everyone’s phones,<br>so a reminder can reach them too.<br>Each phone needs the Home Assistant app.<br>Older Home Organizer? Settings ➔ Devices ➔ your phone,<br>and copy the end of the page address.</div>
 
                     <div style="background:rgba(37, 211, 102, 0.15); border-inline-start:4px solid #25D366; padding:15px; border-radius:6px; margin-bottom:25px; font-size:14px; color:var(--text-main); box-shadow: 0 2px 5px rgba(0,0,0,0.2); line-height:1.6;" id="lbl-ext-whatsapp">
                         💡 <b>Pro Tip:</b><br>The easiest way is to generate the Token and ID on your PC,<br>send them to yourself via <b>WhatsApp</b>,<br>and then simply copy and paste them on your phone!
@@ -737,12 +741,12 @@ export const UIMixin = (Base) => class extends Base {
     set('lbl-ext-guide-title',  'ext_app_guide_title', '🚀 Setup Guide (Easy enough for a 12-year-old!)');
     set('lbl-ext-guide-intro',  'ext_app_guide_intro', 'To access the settings in the Android app:<br>Click the camera button (📸) on the main chat screen.<br>Then click the gear icon (⚙️).<br><b>This is exactly what you will see there, and what to fill out:</b>');
     set('lbl-ext-settings-title','ext_app_settings_title', 'HO Settings');
-    set('lbl-ext-url-hint',     'ext_app_url_hint', '☝️ <b>URL:</b> Enter the exact internal IP of your home server.<br>For example:<br><span dir="ltr">http://192.168.1.100:8123</span>');
+    set('lbl-ext-url-hint',     'ext_app_url_hint', '☝️ <b>URL:</b> Your Home Assistant address, exactly as you open it in the browser.<br>At home:<br><span dir="ltr">http://192.168.1.100:8123</span><br>From anywhere, with a valid certificate:<br><span dir="ltr">https://yourname.duckdns.org:8123</span><br>A self-signed certificate is not accepted.');
     set('lbl-ext-token-hint',   'ext_app_token_hint', '☝️ <b>Security Token:</b><br>In Home Assistant, click your profile (bottom corner).<br>Select the tab:<br><b>Security</b><br>Scroll down until you find:<br><b>Long-Lived Access Tokens</b><br>Generate a new token and paste it here.');
     set('lbl-ext-agent',        'ext_app_agent_id_label', 'Conversation Agent ID:');
     set('lbl-ext-agent-hint',   'ext_app_agent_id_hint', '☝️ <b>Agent:</b><br>This is the default value - no need to touch or change it!');
     set('lbl-ext-device',       'ext_app_device_id_label', 'HA Notify Device ID:');
-    set('lbl-ext-device-hint',  'ext_app_device_id_hint', '☝️ <b>Device ID:</b><br>Careful, this is NOT the phone\'s name!<br>In Home Assistant go to:<br><b>Settings ➔ Devices</b><br>Find your phone under Mobile App.<br>Look at the web browser\'s address bar (at the top),<br>and copy the long string of letters and numbers at the very end of the URL.');
+    set('lbl-ext-device-hint',  'ext_app_device_id_hint', '☝️ <b>Device ID:</b><br>Tap the phone field and pick your phone from the list.<br>Tap <b>Load household</b> to add everyone’s phones,<br>so a reminder can reach them too.<br>Each phone needs the Home Assistant app.<br>Older Home Organizer? Settings ➔ Devices ➔ your phone,<br>and copy the end of the page address.');
     set('lbl-ext-whatsapp',     'ext_app_whatsapp_tip', '💡 <b>Pro Tip:</b><br>The easiest way is to generate the Token and ID on your PC,<br>send them to yourself via <b>WhatsApp</b>,<br>and then simply copy and paste them on your phone!');
     set('lbl-ext-mic',          'ext_app_mic_source_label', 'Microphone Source:');
     set('lbl-ext-mic-bt',       'ext_app_mic_bt_label', 'Use Bluetooth/External Mic');

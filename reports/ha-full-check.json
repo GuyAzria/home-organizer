@@ -2,11 +2,11 @@
   "domain": "home_organizer",
   "stats": {
     "domain": "home_organizer",
-    "python_files": 35,
+    "python_files": 37,
     "javascript_files": 24,
-    "python_lines": 23849,
+    "python_lines": 25867,
     "integration_path": "custom_components\\home_organizer",
-    "project_functions_indexed": 445
+    "project_functions_indexed": 496
   },
   "checks": [
     {
@@ -27,7 +27,7 @@
     {
       "check": "Python AST parse",
       "status": "PASS",
-      "detail": "35 files parsed"
+      "detail": "37 files parsed"
     },
     {
       "check": "Python compileall",

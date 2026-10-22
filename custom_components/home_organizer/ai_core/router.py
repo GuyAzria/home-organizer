@@ -12,6 +12,13 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
+# // [MODIFIED v2026.10.21 | 2026-10-21] Purpose: the cloud model used when
+# // the model field is left empty is gemini-3.5-flash-lite instead of
+# // gemini-3.5-flash. The v10.0.0 entry below is kept on purpose although it
+# // is the third: it records why the key travels in a header (RULE 28).
+# // [MODIFIED v2026.10.18 | 2026-10-18] Purpose: the cloud model used when
+# // the model field is left empty is now gemini-3.5-flash, replacing
+# // gemini-3.1-flash-lite-preview. See cloud_model in async_smart_router.
 # // [MODIFIED v10.0.0 | 2026-08-23] Purpose: SECURITY HARDENING (HACS review).
 # // The Gemini API key no longer travels in the request URL; it is sent in
 # // the x-goog-api-key header instead. In addition every error string that
@@ -20,10 +27,6 @@
 # // home-assistant.log: the string is returned up the stack and rendered to
 # // the user inside the chat panel via smarthome_engine_error, so the key
 # // could appear on screen as well.
-# // [v9.0.0 | 2026-04-13] Purpose: Provider-level AI router. Talks to Gemini,
-# // OpenAI/Local, and Claude. Implements Local/Cloud/Hybrid selection logic
-# // and the safe-wrapper that falls back to local AI when the cloud fails in
-# // hybrid mode. Extracted from the old ai_logic.py with ZERO behavior changes.
 
 import asyncio
 import logging
@@ -279,10 +282,11 @@ async def async_smart_router(hass, entry: ConfigEntry, prompt: str,
         or "Gemini"
     )
     cloud_key = entry.options.get("api_key") or entry.data.get("api_key") or ""
+    # [MODIFIED v2026.10.21] The model used when the field is left empty.
     cloud_model = (
         entry.options.get("cloud_model")
         or entry.data.get("cloud_model")
-        or "gemini-3.1-flash-lite-preview"
+        or "gemini-3.5-flash-lite"
     )
     custom_cloud_url = (
         entry.options.get("custom_cloud_url")

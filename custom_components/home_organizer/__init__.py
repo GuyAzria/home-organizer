@@ -12,6 +12,10 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
+# [ADDED v2026.10.21 | 2026-10-21] Purpose: GET /api/home_organizer/phones
+#   for HO_Mind_AI - the household's companion-app phones with their owners,
+#   so the app fills in a phone's device id with one tap instead of the user
+#   copying it out of a desktop browser's address bar. See phones.py.
 # [FIXED v2026.10.13 | 2026-10-13] Purpose: choosing /media at setup puts
 #   ALL of the user's data in /media, not only the items.
 #
@@ -54,37 +58,11 @@
 #   starts empty, or carries on with the Home Organizer data already there.
 #   And the network folder is for www too now, the files in one folder of
 #   their own on it: <share>/home_organizer/images and .../receipts.
-# [FIXED v2026.10.11 | 2026-10-11] Purpose: no "Removing unknown panel"
-#   warning on every start - and the v2026.10.10 changes, recorded late.
-#
-#   Setup removes the panel before registering it, so a reload cannot leave
-#   the sidebar pinned to an old build. On a fresh start there is nothing to
-#   remove, and the comment there said that case RAISES and is caught. It
-#   does not: async_remove_panel logs "Removing unknown panel organizer" and
-#   returns. The call now passes warn_if_unknown=False - checked against
-#   Home Assistant's own source, absent in 2024.6.0 and present from 2024.7.0,
-#   which is exactly hacs.json's minimum. st57 runs the real upstream function
-#   and pins that minimum. Unload is deliberately left warning: there the
-#   panel should exist, and finding none means registration never happened.
-#
-#   RECORDED LATE - v2026.10.10 changed this file without an entry:
-#   safe_universal_agent_loop is called with recipe_open (a recipe on screen
-#   owns the question); the recipes websocket gained "versions",
-#   "restore_version" and "delete_version" with version_no / version_label in
-#   its schema; and the "update" action snapshots the recipe before and after
-#   a content edit. The forwarding of recipe_open through the wrapper was
-#   itself missing until v2026.10.11 and broke every chat message - see
-#   ai_core/dispatcher.py and st53.
-#
-#   Same release: the "update" action no longer versions by itself - it
-#   hands its description to async_save, which now takes every version, so
-#   an assistant edit approved through recipe_edits is versioned too. "get"
-#   reports latest_version beside active_version, for the numbered save
-#   button.
 
 import logging
 from homeassistant.components import frontend
 from . import storage
+from .phones import HOPhonesView
 import os
 import time
 import json
@@ -3167,6 +3145,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.http.register_view(HOCameraUploadView(hass))
     # [ADDED v2026.9.24] The companion app scans through this one.
     hass.http.register_view(HOAppScanView(hass))
+    # [ADDED v2026.10.21] And reads the household's phones through this one.
+    hass.http.register_view(HOPhonesView(hass))
 
     hass.data.setdefault(DOMAIN, {})
     

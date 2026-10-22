@@ -1,14 +1,15 @@
 /* Home Organizer CSS - Ver 7.7.33 */
+/* [MODIFIED v2026.10.14 | 2026-10-14] Purpose: the calendar icon of every
+   date field is drawn in the field's own text colour. Chromium paints its
+   built-in icon for a light page, so on the dark theme it was black on the
+   #222 of the fields - 1.3:1, there but unseen. The rule and its reasons
+   are beside input[type="date"]::-webkit-calendar-picker-indicator. */
 /* [MODIFIED v2026.10.2 | 2026-10-02] Purpose: two phone-width fixes on the
    review card. .move-select gets min-width:0, so a long option cannot widen
    the row past the viewport - a select's content-based minimum is its widest
    option and flex:1 cannot shrink below it. And under the existing 450px
    breakpoint .pending-top wraps, so the quantity and price group drops to a
    row of its own and the name input keeps the full width. */
-/* [MODIFIED v2026.9.22 | 2026-09-22] Purpose: .title-box keeps room for
-   the FAB, which now starts in the top bar. Padding on the side the
-   button is anchored to, plus min-width:0 and an ellipsis - without those
-   a long room name ignores the padding and runs under the button. */
 
 :host { 
     --primary: #03a9f4; --accent: #4caf50; --danger: #f44336; --warning: #ffeb3b; --icon-btn-bg: #444;
@@ -78,6 +79,32 @@
    stays put on screen just as a fixed one did. */
 .app-container { position: relative; background: var(--bg-body); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; font-family: sans-serif; }
 svg { width: 24px; height: 24px; fill: currentColor; }
+
+/* [ADDED v2026.10.14] The calendar button of a date field, in the field's
+   own text colour.
+
+   Chromium paints its built-in icon for a light page - black - and the dark
+   theme paints its fields #222, so the icon was there and unseen (1.3:1).
+   A mask keeps the browser's own button, which still opens the picker and
+   still sits where the browser puts it in either direction, and fills it
+   with currentColor. That is right on any theme because it IS the colour of
+   the field's text: there is no dark-mode test to get wrong, and a field
+   left to the browser's own colours - the period dialog's - keeps a black
+   icon on white. One rule for every date field in the panel (RULE 33d).
+
+   The icon is an inline data: URI, not a file and never a remote address
+   (RULE 16), drawn bold - a solid header band and one solid day - because
+   the fields are 12px and thin strokes blur into grey at that size.
+   -webkit-mask first, for webviews older than Chromium 120; where the
+   unprefixed mask is understood it is the same property. A browser that
+   has no such pseudo-element ignores the rule. */
+input[type="date"]::-webkit-calendar-picker-indicator {
+    --ho-calendar: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='2' y='3' width='12' height='11.25' rx='1.5' fill='none' stroke='black' stroke-width='1.5'/%3E%3Cpath d='M2 3h12v3.5H2zM9 9h3v3H9z'/%3E%3Cpath d='M5 1v3.5M11 1v3.5' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+    background: currentColor;
+    -webkit-mask: var(--ho-calendar) center / contain no-repeat content-box;
+    mask: var(--ho-calendar) center / contain no-repeat content-box;
+    cursor: pointer;
+}
 .top-bar { background: var(--bg-bar); padding: 10px; border-bottom: 1px solid var(--border-color); display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-shrink: 0; height: 60px; position: relative; }
 .sub-bar { background: var(--bg-sub-bar); height: 30px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
 .sub-bar-left { display: flex; align-items: center; gap: 10px; }

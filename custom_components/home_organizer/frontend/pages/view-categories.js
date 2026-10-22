@@ -46,8 +46,8 @@
 //   bucket the two-step picker needs - and two copies of that would drift
 //   (RULE 22, RULE 33d).
 
-import { ICONS } from '../organizer-icon.js?v=10.11.120';
-import { escapeHtml, categorySelectOptions } from '../organizer-utils.js?v=10.11.120';
+import { ICONS } from '../organizer-icon.js?v=10.11.122';
+import { escapeHtml, categorySelectOptions } from '../organizer-utils.js?v=10.11.122';
 
 export const CategoriesMixin = (Base) => class extends Base {
 

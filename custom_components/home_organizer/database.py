@@ -12,6 +12,31 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
 # more details. <https://www.gnu.org/licenses/>.
 #
+# // [FIXED v2026.10.14 | 2026-10-14] Purpose: a receipt with no date on it
+# // was in no period of the receipts tab.
+# //
+# // async_list_receipts compared purchase_date with the period, and NULL
+# // compares as unknown - so a receipt the scanner found no date on (an
+# // order e-mail, a screenshot) matched "this year", "this month" and every
+# // other preset never, while its shop still appeared in the store filter,
+# // which is unfiltered by design. It is placed by the day it was SCANNED
+# // now, flagged date_missing with scanned_on beside it for the panel, and
+# // ordered by that same day. "Undated" means what the dashboard's count
+# // means: NULL, or shorter than a month. Dated receipts keep their indexed
+# // range.
+# //
+# // And async_update_receipt_date fills the purchase-history rows of that
+# // receipt which have no date yet - never one that has. A date set after
+# // approval reaches the charts, which read the receipt, and now also the
+# // product's price history, which keeps its own copy.
+# //
+# // Same day, later: the scan day is Home Assistant's local day. created_at
+# // is SQLite's CURRENT_TIMESTAMP, which is UTC, so date(created_at) named
+# // the day before for a scan made between local midnight and UTC midnight
+# // - in Israel, until 02:00 or 03:00. It matters now that the panel offers
+# // that day as the receipt's date, to be confirmed with one tap.
+# // _scan_day converts it with dt_util; registered on the connection as
+# // ho_scan_day, it is what the period, the label and the order all use.
 # // [FIXED v2026.10.13 | 2026-10-13] Purpose: a receipt kept in /media has
 # // an address. _path_to_browser_url knew only /config/www, so once the
 # // receipts follow the storage choice a receipt in /media would have had
@@ -27,52 +52,6 @@
 # // async_store_receipt_file passes receipts_mount, and
 # // async_move_receipt_files moves the existing ones - each file copied, its
 # // row re-pointed only onto a copy of the same size, nothing deleted.
-# // [FIXED v2026.10.8 | 2026-10-08] Purpose: the spending breakdown kept
-# // the old category names.
-# //
-# // async_get_dashboard_data sums `ph.category` from purchase_history for
-# // the item rows of "Where the money went". async_rename_category and
-# // async_delete_category both updated `items` and db_items_categories and
-# // neither ever touched purchase_history, so every past purchase went on
-# // pointing at a label that had been renamed away or deleted and the chart
-# // redrew it for ever. The refresh path was never at fault: both handlers
-# // already broadcast, the panel already drops its cached copy, and the view
-# // already re-fetches - it was re-fetching the same stale names.
-# //
-# // Measured by replaying a rename on a real database through the real
-# // functions: 121 of 121 history rows follow Food -> Groceries, with the
-# // 290 items, and nothing is created or deleted. Before the fix nothing
-# // wrote that column outside the one-time v2026.9.22 migration, so the
-# // answer was always zero.
-# //
-# // NOT evidence of this defect, though it looks like it: that database
-# // also holds 15 history rows naming nine categories which are not in
-# // db_items_categories - but `items` carries the same nine names on the
-# // same 15 products, so nothing was ever renamed away from them. The
-# // receipt scanner wrote a category it had not added to the list, into
-# // both tables at once. A separate problem with a separate cause, and one
-# // this change neither causes nor repairs.
-# //
-# // _repoint_purchase_history is ONE helper called from both, so the two
-# // cannot drift (RULE 33d). It runs BEFORE the `items` UPDATE in each,
-# // because purchase_history has no sub_category column and the
-# // sub-category case can only find its rows through the item they came
-# // from - which must still carry the old category when it looks. The link
-# // is receipt_id + name, the same link the v2026.9.22 backfill uses, not a
-# // second copy of _build_product_key (RULE 33a.6).
-# //
-# // THE THIRD WAY an item's category can change is the item editor, and
-# // async_repoint_item_history covers it. It matters more than it sounds:
-# // an item filed under a name that is NOT in the category list cannot be
-# // reached by a rename or a delete at all, because the Categories screen
-# // has no row for a name it does not hold - so editing the item is the
-# // only route, and it used to leave the chart exactly as it was. Scope is
-# // one item, matched on receipt_id + name, guarded on the old category.
-# //
-# // This is NOT a rewrite of history. Product, price, quantity, date,
-# // vendor and currency are untouched; `category` is a POINTER at a row in
-# // db_items_categories, a list the user edits, and a pointer whose target
-# // moved has to move with it. No history row is created or deleted.
 
 import json
 import logging
@@ -84,7 +63,7 @@ import base64
 from . import storage
 import re
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import homeassistant.util.dt as dt_util
 
 from .const import (
@@ -2219,8 +2198,7 @@ async def async_get_dashboard_data(hass, year=None, expiry_days=30,
                 "SELECT COUNT(*) FROM receipts "
                 "WHERE COALESCE(status, 'draft') != 'superseded' "
                 "  AND total_amount IS NOT NULL "
-                "  AND (purchase_date IS NULL "
-                "       OR length(TRIM(COALESCE(purchase_date, ''))) < 7)"
+                f"  AND {_UNDATED_SQL}"
             ) as cur:
                 out["undated"] = (await cur.fetchone())[0]
 
@@ -2784,6 +2762,37 @@ async def async_delete_draft_scan(hass, receipt_id):
         return None
 
 
+# [ADDED v2026.10.14] What "no date" means for a receipt, in one place: no
+# purchase date, or one too short to name even a month. The dashboard's
+# count of undated receipts uses the same test.
+_UNDATED_SQL = "length(TRIM(COALESCE(purchase_date, ''))) < 7"
+
+
+# [ADDED v2026.10.14] The day a receipt was scanned on, as the user lived it.
+#
+# created_at is SQLite's CURRENT_TIMESTAMP, which is UTC: a scan at 01:00 in
+# Tel Aviv is stored as 22:00 the day before, so date(created_at) named the
+# wrong day. That day places an undated receipt in a period and is offered
+# as its date, so it is converted to Home Assistant's own time zone, the one
+# dt_util.now() uses for "today" everywhere else in this module.
+#
+# It never raises. SQLite turns an exception in a function into an error for
+# the whole statement, and the list would have come back empty because of a
+# single malformed timestamp; such a value falls back to its first ten
+# characters instead - for SQLite's own format, the UTC date as before.
+def _scan_day(stamp):
+    if not stamp:
+        return None
+    text = str(stamp).strip()
+    try:
+        when = datetime.fromisoformat(text)
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=timezone.utc)
+        return dt_util.as_local(when).date().isoformat()
+    except Exception:
+        return text[:10] or None
+
+
 async def async_list_receipts(hass, vendor=None, date_from=None, date_to=None,
                              limit=200):
     """Receipts for the management table, newest first.
@@ -2798,6 +2807,13 @@ async def async_list_receipts(hass, vendor=None, date_from=None, date_to=None,
 
     Only whole SQL fragments are conditionally appended; every value the
     caller supplies travels as a bound parameter.
+
+    [FIXED v2026.10.14] A receipt with no date on it is placed by the day it
+    was scanned - the local day, in Home Assistant's time zone (_scan_day).
+    It used to match no period at all - NULL compares as unknown - and so it
+    vanished from every preset of the tab while its shop stayed in the store
+    filter. Each row says which it is: date_missing, and scanned_on, the day
+    it was scanned.
     """
     clauses = []
     params = []
@@ -2811,19 +2827,34 @@ async def async_list_receipts(hass, vendor=None, date_from=None, date_to=None,
     # instead of being pushed into the query, so a bad filter shows everything
     # rather than silently showing nothing.
     date_from = _coerce_date(date_from)
-    if date_from:
-        clauses.append("purchase_date >= ?")
-        params.append(date_from)
     date_to = _coerce_date(date_to)
+    dated, undated, dated_params, undated_params = [], [], [], []
+    if date_from:
+        dated.append("purchase_date >= ?")
+        dated_params.append(date_from)
+        undated.append("ho_scan_day(created_at) >= ?")
+        undated_params.append(date_from)
     if date_to:
-        clauses.append("purchase_date <= ?")
-        params.append(date_to)
+        dated.append("purchase_date <= ?")
+        dated_params.append(date_to)
+        undated.append("ho_scan_day(created_at) <= ?")
+        undated_params.append(date_to)
+    if dated:
+        # The dated half keeps the purchase_date index; only the undated
+        # receipts, which are few, are placed by the day they were scanned.
+        clauses.append(
+            "((" + " AND ".join(dated) + ") OR ("
+            + _UNDATED_SQL + " AND " + " AND ".join(undated) + "))")
+        params.extend(dated_params + undated_params)
 
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     try:
         db_path = get_db_path(hass)
         async with aiosqlite.connect(db_path, timeout=10.0) as db:
             db.row_factory = aiosqlite.Row
+            # The scan day of the filter, of scanned_on and of the order. A
+            # function belongs to one connection, so it is registered here.
+            await db.create_function("ho_scan_day", 1, _scan_day)
 
             # The item count comes from a correlated subquery rather than the
             # stored item_count column: items can be rejected after the scan,
@@ -2832,9 +2863,12 @@ async def async_list_receipts(hass, vendor=None, date_from=None, date_to=None,
             async with db.execute(
                 f"SELECT r.*, "
                 f"(SELECT COUNT(*) FROM items i WHERE i.receipt_id = r.id) "
-                f"AS linked_items "
+                f"AS linked_items, "
+                f"{_UNDATED_SQL} AS date_missing, "
+                f"ho_scan_day(r.created_at) AS scanned_on "
                 f"FROM receipts r {where} "
-                f"ORDER BY COALESCE(r.purchase_date, '') DESC, r.id DESC "
+                f"ORDER BY CASE WHEN {_UNDATED_SQL} THEN ho_scan_day(r.created_at) "
+                f"ELSE r.purchase_date END DESC, r.id DESC "
                 f"LIMIT ?",
                 (*params, int(limit)),
             ) as cur:
@@ -4168,6 +4202,17 @@ async def async_update_receipt_date(hass, receipt_id, purchase_date):
         async with aiosqlite.connect(db_path, timeout=10.0) as db:
             await db.execute(
                 "UPDATE receipts SET purchase_date = ? WHERE id = ?",
+                (stamp, receipt_id),
+            )
+            # [FIXED v2026.10.14] The purchase history of this receipt, where
+            # it has no date yet. A receipt dated after approval - possible
+            # since an undated one can be dated on its row in the receipts
+            # tab - otherwise reached the charts, which read the receipt,
+            # and not the product's price history, which keeps its own copy.
+            # A row that already has a date is never touched.
+            await db.execute(
+                "UPDATE purchase_history SET purchase_date = ? "
+                f"WHERE receipt_id = ? AND {_UNDATED_SQL}",
                 (stamp, receipt_id),
             )
             await db.commit()
