@@ -84,7 +84,11 @@ python3 -m ruff check custom_components/home_organizer --select=E9,F,B --ignore=
 python3 -m compileall -q custom_components/home_organizer
 
 # 5. the project gate - must end BLOCKER 0, ERROR 0, HOT_WARN 0
-python3 tools/ha_full_check.py --root .
+#    compileall (step 4) has just written __pycache__ inside the integration,
+#    which the gate reports as a shipped development artifact (ERROR) - clear
+#    it first. --json keeps reports/ha-full-check.json from going stale.
+find . -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null
+python3 tools/ha_full_check.py --root . --json reports/ha-full-check.json
 ```
 
 For a release, also run the gate with the tag set, so the manifest version and

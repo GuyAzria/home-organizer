@@ -2,9 +2,37 @@
 """
 HA Full Integration Checker
 ============================
-Version: 1.0.5
+Version: 1.0.6
 
 Single-file static gate for a Home Assistant custom integration.
+
+What changed in 1.0.6, and why
+------------------------------
+Measured on LIBI: 14 call-arity ERRORs and 4 HTML-sink BLOCKERs, none real,
+while 17 real unescaped values per panel copy went unreported.
+
+* check_cross_file_calls counted only positional arguments, so
+  f(a, b, flag=True) for def f(a, b, flag) was "one argument short". It now
+  counts a positional parameter passed by keyword. It also indexed methods,
+  so the builtin next(it) was matched to an unrelated `def next(self)`; a
+  bare-name call can only reach a function or a class, so methods are no
+  longer indexed.
+
+* check_frontend matched an `innerHTML = <template>` assignment with a regex
+  that stopped at the first backtick of a NESTED template - a
+  `.map(x => <li>${x}</li>)` template inside the outer one was never inspected. With tree_sitter_javascript
+  installed it now walks a real parse: every template literal that builds
+  markup is a sink, and an identifier is judged by its declaration
+  (`const title = 'Action'` is safe) rather than by its name. Without
+  tree_sitter it falls back to the 1.0.5 regex scan and says so (WARN).
+
+* check_tests now also accepts a flat tests/ folder, the layout of the
+  pytest-homeassistant-custom-component template.
+
+* The tag/manifest check ran on every GitHub run, because GitHub sets
+  GITHUB_REF_NAME on branch pushes too ("main"), and reported a BLOCKER for
+  "main" != the manifest version. It now runs only when GITHUB_REF_TYPE is
+  "tag", or when GITHUB_REF_NAME is set by hand with no type.
 
 What changed in 1.0.5, and why
 ------------------------------
@@ -101,9 +129,13 @@ TLS_OFF = re.compile(r"(?:verify\s*=\s*False|check_hostname\s*=\s*False|CERT_NON
 # Values originating from the user, the database, a scan or the model.
 UNTRUSTED_EXPR = re.compile(
     r"^\s*(?:item|msg|folder|zone|entry|match|suggestion|result|palette|art"
-    r"|profile|row|record|e|err)\s*[\.\[]"
+    r"|profile|row|record|e|err"
+    # LIBI: a ladder element, a net, an automation, a project, a state object
+    r"|el|net|auto|automation|a|p|state|stateObj|attrs|attributes|raw|res)"
+    r"\s*(?:\??\.(?!(?:id|x|y|w|h|length)\b)|\[)"
     r"|^\s*(?:cleanSubName|translatedZone|translatedSub|subName|zoneName"
-    r"|label|title|name|barcode|qty|q|value|text|content|query)\s*$")
+    r"|label|title|name|barcode|qty|q|value|text|content|query"
+    r"|full|source|service|alias|entity|entityId|description|desc)\s*$")
 
 # Values that are ours: shipped SVG constants, our own translation strings
 # (which legitimately contain markup for right-to-left layout), and helper
@@ -271,7 +303,11 @@ def check_manifest(repo, comp, domain, rep: Report):
         else:
             rep.mark("HA version floor declared", PASS, str(floor))
 
+    # GitHub sets GITHUB_REF_NAME on every run - "main" on a branch push - so it is a tag only when
+    # GITHUB_REF_TYPE says so. Run by hand, GITHUB_REF_NAME=v... without a type is a tag check.
     tag = os.environ.get("GITHUB_REF_NAME", "")
+    if os.environ.get("GITHUB_REF_TYPE", "tag") != "tag":
+        tag = ""
     if tag and tag.lstrip("v") != str(man.get("version", "")):
         rep.add(BLOCKER, cat,
                 f"Git tag '{tag}' != manifest version '{man.get('version')}'.",
@@ -340,6 +376,12 @@ def check_shipped_content(comp: Path, rep: Report):
 # ---------------------------------------------------------------------------
 
 def build_ast_index(files: Iterable[Path]):
+    """Every function and class a bare-name call can reach.
+
+    Methods are left out on purpose: `next(it)` cannot call a method named
+    `next` defined on some class, so indexing methods matched builtins and
+    plain functions to unrelated methods and reported false arity errors.
+    """
     index = defaultdict(list)
     trees = {}
     for f in files:
@@ -348,8 +390,12 @@ def build_ast_index(files: Iterable[Path]):
         except SyntaxError:
             continue
         trees[f] = tree
+        methods = {id(item) for n in ast.walk(tree) if isinstance(n, ast.ClassDef)
+                   for item in n.body
+                   if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))}
         for n in ast.walk(tree):
-            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) \
+                    and id(n) not in methods:
                 index[n.name].append((f, n))
     return index, trees
 
@@ -425,12 +471,25 @@ def check_cross_file_calls(comp: Path, rep: Report):
             candidates = [d for d in defs[name]
                           if d[0] == f or name not in local_names] or defs[name]
             positional = len(call.args)
-            supplied_kw = len({k.arg for k in call.keywords if k.arg})
+            kw_names = {k.arg for k in call.keywords if k.arg}
             for df, fn in candidates:
                 lo, hi, req_kw, _ = signature(fn)
-                if positional < lo or (hi is not None and positional > hi):
+                # A positional parameter passed by keyword, as in
+                # f(a, b, flag=True) for def f(a, b, flag), still fills its
+                # slot. Counting only call.args reported every such call as
+                # one argument short.
+                resolved = _resolve_callable_node(fn)
+                params = ([p.arg for p in resolved.args.posonlyargs + resolved.args.args]
+                          if resolved is not None else [])
+                if params and params[0] in ("self", "cls"):
+                    params = params[1:]
+                by_kw = sum(1 for p in params[positional:] if p in kw_names)
+                filled = positional + by_kw
+                kwonly = ({p.arg for p in resolved.args.kwonlyargs}
+                          if resolved is not None else set())
+                if filled < lo or (hi is not None and positional > hi):
                     continue
-                if supplied_kw < req_kw:
+                if len(kw_names & kwonly) < req_kw:
                     continue
                 break
             else:
@@ -687,6 +746,126 @@ def check_paths(comp: Path, domain: str, rep: Report):
 # frontend
 # ---------------------------------------------------------------------------
 
+def _js_parser():
+    try:
+        from tree_sitter import Language, Parser
+        import tree_sitter_javascript
+    except ImportError:
+        return None
+    return Parser(Language(tree_sitter_javascript.language()))
+
+
+_HTML_MARKUP = re.compile(rb"<\s*/?\s*[a-zA-Z]")
+_SAFE_CALLEE = re.compile(
+    r"(?:^|\.)(?:_?esc|escapeHtml|_escape|escapeAttr|_?t|join|toFixed|getStyles"
+    r"|Number|parseInt|parseFloat|Math\.\w+|\w*Html|\w*Icon|\w*Svg"
+    r"|_formatDisplayVal|JSON\.stringify)$")
+_SAFE_MEMBER = re.compile(r"^ICONS\.|^MDI\.|\.length$|SVG|Html$|Icon$|Svg$")
+
+
+def _js_html_template_findings(parser, src: str):
+    """Every `${...}` inside an HTML-building template literal whose value is
+    not proven safe AND whose leaf looks like user data.
+
+    Version 1.0.5 matched `innerHTML = \\`...\\`` with a regex. A template nested
+    inside another (a `.map(x => \\`<option>${x}</option>\\`)` inside the outer
+    template) ended the regex at the first inner backtick, so the unescaped
+    value inside was never seen, while a local `const title = 'Action'` was
+    reported because its NAME looked untrusted. This walks a real parse: every
+    template literal that contains markup is a sink, nested ones included, and
+    an identifier is judged by its declaration rather than by its name.
+    """
+    data = src.encode("utf-8")
+    tree = parser.parse(data)
+
+    def text(node):
+        return data[node.start_byte:node.end_byte].decode("utf-8", "replace")
+
+    def declaration(ident):
+        node, name = ident.parent, text(ident)
+        while node is not None:
+            best = None
+            for child in node.children:
+                if child.start_byte >= ident.start_byte:
+                    break
+                if child.type in ("lexical_declaration", "variable_declaration"):
+                    for decl in child.named_children:
+                        if decl.type != "variable_declarator":
+                            continue
+                        n = decl.child_by_field_name("name")
+                        v = decl.child_by_field_name("value")
+                        if n is not None and v is not None and text(n) == name:
+                            best = v
+            if best is not None:
+                return best
+            if node.type in ("function_declaration", "method_definition", "program"):
+                return None
+            node = node.parent
+        return None
+
+    def unsafe_leaves(node, depth=0):
+        """Leaves of the expression that cannot be proven to be our markup."""
+        if node is None or depth > 5:
+            return [node] if node is not None else []
+        t = node.type
+        if t in ("string", "number", "true", "false", "null", "undefined",
+                 "unary_expression"):
+            return []
+        if t == "template_string":
+            # Its own substitutions are visited as a sink of their own when it
+            # contains markup; without markup it is plain text built from them.
+            out = []
+            for sub in node.named_children:
+                if sub.type == "template_substitution" and sub.named_children:
+                    out += unsafe_leaves(sub.named_children[0], depth + 1)
+            return [] if _HTML_MARKUP.search(data[node.start_byte:node.end_byte]) else out
+        if t == "parenthesized_expression":
+            return [x for c in node.named_children for x in unsafe_leaves(c, depth)]
+        if t == "ternary_expression":
+            return (unsafe_leaves(node.child_by_field_name("consequence"), depth)
+                    + unsafe_leaves(node.child_by_field_name("alternative"), depth))
+        if t == "binary_expression":
+            op = node.child_by_field_name("operator")
+            op = text(op) if op is not None else ""
+            if op in ("===", "!==", "==", "!=", "<", ">", "<=", ">=", "instanceof",
+                      "in", "-", "*", "/", "%", "**"):
+                return []  # a boolean or a number
+            return (unsafe_leaves(node.child_by_field_name("left"), depth)
+                    + unsafe_leaves(node.child_by_field_name("right"), depth))
+        if t == "call_expression":
+            callee = text(node.child_by_field_name("function"))
+            if _SAFE_CALLEE.search(callee) or TRUSTED_EXPR.search(callee):
+                return []
+            return [node]
+        if t in ("member_expression", "subscript_expression"):
+            whole = text(node)
+            return [] if (_SAFE_MEMBER.search(whole) or TRUSTED_EXPR.search(whole)) else [node]
+        if t == "identifier":
+            value = declaration(node)
+            if value is None:
+                return [node]
+            return [node] if unsafe_leaves(value, depth + 1) else []
+        return [node]
+
+    out = set()
+    stack = [tree.root_node]
+    while stack:
+        node = stack.pop()
+        stack.extend(node.children)
+        if node.type != "template_string" or not _HTML_MARKUP.search(
+                data[node.start_byte:node.end_byte]):
+            continue
+        for sub in node.named_children:
+            if sub.type != "template_substitution" or not sub.named_children:
+                continue
+            expr = sub.named_children[0]
+            for leaf in unsafe_leaves(expr):
+                if UNTRUSTED_EXPR.search(text(leaf)):
+                    out.add((expr.start_point[0] + 1, text(expr).replace("\n", " ")))
+                    break
+    return sorted(out)
+
+
 def check_frontend(comp: Path, rep: Report):
     """Report untrusted data reaching an HTML sink, not every HTML sink."""
     cat = "Frontend security / JS"
@@ -709,11 +888,29 @@ def check_frontend(comp: Path, rep: Report):
                     return True
         return False
 
+    parser = _js_parser()
+    if parser is None:
+        rep.add(WARN, cat, "tree_sitter_javascript is not installed; the HTML template "
+                "scan fell back to the regex scan, which misses nested templates.",
+                "", "pip install tree-sitter tree-sitter-javascript")
+
     for f in files:
         src = read(f)
 
-        for m in re.finditer(
-                r"(?:innerHTML|outerHTML)\s*\+?=\s*`((?:[^`\\]|\\.)*)`", src, re.S):
+        if parser is not None:
+            for line, expr in _js_html_template_findings(parser, src):
+                if suppressed(src, line):
+                    continue
+                problems += 1
+                rep.add(BLOCKER, cat,
+                        f"Unescaped `{expr[:60]}` reaches an HTML sink.",
+                        f"{rel(f, rep.repo)}:{line}",
+                        "Wrap in escapeHtml(). Inside an onclick attribute use "
+                        "escapeHtml(this.escapeJSArg(x)) in that order, because "
+                        "the browser decodes the attribute before running the JS.")
+
+        for m in (() if parser is not None else re.finditer(
+                r"(?:innerHTML|outerHTML)\s*\+?=\s*`((?:[^`\\]|\\.)*)`", src, re.S)):
             line = src[: m.start()].count("\n") + 1
             for i in re.finditer(r"\$\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}", m.group(1)):
                 expr = i.group(1).strip()
@@ -927,8 +1124,10 @@ def check_ha_best_practices(comp: Path, man: dict, rep: Report):
 
 def check_tests(repo: Path, domain: str, rep: Report):
     cat = "Runtime tests"
+    # A custom integration's repository holds one integration, so the template of
+    # pytest-homeassistant-custom-component keeps its tests flat in tests/.
     candidates = [repo / "tests" / "components" / domain,
-                  repo / "tests" / domain, repo / "test" / domain]
+                  repo / "tests" / domain, repo / "test" / domain, repo / "tests"]
     test_dir = next((p for p in candidates if p.is_dir()), None)
     if not test_dir:
         rep.add(WARN, cat, f"No pytest directory found for '{domain}'.", "tests",
